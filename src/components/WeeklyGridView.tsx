@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Lock, History } from 'lucide-react';
 import { TimeEntry, Customer, Project, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -246,6 +246,41 @@ export const WeeklyGridView = ({
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [entries, todayISOLive]);
 
+  // Map of rowKey -> array of distinct prior descriptions (most recent first).
+  // Used both for the explicit "Vorlage übernehmen" dropdown and the native
+  // <datalist> autocomplete on the description input.
+  const descriptionSuggestionsByRow = useMemo(() => {
+    const map = new Map<string, { description: string; lastUsed: string }[]>();
+    const sorted = [...entries].sort((a, b) => b.startTime.localeCompare(a.startTime));
+    for (const e of sorted) {
+      const desc = e.description?.trim();
+      if (!desc) continue;
+      const key = rowKeyFor(e.projectId, e.activityId);
+      const list = map.get(key) ?? [];
+      if (!list.some(item => item.description === desc)) {
+        list.push({ description: desc, lastUsed: e.startTime });
+      }
+      map.set(key, list);
+    }
+    return map;
+  }, [entries]);
+
+  const [openTemplatePicker, setOpenTemplatePicker] = useState<string | null>(null);
+  const descInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  // Close template picker on outside click
+  useEffect(() => {
+    if (!openTemplatePicker) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest('[data-template-picker]')) {
+        setOpenTemplatePicker(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openTemplatePicker]);
+
   const handleDescriptionBlur = async (entry: TimeEntry, raw: string) => {
     const trimmed = raw.trim();
     if (trimmed === (entry.description ?? '').trim()) return;
@@ -253,6 +288,19 @@ export const WeeklyGridView = ({
       await onEditEntry(entry.id, { description: trimmed });
     } catch (err) {
       console.error('[WeeklyGrid] description update failed', err);
+      showToast('Beschreibung speichern fehlgeschlagen', 'error');
+    }
+  };
+
+  const handlePickTemplate = async (entry: TimeEntry, newDescription: string) => {
+    const input = descInputRefs.current.get(entry.id);
+    if (input) input.value = newDescription;
+    setOpenTemplatePicker(null);
+    if (newDescription === (entry.description ?? '').trim()) return;
+    try {
+      await onEditEntry(entry.id, { description: newDescription });
+    } catch (err) {
+      console.error('[WeeklyGrid] template apply failed', err);
       showToast('Beschreibung speichern fehlgeschlagen', 'error');
     }
   };
@@ -518,6 +566,12 @@ export const WeeklyGridView = ({
               const project = projectById.get(entry.projectId);
               const customer = project ? customerById.get(project.customerId) ?? null : null;
               const activity = entry.activityId ? activityById.get(entry.activityId) ?? null : null;
+              const rk = rowKeyFor(entry.projectId, entry.activityId);
+              const suggestions = (descriptionSuggestionsByRow.get(rk) ?? [])
+                .filter(s => s.description !== (entry.description ?? '').trim())
+                .slice(0, 10);
+              const datalistId = `desc-suggestions-${entry.id}`;
+              const isPickerOpen = openTemplatePicker === entry.id;
               return (
                 <div key={entry.id} className="flex items-center gap-3 py-1">
                   {customer && (
@@ -535,14 +589,61 @@ export const WeeklyGridView = ({
                     {formatHoursDecimalAlways(entry.duration)} h
                   </div>
                   <input
+                    ref={(el) => {
+                      if (el) descInputRefs.current.set(entry.id, el);
+                      else descInputRefs.current.delete(entry.id);
+                    }}
                     key={entry.id}
                     type="text"
+                    list={suggestions.length > 0 ? datalistId : undefined}
                     defaultValue={entry.description ?? ''}
                     placeholder="Was hast du gemacht? (Beschreibung)"
                     onBlur={(e) => void handleDescriptionBlur(entry, e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                     className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-50 border border-gray-200 dark:border-dark-border rounded text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
+                  {suggestions.length > 0 && (
+                    <datalist id={datalistId}>
+                      {suggestions.map(s => <option key={s.description} value={s.description} />)}
+                    </datalist>
+                  )}
+                  <div className="relative flex-shrink-0" data-template-picker>
+                    <button
+                      type="button"
+                      onClick={() => setOpenTemplatePicker(isPickerOpen ? null : entry.id)}
+                      disabled={suggestions.length === 0}
+                      title={suggestions.length === 0 ? 'Keine vorherigen Beschreibungen' : 'Vorlage übernehmen'}
+                      className={`p-1.5 rounded transition-colors ${
+                        suggestions.length === 0
+                          ? 'text-gray-300 dark:text-dark-400/40 cursor-not-allowed'
+                          : isPickerOpen
+                            ? 'bg-accent-primary/20 text-accent-primary'
+                            : 'text-gray-500 dark:text-dark-400 hover:bg-accent-primary/10 hover:text-accent-primary'
+                      }`}
+                    >
+                      <History size={16} />
+                    </button>
+                    {isPickerOpen && suggestions.length > 0 && (
+                      <div className="absolute right-0 top-full mt-1 z-30 bg-white dark:bg-dark-50 border border-gray-200 dark:border-dark-border rounded-lg shadow-lg py-1 min-w-[280px] max-w-[400px] max-h-72 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-gray-400 dark:text-dark-400 border-b border-gray-100 dark:border-dark-border">
+                          Vorherige Beschreibungen
+                        </div>
+                        {suggestions.map(s => (
+                          <button
+                            key={s.description}
+                            type="button"
+                            onClick={() => void handlePickTemplate(entry, s.description)}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-dark-500 hover:bg-accent-primary/10 hover:text-accent-primary transition-colors flex items-baseline justify-between gap-2"
+                          >
+                            <span className="truncate flex-1">{s.description}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-dark-400 flex-shrink-0 tabular-nums">
+                              {new Date(s.lastUsed).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
