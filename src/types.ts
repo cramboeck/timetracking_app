@@ -310,6 +310,11 @@ export interface Task {
   checklistCount?: number;
   checklistCompleted?: number;
   totalTrackedTime?: number;
+
+  // Discriminator for the UNION-Endpoint (tasks + ticket_tasks).
+  // 'ticket' entries are read-only in TaskHub — editing routes the user
+  // back into the source ticket.
+  taskSource?: 'standalone' | 'ticket';
 }
 
 export interface TaskChecklistItem {

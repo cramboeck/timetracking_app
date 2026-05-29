@@ -1,18 +1,17 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, List, Keyboard, Columns } from 'lucide-react';
 import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
 import { TicketList } from './TicketList';
 import { TicketDetail } from './TicketDetail';
 import { TicketDashboard } from './TicketDashboard';
 import { TicketKanban } from './TicketKanban';
-import { TasksOverview } from './TasksOverview';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { useKeyboardShortcuts, KeyboardShortcut } from '../hooks/useKeyboardShortcuts';
 
-type ViewMode = 'dashboard' | 'list' | 'kanban' | 'tasks';
+type ViewMode = 'dashboard' | 'list' | 'kanban';
 
 interface TicketsProps {
   customers: Customer[];
@@ -108,13 +107,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       description: 'Zum Kanban',
       category: 'Navigation',
       handler: () => handleViewModeChange('kanban'),
-      disabled: selectedTicketId !== null,
-    },
-    {
-      key: 'g+t',
-      description: 'Zu Aufgaben',
-      category: 'Navigation',
-      handler: () => handleViewModeChange('tasks'),
       disabled: selectedTicketId !== null,
     },
     {
@@ -253,17 +245,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               <Columns size={16} />
               <span className="hidden sm:inline">Kanban</span>
             </button>}
-            <button
-              onClick={() => handleViewModeChange('tasks')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'tasks'
-                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <CheckSquare size={16} />
-              <span className="hidden sm:inline">Aufgaben</span>
-            </button>
           </div>
           {/* Keyboard shortcuts hint */}
           <IconButton
@@ -296,12 +277,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
         )}
         {viewMode === 'kanban' && (
           <TicketKanban
-            customers={customers}
-            onTicketSelect={handleTicketSelectById}
-          />
-        )}
-        {viewMode === 'tasks' && (
-          <TasksOverview
             customers={customers}
             onTicketSelect={handleTicketSelectById}
           />
