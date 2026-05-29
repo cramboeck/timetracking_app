@@ -1164,6 +1164,43 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/invoices/${invoiceId}/documents`);
   },
 
+  // Full-text search over Belege (PDF-extracted text + metadata). Backend uses
+  // German tsvector + prefix matching.
+  searchProcessedInvoices: async (query: string, options?: {
+    status?: string;
+    vendorId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ success: boolean; data: Array<{
+    id: string;
+    email_subject: string | null;
+    sender_email: string | null;
+    sender_name: string | null;
+    received_at: string;
+    status: string;
+    vendor_id: string | null;
+    vendor_name: string | null;
+    attachment_count: number;
+    document_ids: string[];
+    processed_at: string | null;
+    rank: number;
+  }> }> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.status) params.append('status', options.status);
+    if (options?.vendorId) params.append('vendorId', options.vendorId);
+    if (options?.limit) params.append('limit', String(options.limit));
+    if (options?.offset) params.append('offset', String(options.offset));
+    return authFetch(`/microsoft365/invoices/search?${params.toString()}`);
+  },
+
+  backfillInvoiceSearchIndex: async (limit?: number): Promise<{
+    success: boolean;
+    data: { processed: number; errors: number };
+  }> => {
+    const qs = limit ? `?limit=${limit}` : '';
+    return authFetch(`/microsoft365/invoices/backfill-search${qs}`, { method: 'POST' });
+  },
+
   retryInvoiceProcessing: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
   },

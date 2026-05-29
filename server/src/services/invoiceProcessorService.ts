@@ -1176,12 +1176,54 @@ class InvoiceProcessorService {
         logger.info('No AI config found - using regex/email extraction only');
       }
 
+      // Persist the extracted text + structured fields into processed_invoices.full_text
+      // so the search-vector trigger can index the receipt's content. Done after
+      // the full pipeline (regex + AI) so the most enriched data lands in search.
+      await this.persistFullText(processedInvoiceId, rawText, result);
+
       return result;
 
     } catch (error: any) {
       logger.error('Error extracting invoice data:', error.message);
       result.rawText = `Fehler: ${error.message}`;
       return result;
+    }
+  }
+
+  /**
+   * Concatenate PDF raw text + structured extraction fields into the
+   * processed_invoices.full_text column so the BEFORE-INSERT/UPDATE trigger
+   * rebuilds search_vector. Idempotent — repeated extraction overwrites the
+   * stored full_text with the latest version.
+   */
+  private async persistFullText(
+    processedInvoiceId: string,
+    rawText: string,
+    extracted: ExtractedInvoiceData,
+  ): Promise<void> {
+    // Cap the rawText to keep the column reasonable. tsvector handling stays
+    // efficient and we still index the meaningful body of typical invoices.
+    const cappedRaw = (rawText || '').substring(0, 10000);
+    const structuredParts = [
+      extracted.supplierName,
+      extracted.supplierAddress,
+      extracted.taxId,
+      extracted.invoiceNumber,
+      extracted.orderNumber,
+      extracted.customerNumber,
+      extracted.iban,
+      extracted.bic,
+      extracted.paymentMethod,
+    ].filter(Boolean).join(' ');
+    const fullText = [structuredParts, cappedRaw].filter(Boolean).join('\n');
+    try {
+      await query(
+        `UPDATE processed_invoices SET full_text = $1 WHERE id = $2`,
+        [fullText, processedInvoiceId]
+      );
+    } catch (err: any) {
+      logger.error(`Failed to persist full_text for invoice ${processedInvoiceId}: ${err.message}`);
+      // Non-fatal — search just won't find this invoice until next extraction.
     }
   }
 
@@ -2092,6 +2134,84 @@ SPEZIELLE RECHNUNGSTYPEN:
 
     const processResult = await this.processEmail(organizationId, email);
     return processResult.status === 'draft';
+  }
+
+  /**
+   * Full-text search over received invoices (processed_invoices). Searches the
+   * email metadata (subject, sender) AND the PDF-extracted text persisted in
+   * full_text. Mirrors the sevdesk_documents search pattern: German tsvector,
+   * prefix-match per term (`:*`), AND-combined.
+   */
+  async searchProcessedInvoices(
+    organizationId: string,
+    searchQuery: string,
+    options: { status?: string; vendorId?: string; limit?: number; offset?: number } = {}
+  ): Promise<any[]> {
+    const { status, vendorId, limit = 50, offset = 0 } = options;
+
+    const terms = searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter(t => t.length > 0)
+      .map(t => `${t.replace(/[&|!():*]/g, '')}:*`)
+      .join(' & ');
+
+    if (!terms) return [];
+
+    const params: any[] = [organizationId, terms];
+    let sql = `
+      SELECT
+        pi.id, pi.email_subject, pi.sender_email, pi.sender_name,
+        pi.received_at, pi.status, pi.vendor_id, pi.attachment_count,
+        pi.document_ids, pi.processed_at,
+        c.name AS vendor_name,
+        ts_rank(pi.search_vector, to_tsquery('german', $2)) AS rank
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON c.id = pi.vendor_id
+      WHERE pi.organization_id = $1
+        AND pi.search_vector @@ to_tsquery('german', $2)
+    `;
+
+    if (status) {
+      sql += ` AND pi.status = $${params.length + 1}`;
+      params.push(status);
+    }
+    if (vendorId) {
+      sql += ` AND pi.vendor_id = $${params.length + 1}`;
+      params.push(vendorId);
+    }
+
+    sql += ` ORDER BY rank DESC, pi.received_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  /**
+   * One-off helper to backfill full_text + search_vector for invoices that
+   * existed before this migration. Iterates and re-runs the extractor.
+   */
+  async backfillSearchIndex(organizationId: string, limit = 200): Promise<{ processed: number; errors: number }> {
+    const result = await query(
+      `SELECT id FROM processed_invoices
+       WHERE organization_id = $1 AND (full_text IS NULL OR full_text = '')
+       ORDER BY received_at DESC
+       LIMIT $2`,
+      [organizationId, limit]
+    );
+    let processed = 0;
+    let errors = 0;
+    for (const row of result.rows) {
+      try {
+        await this.extractInvoiceData(organizationId, row.id);
+        processed++;
+      } catch (err: any) {
+        errors++;
+        logger.error(`Backfill failed for ${row.id}: ${err.message}`);
+      }
+    }
+    return { processed, errors };
   }
 }
 

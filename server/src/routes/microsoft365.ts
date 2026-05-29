@@ -1034,6 +1034,62 @@ router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: 
   }
 });
 
+// GET /api/microsoft365/invoices/search - Full-text search over processed invoices.
+// Mirrors the sevdesk_documents search pattern (German tsvector, prefix-match
+// per term). Searches email metadata + the PDF-extracted text that's stored
+// in processed_invoices.full_text by invoiceProcessorService.extractInvoiceData.
+router.get('/invoices/search', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const q = req.query.q as string | undefined;
+    const status = req.query.status as string | undefined;
+    const vendorId = req.query.vendorId as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Search query must be at least 2 characters',
+      });
+    }
+
+    const results = await invoiceProcessorService.searchProcessedInvoices(
+      organizationId,
+      q,
+      { status, vendorId, limit, offset }
+    );
+
+    res.json({ success: true, data: results });
+  } catch (error: any) {
+    logger.error('Search processed invoices error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to search invoices',
+    });
+  }
+});
+
+// POST /api/microsoft365/invoices/backfill-search - One-off backfill of full_text
+// + search_vector for already-stored invoices that pre-date the FTS migration.
+router.post('/invoices/backfill-search', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const limit = parseInt(req.query.limit as string) || 200;
+
+    const result = await invoiceProcessorService.backfillSearchIndex(organizationId, limit);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Backfill search index error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to backfill search index',
+    });
+  }
+});
+
 // GET /api/microsoft365/invoices/:id/documents - Get documents for a processed invoice
 router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
