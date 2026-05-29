@@ -3763,6 +3763,56 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
 
+    // Migration: Add full-text-search columns to processed_invoices.
+    // full_text = concatenated PDF-extracted text + structured extraction fields,
+    // populated by invoiceProcessorService when an invoice is parsed.
+    // search_vector = auto-derived German tsvector via trigger.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'full_text'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN full_text TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'search_vector'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN search_vector TSVECTOR;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_processed_invoices_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.email_subject, '') || ' ' ||
+          COALESCE(NEW.sender_name, '') || ' ' ||
+          COALESCE(NEW.sender_email, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_processed_invoices_search_vector') THEN
+          CREATE TRIGGER trigger_processed_invoices_search_vector
+          BEFORE INSERT OR UPDATE ON processed_invoices
+          FOR EACH ROW EXECUTE FUNCTION update_processed_invoices_search_vector();
+        END IF;
+      END $$;
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_search ON processed_invoices USING GIN(search_vector)');
+
     logger.info('✅ Invoice processing tables created');
 
     // Migration: Update processed_invoices status check constraint to include 'draft'

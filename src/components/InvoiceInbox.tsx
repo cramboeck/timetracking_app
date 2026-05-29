@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle, X, Edit2
+  Mail, AlertTriangle, X, Edit2, Search
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 import { Button, IconButton } from './ui/Button';
@@ -45,6 +45,54 @@ export const InvoiceInbox = () => {
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [extractingData, setExtractingData] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  // Full-text search state. searchResults===null means "no active search,
+  // show normal list"; an empty array means "active search, no hits".
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    email_subject: string | null;
+    sender_email: string | null;
+    sender_name: string | null;
+    received_at: string;
+    status: string;
+    vendor_id: string | null;
+    vendor_name: string | null;
+    attachment_count: number;
+    document_ids: string[];
+    processed_at: string | null;
+    rank: number;
+  }> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Debounced full-text search. Empty / <2 chars resets to the normal list.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults(null);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const response = await microsoft365Api.searchProcessedInvoices(q);
+        if (response.success) {
+          setSearchResults(response.data);
+          setSearchError(null);
+        }
+      } catch (err: any) {
+        console.error('Search failed:', err);
+        setSearchError(err?.message || 'Suche fehlgeschlagen');
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -405,6 +453,78 @@ export const InvoiceInbox = () => {
           </Button>
         </div>
       </div>
+
+      {/* Full-text search */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Volltextsuche über alle Belege (Betreff, Absender, Rechnungs-Inhalt…)"
+          className="w-full pl-9 pr-9 py-2 text-sm bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400 hover:text-gray-600 dark:hover:text-white"
+            aria-label="Suche zurücksetzen"
+          >
+            <X size={14} />
+          </button>
+        )}
+        {searching && (
+          <Loader2 size={14} className="absolute right-9 top-1/2 -translate-y-1/2 text-accent-primary animate-spin" />
+        )}
+      </div>
+
+      {/* Search results (only shown when actively searching) */}
+      {searchResults !== null && (
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-dark-200/50 border-b border-gray-100 dark:border-dark-border text-xs font-medium text-gray-600 dark:text-dark-400">
+            {searchError
+              ? <span className="text-red-600 dark:text-red-400">{searchError}</span>
+              : `${searchResults.length} Treffer für „${searchQuery.trim()}"`}
+          </div>
+          {searchResults.length === 0 && !searchError ? (
+            <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-dark-400">
+              Keine Belege gefunden. Tipp: Inhalte werden erst nach der Daten-Extraktion durchsuchbar.
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-dark-border max-h-[50vh] overflow-y-auto">
+              {searchResults.map(r => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => setExpandedInvoiceId(prev => prev === r.id ? null : r.id)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 flex items-start gap-3"
+                  >
+                    <FileText size={16} className="text-accent-primary flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                        {r.email_subject || '(Kein Betreff)'}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 truncate">
+                        {r.sender_name || r.sender_email || 'Unbekannter Absender'}
+                        {r.vendor_name && ` · ${r.vendor_name}`}
+                        {' · '}
+                        {new Date(r.received_at).toLocaleDateString('de-DE')}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      r.status === 'processed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      r.status === 'draft' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                      r.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                      'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-400'
+                    }`}>
+                      {r.status}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
