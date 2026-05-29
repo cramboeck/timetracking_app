@@ -255,6 +255,25 @@ export const InvoiceInbox = () => {
     }
   };
 
+  // Force-re-extract: ignoriert den persistierten Cache und laesst die PDF-/
+  // Vision-Pipeline erneut laufen. Nutzlich wenn der erste OCR-Run schlechte
+  // Daten lieferte (z. B. Scan-Qualitaet) und der User die KI nochmal triggern
+  // will, ohne den Beleg loeschen + neu zu importieren.
+  const handleReExtract = async () => {
+    if (!confirmingInvoice) return;
+    setExtractingData(true);
+    try {
+      const response = await microsoft365Api.extractInvoiceData(confirmingInvoice.id, { force: true });
+      if (response.success && response.data) {
+        setExtractedData(response.data);
+      }
+    } catch (err: any) {
+      console.error('Re-extraction failed:', err);
+    } finally {
+      setExtractingData(false);
+    }
+  };
+
   const handleConfirmApproval = async () => {
     if (!confirmingInvoice || !extractedData) return;
 
@@ -934,11 +953,19 @@ export const InvoiceInbox = () => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Rechnungsdaten prüfen
                 </h3>
-                <IconButton
-                  icon={<X size={20} />}
-                  onClick={handleCancelApproval}
-                  tooltip="Schließen"
-                />
+                <div className="flex items-center gap-1">
+                  <IconButton
+                    icon={<RefreshCw size={18} className={extractingData ? 'animate-spin' : ''} />}
+                    onClick={handleReExtract}
+                    disabled={extractingData}
+                    tooltip="Daten erneut extrahieren (OCR/AI neu laufen lassen)"
+                  />
+                  <IconButton
+                    icon={<X size={20} />}
+                    onClick={handleCancelApproval}
+                    tooltip="Schließen"
+                  />
+                </div>
               </div>
 
               {/* Content */}

@@ -1046,7 +1046,22 @@ class InvoiceProcessorService {
   /**
    * Extract invoice data from PDF using text extraction and AI parsing
    */
-  async extractInvoiceData(organizationId: string, processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+  async extractInvoiceData(
+    organizationId: string,
+    processedInvoiceId: string,
+    options: { force?: boolean } = {},
+  ): Promise<ExtractedInvoiceData | null> {
+    // Cache-Pfad: wenn bereits extrahiert und nicht explizit erzwungen, gib
+    // die persistierten strukturierten Felder zurueck ohne PDF re-parsing
+    // oder Vision-Call (das spart Geld bei OpenAI-Konfigurationen).
+    if (!options.force) {
+      const cached = await this.getStoredExtraction(processedInvoiceId);
+      if (cached) {
+        logger.info(`Returning cached extraction for invoice ${processedInvoiceId}`);
+        return cached;
+      }
+    }
+
     // Get the invoice with email info for fallback extraction
     const invoiceResult = await query(
       `SELECT * FROM processed_invoices WHERE id = $1`,
@@ -1179,7 +1194,7 @@ class InvoiceProcessorService {
       // Persist the extracted text + structured fields into processed_invoices.full_text
       // so the search-vector trigger can index the receipt's content. Done after
       // the full pipeline (regex + AI) so the most enriched data lands in search.
-      await this.persistFullText(processedInvoiceId, rawText, result);
+      await this.persistExtractedData(processedInvoiceId, rawText, result);
 
       return result;
 
@@ -1191,18 +1206,17 @@ class InvoiceProcessorService {
   }
 
   /**
-   * Concatenate PDF raw text + structured extraction fields into the
-   * processed_invoices.full_text column so the BEFORE-INSERT/UPDATE trigger
-   * rebuilds search_vector. Idempotent — repeated extraction overwrites the
-   * stored full_text with the latest version.
+   * Persist the full extraction result into processed_invoices: full_text
+   * (rawText + structured-concat for FTS) PLUS every structured field as its
+   * own typed column. extracted_at acts as the "fresh cache" signal — next
+   * extractInvoiceData call can return the stored data without re-running OCR
+   * unless force=true. Non-fatal on error.
    */
-  private async persistFullText(
+  private async persistExtractedData(
     processedInvoiceId: string,
     rawText: string,
     extracted: ExtractedInvoiceData,
   ): Promise<void> {
-    // Cap the rawText to keep the column reasonable. tsvector handling stays
-    // efficient and we still index the meaningful body of typical invoices.
     const cappedRaw = (rawText || '').substring(0, 10000);
     const structuredParts = [
       extracted.supplierName,
@@ -1218,13 +1232,92 @@ class InvoiceProcessorService {
     const fullText = [structuredParts, cappedRaw].filter(Boolean).join('\n');
     try {
       await query(
-        `UPDATE processed_invoices SET full_text = $1 WHERE id = $2`,
-        [fullText, processedInvoiceId]
+        `UPDATE processed_invoices SET
+           full_text = $1,
+           supplier_name = $2,
+           supplier_address = $3,
+           supplier_tax_id = $4,
+           invoice_number = $5,
+           customer_number = $6,
+           invoice_date = $7,
+           due_date = $8,
+           net_amount = $9,
+           gross_amount = $10,
+           vat_amount = $11,
+           vat_rate = $12,
+           currency = COALESCE($13, currency),
+           iban = $14,
+           bic = $15,
+           payment_method = $16,
+           extracted_at = NOW(),
+           extraction_confidence = $17
+         WHERE id = $18`,
+        [
+          fullText,
+          extracted.supplierName,
+          extracted.supplierAddress,
+          extracted.taxId,
+          extracted.invoiceNumber,
+          extracted.customerNumber,
+          extracted.invoiceDate,
+          extracted.dueDate,
+          extracted.netAmount,
+          extracted.grossAmount,
+          extracted.vatAmount,
+          extracted.vatRate,
+          extracted.currency,
+          extracted.iban,
+          extracted.bic,
+          extracted.paymentMethod,
+          extracted.confidence,
+          processedInvoiceId,
+        ]
       );
     } catch (err: any) {
-      logger.error(`Failed to persist full_text for invoice ${processedInvoiceId}: ${err.message}`);
+      logger.error(`Failed to persist extracted data for invoice ${processedInvoiceId}: ${err.message}`);
       // Non-fatal — search just won't find this invoice until next extraction.
     }
+  }
+
+  /**
+   * Read the previously persisted extraction back from processed_invoices
+   * columns into the ExtractedInvoiceData shape. Returns null if no extraction
+   * has been run yet (extracted_at IS NULL).
+   */
+  private async getStoredExtraction(processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+    const result = await query(
+      `SELECT supplier_name, supplier_address, supplier_tax_id, customer_number,
+              invoice_number, invoice_date, due_date,
+              net_amount, gross_amount, vat_amount, vat_rate, currency,
+              iban, bic, payment_method,
+              extraction_confidence, extracted_at
+       FROM processed_invoices WHERE id = $1`,
+      [processedInvoiceId]
+    );
+    if (result.rows.length === 0 || !result.rows[0].extracted_at) return null;
+    const r = result.rows[0];
+    return {
+      supplierName: r.supplier_name,
+      supplierAddress: r.supplier_address,
+      taxId: r.supplier_tax_id,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: r.customer_number,
+      invoiceNumber: r.invoice_number,
+      orderNumber: null,
+      invoiceDate: r.invoice_date ? new Date(r.invoice_date).toISOString().slice(0, 10) : null,
+      dueDate: r.due_date ? new Date(r.due_date).toISOString().slice(0, 10) : null,
+      deliveryDate: null,
+      netAmount: r.net_amount !== null ? Number(r.net_amount) : null,
+      grossAmount: r.gross_amount !== null ? Number(r.gross_amount) : null,
+      vatAmount: r.vat_amount !== null ? Number(r.vat_amount) : null,
+      vatRate: r.vat_rate !== null ? Number(r.vat_rate) : null,
+      currency: r.currency || 'EUR',
+      paymentMethod: r.payment_method,
+      iban: r.iban,
+      bic: r.bic,
+      confidence: r.extraction_confidence !== null ? Number(r.extraction_confidence) : 0,
+    };
   }
 
   /**

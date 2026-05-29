@@ -1237,7 +1237,8 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
     const organizationId = orgReq.organization.id;
     const processedInvoiceId = req.params.id;
 
-    const extractedData = await invoiceProcessorService.extractInvoiceData(organizationId, processedInvoiceId);
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const extractedData = await invoiceProcessorService.extractInvoiceData(organizationId, processedInvoiceId, { force });
 
     if (extractedData) {
       res.json({
