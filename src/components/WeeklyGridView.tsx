@@ -238,6 +238,25 @@ export const WeeklyGridView = ({
     return monthGrids;
   }, [entries, weekStart]);
 
+  // ─── Today's entries (for the description quick-edit panel) ────────────────
+  const todayISOLive = toLocalDateString(new Date());
+  const todayEntries = useMemo(() => {
+    return entries
+      .filter(e => !e.isRunning && e.endTime && toLocalDateString(new Date(e.startTime)) === todayISOLive)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [entries, todayISOLive]);
+
+  const handleDescriptionBlur = async (entry: TimeEntry, raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed === (entry.description ?? '').trim()) return;
+    try {
+      await onEditEntry(entry.id, { description: trimmed });
+    } catch (err) {
+      console.error('[WeeklyGrid] description update failed', err);
+      showToast('Beschreibung speichern fehlgeschlagen', 'error');
+    }
+  };
+
   // ─── Cell totals / daily / grand totals ────────────────────────────────────
   const dailyTotals = useMemo(() => {
     return weekDays.map(dayISO => {
@@ -487,6 +506,49 @@ export const WeeklyGridView = ({
           <span>Mehr</span>
         </div>
       </div>
+
+      {/* Today's descriptions quick-edit */}
+      {todayEntries.length > 0 && (
+        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3">
+            Heute · {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })} — Beschreibungen
+          </h3>
+          <div className="space-y-2">
+            {todayEntries.map(entry => {
+              const project = projectById.get(entry.projectId);
+              const customer = project ? customerById.get(project.customerId) ?? null : null;
+              const activity = entry.activityId ? activityById.get(entry.activityId) ?? null : null;
+              return (
+                <div key={entry.id} className="flex items-center gap-3 py-1">
+                  {customer && (
+                    <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: customer.color }} />
+                  )}
+                  <div className="min-w-0 flex-shrink-0 w-1/3 sm:w-1/4">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {customer?.name ?? '—'}{project && ` · ${project.name}`}
+                    </div>
+                    {activity && (
+                      <div className="text-xs text-accent-primary truncate">{activity.name}</div>
+                    )}
+                  </div>
+                  <div className="text-sm font-semibold text-accent-primary flex-shrink-0 w-14 text-right tabular-nums">
+                    {formatHoursDecimalAlways(entry.duration)} h
+                  </div>
+                  <input
+                    key={entry.id}
+                    type="text"
+                    defaultValue={entry.description ?? ''}
+                    placeholder="Was hast du gemacht? (Beschreibung)"
+                    onBlur={(e) => void handleDescriptionBlur(entry, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                    className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-50 border border-gray-200 dark:border-dark-border rounded text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Weekly Grid */}
       <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-x-auto">
