@@ -1205,12 +1205,13 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
   },
 
-  extractInvoiceData: async (invoiceId: string): Promise<{
+  extractInvoiceData: async (invoiceId: string, options?: { force?: boolean }): Promise<{
     success: boolean;
     data?: ExtractedInvoiceData;
     error?: string;
   }> => {
-    return authFetch(`/microsoft365/invoices/${invoiceId}/extract`);
+    const qs = options?.force ? '?force=1' : '';
+    return authFetch(`/microsoft365/invoices/${invoiceId}/extract${qs}`);
   },
 
   approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {
