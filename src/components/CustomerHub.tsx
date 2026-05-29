@@ -840,9 +840,10 @@ interface TasksTabProps {
   tasks: Task[];
   onCreateTask: () => void;
   onTaskClick: (task: Task) => void;
+  onOpenTicket?: (ticketId: string) => void;
 }
 
-const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick }) => {
+const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick, onOpenTicket }) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
 
   const filteredTasks = tasks.filter(t => {
@@ -903,20 +904,30 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
           {filteredTasks.map(task => {
             const StatusIcon = statusIcons[task.status];
             const overdue = isOverdue(task);
+            const isTicketSource = task.taskSource === 'ticket';
 
             return (
-              <button
+              <div
                 key={task.id}
-                onClick={() => onTaskClick(task)}
                 className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors text-left"
               >
                 <StatusIcon size={20} className={statusColors[task.status]} />
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium ${
-                    task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'
-                  } truncate`}>
-                    {task.title}
-                  </p>
+                <button
+                  onClick={() => isTicketSource ? (task.ticketId && onOpenTicket?.(task.ticketId)) : onTaskClick(task)}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`font-medium ${
+                      task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'
+                    } truncate`}>
+                      {task.title}
+                    </p>
+                    {isTicketSource && task.ticketNumber && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-accent-primary/10 dark:bg-accent-primary/20 text-accent-primary">
+                        Ticket {task.ticketNumber}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     {task.dueDate && (
                       <span className={`text-xs flex items-center gap-1 ${
@@ -933,9 +944,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
                 <ChevronRight size={16} className="text-gray-400" />
-              </button>
+              </div>
             );
           })}
         </div>
@@ -1724,6 +1735,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     tasks={tasks}
                     onCreateTask={handleCreateTask}
                     onTaskClick={(task) => onNavigateToTask?.(task.id)}
+                    onOpenTicket={(ticketId) => onNavigateToTicket?.(ticketId)}
                   />
                 )}
                 {activeTab === 'contracts' && (

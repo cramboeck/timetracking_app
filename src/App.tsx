@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { AreaNavigation, SubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
@@ -97,8 +97,20 @@ function App() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
+  const [initialCustomerId, setInitialCustomerId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
+
+  // Cross-area navigation helpers: jump from a Task → its Ticket or Customer.
+  const handleOpenTicket = useCallback((ticketId: string) => {
+    setInitialTicketId(ticketId);
+    navigateTo('support', 'tickets');
+  }, [navigateTo]);
+
+  const handleOpenCustomer = useCallback((customerId: string) => {
+    setInitialCustomerId(customerId);
+    navigateTo('crm', 'customers');
+  }, [navigateTo]);
 
   // Load + persist server-side user preferences (last-used area/subView)
   useUserPreferences({
@@ -994,6 +1006,8 @@ function App() {
               console.log('Stop timer for task:', taskId);
               // Timer is handled inside TaskHub via API
             }}
+            onOpenTicket={handleOpenTicket}
+            onOpenCustomer={handleOpenCustomer}
           />
         )}
         {currentSubView === 'overview' && (
@@ -1013,10 +1027,8 @@ function App() {
             projects={projects}
             entries={entries}
             isInitialDataLoading={isInitialDataLoading}
-            onNavigateToTicket={(_ticketId) => {
-              // Navigate to tickets view - the ticket will be opened from there
-              navigateTo('support', 'tickets');
-            }}
+            initialCustomerId={initialCustomerId ?? undefined}
+            onNavigateToTicket={(ticketId) => handleOpenTicket(ticketId)}
             onNavigateToTask={(_taskId) => {
               navigateTo('arbeiten', 'tasks');
             }}
