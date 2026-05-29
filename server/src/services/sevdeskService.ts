@@ -449,6 +449,17 @@ export async function getBillingSummary(
 }
 
 // Custom invoice data interface
+interface PositionTemplateContext {
+  contractNumber?: string;
+  contractTitle?: string;
+  customerName?: string;
+  projectName?: string; // Per-position; injected before applyTemplate
+  periodMonth?: string;
+  periodYear?: string;
+  periodLabel?: string;
+  reportFilename?: string;
+}
+
 interface CustomInvoiceData {
   header?: string;
   headText?: string;
@@ -461,6 +472,32 @@ interface CustomInvoiceData {
     hourlyRate?: number;
     isHeader?: boolean; // Header positions have quantity 0 and display as bold
   }>;
+  // Per-customer free-text template appended to every position's `text` after
+  // placeholder substitution. {unknown} placeholders stay as-is so typos are
+  // immediately visible in the output.
+  positionTemplate?: string;
+  templateContext?: PositionTemplateContext;
+}
+
+// Substitute {placeholder} occurrences. Unknown keys are left unchanged.
+function applyTemplate(template: string, ctx: Record<string, string | undefined>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => ctx[key] ?? `{${key}}`);
+}
+
+// Resolve the per-customer position-text by appending the rendered template
+// (if any) to the position's own description. Header positions are skipped —
+// they typically already serve as section dividers and adding a contract
+// reference under each one would feel spammy.
+function buildPositionText(
+  baseText: string | null | undefined,
+  template: string | undefined,
+  ctx: PositionTemplateContext,
+  projectName?: string,
+): string {
+  const tmpl = template?.trim();
+  if (!tmpl) return baseText ?? '';
+  const rendered = applyTemplate(tmpl, { ...ctx, projectName: projectName ?? ctx.projectName ?? '' });
+  return [baseText, rendered].filter(s => s && s.length > 0).join('\n\n');
 }
 
 // Create invoice in sevDesk
@@ -485,6 +522,8 @@ export async function createInvoice(
   // Create invoice positions - use custom positions if provided, otherwise create from entries
   let positions: any[];
 
+  const templateCtx: PositionTemplateContext = customData?.templateContext ?? {};
+
   if (customData?.positions && customData.positions.length > 0) {
     // Use grouped positions from frontend
     logger.info('Using custom grouped positions');
@@ -507,7 +546,7 @@ export async function createInvoice(
         };
       }
 
-      // Regular positions with hours
+      // Regular positions with hours — append per-customer template
       const posHourlyRate = pos.hourlyRate || hourlyRate;
       return {
         objectName: 'InvoicePos',
@@ -515,7 +554,7 @@ export async function createInvoice(
         quantity: Math.round(pos.hours * 100) / 100,
         price: posHourlyRate,
         name: pos.title,
-        text: pos.description || null,
+        text: buildPositionText(pos.description, customData.positionTemplate, templateCtx, pos.title) || null,
         unity: {
           id: 9, // Stunden for regular positions
           objectName: 'Unity',
@@ -543,6 +582,7 @@ export async function createInvoice(
         quantity: Math.round(hours * 100) / 100,
         price: hourlyRate,
         name: name,
+        text: buildPositionText(null, customData?.positionTemplate, templateCtx, entry.projectName) || null,
         unity: {
           id: 9, // Hours in sevDesk
           objectName: 'Unity',

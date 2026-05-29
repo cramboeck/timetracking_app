@@ -9,6 +9,8 @@ export interface Customer {
   address?: string;
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
+  sevdeskPositionTemplate?: string; // Free-text template appended to each invoice position's `text` field. Supports placeholders: {contractNumber}, {contractTitle}, {customerName}, {projectName}, {periodLabel}, {periodMonth}, {periodYear}, {reportFilename}.
+  defaultContractId?: string; // Source of {contractNumber}/{contractTitle} for the position template
   hourlyRate?: number; // Customer-specific hourly rate (Business feature)
   timeRoundingInterval?: number; // Time rounding interval in minutes for billing (e.g., 15 = round up to nearest 15 min)
   paymentTermsDays?: number; // Payment terms in days for invoices (default: 14)

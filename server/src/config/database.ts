@@ -3207,6 +3207,28 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add sevdesk_position_template + default_contract_id to customers.
+    // Allows per-customer free-text template (with {placeholders}) that gets
+    // appended to every invoice position's `text`-field on sevdesk push.
+    // default_contract_id is the source for {contractNumber}/{contractTitle}.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'sevdesk_position_template'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN sevdesk_position_template TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'default_contract_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN default_contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add hourly_rate to customers
     await client.query(`
       DO $$

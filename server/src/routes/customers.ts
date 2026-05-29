@@ -46,6 +46,11 @@ const updateCustomerSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
   importAliases: z.array(z.string().max(200)).nullable().optional(),
   customerType: z.enum(['company', 'individual']).nullable().optional(),
+  // sevdesk position template (per-customer text appended to every invoice
+  // position; supports {placeholders}). default_contract_id is the source for
+  // {contractNumber}/{contractTitle}.
+  sevdeskPositionTemplate: z.string().max(2000).nullable().optional(),
+  defaultContractId: z.string().nullable().optional(),
   // Vendor/Supplier fields
   isVendor: z.boolean().optional(),
   vendorDomain: z.string().max(100).nullable().optional(),
@@ -197,6 +202,25 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.vendorNotes !== undefined) {
       fields.push(`vendor_notes = $${paramCount++}`);
       values.push(updates.vendorNotes || null);
+    }
+    if (updates.sevdeskPositionTemplate !== undefined) {
+      fields.push(`sevdesk_position_template = $${paramCount++}`);
+      values.push(updates.sevdeskPositionTemplate || null);
+    }
+    if (updates.defaultContractId !== undefined) {
+      // Validate the contract belongs to this customer (organization-scoped already
+      // by the customer FK chain). Empty string / null clears the link.
+      if (updates.defaultContractId) {
+        const contractCheck = await pool.query(
+          'SELECT id FROM contracts WHERE id = $1 AND customer_id = $2',
+          [updates.defaultContractId, id]
+        );
+        if (contractCheck.rows.length === 0) {
+          return res.status(400).json({ error: 'defaultContractId belongs to a different customer or does not exist' });
+        }
+      }
+      fields.push(`default_contract_id = $${paramCount++}`);
+      values.push(updates.defaultContractId || null);
     }
     if (updates.defaultProjectId !== undefined) {
       fields.push(`default_project_id = $${paramCount++}`);

@@ -254,7 +254,9 @@ export const InvoiceCreationDialog = ({
         })),
       ];
 
-      // Create invoice with grouped positions and custom texts
+      // Create invoice with grouped positions and custom texts. reportFilename
+      // is passed so the backend can substitute {reportFilename} in the
+      // per-customer position template.
       const response = await sevdeskApi.createInvoice({
         customerId: customer.customerId,
         entryIds,
@@ -264,6 +266,7 @@ export const InvoiceCreationDialog = ({
         headText: headText,
         footText: footText,
         positions: invoicePositions,
+        reportFilename: generateReportFilename(),
       });
 
       if (response.success) {

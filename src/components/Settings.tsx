@@ -26,7 +26,7 @@ import { TeamProvider } from '../contexts/TeamContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
-import { authApi, userApi, sevdeskApi, organizationsApi, customersApi, Organization } from '../services/api';
+import { authApi, userApi, sevdeskApi, organizationsApi, customersApi, contractsApi, Organization } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
@@ -155,6 +155,11 @@ export const Settings = ({
   const [customerImportAliases, setCustomerImportAliases] = useState('');
   const [customerType, setCustomerType] = useState<'company' | 'individual'>('company');
   const [customerDefaultProjectId, setCustomerDefaultProjectId] = useState('');
+  // sevdesk position template (per-customer text appended under each invoice
+  // position; supports {placeholders} resolved server-side)
+  const [customerSevdeskPositionTemplate, setCustomerSevdeskPositionTemplate] = useState('');
+  const [customerDefaultContractId, setCustomerDefaultContractId] = useState('');
+  const [customerContracts, setCustomerContracts] = useState<Array<{ id: string; contractNumber: string; name: string }>>([]);
 
   // CSV Import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -249,6 +254,24 @@ export const Settings = ({
       setCustomerImportAliases(customer.importAliases?.join(', ') || '');
       setCustomerType(customer.customerType || 'company');
       setCustomerDefaultProjectId(customer.defaultProjectId || '');
+      setCustomerSevdeskPositionTemplate(customer.sevdeskPositionTemplate || '');
+      setCustomerDefaultContractId(customer.defaultContractId || '');
+      // Load contracts of this customer for the "Standard-Vertrag" dropdown
+      (async () => {
+        try {
+          const res = await contractsApi.getContracts({ customerId: customer.id });
+          if (res.success) {
+            setCustomerContracts((res.data || []).map((c: any) => ({
+              id: c.id,
+              contractNumber: c.contractNumber,
+              name: c.name,
+            })));
+          }
+        } catch (err) {
+          console.error('Failed to load customer contracts:', err);
+          setCustomerContracts([]);
+        }
+      })();
     } else {
       setEditingCustomer(null);
       setCustomerName('');
@@ -266,6 +289,9 @@ export const Settings = ({
       setCustomerNinjarmmOrgId('');
       setCustomerType('company');
       setCustomerDefaultProjectId('');
+      setCustomerSevdeskPositionTemplate('');
+      setCustomerDefaultContractId('');
+      setCustomerContracts([]);
     }
     setCustomerModalOpen(true);
   };
@@ -403,7 +429,9 @@ export const Settings = ({
         displayName: customerDisplayName.trim() || undefined,
         importAliases: importAliasesValue,
         customerType: customerType,
-        defaultProjectId: customerDefaultProjectId || undefined
+        defaultProjectId: customerDefaultProjectId || undefined,
+        sevdeskPositionTemplate: customerSevdeskPositionTemplate.trim() || undefined,
+        defaultContractId: customerDefaultContractId || undefined,
       });
     } else {
       onAddCustomer({
@@ -2369,6 +2397,65 @@ export const Settings = ({
                   />
                 </div>
               </div>
+
+              {/* Section: sevdesk-Rechnungs-Zusatztext (only shown when editing
+                  an existing customer because we need to load contracts) */}
+              {editingCustomer && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-dark-border">
+                    <span className="text-base">📄</span> Rechnungs-Zusatztext (sevdesk)
+                  </h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                      Standard-Vertrag
+                    </label>
+                    <select
+                      value={customerDefaultContractId}
+                      onChange={(e) => setCustomerDefaultContractId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
+                    >
+                      <option value="">— Kein Vertrag —</option>
+                      {customerContracts.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.contractNumber} · {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                      Quelle für die Platzhalter <code>{'{contractNumber}'}</code> und <code>{'{contractTitle}'}</code>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                      Zusatztext pro Position
+                    </label>
+                    <textarea
+                      value={customerSevdeskPositionTemplate}
+                      onChange={(e) => setCustomerSevdeskPositionTemplate(e.target.value)}
+                      rows={6}
+                      placeholder={'Abrechnung erfolgt nach tatsächlichem Aufwand gemäß Vertrag\nNr. {contractNumber}\n\nsiehe {reportFilename}'}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-primary bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm font-mono"
+                    />
+                    <div className="text-xs text-gray-500 dark:text-dark-400 mt-1 space-y-1">
+                      <p>Wird unter jeder Position auf der Rechnung in sevdesk ergänzt.</p>
+                      <p>
+                        Platzhalter:{' '}
+                        <code>{'{contractNumber}'}</code>,{' '}
+                        <code>{'{contractTitle}'}</code>,{' '}
+                        <code>{'{customerName}'}</code>,{' '}
+                        <code>{'{projectName}'}</code>,{' '}
+                        <code>{'{periodLabel}'}</code>,{' '}
+                        <code>{'{periodMonth}'}</code>,{' '}
+                        <code>{'{periodYear}'}</code>,{' '}
+                        <code>{'{reportFilename}'}</code>
+                      </p>
+                      <p>Unbekannte Platzhalter bleiben als Text erhalten — Tippfehler werden sofort sichtbar.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

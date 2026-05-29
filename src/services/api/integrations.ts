@@ -248,6 +248,10 @@ export const sevdeskApi = {
       hourlyRate: number;
       isHeader?: boolean;
     }>;
+    // Filename of the service-report PDF (if generated). Backend uses this
+    // to substitute the {reportFilename} placeholder in the per-customer
+    // position template.
+    reportFilename?: string;
   }): Promise<{
     success: boolean;
     data: {
