@@ -32,7 +32,7 @@
 /server/src
   /routes               → Express-Routen (eine Datei pro Domäne)
   /middleware           → auth, validation, organization
-  /config/database.ts   → DB-Schema + alle Migrationen (3300+ Zeilen)
+  /config/database.ts   → DB-Schema + alle Migrationen (4400+ Zeilen)
   /services             → auditLog, securityService, etc.
   /utils/logger.ts      → strukturiertes Logging (eingeführt durch PR #48)
 ```
@@ -78,8 +78,8 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Frontend
 
-- **Architektur-Problem:** `App.tsx` (1100+ Zeilen) steuert die gesamte Navigation über State (`currentArea`, `currentSubView`). Es gibt kein echtes URL-Routing → kein Deep-Linking, Browser-Back funktioniert nicht.
-- **Daten-Fetching:** fast ausschließlich über `useEffect` und lokales State-Management. Race-Conditions, doppelte Requests, kein Caching.
+- ~~**Architektur-Problem:**~~ ✅ Gelöst in Epic 5 Pass 4. App.tsx jetzt 1185 Zeilen, URL ist single source of truth (React Router). Deep-Linking und Browser Back/Forward funktionieren.
+- **Daten-Fetching:** Ticket-Subtree + AlertsView auf TanStack Query migriert. ~50 useEffects verbleiben (TaskHub, TimeEntriesList, SocialMediaManager, Stopwatch etc.).
 - **Modernisierungs-Potenzial (2026):**
   - **React Router v7** für echte URL-Routen
   - **TanStack Query (React Query)** ersetzt hunderte `useEffect`-Boilerplate-Zeilen, automatisches Caching + Background-Updates (ideal für NinjaRMM Alerts)
@@ -111,11 +111,11 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 - **Verbesserungsidee:** Sales Pipeline → Angebots-Editor verknüpfen; bei Lead „Won" automatisch Projekt + Vertrag anlegen
 
 ### Arbeiten (Zeiterfassung)
-- **Verbesserungsidee:** Stoppuhr als persistentes, schwebendes Widget in der gesamten App (nicht nur im „Arbeiten"-Tab)
+- ~~**Verbesserungsidee:**~~ ✅ Erledigt in PR #73 — `GlobalTimerWidget.tsx` zeigt laufenden Timer app-weit als persistentes Bottom-Bar-Widget.
 
 ---
 
-## Aktueller Stand (Stand 18.5.2026)
+## Aktueller Stand (Stand 10.6.2026)
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -297,37 +297,102 @@ Damit ist Pass 4 (React Router) komplett. Pass 5 könnte echte `<Routes>`/`<Rout
 
 TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +512/-158. Damit ist der Roadmap-Punkt „alle verbleibenden `window.alert()`/`confirm()` durch `ConfirmDialog`" erledigt.
 
+### Zeiterfassung — Neue Features (Mai/Juni 2026)
+
+| Task | Commit |
+|---|---|
+| **WeeklyGridView** — Wochenraster-Ansicht für Zeiteinträge | ef09a61 |
+| Schnell-Edit Beschreibungen im Wochenraster | 0908505 |
+| Beschreibungs-Vorlagen aus alten Einträgen | d4f8dca |
+| Tätigkeit als Pille in der Eintragsliste | 1515ca0 |
+| Zeiten-Konsolidierung: Wochenraster/Liste/Kalender unter „Zeiten" | ecbd0ae |
+
+### Finanzen/Belege — SSOT-Migration (Phase 1-3)
+
+| Task | Commit |
+|---|---|
+| **Belege-SSOT Phase 1**: Schema-SSOT + persistierte OCR-Extraktion | 80eebc8 |
+| **Belege-SSOT Phase 2**: Manual-Upload + SourceBadge + ON-CONFLICT-Fix | ce45f2b |
+| **Belege-SSOT Phase 3**: sevDesk-Voucher-Cache + UI-Konsolidierung | 80bb6df |
+| Globale Dokumenten-Suche (Rechnungen + Angebote + Belege) | ef3deaf |
+| Volltextsuche für Eingangsrechnungen | 7af0362 |
+| sevDesk Kunden-Mapping-Fix | 498d7db |
+| Kundenspezifisches Position-Template mit Vertrags-Bezug | e590c12 |
+
+### Tasks & Auth (Mai/Juni 2026)
+
+| Task | Commit |
+|---|---|
+| **TaskHub integrativ** — Union, Inbox, Quick-Add, Cross-Nav | efbb042 |
+| Toast bei Session-Ablauf + focus-Revalidierung | 7c7e4a6 |
+| Access-Token-TTL: 1h → 8h | 9ac6879 |
+| Mobile Logout-Schleife behoben | ff2b493 |
+| Race-Fix: edit/delete vor Refetch in TimeEntriesList | b567096 |
+
 ---
 
-## Offene Aufgaben (Roadmap)
+## Offene Aufgaben (Roadmap) — Priorisiert nach Sprints
 
-### Epic 5 — Architektur-Modernisierung (Priorität: Hoch)
+### 🔴 Sprint 1 — Sicherheit (kritisch, nächster Schritt)
 
-1. ~~**React Router einführen**~~ — ✅ Pass 4 komplett: 4a (URL↔State Sync, #85), 4b (Custom Hooks für Sidebar/Preferences/AreaSync/Swipe, #86), 4b-extension (`useOfflineEntrySync`, #87), 4c (URL als single source, State entfernt, #88). App.tsx: 1437 → 1185 Z. (−252, −18 %). Optionaler Pass 5: echte `<Routes>`/`<Route>`-Definitionen + Layout-Komponente.
-2. ~~**TanStack Query (React Query)** — Setup + AlertsView (#81) + Tickets-Übersichten (#82) + TicketDetail (#83) erledigt.~~ ✅ Ticket-Subtree komplett auf TanStack Query.
-3. **Toten Code entfernen** — Erster Pass (PR #80) entfernte `Dashboard.tsx`, `Billing.tsx`, `BillingWidget.tsx`, `Navigation.tsx` (2596 LOC tot). Verbleibender Konsolidierungspunkt: `TaskHub.tsx` vs `TasksOverview.tsx` (beide live, Details unten in „Duplikat-Auflösung"). `ManualEntry.tsx` wurde bereits mit PR #67 gelöscht.
+| Task | Datei | Aufwand |
+|---|---|---|
+| **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h |
+| **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h |
+| **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h |
 
-### Epic 7 — Echtzeit & Automatisierung (Priorität: Mittel)
+### 🟠 Sprint 2 — Performance & Konsistenz
 
-1. **Server-Sent Events (SSE)** für NinjaRMM Alerts und eingehende E-Mails.
-2. **Push-Notifications** robuster — Service Worker (`push-sw.js`) härten, VAPID-Keys im Admin-Setup erzwingen.
-3. **CRM-Finanzen-Brücke** — Angebote direkt aus der Sales Pipeline erstellen.
-4. ~~**Refresh-Token-Mechanismus**~~ — ✅ in PR #71 + #72 erledigt, siehe „Aktueller Stand".
+| Task | Datei | Aufwand |
+|---|---|---|
+| **Tickets-Paginierung** im Main-Endpoint (analog PR #62) | `server/src/routes/tickets.ts` | 3-4h |
+| **Multi-Tenancy**: org_id für `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams` | `server/src/config/database.ts` | 4-6h |
+| **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h |
 
-### Epic 8 — Tech-Stack-Upgrade-Plan (schrittweise, Risiko-bewertet)
+### 🟡 Sprint 3 — Features
 
-| Schritt | Was | Warum | Risiko |
-|---|---|---|---|
-| 1 | **Tailwind v4** | 5× schnellere Builds, CSS-first Konfig via `@theme`. Utility-Klassen bleiben weitestgehend gleich | Gering |
-| 2 | **TanStack Query** | Aktuell ~83 Komponenten / 380+ `useEffect`-Hooks für Daten-Fetching → Race-Conditions, doppelte Requests. Lässt sich parallel zum alten System einführen | Mittel |
-| 3 | **React Router v7** | App.tsx ist 1100+ Zeilen Navigation-State. Upgrade von bereits installiertem v6.22 → v7, dann App.tsx in Layout-Komponenten zerlegen | Hoch |
-| 4 | **React 19** | Server Components, `use()` Hook, bessere Performance. Hängt von Drittanbieter-Kompatibilität ab (`react-big-calendar` ✓, `recharts` prüfen) | Mittel |
+| Task | Datei | Aufwand |
+|---|---|---|
+| **Vertrags-Stunden-Cron** (Tabellen existieren, Job fehlt) | neue Datei in `server/src/jobs/` | 4-6h |
+| **CommandPalette-Historie** (letzte 3-5 Aktionen via localStorage) | `src/components/CommandPalette.tsx` | 2-3h |
+| **SSE für Echtzeit-Updates** (NinjaRMM Alerts, E-Mails) | neuer Endpoint + Frontend | 1-2 Tage |
 
-### Datenbank-Konsistenz & Multi-Tenancy (Priorität: Kritisch)
+### 🔵 Sprint 4 — Tech-Debt
+
+| Task | Datei | Aufwand |
+|---|---|---|
+| **TS-Fehler auf 0** (~16 verbleibend, v.a. Social-Media Platform-Types) | PostsTab, TemplatesTab, CRMDashboard | 2-3h |
+| **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h |
+| **SocialMediaManager.tsx splitten** (6482 → mehrere Komponenten) | `src/components/SocialMediaManager.tsx` | 1 Tag |
+| **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag |
+
+---
+
+## Abgeschlossene Epics (Referenz)
+
+### Epic 5 — Architektur-Modernisierung ✅
+
+- ~~**React Router**~~ — Pass 4 komplett (#85-#88). App.tsx: 1437 → 1185 Z. (−18 %). URL ist single source of truth.
+- ~~**TanStack Query**~~ — Ticket-Subtree + AlertsView komplett migriert (#81-#83).
+- ~~**Toter Code**~~ — 2596 LOC entfernt (#80). TaskHub/TasksOverview klar getrennt.
+- ~~**alert/confirm Migration**~~ — 116 Calls → UIContext.
+
+### Epic 7.4 — Refresh-Token ✅
+- PR #71 + #72 erledigt.
+
+### Epic 6 — UI/UX-Polish ✅
+- GlobalTimerWidget, Skeleton Loaders, Bento-Grid Dashboard.
+
+---
+
+## Weitere offene Tasks (mittelfristig)
+
+### Datenbank-Konsistenz & Multi-Tenancy
 
 #### Multi-Tenancy Lücken schließen
-~38 Tabellen haben `user_id`, aber **keine** `organization_id` — bricht Mandantenfähigkeit für Teams:
-`trusted_devices`, `customers`, `projects`, `activities`, `time_entries`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_config`, `ninjarmm_organizations`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ninjarmm_alert_exclusions`, `customer_portal_*`, `ticket_comments`, `ai_config`, `ticket_ai_suggestions`, `feature_packages`, `maintenance_*`, `lead_activities`, `task_comments`, `task_activity_log`, `contracts`, `contract_activity_log`, `sevdesk_*`, `invoice_exports`, `clockodo_config`
+**Teilweise gelöst:** `customers`, `projects`, `time_entries` haben jetzt `organization_id` + Index.
+
+**Noch offen (~30 Tabellen):** `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams`, `trusted_devices`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_config`, `ninjarmm_organizations`, `ninjarmm_webhook_events`, `ninjarmm_alert_exclusions`, `customer_portal_*`, `ai_config`, `ticket_ai_suggestions`, `feature_packages`, `maintenance_*`, `lead_activities`, `task_comments`, `task_activity_log`, `contract_activity_log`, `sevdesk_*`, `invoice_exports`, `clockodo_config`
 
 **Task:** Migration schreiben, die `organization_id` zu diesen Tabellen hinzufügt und basierend auf `user_id` befüllt.
 
@@ -336,38 +401,24 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 **Task:** `CREATE INDEX IF NOT EXISTS` Statements in `database.ts` ergänzen.
 
-### Sonstige Mittelfristige Tasks
+### Sonstige Aufgaben
 
-| Task | Datei |
+| Task | Status |
 |---|---|
-| Tickets-Paginierung (analog zu PR #62) | `server/src/routes/tickets.ts`, `src/components/Tickets.tsx` |
-| Vertrags-Stunden-Automatisierung (Cron rechnet Zeiteinträge gegen Inklusivstunden) | neue cron-job in `server/src/jobs/` |
-| Mobile-Strategie: TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | diverse |
-| Command Palette `Cmd+K` mit Historie (letzte 3–5 Aktionen) | `CommandPalette.tsx` |
-| ~~Alle verbleibenden `window.alert()`/`confirm()` durch `ConfirmDialog` (~100 Stellen)~~ | ✅ erledigt — 116 Calls migriert via neuem `UIContext` (Toast/Confirm-Hooks), siehe „UI-Polish — Globale Toast/ConfirmDialog Migration" oben. |
-
-### UI-Konsistenz / Duplikat-Auflösung (Epic 4.3)
-
-| Duplikat | Status |
-|---|---|
-| ~~`Dashboard.tsx` (1683 Z.) vs `DashboardOverview.tsx`~~ | ✅ `Dashboard.tsx` als tot gelöscht (PR #80). `DashboardOverview.tsx` ist die lebende Variante. |
-| ~~`Billing.tsx` (632) + `BillingWidget.tsx` (159) vs `BillingOverview.tsx`~~ | ✅ `Billing.tsx` + `BillingWidget.tsx` als tot gelöscht (PR #80). `BillingOverview.tsx` (in `Finanzen.tsx` eingebunden) ist die lebende Variante. |
-| `TaskHub.tsx` (563) vs `TasksOverview.tsx` (253) | Beide live, klare Trennung Tasks vs Tickets, ggf. zusammenführen. |
-
-### Funktions-Review
-
-- **Tickets vs Tasks** — beide haben Status, Priorität, Zuweisung, Kunden-Link. Strategie: Tickets = externer Kunden-Support, Tasks = interne Aufgaben (optional an Tickets gehängt).
-- **Leads (CRM)** — Tabellen und Backend-Routen existieren, aber **kein Frontend** außer Erwähnung im Social Media Manager. Entscheidung: CRM-Modul bauen oder toten Code entfernen.
-- **Social Media** — 13 `social_media_*` Tabellen existieren, aber Frontend postet nicht wirklich an Plattformen (nur DB-Einträge).
-- **Push Subscriptions** — `push_subscriptions` und `portal_push_subscriptions` zusammenführen.
+| Mobile-Strategie: TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | Offen |
+| CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen | Offen |
+| Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
+| Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
+| Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen | Offen |
 
 ### Langfristig — Architektur
 
 | Task | Beschreibung |
 |---|---|
 | Schichtenarchitektur (Controller/Repository) | Pilot: `tickets.ts` aufteilen |
-| Unit-Tests einführen | Jest für Backend-Services und Routes |
 | `any`-Typen eliminieren | ca. 40+ Stellen im Backend |
+| React Router v7 Upgrade | von v6.22 → v7, dann echte `<Routes>`/`<Route>` |
+| React 19 Upgrade | Server Components, `use()` Hook (Drittanbieter-Kompatibilität prüfen) |
 
 ---
 
@@ -391,12 +442,17 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ## Bekannte Probleme (pre-existing)
 
-- `CalendarView.tsx` hat mehrere TypeScript-Fehler (react-big-calendar Typen) — Teil der 476 Frontend-TS-Baseline.
+- **TS-Fehler-Baseline: ~16 Fehler** (von ehemals 452). Hauptsächlich in Social-Media-Modul (Platform-Type-Mismatch in PostsTab/TemplatesTab), CRMDashboard, CalendarView. Backend kompiliert fehlerfrei.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
-- Lead-Modul hat Datenbankschema aber keine Frontend-Ansicht.
-- `database.ts` ist mit 3300+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
+- `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
+
+### 🔴 Sicherheitslücken (kritisch, neu entdeckt)
+
+- **`sevdesk.ts` (1266 Zeilen) hat KEINE Zod-Validierung** — alle `req.body` werden ungeprüft destructuriert (Z. 83, 111, 155, 203, File-Upload Z. 760). Verletzt Verhaltensregel 6. Betrifft auch die neuen Belege-Phase-1-3-Routen.
+- **`SELECT *` in 31 Dateien** — Verletzt Verhaltensregel 7. Betroffen: social-media.ts, tickets.ts, customers.ts, entries.ts, u.a.
+- **`parseInt` ohne Bounds in admin.ts** — `limit=999999` möglich (DoS-Vektor). Empfehlung: `Math.min(limit, 200)`.
 
 ---
 
-*Zuletzt aktualisiert: 20.5.2026 — Epic-5-Vorstoß: Pass 1 „Toten Code entfernen" (#80, -2596 LOC), Pass 2 „TanStack Query Pilot AlertsView" (#81), Pass 3a „Tickets-Übersichten" (#82), Pass 3b „TicketDetail" (#83), Bugfix „Filter-Dropdowns" (#84), Pass 4a „React Router URL↔State Sync" (#85), Pass 4b „App.tsx Custom Hooks" (#86), Pass 4b-extension „Offline-Sync-Hook" (#87), Pass 4c „URL als single source" (#88, App.tsx 1437→1185 Z., −252, −18 %), Race-Fix prefs vs. user-click (#89) und UI-Polish „Globale Toast/Confirm-Hooks via UIContext" (116 native `alert()`/`confirm()` Calls in 27 Files migriert). Ticket-Subtree komplett auf TanStack Query, URL-Routing komplett, native Dialogs abgeschafft.*
+*Zuletzt aktualisiert: 10.6.2026 — Belege-SSOT Phase 1-3, WeeklyGridView, Zeiten-Konsolidierung, TaskHub integrativ, sevDesk-Fixes (Kunden-Mapping, Position-Template), globale Dokumenten-Suche, Auth-Verbesserungen (Token-TTL 8h, Mobile-Logout-Fix, Session-Toast). TS-Fehler: 452 → ~16. Kritisch entdeckt: sevdesk.ts komplett ohne Zod-Validierung, SELECT * in 31 Dateien.*
