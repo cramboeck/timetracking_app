@@ -354,9 +354,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Purple-Cleanup** — ~194 `purple-*` Klassen auf Design-Tokens umstellen | 47 Dateien | 3-4h | Nicht-semantische `purple-*` Klassen (Buttons, Tabs, Highlights) durch `bg-accent-primary`, `text-accent-primary`, `border-accent-primary` ersetzen. **Ausnahmen:** `instagram`/`social`-Kontext (Brand-Farbe), `AI`/`ai`-Kontext (KI-Farbe = intentional lila). Priorität: `AdminPortal.tsx`, `Settings.tsx`, `CustomerHub.tsx`, `TicketKanban.tsx`, `DashboardOverview.tsx`. |
-| ⬜ | **Toter Code entfernen** — 4 Komponenten ohne Imports | diverse | 1h | `CustomerView.tsx`, `SevdeskDocuments.tsx`, `SwipeableRow.tsx`, `VendorHub.tsx` — alle haben 0 Imports. Vor dem Löschen kurz prüfen ob sie in `App.tsx` oder einem Route-Config-Objekt referenziert werden. |
-| ⬜ | **text-gray-* Cleanup** — `text-gray-*` ohne `dark:`-Pendant auf `text-dark-400/500` umstellen | ~495 Stellen | 4-6h | Betrifft Light-Mode-Kompatibilität. Nur Stellen ohne begleitendes `dark:text-*` anfassen. Semantische Ausnahmen (Placeholder, disabled) dürfen bleiben. |
+| ✅ | **Purple-Cleanup** — ~194 `purple-*` Klassen auf Design-Tokens umstellen | 34 Dateien | 3-4h | Commit 0d31ef5. Alle purple-* → accent-* Tokens. Ausnahmen belassen: AI-Kontext (lila = KI), Social-Media Gradients (Instagram Brand). |
+| ✅ | **Toter Code entfernen** — 4 Komponenten ohne Imports | diverse | 1h | Commit 0d31ef5. `CustomerView.tsx`, `SevdeskDocuments.tsx`, `SwipeableRow.tsx`, `VendorHub.tsx` gelöscht. |
+| ⏸️ | **text-gray-* Cleanup** — `text-gray-*` ohne `dark:`-Pendant auf `text-dark-400/500` umstellen | ~495 Stellen | 4-6h | **Pausiert:** Viele "fehlende" dark: Varianten sind auf separaten Zeilen (z.B. Button.tsx). Automatische Ersetzung birgt hohes Regressionsrisiko. Manuelle Prüfung pro Datei erforderlich. Priorität: SocialMediaManager.tsx (118), Finanzen.tsx (29), MaintenanceView.tsx (26). |
 
 ### 🟡 Sprint 3 — Performance & Konsistenz
 
@@ -477,4 +477,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 (Sicherheit) ✅ abgeschlossen: Zod-Validierung für alle Backend-Module (microsoft365, admin, ninjarmm, mfa, features, organizations, push, import, knowledge-base), Bounds-Checks in admin.ts. Nächster Schritt: Sprint 2 (Purple-Cleanup, toter Code, text-gray-Cleanup).*
+*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 (Sicherheit) ✅ + Sprint 2 (Farb-Cleanup) ✅ weitgehend abgeschlossen. Purple-Cleanup (194 → 0 Stellen, 34 Dateien), Toter Code entfernt (4 Komponenten, 2117 LOC). text-gray-Cleanup pausiert (manuelle Prüfung erforderlich). Nächster Schritt: Sprint 3 (Performance & Konsistenz).*
