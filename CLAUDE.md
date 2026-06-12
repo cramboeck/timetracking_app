@@ -477,4 +477,97 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3 begonnen. Tickets-Paginierung ✅ (Commit 1d46536). SELECT * Elimination läuft (tickets.ts erledigt, 31 Dateien verbleibend). SupportInbox Dark-Mode Fix ✅.*
+
+---
+
+## Neue Anforderungen — Interne Arbeitszeiterfassung & Kundenportal (Stand 12.6.2026)
+
+> **Für Claude Code:** Diese Sprints (A–F) sind nach den Sprints 1–5 umzusetzen. Sprints A und C können parallel gestartet werden. Alle Architekturentscheidungen sind bereits getroffen und verbindlich — keine Rückfragen nötig.
+
+### Architekturentscheidungen (verbindlich)
+
+| Entscheidung | Festlegung |
+|---|---|
+| Wer darf `customer_visibility` setzen? | **Nur Admin und Manager** — Feld für andere Rollen read-only |
+| Bulk-Aktion für Altdaten? | **Ja** — einmalige Admin-Aktion mit Vorschau + Bestätigungsdialog |
+| Stunden nach Mitarbeiter im Portal? | **Nein** — nur Projektsummen (Datenschutz) |
+| Einladungslink? | **E-Mail primär + Clipboard-Fallback** |
+| Abwesenheitskalender? | **Ja** — als Sprint F nach Sprint B |
+
+---
+
+### 🔴 Sprint A — Datenbankfundament: Buchungsarten und Kundensichtbarkeit
+
+**Abhängigkeit:** keiner | **Kann parallel zu:** Sprint C
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Migration: `entry_scope` + `internal_category` + `customer_visibility`** | `server/src/config/database.ts` | 2h | `entry_scope` NOT NULL DEFAULT 'customer_project' CHECK IN ('customer_project','internal','absence'). `internal_category` nullable. `customer_visibility` NOT NULL DEFAULT 'hidden' CHECK IN ('hidden','summary','detailed'). `project_id` DROP NOT NULL. Indexes auf `(user_id, entry_scope, date)` und `(project_id, customer_visibility)`. Migration idempotent (IF NOT EXISTS). |
+| ⬜ | **Zod-Schema aktualisieren** | `server/src/routes/entries.ts` | 1h | `project_id` optional machen. `.refine()` Regel: project_id Pflicht wenn entry_scope = 'customer_project'. |
+| ⬜ | **TypeScript-Interface aktualisieren** | `src/types/index.ts` | 30min | `TimeEntry` um `entryScope`, `internalCategory?`, `customerVisibility` erweitern. |
+
+---
+
+### 🟠 Sprint B — UI: Erfassungsmaske für interne Arbeitszeit
+
+**Abhängigkeit:** Sprint A vollständig
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntry.tsx` | 3h | Segmented Control oder Select: „Projektzeit" (Standard) / „Interne Zeit" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false + ausblenden. `customer_visibility` serverseitig immer 'hidden' — kein UI-Feld in diesem Sprint. |
+| ⬜ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntries.tsx` | 1h | Blau = Projektzeit, Grau = Interne Zeit (Kategorie als Tooltip), Orange = Abwesenheit. |
+| ⬜ | **Filter nach Buchungsart** | `src/components/TimeEntries.tsx` | 1h | Filter-Tab oder Checkbox: Alle / Nur Projektzeit / Nur interne Zeit / Nur Abwesenheiten. Bestehende Auswertungen zeigen weiterhin nur customer_project-Einträge. |
+| ⬜ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Unter „Berichte" → „Interne Zeit". Stunden pro Kategorie (Balkendiagramm, bestehende Chart-Komponente). Soll-Ist-Vergleich aus `weekly_goal_hours`. Abwesenheitsübersicht pro Mitarbeiter nur für Admin. |
+
+---
+
+### 🟡 Sprint C — Portal-Fundament bereinigen
+
+**Abhängigkeit:** keiner | **Kann parallel zu:** Sprint A, B
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Einheitliches Berechtigungsmodell** | `server/src/routes/customer-portal.ts`, `server/src/config/database.ts` | 2h | `getContactPermissions()` liest ausschließlich aus `customer_portal_users`. Felder aus `customer_contacts` nur als Vorschlagswerte beim Einladen. Migration: `ALTER TABLE customer_portal_users ADD COLUMN IF NOT EXISTS can_view_time_report BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS can_view_contract BOOLEAN NOT NULL DEFAULT false;` |
+| ⬜ | **Einladungsfluss reparieren** | `src/components/CustomerHub.tsx`, `server/src/routes/contacts.ts` | 3h | Button „Portal-Zugang aktivieren" ist Placeholder → vollständiger Fluss: POST `/api/contacts/:id/portal-invite` → Aktivierungstoken + E-Mail-Versand (wenn SMTP konfiguriert) + Clipboard-Fallback. Aktivierungsseite `/portal/activate?token=...`. Statusanzeige: Eingeladen / Aktiv / Deaktiviert. Button „Einladung erneut senden". |
+| ⬜ | **PortalSettings konsolidieren** | `src/services/api/portal.ts`, `src/services/api/tickets.ts`, `src/components/KnowledgeBaseSettings.tsx` | 1h | Zwei `PortalSettings`-Interfaces zusammenführen → kanonisches Interface in `portal.ts`. Interface in `tickets.ts` entfernen. Neue Felder: `showTimeReport: boolean`, `showContractInfo: boolean`, `welcomeMessage: string \| null`, `companyName: string \| null`. |
+
+---
+
+### 🟢 Sprint D — Kundenportal: Stundentransparenz und Vertragsansicht
+
+**Abhängigkeit:** Sprint A + Sprint C vollständig
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Backend: Portal-Zeitreport-Route** | `server/src/routes/customer-portal.ts` | 2h | `GET /api/portal/time-report?month=YYYY-MM`. Prüft `can_view_time_report`. Filtert `time_entries` nach `customer_id`, `customer_visibility IN ('summary','detailed')`, `entry_scope = 'customer_project'`. Response: `{ month, totalHours, billableHours, byProject: [{projectId, projectName, hours, billableHours}], byCategory? }`. Keine Mitarbeiternamen in der Response (Datenschutz). |
+| ⬜ | **Frontend: PortalTimeReport-Komponente** | `src/components/portal/PortalTimeReport.tsx` (neu) | 3h | Monatsauswahl, Übersichtskarte (Gesamtstunden, verrechenbar, Restkontingent wenn Vertrag), Tabelle pro Projekt, aufklappbare Detailansicht bei `customer_visibility = 'detailed'`. In `CustomerPortal.tsx` als View `'time-report'` einbinden. In `PortalLayout.tsx` Navigationspunkt „Stunden" (nur wenn `contact.canViewTimeReport`). |
+| ⬜ | **Backend: Portal-Vertragsroute** | `server/src/routes/customer-portal.ts` | 1h | `GET /api/portal/contract`. Prüft `can_view_contract`. Gibt aktiven Vertrag zurück: Name, Laufzeit, enthaltene Stunden/Monat, verbrauchte Stunden aktueller Monat, SLA-Reaktionszeit, Status. |
+| ⬜ | **Frontend: PortalContract-Komponente** | `src/components/portal/PortalContract.tsx` (neu) | 2h | Kontingent-Fortschrittsbalken, SLA-Reaktionszeiten, Vertragslaufzeit, Ansprechpartner. In `CustomerPortal.tsx` als View `'contract'` einbinden. |
+
+---
+
+### 🔵 Sprint E — Kundenportal: Qualitätsverbesserungen
+
+**Abhängigkeit:** Sprint C vollständig | **Kann parallel zu:** Sprint D
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Ticket-Liste: Informationsdichte erhöhen** | `src/components/portal/PortalTicketList.tsx` | 2h | Pro Zeile: letztes Update (relativ), zuständiger Mitarbeiter (Vorname), SLA-Ampel (grün/gelb/rot), Prioritäts-Badge. Statusbezeichnungen kundenfreundlich: `in_progress` → „In Bearbeitung", `waiting_for_customer` → „Ihre Rückmeldung erforderlich". |
+| ⬜ | **Ticket-Erstellung: Formular verbessern** | `src/components/portal/PortalCreateTicket.tsx` | 2h | Neue Felder: Gerät (Dropdown aus Kundengeräten, optional), Dringlichkeit (Normal/Dringend/Kritisch), Anhänge (max. 3 Dateien, max. 10 MB). Bestätigungsseite mit Ticket-Nummer nach Absenden. |
+| ⬜ | **Geräte: Warnungen prominenter** | `src/components/portal/PortalDevices.tsx` | 1h | Geräte mit Warnungen oben (Sortierung nach Kritikalität). Zusammenfassungskarte: „X Geräte mit Warnungen". TeamViewer-Link als prominenter Button. |
+| ⬜ | **Portal-Dashboard als Startseite** | `src/components/portal/PortalDashboard.tsx` (neu) | 2h | Ersetzt leere Ticket-Ansicht als Einstieg. Zeigt: offene Tickets (Anzahl + letztes Update), Geräte mit Warnungen, Stunden diesen Monat (wenn `canViewTimeReport`), Restkontingent (wenn Vertrag). Ticket-Liste bleibt als eigener View erhalten. |
+
+---
+
+### ⚪ Sprint F — Abwesenheitskalender und Teamübersicht
+
+**Abhängigkeit:** Sprint B vollständig | **Kann parallel zu:** Sprint D, E
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Abwesenheitskalender (eigene Einträge)** | `src/components/AbsenceCalendar.tsx` (neu) | 3h | Monatskalender (shadcn/ui Calendar als Basis). Urlaub = Grün, Krankheit = Rot, Sonderurlaub = Gelb. Klick auf Tag → ManualEntry mit vorausgefüllter Buchungsart. Erreichbar unter „Berichte" → „Abwesenheiten". |
+| ⬜ | **Teamübersicht für Admin/Manager** | `src/components/TeamAbsenceOverview.tsx` (neu) | 3h | Nur für Rollen `admin` und `manager`. Horizontale Zeitleiste (Gantt-ähnlich) aller Teammitglieder. Daten aus `time_entries` WHERE `entry_scope = 'absence'`. Jahresverbrauch pro Mitarbeiter. Keine separate Urlaubskonto-Tabelle — Zählung direkt aus Buchungen. |
+
+---
+
+*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3 begonnen. Neue Anforderungen ergänzt: Sprints A–F (Interne Arbeitszeit + Kundenportal-Überarbeitung). Architekturentscheidungen getroffen und dokumentiert.*
