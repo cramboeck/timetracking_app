@@ -423,9 +423,9 @@ export const SupportInbox = () => {
                   onClick={() => setSelectedEmail(email)}
                   className={`p-4 cursor-pointer transition-colors ${
                     selectedEmail?.id === email.id
-                      ? 'bg-accent-primary/10'
+                      ? 'bg-accent-primary/10 dark:bg-accent-primary/20'
                       : 'hover:bg-gray-50 dark:hover:bg-dark-200'
-                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/40/10' : ''}`}
+                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/10' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-full ${
@@ -434,7 +434,7 @@ export const SupportInbox = () => {
                         : 'bg-gray-100 dark:bg-dark-200'
                     }`}>
                       <Mail size={16} className={
-                        !email.isRead ? 'text-accent-primary' : 'text-gray-400'
+                        !email.isRead ? 'text-accent-primary' : 'text-gray-400 dark:text-dark-400'
                       } />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -450,7 +450,7 @@ export const SupportInbox = () => {
                           <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
                         )}
                         {email.hasAttachments && (
-                          <Paperclip size={14} className="text-gray-400 flex-shrink-0" />
+                          <Paperclip size={14} className="text-gray-400 dark:text-dark-400 flex-shrink-0" />
                         )}
                       </div>
                       <p className={`text-sm truncate ${
@@ -492,7 +492,7 @@ export const SupportInbox = () => {
                 </div>
                 <div className="mt-2 text-sm text-gray-600 dark:text-dark-400">
                   <p>
-                    <span className="text-gray-500">Von:</span>{' '}
+                    <span className="text-gray-500 dark:text-dark-400">Von:</span>{' '}
                     {selectedEmail.from.name} &lt;{selectedEmail.from.email}&gt;
                   </p>
                   <p className="text-xs mt-1">
