@@ -518,16 +518,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### 🟠 Sprint B — UI: Erfassungsmaske für interne Arbeitszeit
+### ✅ Sprint B — UI: Erfassungsmaske für interne Arbeitszeit
 
-**Abhängigkeit:** Sprint A vollständig
+**Abhängigkeit:** Sprint A vollständig | **Status:** Komplett
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
 | ✅ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntryModern.tsx` | 3h | Commit 21a8352. Segmented Control: „Projektzeit" / „Intern" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false. |
 | ✅ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Grau + Coffee-Icon = Interne Zeit, Orange + Calendar-Icon = Abwesenheit. Badge zeigt Kategorie-Label. |
 | ✅ | **Filter nach Buchungsart** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Dropdown-Filter: Alle / Projektzeit / Interne Zeit / Abwesenheit. |
-| ⬜ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Unter „Berichte" → „Interne Zeit". Stunden pro Kategorie (Balkendiagramm, bestehende Chart-Komponente). Soll-Ist-Vergleich aus `weekly_goal_hours`. Abwesenheitsübersicht pro Mitarbeiter nur für Admin. |
+| ✅ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Commit 64a682a. Unter „Berichte" → Tab „Interne Auswertung". Summary-Cards, Kategorie-Aufteilung mit Balken, Abwesenheitsübersicht, Detail-Tabelle. **Export:** CSV für Steuerberater/Lohnabrechnung, Kopieren, E-Mail-Versand. |
 
 ---
 
@@ -580,4 +580,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A + Sprint B (Tasks 1-3) ✅ komplett. Verbleibend: Sprint B Task 4 (Interne Auswertung), Sprint C-F (Portal).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A + Sprint B ✅ komplett. Interne Arbeitszeit-Erfassung mit Buchungsarten (Projekt/Intern/Abwesenheit), Badges, Filter und Auswertungs-Tab inkl. Export für Steuerberater/Lohnabrechnung. Verbleibend: Sprint C-F (Portal-Features).*
