@@ -524,9 +524,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntry.tsx` | 3h | Segmented Control oder Select: „Projektzeit" (Standard) / „Interne Zeit" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false + ausblenden. `customer_visibility` serverseitig immer 'hidden' — kein UI-Feld in diesem Sprint. |
-| ⬜ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntries.tsx` | 1h | Blau = Projektzeit, Grau = Interne Zeit (Kategorie als Tooltip), Orange = Abwesenheit. |
-| ⬜ | **Filter nach Buchungsart** | `src/components/TimeEntries.tsx` | 1h | Filter-Tab oder Checkbox: Alle / Nur Projektzeit / Nur interne Zeit / Nur Abwesenheiten. Bestehende Auswertungen zeigen weiterhin nur customer_project-Einträge. |
+| ✅ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntryModern.tsx` | 3h | Commit 21a8352. Segmented Control: „Projektzeit" / „Intern" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false. |
+| ✅ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Grau + Coffee-Icon = Interne Zeit, Orange + Calendar-Icon = Abwesenheit. Badge zeigt Kategorie-Label. |
+| ✅ | **Filter nach Buchungsart** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Dropdown-Filter: Alle / Projektzeit / Interne Zeit / Abwesenheit. |
 | ⬜ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Unter „Berichte" → „Interne Zeit". Stunden pro Kategorie (Balkendiagramm, bestehende Chart-Komponente). Soll-Ist-Vergleich aus `weekly_goal_hours`. Abwesenheitsübersicht pro Mitarbeiter nur für Admin. |
 
 ---
@@ -580,4 +580,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 + Sprint A ✅ komplett. Nächster Schritt: Sprint B (UI für interne Arbeitszeit) oder Sprint C (Portal-Fundament).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A + Sprint B (Tasks 1-3) ✅ komplett. Verbleibend: Sprint B Task 4 (Interne Auswertung), Sprint C-F (Portal).*
