@@ -78,8 +78,8 @@ router.get('/stats', async (req, res) => {
 // GET /api/admin/users - List all users with pagination
 router.get('/users', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const search = req.query.search as string || '';
     const offset = (page - 1) * limit;
 
@@ -269,8 +269,8 @@ router.delete('/users/:id', async (req: AuthRequest, res) => {
 // GET /api/admin/audit-logs - Get audit logs with pagination
 router.get('/audit-logs', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 100;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 100));
     const userId = req.query.userId as string;
     const action = req.query.action as string;
     const offset = (page - 1) * limit;
@@ -405,8 +405,8 @@ router.get('/analytics', async (req, res) => {
 // GET /api/admin/maintenance - List all maintenance announcements
 router.get('/maintenance', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const status = req.query.status as string;
     const userId = req.query.userId as string;
     const offset = (page - 1) * limit;
