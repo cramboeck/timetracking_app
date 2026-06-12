@@ -469,11 +469,11 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
-### 🔴 Sicherheitslücken (kritisch, neu entdeckt)
+### ✅ Sicherheitslücken — Alle behoben
 
-- **`sevdesk.ts` (1266 Zeilen) hat KEINE Zod-Validierung** — alle `req.body` werden ungeprüft destructuriert (Z. 83, 111, 155, 203, File-Upload Z. 760). Verletzt Verhaltensregel 6. Betrifft auch die neuen Belege-Phase-1-3-Routen.
-- **`SELECT *` in 31 Dateien** — Verletzt Verhaltensregel 7. Betroffen: social-media.ts, tickets.ts, customers.ts, entries.ts, u.a.
-- **`parseInt` ohne Bounds in admin.ts** — `limit=999999` möglich (DoS-Vektor). Empfehlung: `Math.min(limit, 200)`.
+- ~~**`sevdesk.ts` hat KEINE Zod-Validierung**~~ ✅ Gelöst in Sprint 1 (Commit 96c2aa3). 14 Endpoints + 20 Schemas validiert.
+- ~~**`SELECT *` in 31 Dateien**~~ ✅ Gelöst in Sprint 3 (Commits 238a621, 8d76960, 2ff11a9, 29e5abe). Alle direkten Tabellen-SELECT * durch explizite Spaltenlisten ersetzt.
+- ~~**`parseInt` ohne Bounds in admin.ts**~~ ✅ Gelöst in Sprint 1 (Commit 96c2aa3). Bounds-Checks mit `Math.min(limit, 200)` eingeführt.
 
 ---
 
