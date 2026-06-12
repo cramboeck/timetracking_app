@@ -34,8 +34,8 @@ const clockodoCredentialsSchema = z.object({
 const clockodoImportSchema = z.object({
   apiEmail: z.string().email().max(200),
   apiKey: z.string().min(1).max(200),
-  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
 const clockodoExecuteSchema = z.object({
@@ -46,6 +46,17 @@ const clockodoExecuteSchema = z.object({
   customerMapping: z.record(z.string().uuid()).optional(),
   projectMapping: z.record(z.string().uuid()).optional(),
   importType: z.enum(['all', 'time_entries', 'customers', 'projects']).optional(),
+});
+
+const clockodoApiConfigSchema = z.object({
+  apiEmail: z.string().email().max(200),
+  apiKey: z.string().min(1).max(200).optional(),
+});
+
+const clockodoApiExecuteSchema = clockodoExecuteSchema.extend({
+  defaultProjectId: z.string().uuid().optional().nullable(),
+  createMissingProjects: z.boolean().optional(),
+  skipDuplicates: z.boolean().optional(),
 });
 
 // Import log file path
@@ -367,19 +378,15 @@ router.post('/clockodo/preview', authenticateToken, attachOrganization, requireO
 });
 
 // POST /api/import/clockodo/execute - Execute import
-router.post('/clockodo/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(csvImportSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { csvContent, customerMapping, projectMapping, defaultProjectId, createMissingProjects, skipDuplicates } = req.body;
+    // Validation handled by Zod
 
     logImport('=== CLOCKODO IMPORT STARTED ===', { userId, organizationId });
-
-    if (!csvContent) {
-      logImport('ERROR: CSV content is required');
-      return res.status(400).json({ error: 'CSV content is required' });
-    }
 
     // Note: defaultProjectId is no longer required - all unmatched projects must be manually mapped
     // The frontend enforces this by disabling the import button when unmapped projects exist
@@ -699,14 +706,11 @@ router.get('/clockodo/api/config', authenticateToken, attachOrganization, requir
 });
 
 // POST /api/import/clockodo/api/config - Save Clockodo API config
-router.post('/clockodo/api/config', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/api/config', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(clockodoApiConfigSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { apiEmail, apiKey } = req.body;
-
-    if (!apiEmail) {
-      return res.status(400).json({ error: 'API email is required' });
-    }
+    // Validation handled by Zod
 
     const config = await clockodoService.saveConfig(userId, {
       apiEmail,
@@ -728,20 +732,13 @@ router.post('/clockodo/api/config', authenticateToken, attachOrganization, requi
 });
 
 // POST /api/import/clockodo/api/test - Test Clockodo API connection
-router.post('/clockodo/api/test', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/api/test', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(clockodoCredentialsSchema), async (req: AuthRequest, res) => {
   try {
     console.log('[Clockodo Test] Request body:', JSON.stringify(req.body));
     console.log('[Clockodo Test] Content-Type:', req.headers['content-type']);
 
     const { apiEmail, apiKey } = req.body;
-
-    if (!apiEmail || !apiKey) {
-      console.log('[Clockodo Test] Missing credentials - apiEmail:', !!apiEmail, 'apiKey:', !!apiKey);
-      return res.status(400).json({
-        error: 'API email and key are required',
-        debug: { hasEmail: !!apiEmail, hasKey: !!apiKey, bodyKeys: Object.keys(req.body || {}) }
-      });
-    }
+    // Validation handled by Zod
 
     const result = await clockodoService.testConnection(apiEmail, apiKey);
 
@@ -766,22 +763,15 @@ router.post('/clockodo/api/test', authenticateToken, attachOrganization, require
 });
 
 // POST /api/import/clockodo/api/preview - Preview Clockodo API import
-router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(clockodoImportSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { apiEmail, apiKey, timeSince, timeUntil } = req.body;
+    // Validation handled by Zod
 
     console.log('[Clockodo Preview] Request body:', JSON.stringify({ apiEmail: !!apiEmail, apiKey: !!apiKey, timeSince, timeUntil }));
-
-    if (!apiEmail || !apiKey) {
-      return res.status(400).json({ error: 'API credentials are required' });
-    }
-
-    if (!timeSince || !timeUntil) {
-      return res.status(400).json({ error: 'Date range is required' });
-    }
 
     logImport('=== CLOCKODO API PREVIEW STARTED ===', { userId, organizationId, timeSince, timeUntil });
 
@@ -815,7 +805,7 @@ router.post('/clockodo/api/preview', authenticateToken, attachOrganization, requ
 });
 
 // POST /api/import/clockodo/api/execute - Execute Clockodo API import
-router.post('/clockodo/api/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/api/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(clockodoApiExecuteSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
@@ -830,14 +820,7 @@ router.post('/clockodo/api/execute', authenticateToken, attachOrganization, requ
       createMissingProjects,
       skipDuplicates
     } = req.body;
-
-    if (!apiEmail || !apiKey) {
-      return res.status(400).json({ error: 'API credentials are required' });
-    }
-
-    if (!timeSince || !timeUntil) {
-      return res.status(400).json({ error: 'Date range is required' });
-    }
+    // Validation handled by Zod
 
     logImport('=== CLOCKODO API IMPORT STARTED ===', { userId, organizationId, timeSince, timeUntil });
 
