@@ -4458,54 +4458,98 @@ export async function initializeDatabase() {
     ];
 
     for (const tableName of tablesToBackfill) {
+      // Only backfill if the column exists (safe check)
       await client.query(`
-        UPDATE ${tableName} t
-        SET organization_id = om.organization_id
-        FROM organization_members om
-        WHERE t.user_id = om.user_id
-          AND t.organization_id IS NULL
-          AND om.organization_id IS NOT NULL
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'organization_id'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'user_id'
+          ) THEN
+            UPDATE ${tableName} t
+            SET organization_id = om.organization_id
+            FROM organization_members om
+            WHERE t.user_id = om.user_id
+              AND t.organization_id IS NULL
+              AND om.organization_id IS NOT NULL;
+          END IF;
+        END $$;
       `);
     }
 
     // Special backfill for teams (uses owner_id instead of user_id)
     await client.query(`
-      UPDATE teams t
-      SET organization_id = om.organization_id
-      FROM organization_members om
-      WHERE t.owner_id = om.user_id
-        AND t.organization_id IS NULL
-        AND om.organization_id IS NOT NULL
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'teams' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE teams t
+          SET organization_id = om.organization_id
+          FROM organization_members om
+          WHERE t.owner_id = om.user_id
+            AND t.organization_id IS NULL
+            AND om.organization_id IS NOT NULL;
+        END IF;
+      END $$;
     `);
 
     // Special backfill for ticket_comments (uses ticket's organization_id)
     await client.query(`
-      UPDATE ticket_comments tc
-      SET organization_id = t.organization_id
-      FROM tickets t
-      WHERE tc.ticket_id = t.id
-        AND tc.organization_id IS NULL
-        AND t.organization_id IS NOT NULL
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE ticket_comments tc
+          SET organization_id = t.organization_id
+          FROM tickets t
+          WHERE tc.ticket_id = t.id
+            AND tc.organization_id IS NULL
+            AND t.organization_id IS NOT NULL;
+        END IF;
+      END $$;
     `);
 
     // Special backfill for lead_activities (uses lead's organization_id)
     await client.query(`
-      UPDATE lead_activities la
-      SET organization_id = l.organization_id
-      FROM leads l
-      WHERE la.lead_id = l.id
-        AND la.organization_id IS NULL
-        AND l.organization_id IS NOT NULL
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'lead_activities' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE lead_activities la
+          SET organization_id = l.organization_id
+          FROM leads l
+          WHERE la.lead_id = l.id
+            AND la.organization_id IS NULL
+            AND l.organization_id IS NOT NULL;
+        END IF;
+      END $$;
     `);
 
     // Special backfill for task_checklist_items (uses task's organization_id)
     await client.query(`
-      UPDATE task_checklist_items tci
-      SET organization_id = t.organization_id
-      FROM tasks t
-      WHERE tci.task_id = t.id
-        AND tci.organization_id IS NULL
-        AND t.organization_id IS NOT NULL
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'task_checklist_items' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE task_checklist_items tci
+          SET organization_id = t.organization_id
+          FROM tasks t
+          WHERE tci.task_id = t.id
+            AND tci.organization_id IS NULL
+            AND t.organization_id IS NOT NULL;
+        END IF;
+      END $$;
     `);
 
     logger.info('✅ Multi-tenancy: organization_id backfilled from user relationships');
