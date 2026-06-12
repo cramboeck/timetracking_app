@@ -203,47 +203,98 @@ function transformComment(row: any) {
 // ============================================================================
 
 // GET /api/tickets - Get all tickets for organization
+// Supports pagination (?page=1&limit=50) and filters:
+//   ?status=open|in_progress|waiting|resolved|closed
+//   ?customerId=UUID  ?priority=low|normal|high|critical
+//   ?searchText=foo   (case-insensitive on title/description)
+// Backward-compatible: ?all=true returns all tickets without pagination (legacy)
 router.get('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { status, customerId, priority } = req.query;
+    const { status, customerId, priority, searchText } = req.query;
 
-    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}`);
+    // Legacy support: ?all=true bypasses pagination
+    const returnAll = req.query.all === 'true';
 
-    let queryText = `
-      SELECT t.*, c.name as customer_name, p.name as project_name
-      FROM tickets t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.organization_id = $1
-    `;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}, page: ${page}, limit: ${limit}`);
+
+    // Build WHERE clause
     const params: any[] = [organizationId];
-    let paramIndex = 2;
+    let whereClause = 'WHERE t.organization_id = $1';
 
     if (status) {
-      queryText += ` AND t.status = $${paramIndex}`;
       params.push(status);
-      paramIndex++;
+      whereClause += ` AND t.status = $${params.length}`;
     }
 
     if (customerId) {
-      queryText += ` AND t.customer_id = $${paramIndex}`;
       params.push(customerId);
-      paramIndex++;
+      whereClause += ` AND t.customer_id = $${params.length}`;
     }
 
     if (priority) {
-      queryText += ` AND t.priority = $${paramIndex}`;
       params.push(priority);
-      paramIndex++;
+      whereClause += ` AND t.priority = $${params.length}`;
     }
 
-    queryText += ' ORDER BY t.created_at DESC';
+    if (searchText && typeof searchText === 'string' && searchText.trim()) {
+      params.push(`%${searchText.trim()}%`);
+      whereClause += ` AND (t.title ILIKE $${params.length} OR t.description ILIKE $${params.length})`;
+    }
 
-    const result = await query(queryText, params);
-    logger.info(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
-    res.json({ success: true, data: result.rows.map(transformTicket) });
+    // Explicit column list (no SELECT *)
+    const baseQuery = `
+      SELECT t.id, t.ticket_number, t.organization_id, t.user_id, t.customer_id, t.project_id,
+             t.assigned_to, t.title, t.description, t.status, t.priority, t.source,
+             t.due_date, t.first_response_at, t.resolved_at, t.closed_at,
+             t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
+             t.sla_response_breached, t.sla_resolution_breached,
+             t.created_at, t.updated_at, t.created_by_contact_id,
+             c.name as customer_name, p.name as project_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      ${whereClause}
+      ORDER BY t.created_at DESC`;
+
+    if (returnAll) {
+      // Legacy path: return all matching tickets without pagination
+      const result = await query(baseQuery, params);
+      logger.info(`📋 Found ${result.rows.length} tickets (all) for organization_id: ${organizationId}`);
+      return res.json({ success: true, data: result.rows.map(transformTicket) });
+    }
+
+    // Count total for pagination metadata
+    const countResult = await query(
+      `SELECT COUNT(*) FROM tickets t ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Fetch page
+    params.push(limit, offset);
+    const result = await query(
+      `${baseQuery} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    logger.info(`📋 Found ${result.rows.length}/${total} tickets for organization_id: ${organizationId}`);
+    res.json({
+      success: true,
+      data: result.rows.map(transformTicket),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    });
   } catch (error) {
     logger.error('Error fetching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
