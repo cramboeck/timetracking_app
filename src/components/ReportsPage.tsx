@@ -4,10 +4,12 @@ import { Button } from './ui';
 import { ReportAssistant } from './ReportAssistant';
 import { InternalTimeReport } from './InternalTimeReport';
 import { AdminTeamTimeView } from './AdminTeamTimeView';
+import { AbsenceCalendar } from './AbsenceCalendar';
+import { TeamAbsenceOverview } from './TeamAbsenceOverview';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useTeam } from '../contexts/TeamContext';
 
-type ReportTab = 'customer' | 'internal' | 'team';
+type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences';
 
 interface ReportsPageProps {
   entries: TimeEntry[];
@@ -92,20 +94,44 @@ export const ReportsPage = ({
               }`}
             >
               <Coffee size={18} />
-              Interne Auswertung
+              Intern
+            </button>
+            <button
+              onClick={() => setActiveTab('absences')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'absences'
+                  ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Calendar size={18} />
+              Abwesenheit
             </button>
             {isAdmin && (
-              <button
-                onClick={() => setActiveTab('team')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === 'team'
-                    ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
-                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <Users size={18} />
-                Team-Zeiten
-              </button>
+              <>
+                <button
+                  onClick={() => setActiveTab('team')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'team'
+                      ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Users size={18} />
+                  Team
+                </button>
+                <button
+                  onClick={() => setActiveTab('team-absences')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'team-absences'
+                      ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Calendar size={18} />
+                  Team-Urlaub
+                </button>
+              </>
             )}
           </div>
 
@@ -208,9 +234,19 @@ export const ReportsPage = ({
           <InternalTimeReport entries={entries} />
         )}
 
+        {/* Absence Calendar Tab Content */}
+        {activeTab === 'absences' && (
+          <AbsenceCalendar entries={entries} />
+        )}
+
         {/* Team Time Report Tab Content (Admin only) */}
         {activeTab === 'team' && isAdmin && (
           <AdminTeamTimeView />
+        )}
+
+        {/* Team Absence Overview Tab Content (Admin only) */}
+        {activeTab === 'team-absences' && isAdmin && (
+          <TeamAbsenceOverview />
         )}
       </div>
 
