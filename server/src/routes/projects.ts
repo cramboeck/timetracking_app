@@ -9,6 +9,16 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const PROJECT_COLUMNS = `
+  id, organization_id, user_id, customer_id, name, is_active, rate_type,
+  hourly_rate, created_at, deleted_at
+`;
+
+const CUSTOMER_COLUMNS_BASIC = `
+  id, organization_id, name, customer_number, email
+`;
+
 // Validation schemas
 const createProjectSchema = z.object({
   customerId: z.string().uuid(),
@@ -32,7 +42,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
+    const result = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
     const projects = transformRows(result.rows);
 
     res.json({
@@ -54,7 +64,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const { customerId, name, rateType, hourlyRate, isActive } = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS_BASIC} FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(400).json({ error: 'Customer not found or does not belong to your organization' });
     }
@@ -68,7 +78,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       [id, userId, organizationId, customerId, name, rateType, hourlyRate, isActive, createdAt]
     );
 
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
     const newProject = transformRow(projectResult.rows[0]);
 
     auditLog.log({
@@ -99,14 +109,14 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
+    const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Verify customer belongs to organization (if updating customerId)
     if (updates.customerId) {
-      const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [updates.customerId, organizationId]);
+      const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS_BASIC} FROM customers WHERE id = $1 AND organization_id = $2', [updates.customerId, organizationId]);
       if (customerResult.rows.length === 0) {
         return res.status(400).json({ error: 'Customer not found or does not belong to your organization' });
       }
@@ -146,7 +156,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const query = `UPDATE projects SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const updatedResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND deleted_at IS NULL', [id]);
     const updatedProject = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -176,7 +186,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     const { id } = req.params;
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
+    const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
