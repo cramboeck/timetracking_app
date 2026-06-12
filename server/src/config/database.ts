@@ -1196,6 +1196,88 @@ export async function initializeDatabase() {
         WHEN others THEN NULL;
       END $$;
     `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN assigned_to TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: Add SLA and project columns to tickets for Sprint 3 SELECT * elimination
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN project_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN first_response_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_policy_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_response_due TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_resolution_due TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_response_breached BOOLEAN DEFAULT false;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_resolution_breached BOOLEAN DEFAULT false;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN created_by_contact_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
 
     // Migration: Add portal_user_id to ticket_comments if not exists
     await client.query(`
