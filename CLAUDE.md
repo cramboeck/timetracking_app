@@ -463,6 +463,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
+### Tickets — Offene Bugs & Verbesserungen (Stand 12.6.2026)
+
+| Priorität | Problem | Beschreibung |
+|---|---|---|
+| 🔴 Hoch | **KI-generierter Text nicht lesbar** | Text bei KI-Antworten in Tickets hat Kontrastprobleme (vermutlich Dark-Mode-Token fehlen) |
+| 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
+| 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
+| 🟡 Normal | **Ticket-Darstellung optimieren** | Allgemeine UI/UX-Verbesserungen für Ticket-Ansicht und -Handling |
+| 🟡 Normal | **Schnittstellen-Optimierung** | Integration mit externen Systemen (NinjaRMM, E-Mail) verbessern |
+
 ### ✅ Sicherheitslücken — Alle behoben
 
 - ~~**`sevdesk.ts` hat KEINE Zod-Validierung**~~ ✅ Gelöst in Sprint 1 (Commit 96c2aa3). 14 Endpoints + 20 Schemas validiert.
