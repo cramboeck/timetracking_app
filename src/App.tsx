@@ -841,6 +841,9 @@ function App() {
       isRunning: true,
       isBillable: entry.isBillable ?? true,
       createdAt: now,
+      entryScope: entry.entryScope || 'customer_project',
+      internalCategory: entry.internalCategory,
+      customerVisibility: entry.customerVisibility || 'hidden',
     };
 
     await handleUpdateRunning(newEntry);

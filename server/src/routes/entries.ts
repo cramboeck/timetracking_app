@@ -15,7 +15,8 @@ const router = Router();
 const TIME_ENTRY_COLUMNS = `
   id, organization_id, user_id, project_id, activity_id, ticket_id,
   start_time, end_time, duration, description, is_running, is_billable,
-  external_id, external_source, created_at
+  external_id, external_source, created_at,
+  entry_scope, internal_category, customer_visibility
 `;
 
 const PROJECT_COLUMNS = `
@@ -32,29 +33,41 @@ const TICKET_COLUMNS_BASIC = `
 `;
 
 // Validation schemas
+const entryScopeSchema = z.enum(['customer_project', 'internal', 'absence']);
+const customerVisibilitySchema = z.enum(['hidden', 'summary', 'detailed']);
+
 const createEntrySchema = z.object({
   clientId: z.string().uuid().optional(), // Client-generated ID for idempotency
   startTime: z.string().datetime(),
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0),
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().optional().nullable(), // Optional for internal/absence entries
   activityId: z.string().uuid().optional(),
   ticketId: z.string().uuid().optional(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().default(false),
-  isBillable: z.boolean().default(true)
-});
+  isBillable: z.boolean().default(true),
+  entryScope: entryScopeSchema.default('customer_project'),
+  internalCategory: z.string().max(100).optional().nullable(),
+  customerVisibility: customerVisibilitySchema.default('hidden')
+}).refine(
+  (data) => data.entryScope !== 'customer_project' || data.projectId,
+  { message: 'projectId is required for customer_project entries', path: ['projectId'] }
+);
 
 const updateEntrySchema = z.object({
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0).optional(),
-  projectId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional().nullable(),
   activityId: z.string().uuid().optional().nullable(),
   ticketId: z.string().uuid().optional().nullable(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().optional(),
-  isBillable: z.boolean().optional()
+  isBillable: z.boolean().optional(),
+  entryScope: entryScopeSchema.optional(),
+  internalCategory: z.string().max(100).optional().nullable(),
+  customerVisibility: customerVisibilitySchema.optional()
 });
 
 // GET /api/entries - Get entries for current organization
@@ -221,6 +234,18 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
       fields.push(`activity_id = $${paramCount++}`);
       values.push(updates.activityId || null);
     }
+    if (updates.entryScope !== undefined) {
+      fields.push(`entry_scope = $${paramCount++}`);
+      values.push(updates.entryScope);
+    }
+    if (updates.internalCategory !== undefined) {
+      fields.push(`internal_category = $${paramCount++}`);
+      values.push(updates.internalCategory);
+    }
+    if (updates.customerVisibility !== undefined) {
+      fields.push(`customer_visibility = $${paramCount++}`);
+      values.push(updates.customerVisibility);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
@@ -307,7 +332,11 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { clientId, startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning, isBillable = true } = req.body;
+    const {
+      clientId, startTime, endTime, duration, projectId, activityId, ticketId,
+      description, isRunning, isBillable = true,
+      entryScope = 'customer_project', internalCategory = null, customerVisibility = 'hidden'
+    } = req.body;
 
     // Idempotency: If clientId is provided, check if entry already exists
     if (clientId) {
@@ -393,13 +422,13 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         id,
         userId,
         organizationId,
-        projectId,
+        projectId || null, // Can be null for internal/absence entries
         activityId || null,
         ticketId || null,
         startTime,
@@ -408,7 +437,10 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         description || '',
         isRunning, // PostgreSQL uses boolean, not 0/1
         isBillable,
-        createdAt
+        createdAt,
+        entryScope,
+        internalCategory,
+        customerVisibility
       ]
     );
 
@@ -525,6 +557,18 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.isBillable !== undefined) {
       fields.push(`is_billable = $${paramCount++}`);
       values.push(updates.isBillable);
+    }
+    if (updates.entryScope !== undefined) {
+      fields.push(`entry_scope = $${paramCount++}`);
+      values.push(updates.entryScope);
+    }
+    if (updates.internalCategory !== undefined) {
+      fields.push(`internal_category = $${paramCount++}`);
+      values.push(updates.internalCategory);
+    }
+    if (updates.customerVisibility !== undefined) {
+      fields.push(`customer_visibility = $${paramCount++}`);
+      values.push(updates.customerVisibility);
     }
 
     if (fields.length === 0) {

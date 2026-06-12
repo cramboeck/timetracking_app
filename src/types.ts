@@ -161,19 +161,25 @@ export interface Project {
   createdAt: string;
 }
 
+export type EntryScope = 'customer_project' | 'internal' | 'absence';
+export type CustomerVisibility = 'hidden' | 'summary' | 'detailed';
+
 export interface TimeEntry {
   id: string;
   userId: string; // Multi-user support
   startTime: string;
   endTime?: string;
   duration: number; // in seconds
-  projectId: string; // Changed from project string to projectId
+  projectId?: string; // Optional for internal/absence entries
   activityId?: string; // Optional: link to activity for flat-rate pricing
   ticketId?: string; // Optional: link to ticket
   description: string;
   isRunning: boolean;
   isBillable: boolean; // Whether this entry should be included in billing/reports
   createdAt: string;
+  entryScope: EntryScope; // 'customer_project' | 'internal' | 'absence'
+  internalCategory?: string; // For internal: Admin, Vertrieb, etc. For absence: Urlaub, Krankheit, etc.
+  customerVisibility: CustomerVisibility; // 'hidden' | 'summary' | 'detailed'
 }
 
 // ============================================================================

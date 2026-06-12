@@ -212,7 +212,10 @@ export const ManualEntryModern = ({
       activityId: activityId || undefined,
       description: description || '',
       isRunning: false,
+      isBillable: true,
       createdAt: new Date().toISOString(),
+      entryScope: 'customer_project',
+      customerVisibility: 'hidden',
     };
 
     onSave(entry);

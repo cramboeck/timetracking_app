@@ -259,7 +259,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       ticketId: ticketId || undefined,
       description: description || '',
       isRunning: true,
+      isBillable: true,
       createdAt: now,
+      entryScope: 'customer_project',
+      customerVisibility: 'hidden',
     };
 
     onUpdateRunning(entry);
@@ -306,7 +309,11 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       ticketId: ticketId || runningEntry?.ticketId || undefined,
       description: description || '',
       isRunning: false,
+      isBillable: runningEntry?.isBillable ?? true,
       createdAt: runningEntry?.createdAt || startTimeRef.current,
+      entryScope: runningEntry?.entryScope || 'customer_project',
+      internalCategory: runningEntry?.internalCategory,
+      customerVisibility: runningEntry?.customerVisibility || 'hidden',
     };
 
     try {

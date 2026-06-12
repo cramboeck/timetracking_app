@@ -3432,6 +3432,65 @@ export async function initializeDatabase() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_external ON time_entries(organization_id, external_source, external_id)');
 
+    // ============================================
+    // Sprint A: Internal Time Tracking & Customer Visibility
+    // ============================================
+    // entry_scope: 'customer_project' (default), 'internal', 'absence'
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'entry_scope'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN entry_scope TEXT NOT NULL DEFAULT 'customer_project';
+          ALTER TABLE time_entries ADD CONSTRAINT chk_entry_scope CHECK (entry_scope IN ('customer_project', 'internal', 'absence'));
+        END IF;
+      END $$;
+    `);
+
+    // internal_category: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise
+    // For absence: Urlaub, Krankheit, Sonderurlaub
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'internal_category'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN internal_category TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // customer_visibility: 'hidden' (default), 'summary', 'detailed'
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'customer_visibility'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN customer_visibility TEXT NOT NULL DEFAULT 'hidden';
+          ALTER TABLE time_entries ADD CONSTRAINT chk_customer_visibility CHECK (customer_visibility IN ('hidden', 'summary', 'detailed'));
+        END IF;
+      END $$;
+    `);
+
+    // Drop NOT NULL constraint from project_id (internal/absence entries don't have a project)
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE time_entries ALTER COLUMN project_id DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL; -- Constraint might already be dropped or column might not exist
+      END $$;
+    `);
+
+    // Indexes for Sprint A queries
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_scope ON time_entries(user_id, entry_scope, start_time)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_visibility ON time_entries(project_id, customer_visibility)');
+
     // Migration: Add default_project_id to customers (fallback for imports)
     await client.query(`
       DO $$

@@ -383,6 +383,8 @@ export const WeeklyGridView = ({
           isRunning: false,
           isBillable: true,
           createdAt: new Date().toISOString(),
+          entryScope: 'customer_project',
+          customerVisibility: 'hidden',
         });
       } catch (err) {
         console.error('[WeeklyGrid] create failed', err);
