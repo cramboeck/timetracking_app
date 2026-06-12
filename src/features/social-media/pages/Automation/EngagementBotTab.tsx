@@ -161,7 +161,7 @@ export default function EngagementBotTab() {
       {/* Status Card */}
       <div className={`rounded-xl p-6 ${
         settings.enabled
-          ? 'bg-gradient-to-r from-blue-500 to-indigo-600'
+          ? 'bg-gradient-to-r from-accent-primary to-indigo-600'
           : 'bg-gradient-to-r from-gray-500 to-gray-600'
       } text-white`}>
         <div className="flex items-center justify-between">
@@ -221,7 +221,7 @@ export default function EngagementBotTab() {
       {/* Settings Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* General Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <Settings size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -231,7 +231,7 @@ export default function EngagementBotTab() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Plattformen
               </label>
               <div className="flex flex-wrap gap-2">
@@ -242,7 +242,7 @@ export default function EngagementBotTab() {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       settings.platforms.includes(platform)
                         ? `${PLATFORM_COLORS[platform]} text-white`
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                     }`}
                   >
                     {PLATFORM_ICONS[platform]}
@@ -253,7 +253,7 @@ export default function EngagementBotTab() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Antworten pro Tag
               </label>
               <input
@@ -267,12 +267,12 @@ export default function EngagementBotTab() {
                     dailyLimit: parseInt(e.target.value) || 1,
                   })
                 }
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Antwort-Stil
               </label>
               <div className="space-y-2">
@@ -285,7 +285,7 @@ export default function EngagementBotTab() {
                     className={`w-full text-left p-3 rounded-lg border transition-colors ${
                       settings.responseStyle === style.value
                         ? 'border-pink-600 bg-pink-50 dark:bg-pink-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-200'
                     }`}
                   >
                     <p className={`font-medium ${
@@ -295,7 +295,7 @@ export default function EngagementBotTab() {
                     }`}>
                       {style.label}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       {style.description}
                     </p>
                   </button>
@@ -308,7 +308,7 @@ export default function EngagementBotTab() {
         {/* Target Keywords & Accounts */}
         <div className="space-y-6">
           {/* Keywords */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2 mb-4">
               <Target size={20} className="text-pink-600" />
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -336,12 +336,12 @@ export default function EngagementBotTab() {
                 onChange={(e) => setNewKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
                 placeholder="Keyword hinzufügen..."
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
               <button
                 onClick={addKeyword}
                 disabled={!newKeyword.trim()}
-                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg disabled:opacity-50"
+                className="px-3 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg disabled:opacity-50"
               >
                 <Plus size={18} />
               </button>
@@ -349,7 +349,7 @@ export default function EngagementBotTab() {
           </div>
 
           {/* Target Accounts */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2 mb-4">
               <Users size={20} className="text-pink-600" />
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -361,7 +361,7 @@ export default function EngagementBotTab() {
               {settings.targetAccounts.map((account) => (
                 <span
                   key={account}
-                  className="flex items-center gap-1 px-3 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded-full text-sm"
+                  className="flex items-center gap-1 px-3 py-1 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded-full text-sm"
                 >
                   @{account}
                   <button onClick={() => removeAccount(account)}>
@@ -377,12 +377,12 @@ export default function EngagementBotTab() {
                 onChange={(e) => setNewAccount(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addAccount()}
                 placeholder="@account..."
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
               <button
                 onClick={addAccount}
                 disabled={!newAccount.trim()}
-                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg disabled:opacity-50"
+                className="px-3 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg disabled:opacity-50"
               >
                 <Plus size={18} />
               </button>
@@ -390,7 +390,7 @@ export default function EngagementBotTab() {
           </div>
 
           {/* Exclude Keywords */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2 mb-4">
               <X size={20} className="text-red-600" />
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -418,12 +418,12 @@ export default function EngagementBotTab() {
                 onChange={(e) => setNewExclude(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addExclude()}
                 placeholder="Keyword ausschließen..."
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
               />
               <button
                 onClick={addExclude}
                 disabled={!newExclude.trim()}
-                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg disabled:opacity-50"
+                className="px-3 py-2 bg-gray-100 dark:bg-dark-200 rounded-lg disabled:opacity-50"
               >
                 <Plus size={18} />
               </button>
@@ -434,7 +434,7 @@ export default function EngagementBotTab() {
 
       {/* Recent Engagement History */}
       {history.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-4">
             <History size={20} className="text-pink-600" />
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -446,13 +446,13 @@ export default function EngagementBotTab() {
             {history.slice(0, 5).map((item) => (
               <div
                 key={item.id}
-                className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
+                className="p-4 bg-gray-50 dark:bg-dark-50 rounded-lg"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`p-1 rounded ${PLATFORM_COLORS[item.platform] || 'bg-gray-500'} text-white`}>
                     {PLATFORM_ICONS[item.platform]}
                   </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500 dark:text-dark-400">
                     {new Date(item.createdAt).toLocaleDateString('de-DE', {
                       day: '2-digit',
                       month: '2-digit',
@@ -461,7 +461,7 @@ export default function EngagementBotTab() {
                     })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
+                <p className="text-sm text-gray-600 dark:text-dark-400 mb-2 line-clamp-2">
                   <strong>Original:</strong> {item.originalPost}
                 </p>
                 <p className="text-sm text-gray-800 dark:text-white">

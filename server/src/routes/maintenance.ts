@@ -7,6 +7,23 @@ import { emailService } from '../services/emailService';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const ANNOUNCEMENT_COLUMNS = `
+  id, user_id, title, description, maintenance_type, affected_systems,
+  scheduled_start, scheduled_end, actual_start, actual_end, status,
+  require_approval, approval_deadline, auto_proceed_on_no_response, notes,
+  created_at, updated_at
+`;
+
+const ACTIVITY_LOG_COLUMNS = `
+  id, announcement_id, action, details, performed_by, created_at
+`;
+
+const TEMPLATE_COLUMNS = `
+  id, user_id, name, description, maintenance_type, affected_systems,
+  require_approval, auto_proceed_on_no_response, notes, is_active, created_at, updated_at
+`;
+
 // Validation schemas
 const createAnnouncementSchema = z.object({
   title: z.string().min(1).max(255),
@@ -123,7 +140,7 @@ router.get('/announcements/:id', authenticateToken, async (req: AuthRequest, res
 
     // Get announcement
     const announcementResult = await query(
-      'SELECT * FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -155,7 +172,7 @@ router.get('/announcements/:id', authenticateToken, async (req: AuthRequest, res
 
     // Get activity log
     const activityResult = await query(
-      `SELECT * FROM maintenance_activity_log
+      `SELECT ${ACTIVITY_LOG_COLUMNS} FROM maintenance_activity_log
        WHERE announcement_id = $1
        ORDER BY created_at DESC
        LIMIT 50`,
@@ -273,7 +290,7 @@ router.put('/announcements/:id', authenticateToken, validate(updateAnnouncementS
 
     // Check ownership and status
     const existing = await query(
-      'SELECT * FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -406,7 +423,7 @@ router.post('/announcements/:id/send', authenticateToken, validate(sendNotificat
 
     // Get announcement
     const announcementResult = await query(
-      'SELECT * FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -505,7 +522,7 @@ router.post('/announcements/:id/remind', authenticateToken, async (req: AuthRequ
     const userId = req.userId!;
 
     const announcementResult = await query(
-      'SELECT * FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
 
@@ -791,7 +808,7 @@ router.get('/templates', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await query(
-      `SELECT * FROM maintenance_templates
+      `SELECT ${TEMPLATE_COLUMNS} FROM maintenance_templates
        WHERE user_id = $1 AND is_active = true
        ORDER BY name`,
       [userId]
@@ -867,7 +884,7 @@ router.get('/dashboard', authenticateToken, async (req: AuthRequest, res) => {
 
     // Upcoming announcements
     const upcomingResult = await query(
-      `SELECT * FROM maintenance_announcements
+      `SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements
        WHERE user_id = $1 AND status IN ('scheduled', 'sent')
          AND scheduled_start > NOW()
        ORDER BY scheduled_start ASC

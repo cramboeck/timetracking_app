@@ -35,6 +35,8 @@ export interface EntryFilters {
   startDate?: string; // ISO date string
   endDate?: string;   // ISO date string
   projectId?: string;
+  customerId?: string; // filters via projects.customer_id
+  searchText?: string; // case-insensitive ILIKE on description
 }
 
 // Time Entries API
@@ -52,13 +54,24 @@ export const entriesApi = {
     pagination: PaginationMeta;
   }> => {
     const params = new URLSearchParams();
-    if (filters.page)      params.set('page',      String(filters.page));
-    if (filters.limit)     params.set('limit',     String(filters.limit));
-    if (filters.startDate) params.set('startDate', filters.startDate);
-    if (filters.endDate)   params.set('endDate',   filters.endDate);
-    if (filters.projectId) params.set('projectId', filters.projectId);
+    if (filters.page)       params.set('page',       String(filters.page));
+    if (filters.limit)      params.set('limit',      String(filters.limit));
+    if (filters.startDate)  params.set('startDate',  filters.startDate);
+    if (filters.endDate)    params.set('endDate',    filters.endDate);
+    if (filters.projectId)  params.set('projectId',  filters.projectId);
+    if (filters.customerId) params.set('customerId', filters.customerId);
+    if (filters.searchText) params.set('searchText', filters.searchText);
     const qs = params.toString();
     return authFetch(`/entries${qs ? `?${qs}` : ''}`);
+  },
+
+  // Distinct (year, month) pairs in which the current organization has entries.
+  // Used to populate filter dropdowns independently of the paginated page.
+  getTimeframes: async (): Promise<{
+    success: boolean;
+    data: { year: number; month: number }[];
+  }> => {
+    return authFetch('/entries/timeframes');
   },
 
   getById: async (id: string): Promise<{ success: boolean; data: TimeEntry }> => {

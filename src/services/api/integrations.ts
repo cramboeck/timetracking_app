@@ -3,7 +3,7 @@
  * Handles sevDesk and NinjaRMM integrations
  */
 
-import { authFetch } from './base';
+import { authFetch, authFetchMultipart } from './base';
 
 // ============================================
 // sevDesk API Types
@@ -248,6 +248,10 @@ export const sevdeskApi = {
       hourlyRate: number;
       isHeader?: boolean;
     }>;
+    // Filename of the service-report PDF (if generated). Backend uses this
+    // to substitute the {reportFilename} placeholder in the per-customer
+    // position template.
+    reportFilename?: string;
   }): Promise<{
     success: boolean;
     data: {
@@ -950,18 +954,30 @@ export interface Microsoft365Config {
 
 export interface ProcessedInvoice {
   id: string;
-  emailId: string;
-  emailSubject: string;
-  senderEmail: string;
-  senderName: string;
+  emailId: string | null;
+  emailSubject: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   receivedAt: string;
   attachmentCount: number;
   documentIds: string[];
   vendorId: string | null;
   vendorName?: string;
-  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped';
-  errorMessage?: string;
-  processedAt: string;
+  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped' | 'imported';
+  errorMessage?: string | null;
+  processedAt: string | null;
+  // SSOT-Felder ab Phase 1
+  source?: 'email' | 'manual' | 'sevdesk_import';
+  originalFilename?: string | null;
+  sevdeskVoucherId?: string | null;
+  sevdeskVoucherNumber?: string | null;
+  invoiceNumber?: string | null;
+  supplierName?: string | null;
+  invoiceDate?: string | null;
+  netAmount?: number | null;
+  grossAmount?: number | null;
+  vatAmount?: number | null;
+  currency?: string | null;
 }
 
 export interface InvoiceDocument {
@@ -1138,6 +1154,7 @@ export const microsoft365Api = {
 
   getProcessedInvoices: async (params?: {
     status?: string;
+    source?: string;  // 'email' | 'manual' | 'sevdesk_import' (oder comma-list)
     limit?: number;
     offset?: number;
   }): Promise<{
@@ -1147,6 +1164,7 @@ export const microsoft365Api = {
   }> => {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set('status', params.status);
+    if (params?.source) searchParams.set('source', params.source);
     if (params?.limit) searchParams.set('limit', params.limit.toString());
     if (params?.offset) searchParams.set('offset', params.offset.toString());
     const query = searchParams.toString();
@@ -1160,16 +1178,82 @@ export const microsoft365Api = {
     return authFetch(`/microsoft365/invoices/${invoiceId}/documents`);
   },
 
+  // Full-text search over Belege (PDF-extracted text + metadata). Backend uses
+  // German tsvector + prefix matching.
+  searchProcessedInvoices: async (query: string, options?: {
+    status?: string;
+    vendorId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ success: boolean; data: Array<{
+    id: string;
+    email_subject: string | null;
+    sender_email: string | null;
+    sender_name: string | null;
+    received_at: string;
+    status: string;
+    vendor_id: string | null;
+    vendor_name: string | null;
+    attachment_count: number;
+    document_ids: string[];
+    processed_at: string | null;
+    source: 'email' | 'manual' | 'sevdesk_import' | null;
+    supplier_name: string | null;
+    invoice_number: string | null;
+    sevdesk_voucher_number: string | null;
+    rank: number;
+  }> }> => {
+    const params = new URLSearchParams({ q: query });
+    if (options?.status) params.append('status', options.status);
+    if (options?.vendorId) params.append('vendorId', options.vendorId);
+    if (options?.limit) params.append('limit', String(options.limit));
+    if (options?.offset) params.append('offset', String(options.offset));
+    return authFetch(`/microsoft365/invoices/search?${params.toString()}`);
+  },
+
+  backfillInvoiceSearchIndex: async (limit?: number): Promise<{
+    success: boolean;
+    data: { processed: number; errors: number };
+  }> => {
+    const qs = limit ? `?limit=${limit}` : '';
+    return authFetch(`/microsoft365/invoices/backfill-search${qs}`, { method: 'POST' });
+  },
+
   retryInvoiceProcessing: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/retry`, { method: 'POST' });
   },
 
-  extractInvoiceData: async (invoiceId: string): Promise<{
+  extractInvoiceData: async (invoiceId: string, options?: { force?: boolean }): Promise<{
     success: boolean;
     data?: ExtractedInvoiceData;
     error?: string;
   }> => {
-    return authFetch(`/microsoft365/invoices/${invoiceId}/extract`);
+    const qs = options?.force ? '?force=1' : '';
+    return authFetch(`/microsoft365/invoices/${invoiceId}/extract${qs}`);
+  },
+
+  // Manual-Upload eines Belegs (PDF/Bild). Backend speichert die Datei,
+  // legt einen processed_invoice mit source='manual' an und triggert
+  // sofort die Extraktion. Antwort enthaelt die extrahierten Daten,
+  // damit das Frontend direkt das Bestaetigungs-Modal oeffnen kann.
+  uploadReceipt: async (file: File): Promise<{
+    success: boolean;
+    data?: { processedInvoiceId: string; extracted: ExtractedInvoiceData | null };
+    error?: string;
+  }> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return authFetchMultipart('/microsoft365/invoices/upload', fd);
+  },
+
+  // Triggert den sevDesk-Voucher-Sync manuell. Laeuft sonst per Cron alle
+  // 30 Minuten. Admin-only.
+  syncSevdeskVouchers: async (): Promise<{
+    success: boolean;
+    data?: { created: number; updated: number; skipped: number; errors: number };
+    error?: string;
+  }> => {
+    return authFetch('/microsoft365/invoices/sync-sevdesk-vouchers', { method: 'POST' });
   },
 
   approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {

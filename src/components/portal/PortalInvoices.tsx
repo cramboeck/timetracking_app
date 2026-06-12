@@ -10,8 +10,8 @@ type TabType = 'invoices' | 'quotes';
 
 // sevDesk Invoice Status codes
 const invoiceStatusLabels: Record<number, { label: string; color: string }> = {
-  100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  200: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400' },
+  100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500' },
+  200: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary' },
   1000: { label: 'Bezahlt', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   // Dunning statuses
   750: { label: '1. Mahnung', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
@@ -21,8 +21,8 @@ const invoiceStatusLabels: Record<number, { label: string; color: string }> = {
 
 // sevDesk Order (Quote) Status codes
 const quoteStatusLabels: Record<number, { label: string; color: string }> = {
-  100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  200: { label: 'Versendet', color: 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400' },
+  100: { label: 'Entwurf', color: 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500' },
+  200: { label: 'Versendet', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary' },
   300: { label: 'Angenommen', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   400: { label: 'Abgelehnt', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
@@ -133,7 +133,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
   // If user has no permissions for either
   if (!canViewInvoices && !canViewQuotes) {
     return (
-      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+      <div className="text-center py-12 text-gray-500 dark:text-dark-400">
         <FileText size={48} className="mx-auto mb-4 opacity-50" />
         <p>Sie haben keine Berechtigung, Rechnungen oder Angebote einzusehen.</p>
       </div>
@@ -160,7 +160,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
           </h2>
           {canViewInvoices && invoices.length > 0 && (
             <div className="flex items-center gap-4 mt-1">
-              <span className="flex items-center gap-1 text-sm text-accent-primary dark:text-blue-400">
+              <span className="flex items-center gap-1 text-sm text-accent-primary dark:text-accent-primary">
                 <Euro size={14} /> {formatCurrency(openInvoicesTotal)} offen
               </span>
               <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
@@ -171,7 +171,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
         </div>
         <button
           onClick={activeTab === 'invoices' ? loadInvoices : loadQuotes}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
         >
           <RefreshCw size={18} />
           Aktualisieren
@@ -180,13 +180,13 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
 
       {/* Tabs */}
       {canViewInvoices && canViewQuotes && (
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-gray-200 dark:border-dark-border">
           <button
             onClick={() => setActiveTab('invoices')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'invoices'
-                ? 'border-accent-primary text-accent-primary dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-500'
             }`}
           >
             <FileText size={16} className="inline mr-2" />
@@ -196,8 +196,8 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
             onClick={() => setActiveTab('quotes')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'quotes'
-                ? 'border-accent-primary text-accent-primary dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-500'
             }`}
           >
             <FileCheck size={16} className="inline mr-2" />
@@ -214,7 +214,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
           placeholder={activeTab === 'invoices' ? 'Rechnung suchen...' : 'Angebot suchen...'}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
         />
       </div>
 
@@ -231,7 +231,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
       ) : activeTab === 'invoices' ? (
         /* Invoices List */
         filteredInvoices.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <FileText size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Rechnungen gefunden</p>
           </div>
@@ -243,10 +243,10 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
               return (
                 <div
                   key={invoice.id}
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                  className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
                 >
                   <div
-                    className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
                     onClick={() => setExpandedInvoice(isExpanded ? null : invoice.id)}
                   >
                     <div className="flex items-center justify-between">
@@ -257,7 +257,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
                             {invoice.invoiceNumber}
                           </div>
                           {invoice.header && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                            <div className="text-sm text-gray-500 dark:text-dark-400 truncate max-w-xs">
                               {invoice.header}
                             </div>
                           )}
@@ -276,35 +276,35 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
                   </div>
 
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 dark:border-gray-700">
+                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 dark:border-dark-border">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Rechnungsdatum</span>
+                          <span className="text-gray-500 dark:text-dark-400">Rechnungsdatum</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatDate(invoice.invoiceDate)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Lieferdatum</span>
+                          <span className="text-gray-500 dark:text-dark-400">Lieferdatum</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatDate(invoice.deliveryDate)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Netto</span>
+                          <span className="text-gray-500 dark:text-dark-400">Netto</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatCurrency(invoice.totalNet, invoice.currency)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">MwSt.</span>
+                          <span className="text-gray-500 dark:text-dark-400">MwSt.</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {invoice.taxRate}%
                           </div>
                         </div>
                         {invoice.payDate && (
                           <div>
-                            <span className="text-gray-500 dark:text-gray-400">Bezahlt am</span>
+                            <span className="text-gray-500 dark:text-dark-400">Bezahlt am</span>
                             <div className="font-medium text-green-600 dark:text-green-400">
                               {formatDate(invoice.payDate)}
                             </div>
@@ -321,7 +321,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
       ) : (
         /* Quotes List */
         filteredQuotes.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <FileCheck size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Angebote gefunden</p>
           </div>
@@ -333,10 +333,10 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
               return (
                 <div
                   key={quote.id}
-                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                  className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
                 >
                   <div
-                    className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
                     onClick={() => setExpandedQuote(isExpanded ? null : quote.id)}
                   >
                     <div className="flex items-center justify-between">
@@ -347,7 +347,7 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
                             {quote.orderNumber}
                           </div>
                           {quote.header && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                            <div className="text-sm text-gray-500 dark:text-dark-400 truncate max-w-xs">
                               {quote.header}
                             </div>
                           )}
@@ -366,28 +366,28 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
                   </div>
 
                   {isExpanded && (
-                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 dark:border-gray-700">
+                    <div className="px-4 pb-4 pt-0 border-t border-gray-100 dark:border-dark-border">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Angebotsdatum</span>
+                          <span className="text-gray-500 dark:text-dark-400">Angebotsdatum</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatDate(quote.orderDate)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Gültig bis</span>
+                          <span className="text-gray-500 dark:text-dark-400">Gültig bis</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatDate(quote.validUntil)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">Netto</span>
+                          <span className="text-gray-500 dark:text-dark-400">Netto</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {formatCurrency(quote.totalNet, quote.currency)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-gray-500 dark:text-gray-400">MwSt.</span>
+                          <span className="text-gray-500 dark:text-dark-400">MwSt.</span>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {quote.taxRate}%
                           </div>

@@ -204,9 +204,9 @@ export const SevdeskCustomerImport = ({
     return (
       <div
         key={customer.sevdeskId}
-        className={`p-3 border-b border-gray-100 dark:border-gray-700 ${
-          isLinked ? 'bg-gray-50 dark:bg-gray-800/50' : ''
-        } ${isSelected && !isLinked ? 'bg-accent-light dark:bg-blue-900/20' : ''}`}
+        className={`p-3 border-b border-gray-100 dark:border-dark-border ${
+          isLinked ? 'bg-gray-50 dark:bg-dark-100/50' : ''
+        } ${isSelected && !isLinked ? 'bg-accent-light dark:bg-accent-primary/20' : ''}`}
       >
         <div className="flex items-start gap-3">
           {/* Checkbox */}
@@ -216,7 +216,7 @@ export const SevdeskCustomerImport = ({
                 type="checkbox"
                 checked={isSelected}
                 onChange={() => toggleSelection(customer)}
-                className="w-4 h-4 text-accent-primary rounded border-gray-300 dark:border-gray-600 focus:ring-accent-primary dark:bg-gray-700"
+                className="w-4 h-4 text-accent-primary rounded border-gray-300 dark:border-dark-border focus:ring-accent-primary dark:bg-dark-200"
               />
             </label>
           ) : (
@@ -231,7 +231,7 @@ export const SevdeskCustomerImport = ({
                 {customer.name}
               </span>
               {customer.sevdeskCustomerNumber && (
-                <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                <span className="text-xs bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded">
                   #{customer.sevdeskCustomerNumber}
                 </span>
               )}
@@ -242,10 +242,10 @@ export const SevdeskCustomerImport = ({
               )}
             </div>
             {customer.email && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{customer.email}</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400 truncate">{customer.email}</p>
             )}
             {customer.address && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{customer.address}</p>
+              <p className="text-xs text-gray-400 dark:text-dark-400 truncate">{customer.address}</p>
             )}
             {customer.matchStatus === 'name_match' && customer.localCustomerName && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
@@ -267,7 +267,7 @@ export const SevdeskCustomerImport = ({
                   <Link2 size={12} /> Verknüpfen
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-accent-primary dark:text-blue-400">
+                <span className="flex items-center gap-1 text-accent-primary dark:text-accent-primary">
                   <UserPlus size={12} /> Importieren
                 </span>
               )}
@@ -303,7 +303,7 @@ export const SevdeskCustomerImport = ({
           {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
         {isExpanded && (
-          <div className="border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-lg overflow-hidden">
+          <div className="border border-t-0 border-gray-200 dark:border-dark-border rounded-b-lg overflow-hidden">
             {sectionCustomers.map(renderCustomerRow)}
           </div>
         )}
@@ -366,12 +366,12 @@ export const SevdeskCustomerImport = ({
         {!loading && !result && (
           <>
             {/* Summary */}
-            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-100 rounded-lg">
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-gray-600 dark:text-gray-400">
+                <span className="text-gray-600 dark:text-dark-400">
                   <strong>{counts.total}</strong> Kontakte in sevDesk
                 </span>
-                <span className="text-accent-primary dark:text-blue-400">
+                <span className="text-accent-primary dark:text-accent-primary">
                   <strong>{counts.new}</strong> neu
                 </span>
                 <span className="text-amber-600 dark:text-amber-400">
@@ -407,7 +407,7 @@ export const SevdeskCustomerImport = ({
                   Alle abwählen
                 </Button>
               </div>
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                 <span className="flex items-center gap-1">
                   <UserPlus size={12} className="text-accent-primary" /> Importieren
                 </span>
@@ -423,7 +423,7 @@ export const SevdeskCustomerImport = ({
                 'new',
                 'Neue Kontakte',
                 <UserPlus size={18} />,
-                'bg-accent-light dark:bg-blue-900/30 text-accent-dark dark:text-blue-300'
+                'bg-accent-light dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
               )}
 
               {renderSection(
@@ -441,7 +441,7 @@ export const SevdeskCustomerImport = ({
               )}
 
               {customers.length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                   Keine Kontakte in sevDesk gefunden
                 </div>
               )}
@@ -449,8 +449,8 @@ export const SevdeskCustomerImport = ({
 
             {/* Action Summary */}
             {customers.length > 0 && (
-              <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center justify-between p-3 bg-gray-100 dark:bg-dark-100 rounded-lg">
+                <div className="text-sm text-gray-600 dark:text-dark-400">
                   Auswahl: <strong className="text-accent-primary">{toImport}</strong> importieren,{' '}
                   <strong className="text-green-600">{toLink}</strong> verknüpfen,{' '}
                   <strong className="text-gray-500">{toSkip}</strong> überspringen
@@ -461,7 +461,7 @@ export const SevdeskCustomerImport = ({
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 dark:border-dark-border">
           <Button
             onClick={onClose}
             variant="secondary"

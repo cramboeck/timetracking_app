@@ -1,27 +1,76 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
-import { aiApi } from '../services/api';
+import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import { SkeletonTimeEntry } from './Skeleton';
+import { useToast } from '../contexts/UIContext';
 
 interface TimeEntriesListProps {
-  entries: TimeEntry[];
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
-  onDelete: (id: string) => void;
-  onEdit: (id: string, updates: Partial<TimeEntry>) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onEdit: (id: string, updates: Partial<TimeEntry>) => void | Promise<void>;
   onRepeatEntry?: (entry: TimeEntry) => void;
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
 
-export const TimeEntriesList = ({ entries, projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
+const PAGE_SIZE = 500;
+
+// Convert the filter UI state to a {startDate, endDate} pair that the backend
+// understands. The backend filters with startDate <= entry.start_time <= endDate.
+const filterToDateRange = (
+  type: 'month' | 'quarter' | 'year' | 'custom',
+  month: string,
+  quarter: string,
+  year: string,
+  dateFrom: string,
+  dateTo: string,
+): { startDate?: string; endDate?: string } => {
+  if (type === 'month') {
+    const [y, m] = month.split('-').map(Number);
+    if (!y || !m) return {};
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999); // last day of month
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (type === 'quarter') {
+    const match = quarter.match(/^(\d{4})-Q(\d)$/);
+    if (!match) return {};
+    const y = parseInt(match[1], 10);
+    const q = parseInt(match[2], 10);
+    const startMonth = (q - 1) * 3;
+    const start = new Date(y, startMonth, 1);
+    const end = new Date(y, startMonth + 3, 0, 23, 59, 59, 999);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (type === 'year') {
+    const y = parseInt(year, 10);
+    if (!y) return {};
+    return {
+      startDate: new Date(y, 0, 1).toISOString(),
+      endDate: new Date(y, 11, 31, 23, 59, 59, 999).toISOString(),
+    };
+  }
+  if (type === 'custom') {
+    const out: { startDate?: string; endDate?: string } = {};
+    if (dateFrom) out.startDate = new Date(`${dateFrom}T00:00:00`).toISOString();
+    if (dateTo) out.endDate = new Date(`${dateTo}T23:59:59.999`).toISOString();
+    return out;
+  }
+  return {};
+};
+
+export const TimeEntriesList = ({ projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
   const use24Hour = (currentUser?.timeFormat || '24h') === '24h';
 
   // Edit modal state
@@ -61,6 +110,18 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       Object.values(descriptionUpdateTimeoutRef.current).forEach(clearTimeout);
     };
   }, []);
+
+  // Server-side pagination state (declared early so the inline-edit-sync
+  // useEffect below — which depends on `entries` — can see it). Backend
+  // filters startDate/endDate/projectId; customer and description filters
+  // are applied client-side on the loaded page.
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refetchToken, setRefetchToken] = useState(0);
+  const triggerRefetch = useCallback(() => setRefetchToken((t) => t + 1), []);
 
   // Sync inline edit state when entries change
   useEffect(() => {
@@ -105,6 +166,55 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterDescription, setFilterDescription] = useState<string>('');
+
+  // Reset to page 1 whenever any backend-relevant filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription]);
+
+  // Fetch entries when filters/page change. ALL filters now go to the
+  // backend (since the entries endpoint learned customerId + searchText
+  // support) — no client-side narrowing of the loaded page anymore.
+  useEffect(() => {
+    let cancelled = false;
+    const dateRange = filterToDateRange(
+      filterTimeframeType,
+      filterMonth,
+      filterQuarter,
+      filterYear,
+      filterDateFrom,
+      filterDateTo,
+    );
+    setLoading(true);
+    setFetchError(null);
+    entriesApi
+      .getPaginated({
+        page: currentPage,
+        limit: PAGE_SIZE,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        projectId: filterProjectId || undefined,
+        customerId: filterCustomerId || undefined,
+        searchText: filterDescription || undefined,
+      })
+      .then((response) => {
+        if (cancelled) return;
+        setEntries(response.data);
+        setPagination(response.pagination);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setFetchError(err instanceof Error ? err.message : 'Fehler beim Laden');
+        setEntries([]);
+        setPagination(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPage, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription, refetchToken]);
 
   // View mode state
   const [compactView, setCompactView] = useState<boolean>(() => {
@@ -216,84 +326,46 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     return projects.filter(p => p.customerId === filterCustomerId);
   }, [filterCustomerId, projects]);
 
-  // Generate available months for filter
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      months.add(month);
-    });
-    return Array.from(months).sort().reverse();
-  }, [entries]);
+  // Filter dropdowns need ALL (year, month) pairs the organization ever
+  // tracked time for — not just the currently-paginated page. Pulled from a
+  // dedicated endpoint so the options stay populated even when the active
+  // filter narrows entries to a single month.
+  const timeframesQuery = useQuery({
+    queryKey: ['entries', 'timeframes'],
+    queryFn: async () => (await entriesApi.getTimeframes()).data,
+    staleTime: 60_000,
+  });
+  const timeframes = timeframesQuery.data ?? [];
 
-  // Generate available quarters for filter
+  const availableMonths = useMemo(
+    () =>
+      timeframes
+        .map(({ year, month }) => `${year}-${String(month).padStart(2, '0')}`)
+        .sort()
+        .reverse(),
+    [timeframes]
+  );
+
   const availableQuarters = useMemo(() => {
     const quarters = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      const year = date.getFullYear();
-      const quarter = Math.floor(date.getMonth() / 3) + 1;
+    timeframes.forEach(({ year, month }) => {
+      const quarter = Math.floor((month - 1) / 3) + 1;
       quarters.add(`${year}-Q${quarter}`);
     });
     return Array.from(quarters).sort().reverse();
-  }, [entries]);
+  }, [timeframes]);
 
-  // Generate available years for filter
   const availableYears = useMemo(() => {
     const years = new Set<string>();
-    entries.forEach(entry => {
-      const date = new Date(entry.startTime);
-      years.add(String(date.getFullYear()));
-    });
+    timeframes.forEach(({ year }) => years.add(String(year)));
     return Array.from(years).sort().reverse();
-  }, [entries]);
+  }, [timeframes]);
 
   // Filter entries
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
-      // Customer filter
-      if (filterCustomerId) {
-        const project = getProjectById(entry.projectId);
-        if (!project || project.customerId !== filterCustomerId) return false;
-      }
-
-      // Project filter
-      if (filterProjectId && entry.projectId !== filterProjectId) return false;
-
-      // Timeframe filter
-      const entryDate = new Date(entry.startTime);
-      if (filterTimeframeType === 'month') {
-        const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`;
-        if (entryMonth !== filterMonth) return false;
-      } else if (filterTimeframeType === 'quarter') {
-        const match = filterQuarter.match(/^(\d{4})-Q(\d)$/);
-        if (match) {
-          const filterQYear = parseInt(match[1]);
-          const filterQ = parseInt(match[2]);
-          const entryYear = entryDate.getFullYear();
-          const entryQuarter = Math.floor(entryDate.getMonth() / 3) + 1;
-          if (entryYear !== filterQYear || entryQuarter !== filterQ) return false;
-        }
-      } else if (filterTimeframeType === 'year') {
-        if (entryDate.getFullYear() !== parseInt(filterYear)) return false;
-      } else if (filterTimeframeType === 'custom') {
-        const entryDateStr = entryDate.toISOString().split('T')[0];
-        if (filterDateFrom && entryDateStr < filterDateFrom) return false;
-        if (filterDateTo && entryDateStr > filterDateTo) return false;
-      }
-
-      // Description filter
-      if (filterDescription) {
-        const searchLower = filterDescription.toLowerCase();
-        const descMatch = entry.description?.toLowerCase().includes(searchLower);
-        const projectMatch = getProjectDisplay(entry).toLowerCase().includes(searchLower);
-        if (!descMatch && !projectMatch) return false;
-      }
-
-      return true;
-    });
-  }, [entries, filterCustomerId, filterProjectId, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterDescription]);
+  // All filters (timeframe, projectId, customerId, searchText) are applied
+  // server-side now — see the fetch useEffect above. The current page is
+  // already correctly filtered; no client-side narrowing needed.
+  const filteredEntries = entries;
 
   const sortedEntries = useMemo(() =>
     [...filteredEntries].sort(
@@ -392,9 +464,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       setBulkEditModal(false);
       setSelectedEntries(new Set());
       setSelectionMode(false);
+      triggerRefetch();
     } catch (error) {
       console.error('Bulk update error:', error);
-      alert('Fehler beim Aktualisieren der Einträge');
+      showToast('Fehler beim Aktualisieren der Einträge', 'error');
     } finally {
       setBulkProcessing(false);
     }
@@ -416,7 +489,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     setEditEndTime(endDate.toTimeString().slice(0, 5)); // HH:MM
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingEntry || !editProjectId || !editDate || !editStartTime || !editEndTime) return;
 
     const startDateTime = new Date(`${editDate}T${editStartTime}`).toISOString();
@@ -424,11 +497,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     const duration = calculateDuration(startDateTime, endDateTime);
 
     if (duration <= 0) {
-      alert('Die Endzeit muss nach der Startzeit liegen!');
+      showToast('Die Endzeit muss nach der Startzeit liegen!', 'warning');
       return;
     }
 
-    onEdit(editingEntry.id, {
+    // Await the update so the subsequent refetch reads the new value —
+    // otherwise the parallel GET races the PUT and may show stale data
+    // until the user manually refreshes.
+    await onEdit(editingEntry.id, {
       projectId: editProjectId,
       description: editDescription,
       startTime: startDateTime,
@@ -439,6 +515,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     });
 
     setEditingEntry(null);
+    triggerRefetch();
   };
 
   const handleDeleteClick = (entry: TimeEntry) => {
@@ -449,8 +526,9 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     });
   };
 
-  const confirmDelete = () => {
-    onDelete(deleteConfirm.id);
+  const confirmDelete = async () => {
+    await onDelete(deleteConfirm.id);
+    triggerRefetch();
   };
 
   const exportToCSV = () => {
@@ -496,7 +574,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
     link.click();
   };
 
-  if (entries.length === 0) {
+  // Empty state: no entries on this page AND nothing loading AND no
+  // filter that could be narrowing the result. If filters are active,
+  // we fall through to the list view (which then shows its own empty
+  // hint inside the table area).
+  const hasActiveBackendFilter =
+    !!filterProjectId || filterTimeframeType !== 'month' || !!filterDateFrom || !!filterDateTo;
+  if (entries.length === 0 && !loading && !fetchError && !hasActiveBackendFilter && pagination?.total === 0) {
     return (
       <div className="flex flex-col h-full p-6">
         <h1 className="text-2xl font-bold mb-6">Übersicht</h1>
@@ -514,7 +598,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-3 sm:p-6 pb-3 sm:pb-4 z-10">
+      <div className="sticky top-0 bg-white dark:bg-dark-50 border-b border-gray-200 dark:border-dark-border p-3 sm:p-6 pb-3 sm:pb-4 z-10">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Übersicht</h1>
@@ -522,7 +606,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               Gesamt: {formatDuration(totalHours)}
               {hasActiveFilters && (
                 <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
-                  ({filteredEntries.length}/{entries.length})
+                  ({filteredEntries.length}/{pagination?.total ?? entries.length})
                 </span>
               )}
             </div>
@@ -566,9 +650,9 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-dark-100 rounded-lg p-4 mb-4 border border-gray-200 dark:border-dark-border">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-700 dark:text-gray-300">Filter</h3>
+              <h3 className="font-medium text-gray-700 dark:text-dark-500">Filter</h3>
               {hasActiveFilters && (
                 <Button
                   onClick={clearFilters}
@@ -583,14 +667,14 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               {/* Customer Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Kunde</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Kunde</label>
                 <select
                   value={filterCustomerId}
                   onChange={(e) => {
                     setFilterCustomerId(e.target.value);
                     setFilterProjectId(''); // Reset project when customer changes
                   }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Kunden</option>
                   {uniqueCustomers.map(customer => (
@@ -601,11 +685,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
               {/* Project Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Projekt</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Projekt</label>
                 <select
                   value={filterProjectId}
                   onChange={(e) => setFilterProjectId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Projekte</option>
                   {projectsForFilter.filter(p => p.isActive).map(project => {
@@ -621,11 +705,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
               {/* Timeframe Type Filter */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Zeitraum</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Zeitraum</label>
                 <select
                   value={filterTimeframeType}
                   onChange={(e) => setFilterTimeframeType(e.target.value as 'month' | 'quarter' | 'year' | 'custom')}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 >
                   <option value="month">Monat</option>
                   <option value="quarter">Quartal</option>
@@ -637,11 +721,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               {/* Month Selector */}
               {filterTimeframeType === 'month' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Monat/Jahr</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Monat/Jahr</label>
                   <select
                     value={filterMonth}
                     onChange={(e) => setFilterMonth(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableMonths.map(month => {
                       const [year, m] = month.split('-');
@@ -659,11 +743,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               {/* Quarter Selector */}
               {filterTimeframeType === 'quarter' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Quartal</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Quartal</label>
                   <select
                     value={filterQuarter}
                     onChange={(e) => setFilterQuarter(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableQuarters.map(q => {
                       const match = q.match(/^(\d{4})-Q(\d)$/);
@@ -679,11 +763,11 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               {/* Year Selector */}
               {filterTimeframeType === 'year' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Jahr</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Jahr</label>
                   <select
                     value={filterYear}
                     onChange={(e) => setFilterYear(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     {availableYears.map(year => (
                       <option key={year} value={year}>{year}</option>
@@ -695,12 +779,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               {/* Custom Date From Filter */}
               {filterTimeframeType === 'custom' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Von</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Von</label>
                   <input
                     type="date"
                     value={filterDateFrom}
                     onChange={(e) => setFilterDateFrom(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
               )}
@@ -708,25 +792,25 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               {/* Custom Date To Filter */}
               {filterTimeframeType === 'custom' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Bis</label>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Bis</label>
                   <input
                     type="date"
                     value={filterDateTo}
                     onChange={(e) => setFilterDateTo(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
               )}
 
               {/* Description Search */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Suche</label>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Suche</label>
                 <input
                   type="text"
                   value={filterDescription}
                   onChange={(e) => setFilterDescription(e.target.value)}
                   placeholder="Beschreibung..."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                 />
               </div>
             </div>
@@ -773,8 +857,16 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
       {/* Entry List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 pt-3 sm:pt-4">
-        {filteredEntries.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+        {loading && filteredEntries.length === 0 ? (
+          // Initial / page-switch load — show skeleton rows instead of the
+          // misleading "Keine Einträge gefunden" empty state.
+          <div className="space-y-2 sm:space-y-3" aria-busy="true" aria-label="Zeiteinträge werden geladen">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonTimeEntry key={i} />
+            ))}
+          </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <Filter size={48} className="mx-auto mb-4 opacity-50" />
             <p>Keine Einträge für die gewählten Filter gefunden</p>
             <Button
@@ -789,11 +881,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
         ) : (
           Object.entries(groupedEntries).map(([date, dateEntries]) => (
             <div key={date} className={compactView ? 'mb-2 sm:mb-3' : 'mb-4 sm:mb-6'}>
-              <h2 className={`font-semibold text-gray-600 dark:text-gray-400 ${compactView ? 'text-xs mb-1' : 'text-sm mb-2 sm:mb-3'}`}>{date}</h2>
+              <h2 className={`font-semibold text-gray-600 dark:text-dark-400 ${compactView ? 'text-xs mb-1' : 'text-sm mb-2 sm:mb-3'}`}>{date}</h2>
               <div className={compactView ? 'space-y-1' : 'space-y-2 sm:space-y-3'}>
                 {dateEntries.map((entry) => {
                   const project = getProjectById(entry.projectId);
                   const customer = project ? getCustomerById(project.customerId) : null;
+                  const activity = entry.activityId ? getActivityById(entry.activityId) : null;
 
                   // Compact View
                   if (compactView) {
@@ -801,12 +894,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                     return (
                       <div
                         key={entry.id}
-                        className={`bg-white dark:bg-gray-800 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
+                        className={`bg-white dark:bg-dark-100 rounded border px-3 py-1.5 sm:py-1.5 transition-colors ${
                           selectedEntries.has(entry.id)
                             ? 'border-accent-primary ring-1 ring-accent-primary/20'
                             : isRunning
                               ? 'border-green-400 dark:border-green-500 ring-1 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
-                              : 'border-gray-200 dark:border-gray-700'
+                              : 'border-gray-200 dark:border-dark-border'
                         }`}
                       >
                         {/* Mobile: Two rows layout */}
@@ -834,9 +927,15 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                 style={{ backgroundColor: customer.color }}
                               />
                             )}
-                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
+                            {activity && (
+                              <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[40%] truncate">
+                                {activity.name}
+                              </span>
+                            )}
+                            <div className="flex-1" />
                             {!selectionMode && (
                               <div className="flex gap-0.5 flex-shrink-0">
                                 {onRepeatEntry && !isRunning && (
@@ -867,7 +966,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                           </div>
                           {/* Time and duration row */}
                           <div className={`flex items-center justify-between ${isRunning ? 'pl-7' : 'pl-5'}`}>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                            <span className="text-xs text-gray-400 dark:text-dark-400">
                               {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
                             <span className={`font-semibold text-sm ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
@@ -883,10 +982,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                   value={inlineEditDescriptions[entry.id] ?? entry.description}
                                   onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                   placeholder="Beschreibung eingeben..."
-                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                  className="text-xs text-gray-700 dark:text-dark-500 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                                 />
                               ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                <p className="text-xs text-gray-500 dark:text-dark-400 line-clamp-2 whitespace-pre-wrap">
                                   {entry.description}
                                 </p>
                               )}
@@ -919,10 +1018,16 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                 style={{ backgroundColor: customer.color }}
                               />
                             )}
-                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+                            {activity && (
+                              <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[180px] truncate">
+                                {activity.name}
+                              </span>
+                            )}
+                            <div className="flex-1" />
+                            <span className="text-xs text-gray-400 dark:text-dark-400 flex-shrink-0">
                               {formatTime(entry.startTime, use24Hour)} - {entry.endTime ? formatTime(entry.endTime, use24Hour) : ''}
                             </span>
                             <span className={`font-semibold text-sm flex-shrink-0 w-16 text-right ${isRunning ? 'text-green-600 dark:text-green-400' : 'text-accent-primary'}`}>
@@ -965,10 +1070,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                   value={inlineEditDescriptions[entry.id] ?? entry.description}
                                   onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                   placeholder="Beschreibung eingeben..."
-                                  className="text-xs text-gray-700 dark:text-gray-300 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                  className="text-xs text-gray-700 dark:text-dark-500 w-full bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                                 />
                               ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                                <p className="text-xs text-gray-500 dark:text-dark-400 line-clamp-2 whitespace-pre-wrap">
                                   {entry.description}
                                 </p>
                               )}
@@ -984,12 +1089,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   return (
                     <div
                       key={entry.id}
-                      className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm transition-colors ${
+                      className={`bg-white dark:bg-dark-100 rounded-lg border p-4 shadow-sm transition-colors ${
                         selectedEntries.has(entry.id)
                           ? 'border-accent-primary ring-2 ring-accent-primary/20'
                           : isRunningNormal
                             ? 'border-green-400 dark:border-green-500 ring-2 ring-green-400/30 dark:ring-green-500/30 bg-green-50/50 dark:bg-green-900/10'
-                            : 'border-gray-200 dark:border-gray-700'
+                            : 'border-gray-200 dark:border-dark-border'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -1020,8 +1125,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                             />
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
+                              {activity && (
+                                <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-2 py-0.5 rounded-full">
+                                  {activity.name}
+                                </span>
+                              )}
                               {isRunningNormal && (
                                 <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
                                   Läuft
@@ -1034,10 +1144,10 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                                 value={inlineEditDescriptions[entry.id] ?? entry.description}
                                 onChange={(e) => handleInlineDescriptionChange(entry.id, e.target.value)}
                                 placeholder="Beschreibung eingeben..."
-                                className="w-full text-sm text-gray-700 dark:text-gray-300 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-gray-500 py-0.5"
+                                className="w-full text-sm text-gray-700 dark:text-dark-500 mt-1 bg-transparent border-b border-dashed border-green-400 dark:border-green-500 focus:outline-none focus:border-green-600 dark:focus:border-green-400 placeholder-gray-400 dark:placeholder-dark-400 py-0.5"
                               />
                             ) : entry.description ? (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
+                              <p className="text-sm text-gray-600 dark:text-dark-400 mt-1 whitespace-pre-wrap">{entry.description}</p>
                             ) : null}
                           </div>
                         </div>
@@ -1072,7 +1182,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-dark-400">
                         <span>
                           {formatTime(entry.startTime, use24Hour)}
                           {entry.endTime && ` - ${formatTime(entry.endTime, use24Hour)}`}
@@ -1117,13 +1227,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Projekt *
             </label>
             <select
               value={editProjectId}
               onChange={(e) => setEditProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               {projects.filter(p => p.isActive).map(project => {
                 const customer = getCustomerById(project.customerId);
@@ -1137,13 +1247,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tätigkeit
             </label>
             <select
               value={editActivityId}
               onChange={(e) => setEditActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Keine Tätigkeit —</option>
               {activities.map(activity => (
@@ -1155,7 +1265,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Datum *
             </label>
             <input
@@ -1163,13 +1273,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               value={editDate}
               onChange={(e) => setEditDate(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Von *
               </label>
               <TimePicker
@@ -1179,7 +1289,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Bis *
               </label>
               <TimePicker
@@ -1192,7 +1302,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
                 Beschreibung
               </label>
               {aiConfigured && editProjectId && (
@@ -1204,7 +1314,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   size="sm"
                   icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
                   title="KI-Vorschlag generieren"
-                  className="text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                  className="text-accent-dark dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20"
                 >
                   KI-Vorschlag
                 </Button>
@@ -1214,12 +1324,12 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
+            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
               Abrechenbar
             </label>
             <IconButton
@@ -1234,7 +1344,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               }
               variant={editIsBillable ? 'success' : 'default'}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-dark-300'
               }`}
               tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
             />
@@ -1276,13 +1386,13 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Neues Projekt zuweisen
             </label>
             <select
               value={bulkProjectId}
               onChange={(e) => setBulkProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Nicht ändern —</option>
               {projects.filter(p => p.isActive).map(project => {
@@ -1297,7 +1407,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Beschreibung
             </label>
             <div className="space-y-2">
@@ -1309,7 +1419,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   onChange={() => setBulkDescriptionMode('keep')}
                   className="text-accent-primary focus:ring-accent-primary"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Nicht ändern</span>
+                <span className="text-sm text-gray-700 dark:text-dark-500">Nicht ändern</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -1319,7 +1429,7 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   onChange={() => setBulkDescriptionMode('replace')}
                   className="text-accent-primary focus:ring-accent-primary"
                 />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Ersetzen durch:</span>
+                <span className="text-sm text-gray-700 dark:text-dark-500">Ersetzen durch:</span>
               </label>
               {bulkDescriptionMode === 'replace' && (
                 <textarea
@@ -1327,20 +1437,20 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
                   onChange={(e) => setBulkDescription(e.target.value)}
                   rows={2}
                   placeholder="Neue Beschreibung..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
                 />
               )}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
               Tätigkeit zuweisen
             </label>
             <select
               value={bulkActivityId}
               onChange={(e) => setBulkActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             >
               <option value="">— Nicht ändern —</option>
               <option value="__remove__">— Tätigkeit entfernen —</option>
@@ -1376,11 +1486,51 @@ export const TimeEntriesList = ({ entries, projects, customers, activities, onDe
               setRepeatConfirm({ isOpen: false, entry: null });
             }
           }}
-          title="Eintrag wiederholen?"
-          message={`Möchtest du einen neuen Zeiteintrag mit denselben Daten starten?\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
-          confirmText="Stoppuhr starten"
+          title="Timer wiederholen?"
+          message={`Es wird sofort ein neuer Timer mit denselben Daten gestartet. Ein bereits laufender Timer wird dabei automatisch gestoppt.\n\nProjekt: ${getProjectById(repeatConfirm.entry.projectId)?.name || 'Unbekannt'}\n${repeatConfirm.entry.description ? `Beschreibung: ${repeatConfirm.entry.description}` : ''}`}
+          confirmText="Timer starten"
           variant="info"
         />
+      )}
+
+      {/* Pagination controls — only shown when the backend reports more than
+          one page for the active filter. Currently-loaded page can be empty
+          and still display these (e.g. after deleting the last entry). */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="sticky bottom-0 bg-white dark:bg-dark-50 border-t border-gray-200 dark:border-dark-border px-4 py-2 flex items-center justify-between gap-3 z-10">
+          <div className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+            Seite <span className="font-semibold text-gray-700 dark:text-dark-500">{pagination.page}</span> von{' '}
+            <span className="font-semibold text-gray-700 dark:text-dark-500">{pagination.totalPages}</span>
+            <span className="hidden sm:inline"> · {pagination.total} Einträge</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {loading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={pagination.page <= 1 || loading}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Vorherige Seite"
+            >
+              <ChevronLeft size={14} />
+              <span className="hidden sm:inline">Zurück</span>
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={!pagination.hasMore || loading}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Nächste Seite"
+            >
+              <span className="hidden sm:inline">Weiter</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {fetchError && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-100 px-4 py-2 rounded-md shadow-md z-20">
+          {fetchError}
+        </div>
       )}
     </div>
   );

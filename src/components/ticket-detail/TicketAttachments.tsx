@@ -40,7 +40,7 @@ export const TicketAttachments = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <h2 className="text-sm font-medium text-gray-700 dark:text-dark-500">
           Anhänge ({attachments.length})
         </h2>
         <label className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-accent-primary bg-accent-primary/10 hover:bg-accent-primary/20 rounded-lg cursor-pointer transition-colors">
@@ -59,7 +59,7 @@ export const TicketAttachments = ({
       </div>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <p className="text-sm text-gray-500 dark:text-dark-400 text-center py-4 bg-gray-50 dark:bg-dark-100 rounded-lg">
           Keine Anhange vorhanden
         </p>
       ) : (
@@ -67,7 +67,7 @@ export const TicketAttachments = ({
           {/* Image attachments with preview */}
           {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Bilder</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Bilder</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {attachments.filter(a => a.mimeType?.startsWith('image/')).map((attachment) => (
                   <div key={attachment.id} className="relative group">
@@ -75,7 +75,7 @@ export const TicketAttachments = ({
                       href={getAbsoluteFileUrl(attachment.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700"
+                      className="block aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-dark-200"
                     >
                       <img
                         src={getAbsoluteFileUrl(attachment.fileUrl)}
@@ -102,7 +102,7 @@ export const TicketAttachments = ({
                         className="bg-white/20 hover:bg-red-500/50 text-white"
                       />
                     </div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <p className="mt-1 text-xs text-gray-500 dark:text-dark-400 truncate">
                       {attachment.filename}
                     </p>
                   </div>
@@ -115,7 +115,7 @@ export const TicketAttachments = ({
           {attachments.filter(a => !a.mimeType?.startsWith('image/')).length > 0 && (
             <div>
               {attachments.filter(a => a.mimeType?.startsWith('image/')).length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Dokumente</p>
+                <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Dokumente</p>
               )}
               <div className="space-y-2">
                 {attachments.filter(a => !a.mimeType?.startsWith('image/')).map((attachment) => {
@@ -123,14 +123,14 @@ export const TicketAttachments = ({
                   return (
                     <div
                       key={attachment.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg group"
+                      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-100 rounded-lg group"
                     >
                       <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {attachment.filename}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-dark-400">
                           {formatFileSize(attachment.fileSize)} {attachment.uploadedByName && `• ${attachment.uploadedByName}`}
                         </p>
                       </div>

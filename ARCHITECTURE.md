@@ -130,7 +130,8 @@ Die Anwendung verwendet ein **Area-basiertes Navigationsmodell** mit drei Hauptb
 #### **AREA 3: Business (Analyse & Finanzen)**
 | SubView | Komponente | Beschreibung |
 |---------|------------|--------------|
-| `dashboard` | `Dashboard.tsx` | KPI-Dashboard, Reports, Statistiken |
+| `overview` | `DashboardOverview.tsx` | Bento-Grid KPI-Dashboard (Hero-Kachel mit Live-Timer, KPI-Tiles, letzte Einträge, offene Tickets) |
+| `reports` | `ReportsPage.tsx` | Report-Generator (nutzt `ReportAssistant.tsx`), PDF-Export, Approval-Flow |
 | `contracts` | `Contracts.tsx` | Vertragsmanagement |
 | `billing` | `Finanzen.tsx` | Abrechnungen & sevDesk-Integration |
 | `social-media` | `SocialMediaManager.tsx` | Social Media Content-Planung |
@@ -179,10 +180,12 @@ Die Anwendung verwendet ein **Area-basiertes Navigationsmodell** mit drei Hauptb
 - `TicketMergeDialog.tsx` - Tickets zusammenführen
 
 #### Business & Analytics
-- `Dashboard.tsx` - Business-Dashboard mit PDF-Export
-- `Finanzen.tsx` - Abrechnungsmodul
-- `BillingWidget.tsx` - Abrechnungs-Widget
-- `ReportAssistant.tsx` - KI-unterstützte Berichtserstellung
+- `DashboardOverview.tsx` - Bento-Grid KPI-Dashboard (Hero-Kachel, Live-Timer, KPI-Tiles)
+- `Finanzen.tsx` - Abrechnungsmodul (Container für `BillingOverview.tsx`)
+- `BillingOverview.tsx` - Abrechnungs-Übersicht innerhalb von Finanzen
+- `ReportsPage.tsx` - Report-Seite (Container für `ReportAssistant.tsx`)
+- `ReportAssistant.tsx` - KI-unterstützte Berichtserstellung + Saved-Reports-Browser + PDF-Export
+- `ReportApprovalReview.tsx` - Approval-Flow für eingereichte Reports
 
 #### Kundenportal (12 Komponenten in /portal)
 - `CustomerPortal.tsx` - Portal-Container
@@ -570,9 +573,9 @@ Funktionen:
 
 | Funktion | Komponente | API-Endpoint | Datenbank |
 |----------|------------|--------------|-----------|
-| Dashboard-KPIs | `Dashboard.tsx` | `GET /api/entries`, `GET /api/tickets/stats` | Aggregation |
-| Report erstellen | `Dashboard.tsx` | Clientseitig (jsPDF) | - |
-| Report zur Freigabe | `Dashboard.tsx` | `POST /api/report-approvals/send` | `report_approvals` |
+| Dashboard-KPIs | `DashboardOverview.tsx` | `GET /api/entries`, `GET /api/tickets` (client-side aggregation) | Aggregation |
+| Report erstellen | `ReportsPage.tsx` / `ReportAssistant.tsx` | Clientseitig (jsPDF) | - |
+| Report zur Freigabe | `ReportAssistant.tsx` | `POST /api/report-approvals/send` | `report_approvals` |
 | Verträge verwalten | `Contracts.tsx` | `/api/contracts/*` | `contracts` |
 | Abrechnungen | `Finanzen.tsx` | `/api/sevdesk/*` | `invoice_exports` |
 | sevDesk-Sync | `SevdeskSettings.tsx` | `POST /api/sevdesk/sync` | `sevdesk_documents` |

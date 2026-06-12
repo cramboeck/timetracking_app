@@ -1,9 +1,11 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
 import { ticketsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
 import { Button } from './ui';
+import { SkeletonListItem } from './Skeleton';
 
 export interface TicketListHandle {
   selectNext: () => void;
@@ -32,12 +34,12 @@ interface TicketStats {
 }
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/40 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: Clock },
-  waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
+  waiting: { label: 'Wartend', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
-  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: X },
-  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400', icon: Archive },
+  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500', icon: X },
+  archived: { label: 'Archiviert', color: 'bg-gray-100 text-gray-500 dark:bg-dark-100 dark:text-dark-400', icon: Archive },
 };
 
 const priorityConfig: Record<TicketPriority, { label: string; color: string }> = {
@@ -49,82 +51,71 @@ const priorityConfig: Record<TicketPriority, { label: string; color: string }> =
 
 export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
   ({ customers, projects, onTicketSelect, onCreateTicket }, ref) => {
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [stats, setStats] = useState<TicketStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | ''>('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<Ticket[] | null>(null);
 
   // Keyboard navigation state
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const ticketListContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load tickets and stats
-  useEffect(() => {
-    loadData();
-  }, [statusFilter, priorityFilter, customerFilter]);
-
-  // Debounced server-side search
+  // Debounce search input
   useEffect(() => {
     if (searchQuery.length < 2) {
-      setSearchResults(null);
+      setDebouncedSearch('');
       return;
     }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const response = await ticketsApi.search(searchQuery, {
-          status: statusFilter || undefined,
-          priority: priorityFilter || undefined,
-          customerId: customerFilter || undefined,
-        });
-        setSearchResults(response.data);
-      } catch (err) {
-        console.error('Search failed:', err);
-        // Fall back to local search
-        setSearchResults(null);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
-
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, statusFilter, priorityFilter, customerFilter]);
+  }, [searchQuery]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const filters = {
+    status: statusFilter || undefined,
+    priority: priorityFilter || undefined,
+    customerId: customerFilter || undefined,
+  };
 
-      const filters: { status?: TicketStatus; customerId?: string; priority?: TicketPriority } = {};
-      if (statusFilter) filters.status = statusFilter;
-      if (priorityFilter) filters.priority = priorityFilter;
-      if (customerFilter) filters.customerId = customerFilter;
+  const ticketsQuery = useQuery({
+    queryKey: ['tickets', 'list', filters],
+    queryFn: async () => {
+      const res = await ticketsApi.getAll(filters);
+      return (res.data || []) as Ticket[];
+    },
+  });
 
-      const [ticketsResponse, statsResponse] = await Promise.all([
-        ticketsApi.getAll(filters),
-        ticketsApi.getStats()
-      ]);
+  const statsQuery = useQuery({
+    queryKey: ['tickets', 'stats'],
+    queryFn: async () => {
+      const res = await ticketsApi.getStats();
+      return (res.data || null) as TicketStats | null;
+    },
+  });
 
-      setTickets(ticketsResponse.data || []);
-      setStats(statsResponse.data || null);
-    } catch (err) {
-      console.error('Failed to load tickets:', err);
-      setError('Fehler beim Laden der Tickets');
-    } finally {
-      setLoading(false);
-    }
+  const searchQueryResult = useQuery({
+    queryKey: ['tickets', 'search', debouncedSearch, filters],
+    queryFn: async () => {
+      const res = await ticketsApi.search(debouncedSearch, filters);
+      return (res.data || []) as Ticket[];
+    },
+    enabled: debouncedSearch.length >= 2,
+    placeholderData: keepPreviousData,
+  });
+
+  const tickets = ticketsQuery.data ?? [];
+  const stats = statsQuery.data ?? null;
+  const loading = ticketsQuery.isLoading;
+  const error = ticketsQuery.error ? 'Fehler beim Laden der Tickets' : null;
+  const searchResults = debouncedSearch.length >= 2 ? searchQueryResult.data ?? null : null;
+  const isSearching = searchQueryResult.isFetching && debouncedSearch.length >= 2;
+  const loadData = () => {
+    ticketsQuery.refetch();
+    statsQuery.refetch();
   };
 
   // Filter tickets by search query and archived status
@@ -166,8 +157,8 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
     setPriorityFilter('');
     setCustomerFilter('');
     setSearchQuery('');
+    setDebouncedSearch('');
     setShowArchived(false);
-    setSearchResults(null);
   };
 
   const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;
@@ -221,7 +212,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Tickets</h1>
           <Button
@@ -236,9 +227,9 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
-            <div className="bg-accent-light dark:bg-blue-900/30 rounded-lg p-3">
-              <div className="text-2xl font-bold text-accent-primary dark:text-blue-400">{stats.open_count}</div>
-              <div className="text-sm text-accent-primary dark:text-blue-400">Offen</div>
+            <div className="bg-accent-light dark:bg-accent-primary/30 rounded-lg p-3">
+              <div className="text-2xl font-bold text-accent-primary dark:text-accent-primary">{stats.open_count}</div>
+              <div className="text-sm text-accent-primary dark:text-accent-primary">Offen</div>
             </div>
             <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-3">
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.in_progress_count}</div>
@@ -271,7 +262,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
               placeholder="Tickets durchsuchen (auch in Kommentaren und Tags)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
             />
             {searchQuery.length >= 2 && searchResults && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
@@ -284,7 +275,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
             className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${
               hasActiveFilters
                 ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-500'
             }`}
           >
             <Filter size={20} />
@@ -294,14 +285,14 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-3">
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Status</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as TicketStatus | '')}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Status</option>
                   {Object.entries(statusConfig).map(([key, { label }]) => (
@@ -310,11 +301,11 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priorität</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Priorität</label>
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value as TicketPriority | '')}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Prioritäten</option>
                   {Object.entries(priorityConfig).map(([key, { label }]) => (
@@ -323,11 +314,11 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kunde</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Kunde</label>
                 <select
                   value={customerFilter}
                   onChange={(e) => setCustomerFilter(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Kunden</option>
                   {customers.map(customer => (
@@ -337,12 +328,12 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-500">
                 <input
                   type="checkbox"
                   checked={showArchived}
                   onChange={(e) => setShowArchived(e.target.checked)}
-                  className="rounded border-gray-300 dark:border-gray-600"
+                  className="rounded border-gray-300 dark:border-dark-border"
                 />
                 Archivierte Tickets anzeigen
               </label>
@@ -363,8 +354,10 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
       {/* Ticket List */}
       <div ref={ticketListContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+          <div className="space-y-2 sm:space-y-3" aria-busy="true" aria-label="Tickets werden geladen">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonListItem key={i} />
+            ))}
           </div>
         ) : error ? (
           <div className="text-center text-red-500 py-8">
@@ -375,7 +368,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
             </Button>
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+          <div className="text-center text-gray-500 dark:text-dark-400 py-8">
             <p className="mb-2">
               {hasActiveFilters
                 ? 'Keine Tickets mit diesen Filtern gefunden'
@@ -405,16 +398,16 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                   key={ticket.id}
                   data-ticket-index={index}
                   onClick={() => onTicketSelect(ticket)}
-                  className={`w-full text-left bg-white dark:bg-gray-800 rounded-lg border p-4 transition-colors ${
+                  className={`w-full text-left bg-white dark:bg-dark-100 rounded-lg border p-4 transition-colors ${
                     isSelected
                       ? 'border-accent-primary ring-2 ring-accent-primary/30 bg-accent-primary/5'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-accent-primary'
+                      : 'border-gray-200 dark:border-dark-border hover:border-accent-primary'
                   } ${isArchived ? 'opacity-60' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                        <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                           {ticket.ticketNumber}
                         </span>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
@@ -439,7 +432,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">
                         {ticket.title}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-2 mt-1 text-sm text-gray-500 dark:text-dark-400">
                         <span>{getCustomerName(ticket.customerId)}</span>
                         <span>•</span>
                         <span>{formatDate(ticket.createdAt)}</span>

@@ -32,7 +32,44 @@ import {
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { toLocalDateString } from '../utils/time';
-import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult } from '../services/api';
+import { sevdeskApi, microsoft365Api, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult, ProcessedInvoice } from '../services/api';
+import { SourceBadge, ReceiptSource } from './ui/SourceBadge';
+
+// Erweitert SevdeskVoucher um die Quelle, damit der Belege-Tab auch fuer
+// E-Mail-/Manual-Belege Source-Badges zeigen kann. Wird beim Mapping von
+// ProcessedInvoice -> SevdeskVoucher-Shape angehaengt.
+type VoucherWithSource = SevdeskVoucher & { source?: ReceiptSource };
+
+const mapProcessedInvoiceToVoucher = (pi: ProcessedInvoice): VoucherWithSource => {
+  const supplier = pi.supplierName
+    ? { id: '', name: pi.supplierName }
+    : pi.senderName
+    ? { id: '', name: pi.senderName }
+    : null;
+  const taxRate = pi.netAmount && pi.vatAmount && pi.netAmount !== 0
+    ? Math.round((pi.vatAmount / pi.netAmount) * 100)
+    : 19;
+  const status = pi.status === 'processed' || pi.status === 'imported' ? 1000 : 100;
+  return {
+    id: pi.sevdeskVoucherId || pi.id,
+    voucherNumber: pi.sevdeskVoucherNumber || pi.invoiceNumber || pi.originalFilename || '—',
+    voucherDate: pi.invoiceDate || pi.receivedAt,
+    description: pi.emailSubject || pi.originalFilename || '',
+    status,
+    statusName: status === 1000 ? 'Verbucht' : 'Entwurf',
+    voucherType: 'VOU',
+    creditDebit: 'D',
+    supplier,
+    sumNet: pi.netAmount ?? 0,
+    sumGross: pi.grossAmount ?? 0,
+    sumTax: pi.vatAmount ?? 0,
+    taxRate,
+    currency: pi.currency || 'EUR',
+    paidAt: null,
+    document: null,
+    source: pi.source,
+  };
+};
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
@@ -91,22 +128,22 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
             Finanzen & Rechnungswesen
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+          <p className="text-gray-600 dark:text-dark-400 mb-6 max-w-md mx-auto">
             Mit dem Finanzen-Modul kannst du Zeiteinträge direkt in Rechnungen umwandeln,
             Angebote erstellen und alles mit sevDesk synchronisieren.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-lg mx-auto text-left">
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <Receipt size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Rechnungen erstellen</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Rechnungen erstellen</span>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <FileText size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Angebote verwalten</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Angebote verwalten</span>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-white/50 dark:bg-dark-100/50 rounded-lg">
               <CreditCard size={20} className="text-accent-primary flex-shrink-0 mt-0.5" />
-              <span className="text-sm text-gray-700 dark:text-gray-300">sevDesk Integration</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">sevDesk Integration</span>
             </div>
           </div>
           <a
@@ -136,14 +173,14 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Finanzen</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Abrechnungen, Rechnungen und Angebote
           </p>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
+      <div className="flex border-b border-gray-200 dark:border-dark-border mb-6 overflow-x-auto">
         {tabs.map(({ id, label, icon: Icon }) => (
           <Button
             key={id}
@@ -152,7 +189,7 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 rounded-none transition-colors whitespace-nowrap ${
               activeTab === id
                 ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
             }`}
             icon={<Icon size={18} />}
           >
@@ -519,15 +556,15 @@ const BillingTab = () => {
 
       {/* Period Type Toggle */}
       <div className="flex items-center justify-center gap-2 mb-2">
-        <span className="text-sm text-gray-500 dark:text-gray-400">Abrechnungszeitraum:</span>
-        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+        <span className="text-sm text-gray-500 dark:text-dark-400">Abrechnungszeitraum:</span>
+        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
           <Button
             variant={billingPeriodType === 'monthly' ? 'primary' : 'ghost'}
             size="sm"
             onClick={() => setBillingPeriodType('monthly')}
             className={`rounded-none ${
               billingPeriodType !== 'monthly'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -539,7 +576,7 @@ const BillingTab = () => {
             onClick={() => setBillingPeriodType('quarterly')}
             className={`rounded-none ${
               billingPeriodType !== 'quarterly'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -551,7 +588,7 @@ const BillingTab = () => {
             onClick={() => setBillingPeriodType('yearly')}
             className={`rounded-none ${
               billingPeriodType !== 'yearly'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -563,7 +600,7 @@ const BillingTab = () => {
             onClick={() => setBillingPeriodType('custom')}
             className={`rounded-none ${
               billingPeriodType !== 'custom'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -576,28 +613,28 @@ const BillingTab = () => {
       {billingPeriodType === 'custom' ? (
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 dark:text-gray-400">Von:</label>
+            <label className="text-sm text-gray-500 dark:text-dark-400">Von:</label>
             <input
               type="date"
               value={customStartDate}
               onChange={(e) => setCustomStartDate(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 dark:text-gray-400">Bis:</label>
+            <label className="text-sm text-gray-500 dark:text-dark-400">Bis:</label>
             <input
               type="date"
               value={customEndDate}
               onChange={(e) => setCustomEndDate(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
         </div>
       ) : (
       <div className="flex items-center justify-center gap-4">
         <IconButton
-          icon={<ChevronLeft size={20} className="text-gray-600 dark:text-gray-300" />}
+          icon={<ChevronLeft size={20} className="text-gray-600 dark:text-dark-500" />}
           onClick={
             billingPeriodType === 'monthly'
               ? handlePrevMonth
@@ -612,7 +649,7 @@ const BillingTab = () => {
           {periodName}
         </div>
         <IconButton
-          icon={<ChevronRight size={20} className="text-gray-600 dark:text-gray-300" />}
+          icon={<ChevronRight size={20} className="text-gray-600 dark:text-dark-500" />}
           onClick={
             billingPeriodType === 'monthly'
               ? handleNextMonth
@@ -626,17 +663,17 @@ const BillingTab = () => {
       )}
 
       {/* Unbilled Items */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <h3 className="font-semibold text-gray-900 dark:text-white">Nicht abgerechnete Zeiten</h3>
         </div>
         {unbilledItems.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          <div className="p-8 text-center text-gray-500 dark:text-dark-400">
             <Check size={48} className="mx-auto mb-4 text-green-500" />
             <p>Alle Zeiten für {periodName} wurden abgerechnet!</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
             {unbilledItems.map((item) => (
               <div key={item.customerId} className="p-4">
                 <div className="flex items-center justify-between">
@@ -707,14 +744,14 @@ const BillingTab = () => {
 
       {/* Billed Items from current month */}
       {billedItems.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <CheckCircle size={18} className="text-green-500" />
               Abgerechnete Zeiten in {periodName} ({billedItems.length})
             </h3>
           </div>
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
             {billedItems.map((item) => {
               const billedViaOverlap = (item as BillingSummaryItem & { billedViaOverlap?: boolean }).billedViaOverlap;
               return (
@@ -771,8 +808,8 @@ const BillingTab = () => {
       )}
 
       {/* Completed Exports */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 dark:text-white">
             Erledigte Abrechnungen ({invoiceExports.length})
           </h3>
@@ -790,7 +827,7 @@ const BillingTab = () => {
           invoiceExports.length === 0 ? (
             <div className="p-8 text-center text-gray-500">Keine erledigten Abrechnungen</div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <div className="divide-y divide-gray-200 dark:divide-dark-border">
               {invoiceExports.map((exp) => (
                 <div key={exp.id} className="p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
@@ -895,8 +932,8 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {type === 'invoices' ? 'Rechnung' : type === 'quotes' ? 'Angebot' : 'Beleg'}{' '}
             {type === 'invoices'
@@ -929,38 +966,38 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                 {type === 'vouchers' ? (
                   <>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Lieferant:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Lieferant:</span>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {(detail as SevdeskVoucher).supplier?.name || 'Nicht angegeben'}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Datum:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Datum:</span>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {formatDate((detail as SevdeskVoucher).voucherDate)}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Status:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Betrag:</span>
                       <p className={`font-medium ${(detail as SevdeskVoucher).creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
                         {(detail as SevdeskVoucher).creditDebit === 'C' ? '+' : '-'}{formatCurrency(detail.sumGross)}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Netto:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">MwSt ({(detail as SevdeskVoucher).taxRate}%):</span>
+                      <span className="text-gray-500 dark:text-dark-400">MwSt ({(detail as SevdeskVoucher).taxRate}%):</span>
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskVoucher).sumTax)}</p>
                     </div>
                     {(detail as SevdeskVoucher).paidAt && (
                       <div className="col-span-2">
-                        <span className="text-gray-500 dark:text-gray-400">Bezahlt am:</span>
+                        <span className="text-gray-500 dark:text-dark-400">Bezahlt am:</span>
                         <p className="font-medium text-green-600 dark:text-green-400">
                           {formatDate((detail as SevdeskVoucher).paidAt!)}
                         </p>
@@ -970,23 +1007,23 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                 ) : (
                   <>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Kunde:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Kunde:</span>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {(detail as SevdeskInvoice | SevdeskQuote).contact.name}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Datum:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Datum:</span>
                       <p className="font-medium text-gray-900 dark:text-white">
                         {formatDate(type === 'invoices' ? (detail as SevdeskInvoice).invoiceDate : (detail as SevdeskQuote).quoteDate)}
                       </p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Status:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{detail.statusName}</p>
                     </div>
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">Betrag:</span>
+                      <span className="text-gray-500 dark:text-dark-400">Betrag:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(detail.sumGross)}</p>
                     </div>
                   </>
@@ -997,14 +1034,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               {type === 'vouchers' ? (
                 (detail as SevdeskVoucher).description && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm">Beschreibung:</span>
+                    <span className="text-gray-500 dark:text-dark-400 text-sm">Beschreibung:</span>
                     <p className="text-gray-900 dark:text-white">{(detail as SevdeskVoucher).description}</p>
                   </div>
                 )
               ) : (
                 (detail as SevdeskInvoice | SevdeskQuote).header && (
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 text-sm">Betreff:</span>
+                    <span className="text-gray-500 dark:text-dark-400 text-sm">Betreff:</span>
                     <p className="text-gray-900 dark:text-white">{(detail as SevdeskInvoice | SevdeskQuote).header}</p>
                   </div>
                 )
@@ -1013,16 +1050,16 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               {/* Positions - only for invoices and quotes */}
               {type !== 'vouchers' && (detail as SevdeskInvoice | SevdeskQuote).positions && (detail as SevdeskInvoice | SevdeskQuote).positions.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Positionen</h4>
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">Positionen</h4>
+                  <div className="bg-gray-50 dark:bg-dark-50 rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-200 dark:border-gray-700">
-                          <th className="text-left p-2 text-gray-500 dark:text-gray-400 w-6"></th>
-                          <th className="text-left p-2 text-gray-500 dark:text-gray-400">Beschreibung</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Menge</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Preis</th>
-                          <th className="text-right p-2 text-gray-500 dark:text-gray-400">Summe</th>
+                        <tr className="border-b border-gray-200 dark:border-dark-border">
+                          <th className="text-left p-2 text-gray-500 dark:text-dark-400 w-6"></th>
+                          <th className="text-left p-2 text-gray-500 dark:text-dark-400">Beschreibung</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Menge</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Preis</th>
+                          <th className="text-right p-2 text-gray-500 dark:text-dark-400">Summe</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1033,8 +1070,8 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
 
                           if (isHeading) {
                             return (
-                              <tr key={pos.id} className="bg-gray-200 dark:bg-gray-700">
-                                <td colSpan={5} className="p-2 font-semibold text-gray-800 dark:text-gray-200">
+                              <tr key={pos.id} className="bg-gray-200 dark:bg-dark-200">
+                                <td colSpan={5} className="p-2 font-semibold text-gray-800 dark:text-dark-500">
                                   {pos.name}
                                 </td>
                               </tr>
@@ -1044,10 +1081,10 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                           return (
                             <Fragment key={pos.id}>
                               <tr
-                                className={`border-b border-gray-200 dark:border-gray-700 last:border-0 ${hasText ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''}`}
+                                className={`border-b border-gray-200 dark:border-dark-border last:border-0 ${hasText ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-100' : ''}`}
                                 onClick={() => hasText && togglePosition(pos.id)}
                               >
-                                <td className="p-2 text-gray-500 dark:text-gray-400">
+                                <td className="p-2 text-gray-500 dark:text-dark-400">
                                   {hasText && (
                                     isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
                                   )}
@@ -1058,9 +1095,9 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                                 <td className="p-2 text-right text-gray-900 dark:text-white">{formatCurrency(pos.sumNet)}</td>
                               </tr>
                               {isExpanded && hasText && (
-                                <tr className="border-b border-gray-200 dark:border-gray-700">
-                                  <td colSpan={5} className="p-3 bg-gray-100 dark:bg-gray-800">
-                                    <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                <tr className="border-b border-gray-200 dark:border-dark-border">
+                                  <td colSpan={5} className="p-3 bg-gray-100 dark:bg-dark-100">
+                                    <div className="text-sm text-gray-700 dark:text-dark-500 whitespace-pre-wrap">
                                       {pos.text}
                                     </div>
                                   </td>
@@ -1077,14 +1114,14 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
 
               {/* Totals - only for invoices and quotes (vouchers show this info in header) */}
               {type !== 'vouchers' && (
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">Netto:</span>
+                    <span className="text-gray-500 dark:text-dark-400">Netto:</span>
                     <span className="text-gray-900 dark:text-white">{formatCurrency(detail.sumNet)}</span>
                   </div>
                   {type === 'invoices' && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">MwSt:</span>
+                      <span className="text-gray-500 dark:text-dark-400">MwSt:</span>
                       <span className="text-gray-900 dark:text-white">{formatCurrency((detail as SevdeskInvoice).sumTax)}</span>
                     </div>
                   )}
@@ -1096,7 +1133,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
               )}
             </div>
           ) : (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+            <p className="text-gray-500 dark:text-dark-400 text-center py-8">
               Dokument konnte nicht geladen werden
             </p>
           )}
@@ -1113,7 +1150,7 @@ const DocumentsTab = () => {
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<SevdeskInvoice[]>([]);
   const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
-  const [vouchers, setVouchers] = useState<SevdeskVoucher[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherWithSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote | SevdeskVoucher } | null>(null);
 
@@ -1144,15 +1181,23 @@ const DocumentsTab = () => {
       setLoading(true);
       setError(null);
 
-      const [invoicesRes, quotesRes, vouchersRes] = await Promise.all([
+      const [invoicesRes, quotesRes, voucherInvoicesRes] = await Promise.all([
         sevdeskApi.getInvoices({ limit: 500 }),
         sevdeskApi.getQuotes({ limit: 500 }),
-        sevdeskApi.getVouchers({ limit: 500 }),
+        // Belege kommen jetzt aus processed_invoices (SSOT). Drei Quellen:
+        // E-Mail-Inbox, Manual-Upload und sevDesk-Sync. Das Mapping
+        // konvertiert auf das alte SevdeskVoucher-Shape, damit die
+        // bestehende UI ohne Aenderungen weiterlaeuft.
+        microsoft365Api.getProcessedInvoices({
+          status: 'processed,imported,draft',
+          source: 'email,manual,sevdesk_import',
+          limit: 500,
+        }),
       ]);
 
       setInvoices(invoicesRes.data || []);
       setQuotes(quotesRes.data || []);
-      setVouchers(vouchersRes.data || []);
+      setVouchers((voucherInvoicesRes.data || []).map(mapProcessedInvoiceToVoucher));
     } catch (err: any) {
       setError(err.message || 'Fehler beim Laden der Dokumente');
     } finally {
@@ -1229,15 +1274,15 @@ const DocumentsTab = () => {
   const getStatusColor = (status: number, type: DocumentType) => {
     if (type === 'invoices') {
       switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
         case 200: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
         case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
         default: return 'bg-gray-100 text-gray-700';
       }
     } else {
       switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
-        case 200: return 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400';
+        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
+        case 200: return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary';
         case 300: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
         case 400: return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
         default: return 'bg-gray-100 text-gray-700';
@@ -1265,7 +1310,7 @@ const DocumentsTab = () => {
 
   const getVoucherStatusColor = (status: number) => {
     switch (status) {
-      case 50: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+      case 50: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
       case 100: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
       case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-700';
@@ -1279,7 +1324,7 @@ const DocumentsTab = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Sync Status */}
           {syncStatus && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
               <Database size={14} />
               <span>{syncStatus.invoiceCount + syncStatus.quoteCount} im Cache</span>
               {syncStatus.lastSync && (
@@ -1308,7 +1353,7 @@ const DocumentsTab = () => {
             size="sm"
             onClick={() => setShowVoucherUpload(true)}
             icon={<Camera size={14} />}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-accent-primary hover:bg-accent-dark"
           >
             <span className="hidden xs:inline sm:inline">Beleg</span>
           </Button>
@@ -1342,7 +1387,7 @@ const DocumentsTab = () => {
             ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
             : syncMessage.startsWith('✗')
             ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-            : 'bg-accent-light dark:bg-blue-900/20 text-accent-dark dark:text-blue-400'
+            : 'bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary'
         }`}>
           {syncMessage.startsWith('✓') && <CheckCircle size={16} />}
           {syncMessage.startsWith('✗') && <AlertTriangle size={16} />}
@@ -1359,14 +1404,14 @@ const DocumentsTab = () => {
       )}
 
       {/* Document Type Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+      <div className="flex border-b border-gray-200 dark:border-dark-border overflow-x-auto">
         <Button
           variant="ghost"
           onClick={() => setActiveDocType('invoices')}
           className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'invoices'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
           icon={<Receipt size={18} />}
         >
@@ -1378,7 +1423,7 @@ const DocumentsTab = () => {
           className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'quotes'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
           icon={<FileText size={18} />}
         >
@@ -1390,7 +1435,7 @@ const DocumentsTab = () => {
           className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
             activeDocType === 'vouchers'
               ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
           }`}
           icon={<CreditCard size={18} />}
         >
@@ -1410,21 +1455,21 @@ const DocumentsTab = () => {
               ? "Volltextsuche im Cache..."
               : "Suchen..."
             }
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
           />
           {searching && (
             <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
           )}
         </div>
         {/* Search Mode Toggle */}
-        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden flex-shrink-0">
+        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden flex-shrink-0">
           <Button
             variant={searchMode === 'live' ? 'primary' : 'ghost'}
             size="sm"
             onClick={() => { setSearchMode('live'); setSearchResults([]); }}
             className={`rounded-none ${
               searchMode !== 'live'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -1437,7 +1482,7 @@ const DocumentsTab = () => {
             icon={<Database size={14} />}
             className={`rounded-none ${
               searchMode !== 'cached'
-                ? 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
                 : ''
             }`}
           >
@@ -1457,7 +1502,7 @@ const DocumentsTab = () => {
           {searchResults.length === 0 ? (
             <div className="text-center py-8">
               <Database size={32} className="mx-auto mb-2 text-gray-400" />
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-gray-500 dark:text-dark-400">
                 {searching ? 'Suche...' : 'Keine Ergebnisse im Cache gefunden'}
               </p>
               {!syncStatus?.lastSync && (
@@ -1500,13 +1545,13 @@ const DocumentsTab = () => {
                     doc,
                   });
                 }}
-                className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
               >
-                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
+                <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
                   {result.documentType === 'invoice' ? (
-                    <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
+                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
                   ) : (
-                    <FileText size={20} className="text-gray-500 dark:text-gray-400" />
+                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1517,11 +1562,11 @@ const DocumentsTab = () => {
                     <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(result.status, result.documentType === 'invoice' ? 'invoices' : 'quotes')}`}>
                       {result.statusName}
                     </span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hidden sm:inline">
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary hidden sm:inline">
                       {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
                     {result.contactName}
                   </p>
                 </div>
@@ -1529,7 +1574,7 @@ const DocumentsTab = () => {
                   <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                     {formatCurrency(result.sumGross)}
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
                     {formatDate(result.documentDate)}
                   </p>
                 </div>
@@ -1541,7 +1586,7 @@ const DocumentsTab = () => {
       ) : searchMode === 'cached' ? (
         <div className="text-center py-8">
           <Database size={32} className="mx-auto mb-2 text-gray-400" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             Mindestens 2 Zeichen eingeben für Volltextsuche
           </p>
           {syncStatus && (
@@ -1556,7 +1601,7 @@ const DocumentsTab = () => {
           {/* Invoices Tab */}
           {activeDocType === 'invoices' && (
             filteredInvoices.length === 0 ? (
-              <p className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <p className="text-center py-8 text-gray-500 dark:text-dark-400">
                 Keine Rechnungen gefunden
               </p>
             ) : (
@@ -1564,10 +1609,10 @@ const DocumentsTab = () => {
                 <div
                   key={invoice.id}
                   onClick={() => setSelectedDocument({ type: 'invoices', doc: invoice })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
-                    <Receipt size={20} className="text-gray-500 dark:text-gray-400" />
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
+                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1578,7 +1623,7 @@ const DocumentsTab = () => {
                         {invoice.statusName}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
                       {invoice.contact.name}
                     </p>
                   </div>
@@ -1586,7 +1631,7 @@ const DocumentsTab = () => {
                     <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                       {formatCurrency(invoice.sumGross)}
                     </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
                       {formatDate(invoice.invoiceDate)}
                     </p>
                   </div>
@@ -1601,7 +1646,7 @@ const DocumentsTab = () => {
             filteredQuotes.length === 0 ? (
               <div className="text-center py-8">
                 <FileText size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-gray-500 dark:text-gray-400">Keine Angebote gefunden</p>
+                <p className="text-gray-500 dark:text-dark-400">Keine Angebote gefunden</p>
                 <Button
                   variant="ghost"
                   onClick={() => setShowQuoteEditor(true)}
@@ -1615,10 +1660,10 @@ const DocumentsTab = () => {
                 <div
                   key={quote.id}
                   onClick={() => setSelectedDocument({ type: 'quotes', doc: quote })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
-                    <FileText size={20} className="text-gray-500 dark:text-gray-400" />
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
+                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1629,7 +1674,7 @@ const DocumentsTab = () => {
                         {quote.statusName}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
                       {quote.contact.name}
                     </p>
                   </div>
@@ -1637,7 +1682,7 @@ const DocumentsTab = () => {
                     <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                       {formatCurrency(quote.sumGross)}
                     </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
                       {formatDate(quote.quoteDate)}
                     </p>
                   </div>
@@ -1665,33 +1710,34 @@ const DocumentsTab = () => {
             filteredVouchers.length === 0 ? (
               <div className="text-center py-8">
                 <CreditCard size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-gray-500 dark:text-gray-400">Keine Belege gefunden</p>
+                <p className="text-gray-500 dark:text-dark-400">Keine Belege gefunden</p>
               </div>
             ) : (
               filteredVouchers.map((voucher) => (
                 <div
                   key={voucher.id}
                   onClick={() => setSelectedDocument({ type: 'vouchers', doc: voucher })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                 >
-                  <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex-shrink-0 hidden sm:block">
-                    <CreditCard size={20} className="text-gray-500 dark:text-gray-400" />
+                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
+                    <CreditCard size={20} className="text-gray-500 dark:text-dark-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                         {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id}`}
                       </span>
+                      <SourceBadge source={voucher.source} />
                       <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
                         {voucher.statusName}
                       </span>
                       {voucher.creditDebit === 'C' && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400">
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary">
                           Gutschrift
                         </span>
                       )}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
                       {voucher.supplier?.name || voucher.description || 'Kein Lieferant'}
                     </p>
                   </div>
@@ -1699,7 +1745,7 @@ const DocumentsTab = () => {
                     <p className={`font-medium text-sm sm:text-base ${voucher.creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
                       {voucher.creditDebit === 'C' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
                     </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
                       {formatDate(voucher.voucherDate)}
                     </p>
                   </div>
@@ -1877,8 +1923,8 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="bg-white dark:bg-dark-100 rounded-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {step === 'upload' ? 'Beleg hochladen' : 'Beleg-Details'}
           </h3>
@@ -1902,7 +1948,7 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
             <div
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-accent-primary transition-colors cursor-pointer"
+              className="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-8 text-center hover:border-accent-primary transition-colors cursor-pointer"
             >
               <input
                 type="file"
@@ -1913,14 +1959,14 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
               />
               <label htmlFor="voucher-file-input" className="cursor-pointer">
                 <div className="flex flex-col items-center gap-3">
-                  <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
+                  <div className="p-4 bg-gray-100 dark:bg-dark-200 rounded-full">
                     <Camera size={32} className="text-gray-400" />
                   </div>
                   <div>
                     <p className="text-gray-900 dark:text-white font-medium">
                       Foto aufnehmen oder Datei auswählen
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                       Oder per Drag & Drop hier ablegen
                     </p>
                   </div>
@@ -1935,11 +1981,11 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
             <div className="space-y-4">
               {/* File Preview */}
               {file && (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-50 rounded-lg">
                   {preview ? (
                     <img src={preview} alt="Vorschau" className="w-16 h-16 object-cover rounded" />
                   ) : (
-                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                    <div className="w-16 h-16 bg-gray-200 dark:bg-dark-200 rounded flex items-center justify-center">
                       <FileText size={24} className="text-gray-400" />
                     </div>
                   )}
@@ -1965,19 +2011,19 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
               {/* Form Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Belegdatum *
                   </label>
                   <input
                     type="date"
                     value={voucherDate}
                     onChange={(e) => setVoucherDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Beschreibung
                   </label>
                   <input
@@ -1985,12 +2031,12 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="z.B. Büromaterial, Tankquittung..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Lieferant
                   </label>
                   <input
@@ -1998,12 +2044,12 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                     value={supplierName}
                     onChange={(e) => setSupplierName(e.target.value)}
                     placeholder="Name des Lieferanten"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Brutto-Betrag *
                   </label>
                   <div className="relative">
@@ -2013,20 +2059,20 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                       value={sumGross}
                       onChange={(e) => setSumGross(e.target.value)}
                       placeholder="0.00"
-                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     MwSt-Satz
                   </label>
                   <select
                     value={taxRate}
                     onChange={(e) => setTaxRate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
                   >
                     <option value="19">19%</option>
                     <option value="7">7%</option>
@@ -2035,7 +2081,7 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Art
                   </label>
                   <div className="flex gap-4">
@@ -2063,7 +2109,7 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
 
               {/* Summary */}
               {sumGross && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg space-y-1 text-sm">
+                <div className="p-3 bg-gray-50 dark:bg-dark-50 rounded-lg space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Netto:</span>
                     <span className="text-gray-900 dark:text-white">{formatCurrency(calculateNet())}</span>
@@ -2074,7 +2120,7 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
                       {formatCurrency((parseFloat(sumGross) || 0) - calculateNet())}
                     </span>
                   </div>
-                  <div className="flex justify-between font-semibold pt-1 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between font-semibold pt-1 border-t border-gray-200 dark:border-dark-border">
                     <span className="text-gray-900 dark:text-white">Brutto:</span>
                     <span className={creditDebit === 'C' ? 'text-green-600' : 'text-gray-900 dark:text-white'}>
                       {creditDebit === 'C' ? '+' : '-'}{formatCurrency(parseFloat(sumGross) || 0)}
@@ -2088,7 +2134,7 @@ const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) =
 
         {/* Footer */}
         {step === 'details' && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+          <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
             <Button
               variant="ghost"
               onClick={() => setStep('upload')}

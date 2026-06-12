@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { socialMediaApi } from '../../../../services/api';
 import type { Competitor, CompetitorAnalysis } from '../../types';
+import { useConfirm } from '../../../../contexts/UIContext';
 
 export default function CompetitorsTab() {
+  const confirm = useConfirm();
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -74,7 +76,13 @@ export default function CompetitorsTab() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Möchtest du diesen Wettbewerber wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Wettbewerber löschen?',
+      message: 'Möchtest du diesen Wettbewerber wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setDeleting(id);
     try {
       await socialMediaApi.deleteCompetitor(id);
@@ -108,7 +116,7 @@ export default function CompetitorsTab() {
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">
             Wettbewerber-Analyse
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-dark-400">
             Beobachte und analysiere deine Wettbewerber.
           </p>
         </div>
@@ -123,9 +131,9 @@ export default function CompetitorsTab() {
 
       {/* Competitors List */}
       {competitors.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-          <Users size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-          <p className="text-gray-500 dark:text-gray-400 mb-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-dark-border text-center">
+          <Users size={48} className="mx-auto mb-4 text-gray-300 dark:text-dark-400" />
+          <p className="text-gray-500 dark:text-dark-400 mb-4">
             Noch keine Wettbewerber hinzugefügt.
           </p>
           <button
@@ -140,7 +148,7 @@ export default function CompetitorsTab() {
           {competitors.map((competitor) => (
             <div
               key={competitor.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden"
             >
               {/* Competitor Header */}
               <div className="p-4 flex items-start justify-between">
@@ -176,7 +184,7 @@ export default function CompetitorsTab() {
                         href={competitor.profiles.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-600 dark:text-gray-400 hover:underline flex items-center gap-1"
+                        className="text-sm text-gray-600 dark:text-dark-400 hover:underline flex items-center gap-1"
                       >
                         <Globe size={12} />
                         Website
@@ -184,7 +192,7 @@ export default function CompetitorsTab() {
                     )}
                   </div>
                   {competitor.notes && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
                       {competitor.notes}
                     </p>
                   )}
@@ -219,7 +227,7 @@ export default function CompetitorsTab() {
 
               {/* Analysis Results */}
               {analysis[competitor.id] && (
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
+                <div className="border-t border-gray-200 dark:border-dark-border p-4 bg-gray-50 dark:bg-dark-50">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Strengths */}
                     <div>
@@ -229,7 +237,7 @@ export default function CompetitorsTab() {
                       </h4>
                       <ul className="space-y-1">
                         {analysis[competitor.id].strengths.map((s, i) => (
-                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-1">
+                          <li key={i} className="text-sm text-gray-600 dark:text-dark-400 flex items-start gap-1">
                             <span className="text-green-600">•</span>
                             {s}
                           </li>
@@ -245,7 +253,7 @@ export default function CompetitorsTab() {
                       </h4>
                       <ul className="space-y-1">
                         {analysis[competitor.id].weaknesses.map((w, i) => (
-                          <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-1">
+                          <li key={i} className="text-sm text-gray-600 dark:text-dark-400 flex items-start gap-1">
                             <span className="text-red-600">•</span>
                             {w}
                           </li>
@@ -255,14 +263,14 @@ export default function CompetitorsTab() {
 
                     {/* Content Themes */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                         Content-Themen
                       </h4>
                       <div className="flex flex-wrap gap-1">
                         {analysis[competitor.id].contentThemes.map((theme, i) => (
                           <span
                             key={i}
-                            className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs"
+                            className="px-2 py-0.5 bg-gray-200 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded text-xs"
                           >
                             {theme}
                           </span>
@@ -272,10 +280,10 @@ export default function CompetitorsTab() {
 
                     {/* Stats */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                         Kennzahlen
                       </h4>
-                      <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      <div className="space-y-1 text-sm text-gray-600 dark:text-dark-400">
                         <p>
                           <span className="font-medium">Posting-Frequenz:</span>{' '}
                           {analysis[competitor.id].postingFrequency}
@@ -319,16 +327,16 @@ export default function CompetitorsTab() {
           onClick={resetForm}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-lg w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                 Wettbewerber hinzufügen
               </h2>
               <button
                 onClick={resetForm}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -336,7 +344,7 @@ export default function CompetitorsTab() {
 
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Name *
                 </label>
                 <input
@@ -344,12 +352,12 @@ export default function CompetitorsTab() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Firmenname"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   LinkedIn Profil-URL
                 </label>
                 <input
@@ -357,12 +365,12 @@ export default function CompetitorsTab() {
                   value={linkedinUrl}
                   onChange={(e) => setLinkedinUrl(e.target.value)}
                   placeholder="https://linkedin.com/company/..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Twitter Profil-URL
                 </label>
                 <input
@@ -370,12 +378,12 @@ export default function CompetitorsTab() {
                   value={twitterUrl}
                   onChange={(e) => setTwitterUrl(e.target.value)}
                   placeholder="https://twitter.com/..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Website
                 </label>
                 <input
@@ -383,12 +391,12 @@ export default function CompetitorsTab() {
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Notizen
                 </label>
                 <textarea
@@ -396,15 +404,15 @@ export default function CompetitorsTab() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Optionale Notizen..."
                   rows={3}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white resize-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={resetForm}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

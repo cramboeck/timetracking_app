@@ -82,10 +82,10 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
 
   if (isVerifying) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary dark:border-blue-400 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Token wird überprüft...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary dark:border-accent-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-dark-400">Token wird überprüft...</p>
         </div>
       </div>
     );
@@ -93,16 +93,16 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
 
   if (!tokenValid) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+          <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
             <div className="text-center mb-6">
               <div className="text-red-500 text-6xl mb-4">⚠️</div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                 Ungültiger Link
               </h1>
               {message && (
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-dark-400">
                   {message.text}
                 </p>
               )}
@@ -121,9 +121,9 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
           <Button
             onClick={onBack}
             variant="ghost"
@@ -137,7 +137,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Neues Passwort setzen
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-dark-400">
               Wähle ein neues, sicheres Passwort für deinen Account.
             </p>
           </div>
@@ -154,7 +154,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Neues Passwort
               </label>
               <div className="relative">
@@ -166,12 +166,12 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   placeholder="Mindestens 8 Zeichen"
                   required
                   minLength={8}
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500 transition-colors"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -179,7 +179,7 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Passwort bestätigen
               </label>
               <div className="relative">
@@ -190,12 +190,12 @@ export const ResetPassword = ({ token, onSuccess, onBack }: ResetPasswordProps) 
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Passwort wiederholen"
                   required
-                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-blue-400 transition-colors"
+                  className="w-full px-4 py-3 pr-12 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500 transition-colors"
                 >
                   {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>

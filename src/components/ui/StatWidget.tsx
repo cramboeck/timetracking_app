@@ -16,8 +16,8 @@ interface StatWidgetProps {
 
 const colorStyles = {
   blue: {
-    bg: 'bg-accent-light dark:bg-blue-900/20',
-    icon: 'text-accent-primary dark:text-blue-400',
+    bg: 'bg-accent-light dark:bg-accent-primary/20',
+    icon: 'text-accent-primary dark:text-accent-primary',
     ring: 'ring-accent-primary/20',
   },
   green: {
@@ -31,9 +31,9 @@ const colorStyles = {
     ring: 'ring-orange-500/20',
   },
   purple: {
-    bg: 'bg-purple-50 dark:bg-purple-900/20',
-    icon: 'text-purple-600 dark:text-purple-400',
-    ring: 'ring-purple-500/20',
+    bg: 'bg-accent-light dark:bg-accent-primary/20',
+    icon: 'text-accent-primary dark:text-accent-primary',
+    ring: 'ring-accent-primary/20',
   },
   red: {
     bg: 'bg-red-50 dark:bg-red-900/20',
@@ -41,8 +41,8 @@ const colorStyles = {
     ring: 'ring-red-500/20',
   },
   gray: {
-    bg: 'bg-gray-50 dark:bg-gray-800/50',
-    icon: 'text-gray-600 dark:text-gray-400',
+    bg: 'bg-gray-50 dark:bg-dark-100/50',
+    icon: 'text-gray-600 dark:text-dark-400',
     ring: 'ring-gray-500/20',
   },
 };
@@ -87,16 +87,16 @@ export const StatWidget = ({
     <div
       className={`
         ${sizes.container}
-        bg-white dark:bg-gray-800
-        rounded-xl border border-gray-200 dark:border-gray-700
-        ${onClick ? 'cursor-pointer hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 active:scale-[0.98]' : ''}
+        bg-white dark:bg-dark-100
+        rounded-xl border border-gray-200 dark:border-dark-border
+        ${onClick ? 'cursor-pointer hover:shadow-md hover:border-gray-300 dark:hover:border-dark-border active:scale-[0.98]' : ''}
         transition-all duration-200
       `}
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className={`${sizes.label} text-gray-500 dark:text-gray-400 font-medium mb-1`}>
+          <p className={`${sizes.label} text-gray-500 dark:text-dark-400 font-medium mb-1`}>
             {label}
           </p>
           <p className={`${sizes.value} font-bold text-gray-900 dark:text-white`}>
@@ -109,7 +109,7 @@ export const StatWidget = ({
               }`}>
                 {trend.positive ? '+' : ''}{trend.value}%
               </span>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-400 dark:text-dark-400">
                 {trend.label}
               </span>
             </div>
@@ -150,9 +150,9 @@ export const QuickAction = ({
       disabled={disabled}
       className={`
         flex flex-col items-center justify-center gap-2 p-4
-        bg-white dark:bg-gray-800
-        rounded-xl border border-gray-200 dark:border-gray-700
-        hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600
+        bg-white dark:bg-dark-100
+        rounded-xl border border-gray-200 dark:border-dark-border
+        hover:shadow-md hover:border-gray-300 dark:hover:border-dark-border
         active:scale-[0.98]
         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none
         transition-all duration-200
@@ -165,7 +165,7 @@ export const QuickAction = ({
       `}>
         <Icon size={24} className={colors.icon} />
       </div>
-      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
         {label}
       </span>
     </button>

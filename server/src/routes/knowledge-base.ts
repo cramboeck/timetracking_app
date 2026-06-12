@@ -1,10 +1,67 @@
 import { Router, Response } from 'express';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { CustomerAuthRequest, authenticateCustomerToken } from '../middleware/customerAuth';
+import { validate } from '../middleware/validation';
 
 const router = Router();
+
+// Explicit column lists (no SELECT *)
+const PORTAL_SETTINGS_COLUMNS = `
+  id, user_id, company_name, welcome_message, logo_url, primary_color,
+  show_knowledge_base, require_login_for_kb, teamviewer_link, created_at, updated_at
+`;
+
+// Zod schemas
+const createCategorySchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  icon: z.string().max(50).optional(),
+  sortOrder: z.number().int().min(0).max(10000).optional(),
+  isPublic: z.boolean().optional(),
+});
+
+const updateCategorySchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional().nullable(),
+  icon: z.string().max(50).optional(),
+  sortOrder: z.number().int().min(0).max(10000).optional(),
+  isPublic: z.boolean().optional(),
+});
+
+const createArticleSchema = z.object({
+  categoryId: z.string().uuid().optional().nullable(),
+  title: z.string().min(1).max(500),
+  content: z.string().min(1).max(100000),
+  excerpt: z.string().max(1000).optional().nullable(),
+  isPublished: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+});
+
+const updateArticleSchema = z.object({
+  categoryId: z.string().uuid().optional().nullable(),
+  title: z.string().min(1).max(500).optional(),
+  content: z.string().min(1).max(100000).optional(),
+  excerpt: z.string().max(1000).optional().nullable(),
+  isPublished: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+});
+
+const portalSettingsSchema = z.object({
+  companyName: z.string().max(200).optional().nullable(),
+  welcomeMessage: z.string().max(2000).optional().nullable(),
+  logoUrl: z.string().url().max(500).optional().nullable(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  showKnowledgeBase: z.boolean().optional(),
+  requireLoginForKb: z.boolean().optional(),
+  teamviewerLink: z.string().url().max(500).optional().nullable(),
+});
+
+const feedbackSchema = z.object({
+  helpful: z.boolean(),
+});
 
 // Helper to generate slug from title
 function generateSlug(title: string): string {
@@ -78,14 +135,11 @@ router.get('/categories', authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 // POST /api/knowledge-base/categories - Create category
-router.post('/categories', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/categories', authenticateToken, validate(createCategorySchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { name, description, icon, sortOrder, isPublic } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ success: false, error: 'Name is required' });
-    }
+    // Validation handled by Zod
 
     const id = crypto.randomUUID();
     const result = await pool.query(`
@@ -102,11 +156,12 @@ router.post('/categories', authenticateToken, async (req: AuthRequest, res: Resp
 });
 
 // PUT /api/knowledge-base/categories/:id - Update category
-router.put('/categories/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/categories/:id', authenticateToken, validate(updateCategorySchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { id } = req.params;
     const { name, description, icon, sortOrder, isPublic } = req.body;
+    // Validation handled by Zod
 
     const result = await pool.query(`
       UPDATE kb_categories SET
@@ -216,14 +271,11 @@ router.get('/articles/:id', authenticateToken, async (req: AuthRequest, res: Res
 });
 
 // POST /api/knowledge-base/articles - Create article
-router.post('/articles', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/articles', authenticateToken, validate(createArticleSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { categoryId, title, content, excerpt, isPublished, isFeatured } = req.body;
-
-    if (!title || !content) {
-      return res.status(400).json({ success: false, error: 'Title and content are required' });
-    }
+    // Validation handled by Zod
 
     const id = crypto.randomUUID();
     let slug = generateSlug(title);
@@ -253,11 +305,12 @@ router.post('/articles', authenticateToken, async (req: AuthRequest, res: Respon
 });
 
 // PUT /api/knowledge-base/articles/:id - Update article
-router.put('/articles/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/articles/:id', authenticateToken, validate(updateArticleSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { id } = req.params;
     const { categoryId, title, content, excerpt, isPublished, isFeatured } = req.body;
+    // Validation handled by Zod
 
     // Get current article to check published state
     const current = await pool.query(
@@ -439,14 +492,11 @@ router.get('/public/:userId/articles/:slug', async (req, res) => {
 });
 
 // POST /api/knowledge-base/public/:userId/articles/:slug/feedback - Rate article helpfulness
-router.post('/public/:userId/articles/:slug/feedback', async (req, res) => {
+router.post('/public/:userId/articles/:slug/feedback', validate(feedbackSchema), async (req, res) => {
   try {
     const { userId, slug } = req.params;
     const { helpful } = req.body;
-
-    if (helpful === undefined) {
-      return res.status(400).json({ success: false, error: 'helpful field is required' });
-    }
+    // Validation handled by Zod
 
     const column = helpful ? 'helpful_yes' : 'helpful_no';
 
@@ -500,7 +550,7 @@ router.get('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
     const userId = req.userId!;
 
     const result = await pool.query(
-      'SELECT * FROM portal_settings WHERE user_id = $1',
+      `SELECT ${PORTAL_SETTINGS_COLUMNS} FROM portal_settings WHERE user_id = $1`,
       [userId]
     );
 
@@ -529,10 +579,11 @@ router.get('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
 });
 
 // PUT /api/knowledge-base/portal-settings - Update portal settings (admin)
-router.put('/portal-settings', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/portal-settings', authenticateToken, validate(portalSettingsSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { companyName, welcomeMessage, logoUrl, primaryColor, showKnowledgeBase, requireLoginForKb, teamviewerLink } = req.body;
+    // Validation handled by Zod
 
     // Check if settings exist
     const existing = await pool.query(

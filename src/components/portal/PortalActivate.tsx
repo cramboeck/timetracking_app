@@ -81,7 +81,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   // Loading state while verifying token
   if (verifying) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
             <Loader2 size={32} className="animate-spin" />
@@ -89,7 +89,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Link wird überprüft...
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-dark-400">
             Bitte warten Sie einen Moment.
           </p>
         </div>
@@ -100,7 +100,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   // Invalid token state
   if (tokenInvalid) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
             <AlertCircle size={32} />
@@ -108,7 +108,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Ungültiger Link
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-dark-400">
             {error || 'Der Aktivierungslink ist ungültig oder abgelaufen.'}
           </p>
           <button
@@ -124,7 +124,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
             <CheckCircle size={32} />
@@ -132,7 +132,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Konto aktiviert!
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-dark-400">
             Sie werden zur Anmeldeseite weitergeleitet...
           </p>
         </div>
@@ -141,7 +141,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
@@ -151,18 +151,18 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Konto aktivieren
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-gray-600 dark:text-dark-400 mt-2">
             {invitationInfo?.name ? `Willkommen, ${invitationInfo.name}!` : 'Legen Sie ein Passwort fest, um Ihr Konto zu aktivieren'}
           </p>
           {invitationInfo?.customerName && (
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Unternehmen: {invitationInfo.customerName}
             </p>
           )}
         </div>
 
         {/* Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
@@ -172,7 +172,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Neues Passwort
               </label>
               <div className="relative">
@@ -184,7 +184,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   required
                   minLength={8}
                   placeholder="Mindestens 8 Zeichen"
-                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
                 <button
                   type="button"
@@ -197,7 +197,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Passwort bestätigen
               </label>
               <div className="relative">
@@ -208,7 +208,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   placeholder="Passwort wiederholen"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
             </div>
@@ -216,7 +216,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-primary disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+              className="w-full py-3 px-4 bg-accent-primary hover:bg-accent-dark disabled:bg-accent-primary/40 text-white font-medium rounded-lg transition-colors"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -231,7 +231,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
         </div>
 
         {/* Password requirements */}
-        <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+        <div className="mt-6 text-center text-sm text-gray-500 dark:text-dark-400">
           <p>Passwortanforderungen:</p>
           <ul className="mt-2 space-y-1">
             <li className={password.length >= 8 ? 'text-green-600 dark:text-green-400' : ''}>

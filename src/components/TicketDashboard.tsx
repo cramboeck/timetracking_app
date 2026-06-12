@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   AlertTriangle,
@@ -91,36 +91,30 @@ const getPriorityLabel = (priority: string): string => {
 };
 
 export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardProps) => {
-  const [data, setData] = useState<TicketDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const dashboardQuery = useQuery({
+    queryKey: ['tickets', 'dashboard'],
+    queryFn: async () => {
+      const res = await ticketsApi.getDashboard();
+      return res.data as TicketDashboardData;
+    },
+  });
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
-
-  const loadDashboard = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await ticketsApi.getDashboard();
-      setData(response.data);
-      setLastRefresh(new Date());
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
-      setError('Dashboard konnte nicht geladen werden');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const data = dashboardQuery.data ?? null;
+  const loading = dashboardQuery.isLoading;
+  const error = dashboardQuery.error
+    ? 'Dashboard konnte nicht geladen werden'
+    : null;
+  const lastRefresh = dashboardQuery.dataUpdatedAt
+    ? new Date(dashboardQuery.dataUpdatedAt)
+    : new Date();
+  const loadDashboard = () => dashboardQuery.refetch();
 
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Dashboard wird geladen...</p>
+          <p className="text-gray-500 dark:text-dark-400">Dashboard wird geladen...</p>
         </div>
       </div>
     );
@@ -162,7 +156,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Zuletzt aktualisiert: {lastRefresh.toLocaleTimeString('de-DE')}
           </p>
         </div>
@@ -226,7 +220,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
       {/* Priority & SLA Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Priority Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Target size={20} className="text-accent-primary" />
             Prioritäten (Aktive Tickets)
@@ -260,7 +254,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
         </div>
 
         {/* SLA Compliance */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Shield size={20} className="text-accent-primary" />
             SLA Compliance
@@ -275,7 +269,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                   stroke="currentColor"
                   strokeWidth="12"
                   fill="none"
-                  className="text-gray-200 dark:text-gray-700"
+                  className="text-gray-200 dark:text-dark-500"
                 />
                 <circle
                   cx="64"
@@ -302,9 +296,9 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 text-center text-sm">
-            <div className="bg-accent-light dark:bg-blue-900/20 rounded-lg p-2">
-              <div className="font-bold text-accent-primary dark:text-blue-400">{data.sla.responseCompliance}%</div>
-              <div className="text-accent-primary dark:text-blue-400 text-xs">Erste Antwort</div>
+            <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-2">
+              <div className="font-bold text-accent-primary dark:text-accent-primary">{data.sla.responseCompliance}%</div>
+              <div className="text-accent-primary dark:text-accent-primary text-xs">Erste Antwort</div>
             </div>
             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
               <div className="font-bold text-green-600 dark:text-green-400">{data.sla.resolutionCompliance}%</div>
@@ -325,18 +319,18 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
       {/* Response Times & Trends */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Average Times */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Timer size={20} className="text-accent-primary" />
             Durchschnittliche Zeiten
           </h2>
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
               <div className="flex items-center gap-3">
                 <Zap size={20} className="text-accent-primary" />
-                <span className="text-gray-700 dark:text-gray-300">Erste Antwort</span>
+                <span className="text-gray-700 dark:text-dark-500">Erste Antwort</span>
               </div>
-              <span className="font-semibold text-accent-primary dark:text-blue-400">
+              <span className="font-semibold text-accent-primary dark:text-accent-primary">
                 {data.trends.avgFirstResponseMinutes
                   ? formatMinutes(data.trends.avgFirstResponseMinutes)
                   : '—'}
@@ -345,7 +339,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <div className="flex items-center gap-3">
                 <CheckCircle size={20} className="text-green-500" />
-                <span className="text-gray-700 dark:text-gray-300">Lösung</span>
+                <span className="text-gray-700 dark:text-dark-500">Lösung</span>
               </div>
               <span className="font-semibold text-green-600 dark:text-green-400">
                 {data.trends.avgResolutionMinutes
@@ -357,7 +351,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
         </div>
 
         {/* Weekly Trends */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 lg:col-span-2">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Activity size={20} className="text-accent-primary" />
             Wochenvergleich
@@ -385,7 +379,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
       {/* Urgent Tickets & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Urgent Tickets */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <AlertTriangle size={20} className="text-red-500" />
             Dringende Tickets
@@ -409,14 +403,14 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400 mb-1">
                           <span className="font-mono">{ticket.ticketNumber}</span>
                           <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                             ticket.priority === 'critical'
                               ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'
                               : ticket.priority === 'high'
                               ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300'
-                              : 'bg-accent-lighter text-accent-dark dark:bg-blue-900/50 dark:text-blue-300'
+                              : 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary'
                           }`}>
                             {getPriorityLabel(ticket.priority)}
                           </span>
@@ -424,7 +418,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                         <p className="font-medium text-gray-900 dark:text-white truncate">
                           {ticket.title}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-dark-400">
                           {ticket.customerName}
                         </p>
                       </div>
@@ -458,7 +452,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
               )}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               <CheckCircle size={32} className="mx-auto mb-2 text-green-500" />
               <p>Keine dringenden Tickets</p>
               <p className="text-sm">Alle SLAs sind im grünen Bereich</p>
@@ -467,7 +461,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Activity size={20} className="text-accent-primary" />
             Letzte Aktivitäten
@@ -478,21 +472,21 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                 <button
                   key={activity.id}
                   onClick={() => onTicketSelect(activity.ticketId)}
-                  className="w-full text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600"
+                  className="w-full text-left p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-dark-border"
                 >
                   <div className="flex items-start gap-3">
                     <ActivityIcon actionType={activity.action} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-gray-900 dark:text-white">
                         <span className="font-medium">{activity.actorName}</span>{' '}
-                        <span className="text-gray-500 dark:text-gray-400">
+                        <span className="text-gray-500 dark:text-dark-400">
                           {getActionText(activity.action, activity.oldValue, activity.newValue)}
                         </span>
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
                         {activity.ticketNumber}: {activity.ticketTitle}
                       </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      <p className="text-xs text-gray-400 dark:text-dark-400 mt-1">
                         {formatRelativeTime(activity.createdAt)}
                       </p>
                     </div>
@@ -501,7 +495,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               <Activity size={32} className="mx-auto mb-2 opacity-50" />
               <p>Keine aktuellen Aktivitäten</p>
             </div>
@@ -511,7 +505,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
 
       {/* Top Customers */}
       {data.topCustomers.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Users size={20} className="text-accent-primary" />
             Top Kunden (aktive Tickets)
@@ -520,7 +514,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
             {data.topCustomers.slice(0, 5).map((customer, index) => (
               <div
                 key={customer.id}
-                className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
+                className="p-4 rounded-lg bg-gray-50 dark:bg-dark-200/50 border border-gray-200 dark:border-dark-border"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <span
@@ -533,7 +527,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                     {customer.name}
                   </span>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="text-sm text-gray-500 dark:text-dark-400">
                   {customer.ticketCount} {customer.ticketCount === 1 ? 'Ticket' : 'Tickets'}
                 </div>
               </div>
@@ -556,11 +550,11 @@ interface StatusCardProps {
 
 const StatusCard = ({ label, count, icon: Icon, color, onClick }: StatusCardProps) => {
   const colorClasses = {
-    blue: 'bg-accent-light dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    blue: 'bg-accent-light dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary border-accent-primary/30 dark:border-accent-primary/40',
     yellow: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
-    purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+    purple: 'bg-accent-light dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary border-accent-primary/30 dark:border-accent-primary/40',
     green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
-    gray: 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700',
+    gray: 'bg-gray-50 dark:bg-dark-100 text-gray-600 dark:text-dark-400 border-gray-200 dark:border-dark-border',
     accent: 'bg-accent-primary/10 text-accent-primary border-accent-primary/30',
   };
 
@@ -588,8 +582,8 @@ const PriorityBar = ({ label, count, total, color }: PriorityBarProps) => {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="w-16 text-sm text-gray-600 dark:text-gray-400">{label}</span>
-      <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+      <span className="w-16 text-sm text-gray-600 dark:text-dark-400">{label}</span>
+      <div className="flex-1 h-6 bg-gray-100 dark:bg-dark-200 rounded-full overflow-hidden">
         <div
           className={`h-full ${color} transition-all duration-500`}
           style={{ width: `${percentage}%` }}
@@ -615,16 +609,16 @@ const TrendCard = ({ label, value, change = 0, showChange = true, inverse = fals
   const isNegative = inverse ? change > 0 : change < 0;
 
   return (
-    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+    <div className="p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
       <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+      <div className="text-xs text-gray-500 dark:text-dark-400 mb-1">{label}</div>
       {showChange && change !== 0 && (
         <div className={`flex items-center gap-1 text-xs ${
           isPositive
             ? 'text-green-600 dark:text-green-400'
             : isNegative
             ? 'text-red-600 dark:text-red-400'
-            : 'text-gray-500 dark:text-gray-400'
+            : 'text-gray-500 dark:text-dark-400'
         }`}>
           {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
           <span>
@@ -638,19 +632,19 @@ const TrendCard = ({ label, value, change = 0, showChange = true, inverse = fals
 
 const ActivityIcon = ({ actionType }: { actionType: string }) => {
   const iconMap: Record<string, { icon: typeof Clock; color: string }> = {
-    created: { icon: AlertCircle, color: 'text-accent-primary bg-accent-lighter dark:bg-blue-900/30' },
-    status_changed: { icon: Activity, color: 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' },
+    created: { icon: AlertCircle, color: 'text-accent-primary bg-accent-lighter dark:bg-accent-primary/30' },
+    status_changed: { icon: Activity, color: 'text-accent-primary bg-accent-lighter dark:bg-accent-primary/20' },
     priority_changed: { icon: Target, color: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
     assigned: { icon: Users, color: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' },
-    unassigned: { icon: Users, color: 'text-gray-500 bg-gray-100 dark:bg-gray-700' },
+    unassigned: { icon: Users, color: 'text-gray-500 bg-gray-100 dark:bg-dark-200' },
     comment_added: { icon: Activity, color: 'text-green-500 bg-green-100 dark:bg-green-900/30' },
     internal_comment_added: { icon: Activity, color: 'text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30' },
     resolved: { icon: CheckCircle, color: 'text-green-500 bg-green-100 dark:bg-green-900/30' },
-    closed: { icon: X, color: 'text-gray-500 bg-gray-100 dark:bg-gray-700' },
+    closed: { icon: X, color: 'text-gray-500 bg-gray-100 dark:bg-dark-200' },
     reopened: { icon: RefreshCw, color: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
   };
 
-  const { icon: Icon, color } = iconMap[actionType] || { icon: Activity, color: 'text-gray-500 bg-gray-100 dark:bg-gray-700' };
+  const { icon: Icon, color } = iconMap[actionType] || { icon: Activity, color: 'text-gray-500 bg-gray-100 dark:bg-dark-200' };
 
   return (
     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>

@@ -1,17 +1,17 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { LayoutDashboard, List, Keyboard, Columns, CheckSquare } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { LayoutDashboard, List, Keyboard, Columns } from 'lucide-react';
 import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
 import { TicketList } from './TicketList';
 import { TicketDetail } from './TicketDetail';
 import { TicketDashboard } from './TicketDashboard';
 import { TicketKanban } from './TicketKanban';
-import { TasksOverview } from './TasksOverview';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { useKeyboardShortcuts, KeyboardShortcut } from '../hooks/useKeyboardShortcuts';
 
-type ViewMode = 'dashboard' | 'list' | 'kanban' | 'tasks';
+type ViewMode = 'dashboard' | 'list' | 'kanban';
 
 interface TicketsProps {
   customers: Customer[];
@@ -22,6 +22,7 @@ interface TicketsProps {
 }
 
 export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+  const queryClient = useQueryClient();
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
 
@@ -33,7 +34,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
     }
   }, [initialTicketId, onTicketIdHandled]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshTickets = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
+    [queryClient]
+  );
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
     // Kanban is not usable on mobile – fall back to list
@@ -60,16 +64,16 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
 
   const handleBack = useCallback(() => {
     setSelectedTicketId(null);
-    setRefreshKey(prev => prev + 1);
-  }, []);
+    refreshTickets();
+  }, [refreshTickets]);
 
   const handleTicketCreated = () => {
-    setRefreshKey(prev => prev + 1);
+    refreshTickets();
   };
 
   const handleTicketDeleted = () => {
     setSelectedTicketId(null);
-    setRefreshKey(prev => prev + 1);
+    refreshTickets();
   };
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
@@ -103,13 +107,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       description: 'Zum Kanban',
       category: 'Navigation',
       handler: () => handleViewModeChange('kanban'),
-      disabled: selectedTicketId !== null,
-    },
-    {
-      key: 'g+t',
-      description: 'Zu Aufgaben',
-      category: 'Navigation',
-      handler: () => handleViewModeChange('tasks'),
       disabled: selectedTicketId !== null,
     },
     {
@@ -181,10 +178,10 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       key: 'r',
       description: 'Aktualisieren',
       category: 'Aktionen',
-      handler: () => setRefreshKey(prev => prev + 1),
+      handler: () => refreshTickets(),
       disabled: selectedTicketId !== null,
     },
-  ], [viewMode, selectedTicketId, showCreateDialog, handleBack, handleViewModeChange]);
+  ], [viewMode, selectedTicketId, showCreateDialog, handleBack, handleViewModeChange, refreshTickets]);
 
   const { showHelp, setShowHelp, shortcuts: activeShortcuts } = useKeyboardShortcuts(shortcuts);
 
@@ -213,13 +210,13 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       {/* View Mode Toggle */}
       <div className="flex-shrink-0 px-4 sm:px-6 pt-4 sm:pt-6">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto">
+          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-dark-100 rounded-lg overflow-x-auto">
             <button
               onClick={() => handleViewModeChange('dashboard')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'dashboard'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <LayoutDashboard size={16} />
@@ -229,8 +226,8 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               onClick={() => handleViewModeChange('list')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'list'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <List size={16} />
@@ -241,24 +238,13 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
               onClick={() => handleViewModeChange('kanban')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
                 viewMode === 'kanban'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-dark-200 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <Columns size={16} />
               <span className="hidden sm:inline">Kanban</span>
             </button>}
-            <button
-              onClick={() => handleViewModeChange('tasks')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                viewMode === 'tasks'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <CheckSquare size={16} />
-              <span className="hidden sm:inline">Aufgaben</span>
-            </button>
           </div>
           {/* Keyboard shortcuts hint */}
           <IconButton
@@ -276,7 +262,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
       <div className="flex-1 overflow-hidden">
         {viewMode === 'dashboard' && (
           <TicketDashboard
-            key={refreshKey}
             onTicketSelect={handleTicketSelectById}
             onViewAll={handleViewAllTickets}
           />
@@ -284,7 +269,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
         {viewMode === 'list' && (
           <TicketList
             ref={ticketListRef}
-            key={refreshKey}
             customers={customers}
             projects={projects}
             onTicketSelect={handleTicketSelect}
@@ -293,15 +277,6 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
         )}
         {viewMode === 'kanban' && (
           <TicketKanban
-            key={refreshKey}
-            customers={customers}
-            onTicketSelect={handleTicketSelectById}
-            refreshKey={refreshKey}
-          />
-        )}
-        {viewMode === 'tasks' && (
-          <TasksOverview
-            key={refreshKey}
             customers={customers}
             onTicketSelect={handleTicketSelectById}
           />

@@ -21,7 +21,7 @@ export const TicketDescription = ({
       {/* Description */}
       {isEditing ? (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
             Beschreibung
           </label>
           <MarkdownEditor
@@ -33,8 +33,8 @@ export const TicketDescription = ({
         </div>
       ) : ticket.description && (
         <div>
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Beschreibung</h2>
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <h2 className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">Beschreibung</h2>
+          <div className="p-3 bg-gray-50 dark:bg-dark-100 rounded-lg">
             <MarkdownRenderer content={ticket.description} />
           </div>
         </div>

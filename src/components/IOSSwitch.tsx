@@ -30,7 +30,7 @@ export const IOSSwitch = ({
       onClick={handleToggle}
       className={`
         group flex items-center justify-between w-full min-h-[44px] py-2
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:bg-gray-50 dark:active:bg-gray-800'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:bg-gray-50 dark:active:bg-dark-100'}
         transition-colors rounded-lg -mx-2 px-2
       `}
     >
@@ -42,7 +42,7 @@ export const IOSSwitch = ({
             </div>
           )}
           {description && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
               {description}
             </div>
           )}
@@ -56,7 +56,7 @@ export const IOSSwitch = ({
           transition-colors duration-200 ease-in-out
           ${checked
             ? 'bg-accent-primary'
-            : 'bg-gray-200 dark:bg-gray-600'
+            : 'bg-gray-200 dark:bg-dark-300'
           }
         `}
       >

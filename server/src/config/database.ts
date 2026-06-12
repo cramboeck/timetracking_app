@@ -87,9 +87,10 @@ export async function initializeDatabase() {
         role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
         mfa_enabled BOOLEAN DEFAULT FALSE,
         mfa_secret TEXT,
-        accent_color TEXT DEFAULT 'blue',
-        gray_tone TEXT DEFAULT 'medium',
+        accent_color TEXT DEFAULT 'ramboeck',
+        gray_tone TEXT DEFAULT 'ramboeck',
         time_rounding_interval INTEGER DEFAULT 15,
+        heartbeat_interval_minutes INTEGER DEFAULT 5 CHECK(heartbeat_interval_minutes IN (1, 5, 15)),
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         last_login TIMESTAMP
       )
@@ -3206,6 +3207,28 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Migration: Add sevdesk_position_template + default_contract_id to customers.
+    // Allows per-customer free-text template (with {placeholders}) that gets
+    // appended to every invoice position's `text`-field on sevdesk push.
+    // default_contract_id is the source for {contractNumber}/{contractTitle}.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'sevdesk_position_template'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN sevdesk_position_template TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'default_contract_id'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN default_contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // Migration: Add hourly_rate to customers
     await client.query(`
       DO $$
@@ -3740,6 +3763,56 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_org ON invoice_documents(organization_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_invoice_documents_invoice ON invoice_documents(processed_invoice_id)');
 
+    // Migration: Add full-text-search columns to processed_invoices.
+    // full_text = concatenated PDF-extracted text + structured extraction fields,
+    // populated by invoiceProcessorService when an invoice is parsed.
+    // search_vector = auto-derived German tsvector via trigger.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'full_text'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN full_text TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'processed_invoices' AND column_name = 'search_vector'
+        ) THEN
+          ALTER TABLE processed_invoices ADD COLUMN search_vector TSVECTOR;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_processed_invoices_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.email_subject, '') || ' ' ||
+          COALESCE(NEW.sender_name, '') || ' ' ||
+          COALESCE(NEW.sender_email, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trigger_processed_invoices_search_vector') THEN
+          CREATE TRIGGER trigger_processed_invoices_search_vector
+          BEFORE INSERT OR UPDATE ON processed_invoices
+          FOR EACH ROW EXECUTE FUNCTION update_processed_invoices_search_vector();
+        END IF;
+      END $$;
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_processed_invoices_search ON processed_invoices USING GIN(search_vector)');
+
     logger.info('✅ Invoice processing tables created');
 
     // Migration: Update processed_invoices status check constraint to include 'draft'
@@ -3778,6 +3851,150 @@ export async function initializeDatabase() {
         END IF;
       END $$;
     `);
+
+    // Migration: SSOT-Erweiterung von processed_invoices.
+    // Belege haben jetzt drei moegliche Quellen (E-Mail, Manual-Upload, sevDesk-
+    // Sync) und Extraktionsergebnisse werden strukturiert persistiert. Vorher
+    // landete nur full_text in der DB, der Rest war fluechtig.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='source') THEN
+          ALTER TABLE processed_invoices ADD COLUMN source TEXT NOT NULL DEFAULT 'email';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='original_filename') THEN
+          ALTER TABLE processed_invoices ADD COLUMN original_filename TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='sevdesk_voucher_number') THEN
+          ALTER TABLE processed_invoices ADD COLUMN sevdesk_voucher_number TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='invoice_number') THEN
+          ALTER TABLE processed_invoices ADD COLUMN invoice_number TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='supplier_name') THEN
+          ALTER TABLE processed_invoices ADD COLUMN supplier_name TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='supplier_address') THEN
+          ALTER TABLE processed_invoices ADD COLUMN supplier_address TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='supplier_tax_id') THEN
+          ALTER TABLE processed_invoices ADD COLUMN supplier_tax_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='invoice_date') THEN
+          ALTER TABLE processed_invoices ADD COLUMN invoice_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='due_date') THEN
+          ALTER TABLE processed_invoices ADD COLUMN due_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='net_amount') THEN
+          ALTER TABLE processed_invoices ADD COLUMN net_amount NUMERIC(12,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='gross_amount') THEN
+          ALTER TABLE processed_invoices ADD COLUMN gross_amount NUMERIC(12,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='vat_amount') THEN
+          ALTER TABLE processed_invoices ADD COLUMN vat_amount NUMERIC(12,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='vat_rate') THEN
+          ALTER TABLE processed_invoices ADD COLUMN vat_rate NUMERIC(5,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='currency') THEN
+          ALTER TABLE processed_invoices ADD COLUMN currency TEXT DEFAULT 'EUR';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='iban') THEN
+          ALTER TABLE processed_invoices ADD COLUMN iban TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='bic') THEN
+          ALTER TABLE processed_invoices ADD COLUMN bic TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='payment_method') THEN
+          ALTER TABLE processed_invoices ADD COLUMN payment_method TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='customer_number') THEN
+          ALTER TABLE processed_invoices ADD COLUMN customer_number TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='extracted_at') THEN
+          ALTER TABLE processed_invoices ADD COLUMN extracted_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='extraction_confidence') THEN
+          ALTER TABLE processed_invoices ADD COLUMN extraction_confidence NUMERIC(3,2);
+        END IF;
+      END $$;
+    `);
+
+    // Migration: email_id nullable + partielle UNIQUE-Indexe. Der alte
+    // UNIQUE(organization_id, email_id) blockiert sonst alle Manual-Upload-
+    // und sevDesk-Sync-Rows (die haben email_id = NULL). Den Constraint dropen
+    // und durch zwei partielle UNIQUE-Indexe ersetzen.
+    await client.query(`
+      DO $$
+      DECLARE
+        constraint_rec RECORD;
+      BEGIN
+        ALTER TABLE processed_invoices ALTER COLUMN email_id DROP NOT NULL;
+        FOR constraint_rec IN
+          SELECT conname FROM pg_constraint
+          WHERE conrelid = 'processed_invoices'::regclass
+            AND contype = 'u'
+            AND pg_get_constraintdef(oid) LIKE '%email_id%'
+        LOOP
+          EXECUTE 'ALTER TABLE processed_invoices DROP CONSTRAINT ' || quote_ident(constraint_rec.conname);
+        END LOOP;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE NOTICE 'email_id nullable migration skipped: %', SQLERRM;
+      END $$;
+    `);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS processed_invoices_email_unique ON processed_invoices(organization_id, email_id) WHERE email_id IS NOT NULL`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS processed_invoices_sevdesk_voucher_unique ON processed_invoices(organization_id, sevdesk_voucher_id) WHERE sevdesk_voucher_id IS NOT NULL`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_processed_invoices_source ON processed_invoices(source)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_processed_invoices_invoice_date ON processed_invoices(invoice_date DESC)`);
+
+    // Erweitere status-Check-Constraint um 'imported' (= sevDesk-Sync-Rows,
+    // die nie durch den Inbox-Workflow gingen).
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'processed_invoices_status_check'
+          AND table_name = 'processed_invoices'
+        ) THEN
+          ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
+        END IF;
+        ALTER TABLE processed_invoices
+          ADD CONSTRAINT processed_invoices_status_check
+          CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped', 'imported'));
+      END $$;
+    `);
+
+    // Trigger neu definieren: zusaetzlich invoice_number, supplier_name und
+    // sevdesk_voucher_number in den tsvector aufnehmen, damit FTS auch
+    // direkt strukturierte Felder findet (z. B. "RE-2024-0815").
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_processed_invoices_search_vector()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.search_vector := to_tsvector('german',
+          COALESCE(NEW.email_subject, '') || ' ' ||
+          COALESCE(NEW.sender_name, '') || ' ' ||
+          COALESCE(NEW.sender_email, '') || ' ' ||
+          COALESCE(NEW.invoice_number, '') || ' ' ||
+          COALESCE(NEW.supplier_name, '') || ' ' ||
+          COALESCE(NEW.sevdesk_voucher_number, '') || ' ' ||
+          COALESCE(NEW.full_text, '')
+        );
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    // Vorhandene Rows neu durch den Trigger jagen, damit die neuen Felder
+    // (auch wenn heute noch NULL) im search_vector landen sobald sie befuellt
+    // werden. Ein no-op UPDATE reicht.
+    await client.query(`UPDATE processed_invoices SET search_vector = search_vector WHERE FALSE`);
+
+    logger.info('✅ processed_invoices SSOT-Erweiterung migriert');
 
     // ============================================
     // Ticket Email Integration
@@ -4129,6 +4346,51 @@ export async function initializeDatabase() {
       `);
     }
     logger.info('✅ Soft-delete migration complete');
+
+    // Migration: Update users.accent_color / gray_tone defaults to RamboFlow brand
+    // (idempotent: SET DEFAULT only changes future inserts, existing rows untouched)
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN accent_color SET DEFAULT 'ramboeck';
+      ALTER TABLE users ALTER COLUMN gray_tone SET DEFAULT 'ramboeck';
+    `);
+    logger.info('✅ Users default theme updated to RamboFlow brand');
+
+    // Migration: Add heartbeat_interval_minutes to users (per-user pref for
+    // how often the running timer is persisted server-side — default 5 min)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'heartbeat_interval_minutes'
+        ) THEN
+          ALTER TABLE users
+            ADD COLUMN heartbeat_interval_minutes INTEGER NOT NULL DEFAULT 5
+            CHECK (heartbeat_interval_minutes IN (1, 5, 15));
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ Users heartbeat_interval_minutes migration complete');
+
+    // Migration: refresh_tokens table for JWT refresh-token rotation
+    // (idempotent — CREATE TABLE IF NOT EXISTS). Note: users.id is TEXT
+    // (not native UUID), so the FK column type must match.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        device_info JSONB DEFAULT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMP NOT NULL,
+        revoked_at TIMESTAMP DEFAULT NULL,
+        rotated_to_hash TEXT DEFAULT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_active
+        ON refresh_tokens(token_hash) WHERE revoked_at IS NULL;
+    `);
+    logger.info('✅ refresh_tokens table ready');
 
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');

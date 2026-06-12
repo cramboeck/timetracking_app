@@ -1,11 +1,13 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useRef } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle, X, Edit2
+  Mail, AlertTriangle, X, Edit2, Search, Upload
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import { SourceBadge } from './ui/SourceBadge';
+import { useConfirm } from '../contexts/UIContext';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -17,6 +19,7 @@ const formatFileSize = (bytes: number): string => {
 };
 
 export const InvoiceInbox = () => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [processingInvoices, setProcessingInvoices] = useState(false);
   const [processedInvoices, setProcessedInvoices] = useState<ProcessedInvoice[]>([]);
@@ -43,6 +46,60 @@ export const InvoiceInbox = () => {
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [extractingData, setExtractingData] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  // Manual-Upload state (Phase 2): hidden file input + uploading flag.
+  // Nach erfolgreichem Upload oeffnet das Bestaetigungs-Modal direkt mit
+  // den extrahierten Daten - gleicher Workflow wie bei E-Mail-Belegen.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  // Full-text search state. searchResults===null means "no active search,
+  // show normal list"; an empty array means "active search, no hits".
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{
+    id: string;
+    email_subject: string | null;
+    sender_email: string | null;
+    sender_name: string | null;
+    received_at: string;
+    status: string;
+    vendor_id: string | null;
+    vendor_name: string | null;
+    attachment_count: number;
+    document_ids: string[];
+    processed_at: string | null;
+    rank: number;
+  }> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Debounced full-text search. Empty / <2 chars resets to the normal list.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults(null);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const response = await microsoft365Api.searchProcessedInvoices(q);
+        if (response.success) {
+          setSearchResults(response.data);
+          setSearchError(null);
+        }
+      } catch (err: any) {
+        console.error('Search failed:', err);
+        setSearchError(err?.message || 'Suche fehlgeschlagen');
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   useEffect(() => {
     loadData();
@@ -205,6 +262,71 @@ export const InvoiceInbox = () => {
     }
   };
 
+  // Manual-Upload-Flow: User klickt "Beleg hochladen" -> hidden file input
+  // wird getriggert -> Datei geht an /microsoft365/invoices/upload, der Server
+  // legt den Beleg an, extrahiert und liefert die Daten zurueck. Wir laden die
+  // Inbox neu UND oeffnen direkt das Bestaetigungs-Modal.
+  const handleUploadReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingReceipt(true);
+    setError('');
+    try {
+      const response = await microsoft365Api.uploadReceipt(file);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Upload fehlgeschlagen');
+      }
+      await loadProcessedInvoices();
+      // Modal direkt mit den extrahierten Daten oeffnen. Wir bauen ein
+      // minimales ProcessedInvoice-Pseudo-Objekt aus dem upload-Response,
+      // weil der echte Datensatz erst nach loadProcessedInvoices() im State ist.
+      const pseudo: ProcessedInvoice = {
+        id: response.data.processedInvoiceId,
+        emailId: '',
+        emailSubject: file.name,
+        senderEmail: '',
+        senderName: 'Manual Upload',
+        receivedAt: new Date().toISOString(),
+        attachmentCount: 1,
+        documentIds: [],
+        status: 'draft',
+        errorMessage: null,
+        processedAt: null,
+        vendorId: null,
+      };
+      setConfirmingInvoice(pseudo);
+      setExtractedData(response.data.extracted);
+      setShowConfirmModal(true);
+      setSuccess(`Beleg "${file.name}" erfolgreich hochgeladen.`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Receipt upload failed:', err);
+      setError(err?.message || 'Beleg-Upload fehlgeschlagen');
+    } finally {
+      setUploadingReceipt(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Force-re-extract: ignoriert den persistierten Cache und laesst die PDF-/
+  // Vision-Pipeline erneut laufen. Nutzlich wenn der erste OCR-Run schlechte
+  // Daten lieferte (z. B. Scan-Qualitaet) und der User die KI nochmal triggern
+  // will, ohne den Beleg loeschen + neu zu importieren.
+  const handleReExtract = async () => {
+    if (!confirmingInvoice) return;
+    setExtractingData(true);
+    try {
+      const response = await microsoft365Api.extractInvoiceData(confirmingInvoice.id, { force: true });
+      if (response.success && response.data) {
+        setExtractedData(response.data);
+      }
+    } catch (err: any) {
+      console.error('Re-extraction failed:', err);
+    } finally {
+      setExtractingData(false);
+    }
+  };
+
   const handleConfirmApproval = async () => {
     if (!confirmingInvoice || !extractedData) return;
 
@@ -310,7 +432,13 @@ export const InvoiceInbox = () => {
   const validationWarnings = extractedData ? validateExtractedData(extractedData) : [];
 
   const handleDeleteDraft = async (invoiceId: string) => {
-    if (!confirm('Entwurf wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Entwurf löschen?',
+      message: 'Entwurf wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.deleteDraft(invoiceId);
@@ -371,12 +499,12 @@ export const InvoiceInbox = () => {
             <Mail className="text-accent-primary" />
             Rechnungseingang
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Postfach: <span className="font-medium text-gray-700 dark:text-gray-300">{invoiceMailbox}</span>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{invoiceMailbox}</span>
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant="primary"
             onClick={() => handleProcessInvoices(false)}
@@ -395,8 +523,96 @@ export const InvoiceInbox = () => {
           >
             Alle erneut
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingReceipt}
+            loading={uploadingReceipt}
+            icon={<Upload size={16} />}
+          >
+            Beleg hochladen
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleUploadReceipt}
+          />
         </div>
       </div>
+
+      {/* Full-text search */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Volltextsuche über alle Belege (Betreff, Absender, Rechnungs-Inhalt…)"
+          className="w-full pl-9 pr-9 py-2 text-sm bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400 hover:text-gray-600 dark:hover:text-white"
+            aria-label="Suche zurücksetzen"
+          >
+            <X size={14} />
+          </button>
+        )}
+        {searching && (
+          <Loader2 size={14} className="absolute right-9 top-1/2 -translate-y-1/2 text-accent-primary animate-spin" />
+        )}
+      </div>
+
+      {/* Search results (only shown when actively searching) */}
+      {searchResults !== null && (
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-dark-200/50 border-b border-gray-100 dark:border-dark-border text-xs font-medium text-gray-600 dark:text-dark-400">
+            {searchError
+              ? <span className="text-red-600 dark:text-red-400">{searchError}</span>
+              : `${searchResults.length} Treffer für „${searchQuery.trim()}"`}
+          </div>
+          {searchResults.length === 0 && !searchError ? (
+            <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-dark-400">
+              Keine Belege gefunden. Tipp: Inhalte werden erst nach der Daten-Extraktion durchsuchbar.
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-dark-border max-h-[50vh] overflow-y-auto">
+              {searchResults.map(r => (
+                <li key={r.id}>
+                  <button
+                    onClick={() => setExpandedInvoiceId(prev => prev === r.id ? null : r.id)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 flex items-start gap-3"
+                  >
+                    <FileText size={16} className="text-accent-primary flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                        {r.email_subject || '(Kein Betreff)'}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 truncate">
+                        {r.sender_name || r.sender_email || 'Unbekannter Absender'}
+                        {r.vendor_name && ` · ${r.vendor_name}`}
+                        {' · '}
+                        {new Date(r.received_at).toLocaleDateString('de-DE')}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] uppercase font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      r.status === 'processed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      r.status === 'draft' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                      r.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                      'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-400'
+                    }`}>
+                      {r.status}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
@@ -414,12 +630,12 @@ export const InvoiceInbox = () => {
 
       {/* Processing Result */}
       {invoiceProcessResult && (
-        <div className="p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
           <div className="flex gap-4 text-sm">
             <span className="text-green-600 dark:text-green-400">
               ✓ {invoiceProcessResult.processedCount} verarbeitet
             </span>
-            <span className="text-gray-600 dark:text-gray-400">
+            <span className="text-gray-600 dark:text-dark-400">
               ○ {invoiceProcessResult.skippedCount} übersprungen
             </span>
             {invoiceProcessResult.failedCount > 0 && (
@@ -439,9 +655,9 @@ export const InvoiceInbox = () => {
             <div className="md:hidden divide-y divide-gray-100 dark:divide-dark-300 max-h-[60vh] overflow-y-auto scroll-touch touch-manipulation">
               {processedInvoices.map((invoice) => (
                 <div key={invoice.id} className="p-4 space-y-3">
-                  {/* Header mit Datum und Status */}
+                  {/* Header mit Datum, Quelle und Status */}
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-gray-500 dark:text-dark-400">
                       {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
                         day: '2-digit',
                         month: '2-digit',
@@ -450,25 +666,28 @@ export const InvoiceInbox = () => {
                         minute: '2-digit',
                       })}
                     </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      invoice.status === 'processed'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : invoice.status === 'draft'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
-                        : invoice.status === 'failed'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        : invoice.status === 'skipped'
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                    }`}>
-                      {invoice.status === 'processed' && <CheckCircle size={12} />}
-                      {invoice.status === 'draft' && <FileText size={12} />}
-                      {invoice.status === 'failed' && <XCircle size={12} />}
-                      {invoice.status === 'processed' ? 'Bestätigt' :
-                       invoice.status === 'draft' ? 'Entwurf' :
-                       invoice.status === 'failed' ? 'Fehler' :
-                       invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <SourceBadge source={invoice.source} />
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        invoice.status === 'processed'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : invoice.status === 'draft'
+                          ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                          : invoice.status === 'failed'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          : invoice.status === 'skipped'
+                          ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
+                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                      }`}>
+                        {invoice.status === 'processed' && <CheckCircle size={12} />}
+                        {invoice.status === 'draft' && <FileText size={12} />}
+                        {invoice.status === 'failed' && <XCircle size={12} />}
+                        {invoice.status === 'processed' ? 'Bestätigt' :
+                         invoice.status === 'draft' ? 'Entwurf' :
+                         invoice.status === 'failed' ? 'Fehler' :
+                         invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Absender */}
@@ -482,7 +701,7 @@ export const InvoiceInbox = () => {
                   </div>
 
                   {/* Betreff */}
-                  <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                  <div className="text-sm text-gray-600 dark:text-dark-400 line-clamp-2">
                     {invoice.emailSubject}
                   </div>
 
@@ -499,7 +718,7 @@ export const InvoiceInbox = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleToggleDocuments(invoice.id)}
-                        className="text-accent-primary dark:text-blue-400"
+                        className="text-accent-primary dark:text-accent-primary"
                         icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                       >
                         {invoice.attachmentCount} Anhang{invoice.attachmentCount !== 1 ? 'e' : ''}
@@ -512,7 +731,7 @@ export const InvoiceInbox = () => {
 
                       {/* Expanded Documents */}
                       {expandedInvoiceId === invoice.id && (
-                        <div className="mt-2 pl-3 border-l-2 border-blue-300 dark:border-accent-primary space-y-2">
+                        <div className="mt-2 pl-3 border-l-2 border-accent-primary/40 dark:border-accent-primary space-y-2">
                           {loadingDocuments === invoice.id ? (
                             <div className="flex items-center gap-2 text-gray-500 text-sm">
                               <Loader2 size={14} className="animate-spin" />
@@ -607,12 +826,12 @@ export const InvoiceInbox = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Datum</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Absender</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Anhänge</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Datum</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Absender</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Betreff</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Anhänge</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Status</th>
+                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -629,16 +848,16 @@ export const InvoiceInbox = () => {
                           })}
                         </td>
                         <td className="py-3 px-4 text-gray-900 dark:text-white">
-                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                            {invoice.senderName || invoice.senderEmail}
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail ?? undefined}>
+                            {invoice.senderName || invoice.senderEmail || '—'}
                           </div>
                           {invoice.vendorName && (
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-gray-700 dark:text-gray-300">
-                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                            {invoice.emailSubject}
+                        <td className="py-3 px-4 text-gray-700 dark:text-dark-500">
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject ?? undefined}>
+                            {invoice.emailSubject || invoice.originalFilename || '—'}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -647,7 +866,7 @@ export const InvoiceInbox = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="text-accent-primary dark:text-blue-400"
+                              className="text-accent-primary dark:text-accent-primary"
                               icon={loadingDocuments === invoice.id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                             >
                               {invoice.attachmentCount}
@@ -665,25 +884,28 @@ export const InvoiceInbox = () => {
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            invoice.status === 'processed'
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                              : invoice.status === 'draft'
-                              ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
-                              : invoice.status === 'failed'
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                              : invoice.status === 'skipped'
-                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                          }`}>
-                            {invoice.status === 'processed' && <CheckCircle size={12} />}
-                            {invoice.status === 'draft' && <FileText size={12} />}
-                            {invoice.status === 'failed' && <XCircle size={12} />}
-                            {invoice.status === 'processed' ? 'Bestätigt' :
-                             invoice.status === 'draft' ? 'Entwurf' :
-                             invoice.status === 'failed' ? 'Fehlgeschlagen' :
-                             invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <SourceBadge source={invoice.source} />
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              invoice.status === 'processed'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : invoice.status === 'draft'
+                                ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                                : invoice.status === 'failed'
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                : invoice.status === 'skipped'
+                                ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
+                                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                            }`}>
+                              {invoice.status === 'processed' && <CheckCircle size={12} />}
+                              {invoice.status === 'draft' && <FileText size={12} />}
+                              {invoice.status === 'failed' && <XCircle size={12} />}
+                              {invoice.status === 'processed' ? 'Bestätigt' :
+                               invoice.status === 'draft' ? 'Entwurf' :
+                               invoice.status === 'failed' ? 'Fehlgeschlagen' :
+                               invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
+                            </span>
+                          </div>
                           {invoice.errorMessage && (
                             <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
                               {invoice.errorMessage}
@@ -723,8 +945,8 @@ export const InvoiceInbox = () => {
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
-                            <div className="pl-4 border-l-2 border-blue-300 dark:border-accent-primary">
-                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
+                              <div className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                                 Anhänge
                               </div>
                               {loadingDocuments === invoice.id ? (
@@ -744,7 +966,7 @@ export const InvoiceInbox = () => {
                                         <div className="font-medium text-gray-900 dark:text-white truncate">
                                           {doc.originalFilename}
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        <div className="text-xs text-gray-500 dark:text-dark-400">
                                           {formatFileSize(doc.size)} • {doc.mimeType}
                                         </div>
                                       </div>
@@ -766,7 +988,7 @@ export const InvoiceInbox = () => {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                <div className="text-sm text-gray-500 dark:text-dark-400">
                                   Keine Dokumente gefunden
                                 </div>
                               )}
@@ -781,7 +1003,7 @@ export const InvoiceInbox = () => {
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <FileText size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-lg font-medium">Noch keine Rechnungen verarbeitet</p>
             <p className="text-sm mt-1">Klicken Sie auf "Neue E-Mails" um das Postfach abzurufen</p>
@@ -806,25 +1028,33 @@ export const InvoiceInbox = () => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Rechnungsdaten prüfen
                 </h3>
-                <IconButton
-                  icon={<X size={20} />}
-                  onClick={handleCancelApproval}
-                  tooltip="Schließen"
-                />
+                <div className="flex items-center gap-1">
+                  <IconButton
+                    icon={<RefreshCw size={18} className={extractingData ? 'animate-spin' : ''} />}
+                    onClick={handleReExtract}
+                    disabled={extractingData}
+                    tooltip="Daten erneut extrahieren (OCR/AI neu laufen lassen)"
+                  />
+                  <IconButton
+                    icon={<X size={20} />}
+                    onClick={handleCancelApproval}
+                    tooltip="Schließen"
+                  />
+                </div>
               </div>
 
               {/* Content */}
               <div className="p-4 space-y-4">
                 {/* Invoice Info */}
                 <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm">
-                  <div className="text-gray-600 dark:text-gray-400">Betreff</div>
+                  <div className="text-gray-600 dark:text-dark-400">Betreff</div>
                   <div className="font-medium text-gray-900 dark:text-white">{confirmingInvoice.emailSubject}</div>
-                  <div className="text-gray-600 dark:text-gray-400 mt-2">Absender</div>
+                  <div className="text-gray-600 dark:text-dark-400 mt-2">Absender</div>
                   <div className="text-gray-900 dark:text-white">{confirmingInvoice.senderName} ({confirmingInvoice.senderEmail})</div>
                 </div>
 
                 {extractingData ? (
-                  <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center justify-center py-8 text-gray-500 dark:text-dark-400">
                     <Loader2 size={24} className="animate-spin mr-2" />
                     Extrahiere Rechnungsdaten aus PDF...
                   </div>
@@ -848,7 +1078,7 @@ export const InvoiceInbox = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Supplier Name */}
                       <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Lieferant / Anbieter
                         </label>
                         <input
@@ -863,7 +1093,7 @@ export const InvoiceInbox = () => {
                       {/* Recipient Name (if extracted) */}
                       {extractedData.recipientName && (
                         <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                             Rechnungsempfänger
                           </label>
                           <input
@@ -878,7 +1108,7 @@ export const InvoiceInbox = () => {
 
                       {/* Invoice Number */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Rechnungsnummer
                         </label>
                         <input
@@ -892,7 +1122,7 @@ export const InvoiceInbox = () => {
 
                       {/* Customer Number (if extracted) */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Kundennummer
                         </label>
                         <input
@@ -906,7 +1136,7 @@ export const InvoiceInbox = () => {
 
                       {/* Invoice Date */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Rechnungsdatum
                         </label>
                         <input
@@ -919,7 +1149,7 @@ export const InvoiceInbox = () => {
 
                       {/* Due Date */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Fälligkeitsdatum
                         </label>
                         <input
@@ -932,7 +1162,7 @@ export const InvoiceInbox = () => {
 
                       {/* Net Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Nettobetrag (EUR)
                         </label>
                         <input
@@ -946,7 +1176,7 @@ export const InvoiceInbox = () => {
 
                       {/* VAT Rate */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           MwSt.-Satz (%)
                         </label>
                         <select
@@ -962,7 +1192,7 @@ export const InvoiceInbox = () => {
 
                       {/* VAT Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           MwSt. (EUR)
                         </label>
                         <input
@@ -976,7 +1206,7 @@ export const InvoiceInbox = () => {
 
                       {/* Gross Amount */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Bruttobetrag (EUR)
                         </label>
                         <input
@@ -992,13 +1222,13 @@ export const InvoiceInbox = () => {
                     {/* Payment Details (collapsible) */}
                     {(extractedData.iban || extractedData.bic || extractedData.taxId) && (
                       <details className="mt-4 border border-gray-200 dark:border-dark-300 rounded-lg">
-                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
+                        <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200 rounded-lg">
                           Zahlungsdetails & Steuerdaten
                         </summary>
                         <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-200 dark:border-dark-300">
                           {extractedData.iban && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 IBAN
                               </label>
                               <input
@@ -1011,7 +1241,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.bic && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 BIC
                               </label>
                               <input
@@ -1024,7 +1254,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.taxId && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 USt-IdNr.
                               </label>
                               <input
@@ -1037,7 +1267,7 @@ export const InvoiceInbox = () => {
                           )}
                           {extractedData.paymentMethod && (
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                                 Zahlungsart
                               </label>
                               <input
@@ -1077,7 +1307,7 @@ export const InvoiceInbox = () => {
                         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                           <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
                           {extractedData.lineItems.some(item => item.customerName) && (
-                            <span className="text-xs bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 px-2 py-0.5 rounded">
+                            <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
                               MSP/Reseller
                             </span>
                           )}
@@ -1092,7 +1322,7 @@ export const InvoiceInbox = () => {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     {item.position !== null && (
-                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
+                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded">
                                         #{item.position}
                                       </span>
                                     )}
@@ -1101,23 +1331,23 @@ export const InvoiceInbox = () => {
                                     </span>
                                   </div>
                                   {item.articleNumber && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+                                    <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 font-mono">
                                       Art.-Nr.: {item.articleNumber}
                                     </div>
                                   )}
                                   {item.customerName && (
-                                    <div className="text-xs text-accent-primary dark:text-blue-400 mt-1 font-medium">
+                                    <div className="text-xs text-accent-primary dark:text-accent-primary mt-1 font-medium">
                                       → Kunde: {item.customerName}
                                     </div>
                                   )}
                                   <div className="flex flex-wrap gap-2 mt-1">
                                     {item.productType && (
-                                      <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-1.5 py-0.5 rounded">
+                                      <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-1.5 py-0.5 rounded">
                                         {item.productType}
                                       </span>
                                     )}
                                     {item.period && (
-                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      <span className="text-xs text-gray-500 dark:text-dark-400">
                                         {item.period}
                                       </span>
                                     )}
@@ -1125,7 +1355,7 @@ export const InvoiceInbox = () => {
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   {item.quantity !== null && (
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    <div className="text-xs text-gray-500 dark:text-dark-400">
                                       {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
                                     </div>
                                   )}
@@ -1144,7 +1374,7 @@ export const InvoiceInbox = () => {
                             </div>
                           ))}
                         </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="mt-2 text-xs text-gray-500 dark:text-dark-400">
                           Diese Positionen können später für die Weiterverrechnung verwendet werden.
                         </div>
                       </div>

@@ -14,7 +14,7 @@ import { interactionsApi, opportunitiesApi, contactsApi } from './crm';
 import { leadsApi } from './leads';
 
 // Base utilities
-export { API_BASE_URL, getApiBaseUrl, getAuthToken, handleResponse, authFetch, authFetchMultipart } from './base';
+export { API_BASE_URL, getApiBaseUrl, getAuthToken, handleResponse, authFetch, authFetchMultipart, SESSION_EXPIRED_EVENT } from './base';
 
 // Authentication API
 export { authApi, mfaApi, passwordResetApi };
@@ -32,7 +32,7 @@ export type {
 
 // Core API (entries, projects, customers, activities, tasks)
 export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi };
-export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse } from './core';
+export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters } from './core';
 
 // Tickets API
 export { ticketsApi, knowledgeBaseApi, publicKbApi } from './tickets';

@@ -9,11 +9,11 @@ interface PortalTicketListProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
-  open: { label: 'Offen', color: 'bg-accent-lighter text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: AlertCircle },
+  open: { label: 'Offen', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/40 dark:text-accent-primary', icon: AlertCircle },
   in_progress: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200', icon: Clock },
-  waiting: { label: 'Wartend', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: Pause },
+  waiting: { label: 'Wartend', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary', icon: Pause },
   resolved: { label: 'Gelöst', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', icon: CheckCircle },
-  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: X },
+  closed: { label: 'Geschlossen', color: 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500', icon: X },
 };
 
 const priorityConfig: Record<string, { label: string; color: string }> = {
@@ -64,14 +64,14 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Meine Tickets</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
             {tickets.length} {tickets.length === 1 ? 'Ticket' : 'Tickets'}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={loadTickets}
-            className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
             title="Aktualisieren"
           >
             <RefreshCw size={20} />
@@ -93,7 +93,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-sm"
         >
           <option value="">Alle Status</option>
           {Object.entries(statusConfig).map(([key, { label }]) => (
@@ -116,7 +116,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
           </button>
         </div>
       ) : tickets.length === 0 ? (
-        <div className="text-center text-gray-500 dark:text-gray-400 py-12 bg-white dark:bg-gray-800 rounded-xl">
+        <div className="text-center text-gray-500 dark:text-dark-400 py-12 bg-white dark:bg-dark-100 rounded-xl">
           <AlertCircle className="mx-auto mb-3" size={48} />
           <p className="text-lg font-medium mb-2">Keine Tickets vorhanden</p>
           <p className="text-sm mb-4">
@@ -143,12 +143,12 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
               <button
                 key={ticket.id}
                 onClick={() => onTicketSelect(ticket)}
-                className="w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-accent-primary transition-colors"
+                className="w-full text-left bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4 hover:border-accent-primary dark:hover:border-accent-primary transition-colors"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                      <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                         {ticket.ticketNumber}
                       </span>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
@@ -164,7 +164,7 @@ export const PortalTicketList = ({ contact, onTicketSelect, onCreateTicket }: Po
                     <h3 className="font-medium text-gray-900 dark:text-white truncate">
                       {ticket.title}
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
                       Erstellt: {formatDate(ticket.createdAt)}
                     </p>
                   </div>

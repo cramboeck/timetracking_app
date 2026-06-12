@@ -8,15 +8,15 @@ import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, Reac
 // Base input styles used across all form elements
 const baseInputStyles = `
   w-full px-3 py-2 rounded-lg
-  border border-gray-300 dark:border-gray-600
-  bg-white dark:bg-gray-700
+  border border-gray-300 dark:border-dark-border
+  bg-white dark:bg-dark-200
   text-gray-900 dark:text-white
-  placeholder:text-gray-400 dark:placeholder:text-gray-500
+  placeholder:text-gray-400 dark:placeholder:text-dark-400
   transition-colors duration-150
   focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary
-  dark:focus:ring-blue-400 dark:focus:border-blue-400
-  disabled:bg-gray-100 dark:disabled:bg-gray-800
-  disabled:text-gray-500 dark:disabled:text-gray-500
+  dark:focus:ring-accent-primary dark:focus:border-accent-primary
+  disabled:bg-gray-100 dark:disabled:bg-dark-100
+  disabled:text-gray-500 dark:disabled:text-dark-400
   disabled:cursor-not-allowed
 `;
 
@@ -37,7 +37,7 @@ interface LabelProps {
 export const Label = ({ htmlFor, required, children, className = '' }: LabelProps) => (
   <label
     htmlFor={htmlFor}
-    className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 ${className}`}
+    className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1 ${className}`}
   >
     {children}
     {required && <span className="text-red-500 ml-1">*</span>}
@@ -52,7 +52,7 @@ interface HelperTextProps {
 }
 
 export const HelperText = ({ error, children, className = '' }: HelperTextProps) => (
-  <p className={`mt-1 text-sm ${error ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'} ${className}`}>
+  <p className={`mt-1 text-sm ${error ? 'text-red-500' : 'text-gray-500 dark:text-dark-400'} ${className}`}>
     {children}
   </p>
 );

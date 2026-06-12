@@ -20,6 +20,7 @@ import {
 import { contractsApi, Contract, ContractPosition, ContractHourlyTracking, customersApi } from '../services/api';
 import { Customer } from '../types';
 import { Button, IconButton } from './ui';
+import { useConfirm } from '../contexts/UIContext';
 
 interface ContractDetailProps {
   contractId: string | null; // null = create new
@@ -28,6 +29,7 @@ interface ContractDetailProps {
 }
 
 const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onSaved }) => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +167,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
 
   const handleDelete = async () => {
     if (!contractId) return;
-    if (!confirm('Möchten Sie diesen Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    const ok = await confirm({
+      title: 'Vertrag löschen?',
+      message: 'Möchten Sie diesen Vertrag wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await contractsApi.deleteContract(contractId);
@@ -201,7 +209,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
 
   const handleDeletePosition = async (positionId: string) => {
     if (!contractId) return;
-    if (!confirm('Position löschen?')) return;
+    const ok = await confirm({
+      title: 'Position löschen?',
+      message: 'Position löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       await contractsApi.deletePosition(contractId, positionId);
@@ -231,16 +245,16 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
 
   if (loading) {
     return (
-      <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center`}>
+      <div className={`min-h-screen bg-gray-50 dark:bg-dark-50 flex items-center justify-center`}>
         <div className={`animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary-600`} />
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900`}>
+    <div className={`min-h-screen bg-gray-50 dark:bg-dark-50`}>
       {/* Header */}
-      <div className={`bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4`}>
+      <div className={`bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border p-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <IconButton
@@ -253,7 +267,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                 {contractId ? 'Vertrag bearbeiten' : 'Neuer Vertrag'}
               </h1>
               {formData.contractNumber && (
-                <p className={`text-sm text-gray-500 dark:text-gray-400`}>
+                <p className={`text-sm text-gray-500 dark:text-dark-400`}>
                   {formData.contractNumber}
                 </p>
               )}
@@ -297,7 +311,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
                   activeTab === tab.id
                     ? `bg-accent-primary-100 dark:bg-accent-primary-900/30 text-accent-primary-700 dark:text-accent-primary-300`
-                    : `text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700`
+                    : `text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200`
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -323,19 +337,19 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
         {activeTab === 'details' && (
           <div className="space-y-6">
             {/* Basic Info */}
-            <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
                 Grunddaten
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Kunde *
                   </label>
                   <select
                     value={formData.customerId || ''}
                     onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   >
                     <option value="">Kunde auswählen...</option>
                     {customers.map((customer) => (
@@ -346,18 +360,18 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Vertragsnummer
                   </label>
                   <input
                     type="text"
                     value={formData.contractNumber || ''}
                     onChange={(e) => setFormData({ ...formData, contractNumber: e.target.value })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Vertragsname *
                   </label>
                   <input
@@ -365,17 +379,17 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="z.B. Wartungsvertrag Server 2024"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Vertragstyp
                   </label>
                   <select
                     value={formData.contractType || 'service'}
                     onChange={(e) => setFormData({ ...formData, contractType: e.target.value as any })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   >
                     <option value="service">Servicevertrag</option>
                     <option value="support">Supportvertrag</option>
@@ -387,13 +401,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Status
                   </label>
                   <select
                     value={formData.status || 'draft'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   >
                     <option value="draft">Entwurf</option>
                     <option value="active">Aktiv</option>
@@ -405,38 +419,38 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Beschreibung
                   </label>
                   <textarea
                     value={formData.description || ''}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
               </div>
             </div>
 
             {/* Contract Period */}
-            <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
                 Laufzeit
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Startdatum *
                   </label>
                   <input
                     type="date"
                     value={formData.startDate || ''}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Enddatum
                   </label>
                   <input
@@ -444,7 +458,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={formData.endDate || ''}
                     onChange={(e) => setFormData({ ...formData, endDate: e.target.value || null })}
                     disabled={formData.isIndefinite}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500 disabled:opacity-50`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500 disabled:opacity-50`}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -455,19 +469,19 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     onChange={(e) => setFormData({ ...formData, isIndefinite: e.target.checked, endDate: null })}
                     className={`w-4 h-4 rounded border-gray-300 text-accent-primary-600 focus:ring-accent-primary-500`}
                   />
-                  <label htmlFor="isIndefinite" className={`text-sm text-gray-700 dark:text-gray-300`}>
+                  <label htmlFor="isIndefinite" className={`text-sm text-gray-700 dark:text-dark-500`}>
                     Unbefristeter Vertrag
                   </label>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Kündigungsfrist (Tage)
                   </label>
                   <input
                     type="number"
                     value={formData.noticePeriodDays || 30}
                     onChange={(e) => setFormData({ ...formData, noticePeriodDays: parseInt(e.target.value) })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -478,20 +492,20 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     onChange={(e) => setFormData({ ...formData, autoRenew: e.target.checked })}
                     className={`w-4 h-4 rounded border-gray-300 text-accent-primary-600 focus:ring-accent-primary-500`}
                   />
-                  <label htmlFor="autoRenew" className={`text-sm text-gray-700 dark:text-gray-300`}>
+                  <label htmlFor="autoRenew" className={`text-sm text-gray-700 dark:text-dark-500`}>
                     Automatische Verlängerung
                   </label>
                 </div>
                 {formData.autoRenew && (
                   <div>
-                    <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                    <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                       Verlängerung um (Monate)
                     </label>
                     <input
                       type="number"
                       value={formData.renewalPeriodMonths || 12}
                       onChange={(e) => setFormData({ ...formData, renewalPeriodMonths: parseInt(e.target.value) })}
-                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                     />
                   </div>
                 )}
@@ -499,19 +513,19 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
             </div>
 
             {/* Pricing */}
-            <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
                 Preisgestaltung
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Abrechnungszyklus
                   </label>
                   <select
                     value={formData.billingCycle || 'monthly'}
                     onChange={(e) => setFormData({ ...formData, billingCycle: e.target.value as any })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   >
                     <option value="monthly">Monatlich</option>
                     <option value="quarterly">Quartalsweise</option>
@@ -522,7 +536,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                   </select>
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Grundpreis (€)
                   </label>
                   <input
@@ -530,11 +544,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     step="0.01"
                     value={formData.basePrice || ''}
                     onChange={(e) => setFormData({ ...formData, basePrice: e.target.value ? parseFloat(e.target.value) : null })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Inkludierte Stunden/Monat
                   </label>
                   <input
@@ -542,11 +556,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     step="0.5"
                     value={formData.includedHoursMonthly || ''}
                     onChange={(e) => setFormData({ ...formData, includedHoursMonthly: e.target.value ? parseFloat(e.target.value) : null })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Stundensatz (€)
                   </label>
                   <input
@@ -554,11 +568,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     step="0.01"
                     value={formData.hourlyRate || ''}
                     onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value ? parseFloat(e.target.value) : null })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Überstunden-Satz (€)
                   </label>
                   <input
@@ -566,20 +580,20 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     step="0.01"
                     value={formData.overageRate || ''}
                     onChange={(e) => setFormData({ ...formData, overageRate: e.target.value ? parseFloat(e.target.value) : null })}
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
               </div>
             </div>
 
             {/* SLA */}
-            <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
                 SLA & Support
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Reaktionszeit (Stunden)
                   </label>
                   <input
@@ -587,11 +601,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={formData.slaResponseHours || ''}
                     onChange={(e) => setFormData({ ...formData, slaResponseHours: e.target.value ? parseInt(e.target.value) : null })}
                     placeholder="z.B. 4"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Lösungszeit (Stunden)
                   </label>
                   <input
@@ -599,11 +613,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={formData.slaResolutionHours || ''}
                     onChange={(e) => setFormData({ ...formData, slaResolutionHours: e.target.value ? parseInt(e.target.value) : null })}
                     placeholder="z.B. 24"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1`}>
+                  <label className={`block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1`}>
                     Supportzeiten
                   </label>
                   <input
@@ -611,14 +625,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={formData.supportHours || ''}
                     onChange={(e) => setFormData({ ...formData, supportHours: e.target.value })}
                     placeholder="z.B. Mo-Fr 08:00-18:00"
-                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
                   />
                 </div>
               </div>
             </div>
 
             {/* Internal Notes */}
-            <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+            <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
                 Interne Notizen
               </h2>
@@ -627,14 +641,14 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                 onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })}
                 rows={4}
                 placeholder="Interne Anmerkungen zum Vertrag..."
-                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary-500`}
               />
             </div>
           </div>
         )}
 
         {activeTab === 'positions' && contractId && (
-          <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+          <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={`text-lg font-semibold text-gray-900 dark:text-white`}>
                 Vertragspositionen
@@ -657,7 +671,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={positionForm.name || ''}
                     onChange={(e) => setPositionForm({ ...positionForm, name: e.target.value })}
                     placeholder="Positionsname *"
-                    className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                    className={`px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white`}
                   />
                   <input
                     type="number"
@@ -665,7 +679,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={positionForm.quantity || 1}
                     onChange={(e) => setPositionForm({ ...positionForm, quantity: parseFloat(e.target.value) })}
                     placeholder="Menge"
-                    className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                    className={`px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white`}
                   />
                   <input
                     type="number"
@@ -673,7 +687,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     value={positionForm.unitPrice || ''}
                     onChange={(e) => setPositionForm({ ...positionForm, unitPrice: parseFloat(e.target.value) })}
                     placeholder="Einzelpreis (€)"
-                    className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                    className={`px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white`}
                   />
                 </div>
                 <div className="flex justify-end gap-2">
@@ -697,7 +711,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
             {positions.length === 0 ? (
               <div className="text-center py-8">
                 <Package className={`w-12 h-12 mx-auto text-gray-400 mb-3`} />
-                <p className={`text-gray-500 dark:text-gray-400`}>
+                <p className={`text-gray-500 dark:text-dark-400`}>
                   Noch keine Positionen vorhanden
                 </p>
               </div>
@@ -706,13 +720,13 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                 {positions.map((position) => (
                   <div
                     key={position.id}
-                    className={`flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg`}
+                    className={`flex items-center justify-between p-3 border border-gray-200 dark:border-dark-border rounded-lg`}
                   >
                     <div className="flex-1">
                       <div className={`font-medium text-gray-900 dark:text-white`}>
                         {position.positionNumber}. {position.name}
                       </div>
-                      <div className={`text-sm text-gray-500 dark:text-gray-400`}>
+                      <div className={`text-sm text-gray-500 dark:text-dark-400`}>
                         {position.quantity} x {formatCurrency(position.unitPrice)} = {formatCurrency(position.totalPrice)}
                         {position.isRecurring && ' / Monat'}
                       </div>
@@ -725,8 +739,8 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     />
                   </div>
                 ))}
-                <div className={`flex justify-between pt-3 mt-3 border-t border-gray-200 dark:border-gray-700`}>
-                  <span className={`font-medium text-gray-700 dark:text-gray-300`}>Gesamt:</span>
+                <div className={`flex justify-between pt-3 mt-3 border-t border-gray-200 dark:border-dark-border`}>
+                  <span className={`font-medium text-gray-700 dark:text-dark-500`}>Gesamt:</span>
                   <span className={`font-bold text-gray-900 dark:text-white`}>
                     {formatCurrency(positions.reduce((sum, p) => sum + (p.totalPrice || 0), 0))}
                   </span>
@@ -737,7 +751,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
         )}
 
         {activeTab === 'hours' && contractId && (
-          <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+          <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
             <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
               Stundenverbrauch
             </h2>
@@ -745,15 +759,15 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
             {formData.includedHoursMonthly ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                  <div className={`p-4 rounded-lg bg-gray-50 dark:bg-gray-700`}>
-                    <div className={`text-xs text-gray-500 dark:text-gray-400`}>Inkludiert/Monat</div>
+                  <div className={`p-4 rounded-lg bg-gray-50 dark:bg-dark-200`}>
+                    <div className={`text-xs text-gray-500 dark:text-dark-400`}>Inkludiert/Monat</div>
                     <div className={`text-2xl font-bold text-gray-900 dark:text-white`}>
                       {formData.includedHoursMonthly}h
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-accent-light dark:bg-blue-900/30">
-                    <div className="text-xs text-accent-primary dark:text-blue-400">Diesen Monat</div>
-                    <div className="text-2xl font-bold text-accent-dark dark:text-blue-300">
+                  <div className="p-4 rounded-lg bg-accent-light dark:bg-accent-primary/30">
+                    <div className="text-xs text-accent-primary dark:text-accent-primary">Diesen Monat</div>
+                    <div className="text-2xl font-bold text-accent-dark dark:text-accent-primary">
                       {hourlyTracking[0]?.usedHours || 0}h
                     </div>
                   </div>
@@ -778,7 +792,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     {hourlyTracking.map((tracking) => (
                       <div
                         key={tracking.id}
-                        className={`flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg`}
+                        className={`flex items-center justify-between p-3 border border-gray-200 dark:border-dark-border rounded-lg`}
                       >
                         <div>
                           <div className={`font-medium text-gray-900 dark:text-white`}>
@@ -787,7 +801,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                               year: 'numeric',
                             })}
                           </div>
-                          <div className={`text-sm text-gray-500 dark:text-gray-400`}>
+                          <div className={`text-sm text-gray-500 dark:text-dark-400`}>
                             {tracking.usedHours}h von {tracking.includedHours}h verwendet
                           </div>
                         </div>
@@ -798,7 +812,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                             </div>
                           )}
                           {tracking.overageAmount > 0 && (
-                            <div className={`text-sm text-gray-500 dark:text-gray-400`}>
+                            <div className={`text-sm text-gray-500 dark:text-dark-400`}>
                               {formatCurrency(tracking.overageAmount)}
                             </div>
                           )}
@@ -807,7 +821,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
                     ))}
                   </div>
                 ) : (
-                  <p className={`text-center text-gray-500 dark:text-gray-400 py-8`}>
+                  <p className={`text-center text-gray-500 dark:text-dark-400 py-8`}>
                     Noch keine Stundenerfassung vorhanden
                   </p>
                 )}
@@ -815,7 +829,7 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
             ) : (
               <div className="text-center py-8">
                 <Timer className={`w-12 h-12 mx-auto text-gray-400 mb-3`} />
-                <p className={`text-gray-500 dark:text-gray-400`}>
+                <p className={`text-gray-500 dark:text-dark-400`}>
                   Dieser Vertrag hat kein Stundenkontingent konfiguriert
                 </p>
               </div>
@@ -824,11 +838,11 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
         )}
 
         {activeTab === 'history' && contractId && (
-          <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4`}>
+          <div className={`bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4`}>
             <h2 className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}>
               Aktivitätsverlauf
             </h2>
-            <p className={`text-center text-gray-500 dark:text-gray-400 py-8`}>
+            <p className={`text-center text-gray-500 dark:text-dark-400 py-8`}>
               Verlauf wird in Kürze verfügbar sein
             </p>
           </div>

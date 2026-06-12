@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CheckCircle,
   Circle,
@@ -15,7 +15,6 @@ import {
   Folder,
   Ticket,
   Tag,
-  MoreVertical,
   Trash2,
   Edit,
   Timer,
@@ -23,31 +22,63 @@ import {
   ListTodo,
   CalendarDays,
   AlertCircle,
+  Inbox,
 } from 'lucide-react';
 import { tasksApi } from '../services/api';
 import type { Task, TaskDashboardData, TaskFilters, TaskPriority } from '../types';
 import TaskModal from './TaskModal';
 import { Button, IconButton } from './ui';
+import { useToast, useConfirm } from '../contexts/UIContext';
+
+type ViewKey = 'inbox' | 'my' | 'all' | 'today' | 'week' | 'overdue';
+type GroupBy = 'date' | 'customer' | 'priority' | 'ticket';
+
+const VIEW_STORAGE_KEY = 'taskhub_view';
+const GROUPBY_STORAGE_KEY = 'taskhub_group_by';
+
+const isViewKey = (s: string | null): s is ViewKey =>
+  s === 'inbox' || s === 'my' || s === 'all' || s === 'today' || s === 'week' || s === 'overdue';
+const isGroupBy = (s: string | null): s is GroupBy =>
+  s === 'date' || s === 'customer' || s === 'priority' || s === 'ticket';
 
 interface TaskHubProps {
   onTimerStart?: (taskId: string) => void;
   onTimerStop?: (taskId: string) => void;
   runningTimerTaskId?: string | null;
+  onOpenTicket?: (ticketId: string) => void;
+  onOpenCustomer?: (customerId: string) => void;
 }
 
-export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId }: TaskHubProps) {
+export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId, onOpenTicket, onOpenCustomer }: TaskHubProps) {
+  const confirm = useConfirm();
+  const showToast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dashboard, setDashboard] = useState<TaskDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'my' | 'all' | 'today' | 'week' | 'overdue'>('my');
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<TaskFilters>({ view: 'my' });
+  const [view, setView] = useState<ViewKey>(() => {
+    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
+    return isViewKey(stored) ? stored : 'inbox';
+  });
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => {
+    const stored = localStorage.getItem(GROUPBY_STORAGE_KEY);
+    return isGroupBy(stored) ? stored : 'date';
+  });
+  const [filters] = useState<TaskFilters>({});
   const [showCompleted, setShowCompleted] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ overdue: true, today: true, upcoming: true });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ overdue: true, today: true, upcoming: true, no_date: true });
+
+  // Quick-Add state
+  const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const quickAddInputRef = useRef<HTMLInputElement>(null);
 
   // Modal state
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  // Persist view + groupBy
+  useEffect(() => { localStorage.setItem(VIEW_STORAGE_KEY, view); }, [view]);
+  useEffect(() => { localStorage.setItem(GROUPBY_STORAGE_KEY, groupBy); }, [groupBy]);
 
   // Load dashboard data
   const loadDashboard = useCallback(async () => {
@@ -61,19 +92,18 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     }
   }, []);
 
-  // Load tasks
+  // Load tasks. 'inbox' is a frontend-derived view: we fetch the user's
+  // tasks ('my' on backend) and client-side filter to overdue + today + no-date.
   const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
-      console.log('📋 [TASKS] Loading tasks with filters:', { ...filters, view, includeCompleted: showCompleted });
+      const backendView = view === 'inbox' ? 'my' : view;
       const response = await tasksApi.getAll({
         ...filters,
-        view,
+        view: backendView,
         includeCompleted: showCompleted,
       });
-      console.log('📋 [TASKS] Response:', response);
       if (response.success) {
-        console.log('📋 [TASKS] Loaded', response.data?.length || 0, 'tasks');
         setTasks(response.data || []);
       } else {
         console.error('📋 [TASKS] API returned success=false');
@@ -93,8 +123,15 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     loadTasks();
   }, [loadTasks]);
 
-  // Toggle task completion
+  // Toggle task completion. TicketTasks live in a different table — but we
+  // don't (yet) have a dedicated client API for that here, so we fall back
+  // to the regular tasksApi.update which the backend rejects for ticket
+  // sources. Inform the user instead of silently failing.
   const toggleTaskComplete = async (task: Task) => {
+    if (task.taskSource === 'ticket') {
+      showToast('TicketTasks werden im jeweiligen Ticket abgehakt', 'info');
+      return;
+    }
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     try {
       const response = await tasksApi.update(task.id, { status: newStatus });
@@ -104,6 +141,42 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       }
     } catch (err) {
       console.error('Failed to update task:', err);
+    }
+  };
+
+  // Edit handler that routes ticket-source tasks back to the originating ticket.
+  const handleEditClick = (task: Task) => {
+    if (task.taskSource === 'ticket') {
+      if (task.ticketId && onOpenTicket) {
+        onOpenTicket(task.ticketId);
+      } else {
+        showToast('TicketTasks werden im Ticket bearbeitet', 'info');
+      }
+      return;
+    }
+    setEditingTask(task);
+    setShowTaskModal(true);
+  };
+
+  // Quick-Add: just title + Enter, creates a standalone task instantly.
+  const handleQuickAdd = async () => {
+    const title = quickAddTitle.trim();
+    if (!title || quickAddSaving) return;
+    setQuickAddSaving(true);
+    try {
+      const response = await tasksApi.create({ title });
+      if (response.success) {
+        setQuickAddTitle('');
+        loadTasks();
+        loadDashboard();
+        // Keep focus for serial entry
+        setTimeout(() => quickAddInputRef.current?.focus(), 0);
+      }
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      showToast('Aufgabe konnte nicht erstellt werden', 'error');
+    } finally {
+      setQuickAddSaving(false);
     }
   };
 
@@ -127,12 +200,23 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     loadTasks();
   };
 
-  // Delete task
-  const handleDeleteTask = async (taskId: string) => {
-    if (!confirm('Aufgabe wirklich löschen?')) return;
+  // Delete task. Ticket-sourced tasks must be deleted from the ticket itself.
+  const handleDeleteTask = async (task: Task) => {
+    if (task.taskSource === 'ticket') {
+      if (task.ticketId && onOpenTicket) onOpenTicket(task.ticketId);
+      else showToast('TicketTasks werden im Ticket gelöscht', 'info');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Aufgabe löschen?',
+      message: 'Aufgabe wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
-      await tasksApi.delete(taskId);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      await tasksApi.delete(task.id);
+      setTasks(prev => prev.filter(t => t.id !== task.id));
       loadDashboard();
     } catch (err) {
       console.error('Failed to delete task:', err);
@@ -170,8 +254,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     switch (priority) {
       case 'urgent': return 'text-red-600 dark:text-red-400';
       case 'high': return 'text-orange-600 dark:text-orange-400';
-      case 'normal': return 'text-accent-primary dark:text-blue-400';
-      case 'low': return 'text-gray-500 dark:text-gray-400';
+      case 'normal': return 'text-accent-primary dark:text-accent-primary';
+      case 'low': return 'text-gray-500 dark:text-dark-400';
     }
   };
 
@@ -180,8 +264,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     const colors = {
       urgent: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
       high: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-      normal: 'bg-accent-lighter text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-      low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
+      normal: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary',
+      low: 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-400',
     };
     const labels = { urgent: 'Dringend', high: 'Hoch', normal: 'Normal', low: 'Niedrig' };
     return (
@@ -191,32 +275,98 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
     );
   };
 
-  // Group tasks by date
-  const groupedTasks = tasks.reduce((acc, task) => {
+  // Compute date-bucket (overdue | today | upcoming | later | no_date) for a task.
+  const dateBucket = (task: Task): 'overdue' | 'today' | 'upcoming' | 'later' | 'no_date' => {
+    if (!task.dueDate) return 'no_date';
     const now = new Date();
-    const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+    const dueDate = new Date(task.dueDate);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const taskDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    const diffDays = Math.floor((taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return 'overdue';
+    if (diffDays === 0) return 'today';
+    if (diffDays <= 7) return 'upcoming';
+    return 'later';
+  };
 
-    let group = 'no_date';
-    if (dueDate) {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const taskDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-      const diffDays = Math.floor((taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // For view='inbox' (frontend-derived): keep only overdue + today + no_date,
+  // and don't show completed ones.
+  const visibleTasks: Task[] = view === 'inbox'
+    ? tasks.filter(t => {
+        if (t.status === 'completed' && !showCompleted) return false;
+        const b = dateBucket(t);
+        return b === 'overdue' || b === 'today' || b === 'no_date';
+      })
+    : tasks;
 
-      if (diffDays < 0) {
-        group = 'overdue';
-      } else if (diffDays === 0) {
-        group = 'today';
-      } else if (diffDays <= 7) {
-        group = 'upcoming';
+  // Group tasks by the active groupBy setting.
+  const groupedTasks: Record<string, Task[]> = {};
+  const groupOrder: string[] = [];
+  const groupLabels: Record<string, string> = {};
+  const groupTones: Record<string, string> = {};
+
+  const ensureGroup = (key: string, label: string, tone?: string) => {
+    if (!(key in groupedTasks)) {
+      groupedTasks[key] = [];
+      groupOrder.push(key);
+      groupLabels[key] = label;
+      if (tone) groupTones[key] = tone;
+    }
+  };
+
+  if (groupBy === 'date') {
+    // Pre-seed standard order so empty groups stay collapsed but order is stable
+    const seed: { key: string; label: string; tone?: string }[] = [
+      { key: 'overdue', label: 'Überfällig', tone: 'text-red-600 dark:text-red-400' },
+      { key: 'today', label: 'Heute', tone: 'text-accent-primary dark:text-accent-primary' },
+      { key: 'upcoming', label: 'Diese Woche' },
+      { key: 'later', label: 'Später' },
+      { key: 'no_date', label: 'Ohne Datum' },
+    ];
+    for (const s of seed) ensureGroup(s.key, s.label, s.tone);
+    for (const task of visibleTasks) {
+      groupedTasks[dateBucket(task)].push(task);
+    }
+  } else if (groupBy === 'customer') {
+    for (const task of visibleTasks) {
+      const key = task.customerName ?? '__no_customer__';
+      ensureGroup(key, task.customerName ?? 'Ohne Kunde');
+      groupedTasks[key].push(task);
+    }
+    // Sort groups: real customer names alphabetically, "Ohne Kunde" last
+    groupOrder.sort((a, b) => {
+      if (a === '__no_customer__') return 1;
+      if (b === '__no_customer__') return -1;
+      return groupLabels[a].localeCompare(groupLabels[b], 'de');
+    });
+  } else if (groupBy === 'priority') {
+    const seed: { key: string; label: string; tone?: string }[] = [
+      { key: 'urgent', label: 'Dringend', tone: 'text-red-600 dark:text-red-400' },
+      { key: 'high', label: 'Hoch', tone: 'text-orange-600 dark:text-orange-400' },
+      { key: 'normal', label: 'Normal' },
+      { key: 'low', label: 'Niedrig' },
+    ];
+    for (const s of seed) ensureGroup(s.key, s.label, s.tone);
+    for (const task of visibleTasks) {
+      groupedTasks[task.priority].push(task);
+    }
+  } else if (groupBy === 'ticket') {
+    for (const task of visibleTasks) {
+      if (task.ticketNumber) {
+        const key = `ticket:${task.ticketId ?? task.ticketNumber}`;
+        ensureGroup(key, `Ticket ${task.ticketNumber}${task.ticketTitle ? ' · ' + task.ticketTitle : ''}`);
+        groupedTasks[key].push(task);
       } else {
-        group = 'later';
+        ensureGroup('__no_ticket__', 'Ohne Ticket');
+        groupedTasks['__no_ticket__'].push(task);
       }
     }
-
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(task);
-    return acc;
-  }, {} as Record<string, Task[]>);
+    groupOrder.sort((a, b) => {
+      if (a === '__no_ticket__') return 1;
+      if (b === '__no_ticket__') return -1;
+      return groupLabels[a].localeCompare(groupLabels[b], 'de');
+    });
+  }
 
   // Toggle group expansion
   const toggleGroup = (group: string) => {
@@ -227,20 +377,22 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
   const renderTask = (task: Task) => {
     const isRunning = runningTimerTaskId === task.id;
     const isCompleted = task.status === 'completed';
+    const isTicketSource = task.taskSource === 'ticket';
 
     return (
       <div
         key={task.id}
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-all ${
           isCompleted
-            ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-accent-primary hover:shadow-sm'
+            ? 'bg-gray-50 dark:bg-dark-100/50 border-gray-200 dark:border-dark-border opacity-60'
+            : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-border hover:border-accent-primary/40 dark:hover:border-accent-primary hover:shadow-sm'
         }`}
       >
         {/* Checkbox */}
         <button
           onClick={() => toggleTaskComplete(task)}
           className={`flex-shrink-0 mt-0.5 ${getPriorityColor(task.priority)} hover:opacity-70`}
+          title={isTicketSource ? 'TicketTasks im Ticket abhaken' : (isCompleted ? 'Als offen markieren' : 'Als erledigt markieren')}
         >
           {isCompleted ? (
             <CheckCircle className="w-5 h-5" />
@@ -253,11 +405,24 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <h4 className={`font-medium ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
-                {task.title}
-              </h4>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className={`font-medium ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                  {task.title}
+                </h4>
+                {isTicketSource && task.ticketNumber && (
+                  <button
+                    onClick={() => task.ticketId && onOpenTicket?.(task.ticketId)}
+                    disabled={!task.ticketId || !onOpenTicket}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-accent-primary/10 dark:bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/20 dark:hover:bg-accent-primary/30 transition-colors disabled:cursor-default disabled:hover:bg-accent-primary/10"
+                    title={task.ticketTitle ? `Ticket ${task.ticketNumber}: ${task.ticketTitle}` : `Ticket ${task.ticketNumber}`}
+                  >
+                    <Ticket className="w-3 h-3" />
+                    {task.ticketNumber}
+                  </button>
+                )}
+              </div>
               {task.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
+                <p className="text-sm text-gray-500 dark:text-dark-400 line-clamp-1 mt-0.5">
                   {task.description}
                 </p>
               )}
@@ -265,7 +430,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
 
             {/* Actions */}
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {task.projectId && (
+              {task.projectId && !isTicketSource && (
                 <IconButton
                   onClick={() => handleTimerToggle(task)}
                   variant={isRunning ? 'danger' : 'default'}
@@ -275,27 +440,24 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 />
               )}
               <IconButton
-                onClick={() => {
-                  setEditingTask(task);
-                  setShowTaskModal(true);
-                }}
+                onClick={() => handleEditClick(task)}
                 variant="default"
                 size="md"
                 icon={<Edit className="w-4 h-4" />}
-                tooltip="Bearbeiten"
+                tooltip={isTicketSource ? 'Im Ticket bearbeiten' : 'Bearbeiten'}
               />
               <IconButton
-                onClick={() => handleDeleteTask(task.id)}
+                onClick={() => handleDeleteTask(task)}
                 variant="danger"
                 size="md"
                 icon={<Trash2 className="w-4 h-4" />}
-                tooltip="Löschen"
+                tooltip={isTicketSource ? 'Im Ticket löschen' : 'Löschen'}
               />
             </div>
           </div>
 
           {/* Meta info */}
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-dark-400">
             {task.dueDate && (
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
@@ -304,10 +466,15 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
               </span>
             )}
             {task.customerName && (
-              <span className="flex items-center gap-1">
+              <button
+                onClick={() => task.customerId && onOpenCustomer?.(task.customerId)}
+                disabled={!task.customerId || !onOpenCustomer}
+                className="flex items-center gap-1 hover:text-accent-primary transition-colors disabled:hover:text-gray-500 dark:disabled:hover:text-dark-400"
+                title={task.customerId && onOpenCustomer ? 'Kunde öffnen' : undefined}
+              >
                 <Building2 className="w-3.5 h-3.5" />
                 {task.customerName}
-              </span>
+              </button>
             )}
             {task.projectName && (
               <span className="flex items-center gap-1">
@@ -315,11 +482,15 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {task.projectName}
               </span>
             )}
-            {task.ticketNumber && (
-              <span className="flex items-center gap-1">
+            {!isTicketSource && task.ticketNumber && (
+              <button
+                onClick={() => task.ticketId && onOpenTicket?.(task.ticketId)}
+                disabled={!task.ticketId || !onOpenTicket}
+                className="flex items-center gap-1 hover:text-accent-primary transition-colors disabled:hover:text-gray-500 dark:disabled:hover:text-dark-400"
+              >
                 <Ticket className="w-3.5 h-3.5" />
                 {task.ticketNumber}
-              </span>
+              </button>
             )}
             {task.estimatedMinutes && (
               <span className="flex items-center gap-1">
@@ -333,7 +504,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {formatDuration(task.totalTrackedTime)}
               </span>
             )}
-            {task.category && (
+            {task.category && !isTicketSource && (
               <span className="flex items-center gap-1">
                 <Tag className="w-3.5 h-3.5" />
                 {task.category}
@@ -361,7 +532,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
       <div className="mb-6">
         <button
           onClick={() => toggleGroup(key)}
-          className={`flex items-center gap-2 mb-3 text-sm font-semibold ${className || 'text-gray-700 dark:text-gray-300'}`}
+          className={`flex items-center gap-2 mb-3 text-sm font-semibold ${className || 'text-gray-700 dark:text-dark-500'}`}
         >
           {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           {icon}
@@ -378,13 +549,13 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-dark-50">
       {/* Header */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      <div className="flex-shrink-0 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Meine Aufgaben</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Unified Task Hub - Alle Aufgaben an einem Ort
             </p>
           </div>
@@ -404,8 +575,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         {/* Quick Stats */}
         {dashboard && (
           <div className="grid grid-cols-4 gap-4 mt-4">
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <ListTodo className="w-4 h-4" />
                 <span className="text-xs font-medium">Offen</span>
               </div>
@@ -413,8 +584,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_pending + dashboard.myTasks.my_in_progress}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <CalendarDays className="w-4 h-4" />
                 <span className="text-xs font-medium">Heute</span>
               </div>
@@ -422,7 +593,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_today}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
               <div className="flex items-center gap-2 text-red-500">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-xs font-medium">Überfällig</span>
@@ -431,12 +602,12 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
                 {dashboard.myTasks.my_overdue}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-medium">In Arbeit</span>
               </div>
-              <p className="text-2xl font-bold text-accent-primary dark:text-blue-400 mt-1">
+              <p className="text-2xl font-bold text-accent-primary dark:text-accent-primary mt-1">
                 {dashboard.myTasks.my_in_progress}
               </p>
             </div>
@@ -446,19 +617,21 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
         {/* View Tabs */}
         <div className="flex items-center gap-2 mt-4 overflow-x-auto">
           {[
-            { key: 'my', label: 'Meine Aufgaben', icon: <ListTodo className="w-4 h-4" /> },
-            { key: 'today', label: 'Heute', icon: <CalendarDays className="w-4 h-4" /> },
-            { key: 'week', label: 'Diese Woche', icon: <Calendar className="w-4 h-4" /> },
-            { key: 'overdue', label: 'Überfällig', icon: <AlertTriangle className="w-4 h-4" /> },
-            { key: 'all', label: 'Alle', icon: <Filter className="w-4 h-4" /> },
+            { key: 'inbox' as ViewKey, label: 'Inbox', icon: <Inbox className="w-4 h-4" />, hint: 'Überfällig + Heute + Ohne Datum' },
+            { key: 'my' as ViewKey, label: 'Meine Aufgaben', icon: <ListTodo className="w-4 h-4" /> },
+            { key: 'today' as ViewKey, label: 'Heute', icon: <CalendarDays className="w-4 h-4" /> },
+            { key: 'week' as ViewKey, label: 'Diese Woche', icon: <Calendar className="w-4 h-4" /> },
+            { key: 'overdue' as ViewKey, label: 'Überfällig', icon: <AlertTriangle className="w-4 h-4" /> },
+            { key: 'all' as ViewKey, label: 'Alle', icon: <Filter className="w-4 h-4" /> },
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => setView(tab.key as any)}
+              onClick={() => setView(tab.key)}
+              title={tab.hint}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 view === tab.key
-                  ? 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary'
+                  : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200'
               }`}
             >
               {tab.icon}
@@ -466,8 +639,21 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
             </button>
           ))}
 
-          <div className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+          <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-dark-400">Gruppieren:</label>
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              >
+                <option value="date">Datum</option>
+                <option value="customer">Kunde</option>
+                <option value="priority">Priorität</option>
+                <option value="ticket">Ticket</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400 cursor-pointer">
               <input
                 type="checkbox"
                 checked={showCompleted}
@@ -482,62 +668,49 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId 
 
       {/* Task List */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Quick-Add */}
+        <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 focus-within:border-accent-primary dark:focus-within:border-accent-primary transition-colors">
+          <Plus className="w-4 h-4 text-gray-400 dark:text-dark-400 flex-shrink-0" />
+          <input
+            ref={quickAddInputRef}
+            type="text"
+            value={quickAddTitle}
+            onChange={(e) => setQuickAddTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleQuickAdd(); } }}
+            placeholder="Was möchtest du heute nicht vergessen? Enter zum Anlegen."
+            disabled={quickAddSaving}
+            className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none disabled:opacity-50"
+          />
+          {quickAddTitle.trim() && (
+            <button
+              onClick={() => void handleQuickAdd()}
+              disabled={quickAddSaving}
+              className="text-xs font-medium text-accent-primary hover:text-accent-dark transition-colors disabled:opacity-50"
+            >
+              Anlegen
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
           </div>
-        ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+        ) : visibleTasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
             <ListTodo className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">Keine Aufgaben gefunden</p>
-            <p className="text-sm mt-1">Erstelle eine neue Aufgabe, um loszulegen</p>
-            <Button
-              onClick={() => {
-                setEditingTask(null);
-                setShowTaskModal(true);
-              }}
-              variant="primary"
-              size="md"
-              icon={<Plus className="w-5 h-5" />}
-              className="mt-4"
-            >
-              Neue Aufgabe
-            </Button>
+            <p className="text-lg font-medium">Keine Aufgaben in dieser Sicht</p>
+            <p className="text-sm mt-1">Tipp: Quick-Add oben oder „Neue Aufgabe" für die Details.</p>
           </div>
         ) : (
           <div>
-            {renderGroup(
-              'overdue',
-              'Überfällig',
-              <AlertTriangle className="w-4 h-4" />,
-              groupedTasks.overdue || [],
-              'text-red-600 dark:text-red-400'
-            )}
-            {renderGroup(
-              'today',
-              'Heute',
-              <CalendarDays className="w-4 h-4" />,
-              groupedTasks.today || [],
-              'text-accent-primary dark:text-blue-400'
-            )}
-            {renderGroup(
-              'upcoming',
-              'Diese Woche',
-              <Calendar className="w-4 h-4" />,
-              groupedTasks.upcoming || []
-            )}
-            {renderGroup(
-              'later',
-              'Später',
-              <Clock className="w-4 h-4" />,
-              groupedTasks.later || []
-            )}
-            {renderGroup(
-              'no_date',
-              'Ohne Datum',
+            {groupOrder.map(key => renderGroup(
+              key,
+              groupLabels[key],
               <ListTodo className="w-4 h-4" />,
-              groupedTasks.no_date || []
-            )}
+              groupedTasks[key] || [],
+              groupTones[key]
+            ))}
           </div>
         )}
       </div>

@@ -97,14 +97,14 @@ export const PushNotificationSettings = () => {
 
   if (!isConfigured) {
     return (
-      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-gray-50 dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <Settings className="text-gray-500 dark:text-gray-400 flex-shrink-0 mt-0.5" size={20} />
+          <Settings className="text-gray-500 dark:text-dark-400 flex-shrink-0 mt-0.5" size={20} />
           <div>
-            <h4 className="font-medium text-gray-800 dark:text-gray-200">
+            <h4 className="font-medium text-gray-800 dark:text-dark-500">
               Push-Benachrichtigungen nicht konfiguriert
             </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-600 dark:text-dark-400 mt-1">
               Der Server muss zunächst mit VAPID-Schlüsseln konfiguriert werden.
             </p>
           </div>
@@ -116,7 +116,7 @@ export const PushNotificationSettings = () => {
   return (
     <div className="space-y-6">
       {/* Status & Subscribe/Unsubscribe */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isSubscribed ? (
@@ -124,15 +124,15 @@ export const PushNotificationSettings = () => {
                 <Bell className="text-green-600 dark:text-green-400" size={20} />
               </div>
             ) : (
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <BellOff className="text-gray-500 dark:text-gray-400" size={20} />
+              <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                <BellOff className="text-gray-500 dark:text-dark-400" size={20} />
               </div>
             )}
             <div>
               <h4 className="font-medium text-gray-900 dark:text-white">
                 Push-Benachrichtigungen
               </h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 {isSubscribed
                   ? 'Dieses Gerät empfängt Benachrichtigungen'
                   : permission === 'denied'
@@ -200,7 +200,7 @@ export const PushNotificationSettings = () => {
       {preferences && (
         <>
           {/* Push Notification Settings */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
             <h4 className="font-medium text-gray-900 dark:text-white mb-4">
               Push-Benachrichtigungen
             </h4>
@@ -248,7 +248,7 @@ export const PushNotificationSettings = () => {
           </div>
 
           {/* Email Notification Settings */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
             <h4 className="font-medium text-gray-900 dark:text-white mb-4">
               E-Mail-Benachrichtigungen
             </h4>
@@ -298,7 +298,7 @@ export const PushNotificationSettings = () => {
 
       {/* Registered Devices */}
       {subscriptions.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">
             Registrierte Geräte ({subscriptions.length})
           </h4>
@@ -306,15 +306,15 @@ export const PushNotificationSettings = () => {
             {subscriptions.map((sub) => (
               <div
                 key={sub.id}
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-50 rounded-lg"
               >
                 <div className="flex items-center gap-3">
-                  <Smartphone className="text-gray-500 dark:text-gray-400" size={18} />
+                  <Smartphone className="text-gray-500 dark:text-dark-400" size={18} />
                   <div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {sub.device_name || 'Unbekanntes Gerät'}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
                       Registriert: {new Date(sub.created_at).toLocaleDateString('de-DE')}
                       {sub.last_used_at && (
                         <> · Zuletzt: {new Date(sub.last_used_at).toLocaleDateString('de-DE')}</>
@@ -356,16 +356,16 @@ interface PreferenceToggleProps {
 }
 
 const PreferenceToggle = ({ label, description, checked, onChange, disabled }: PreferenceToggleProps) => (
-  <div className={`flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${disabled ? 'opacity-50' : ''}`}>
+  <div className={`flex items-center justify-between py-2 border-b border-gray-100 dark:border-dark-border last:border-b-0 ${disabled ? 'opacity-50' : ''}`}>
     <div>
       <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+      <p className="text-xs text-gray-500 dark:text-dark-400">{description}</p>
     </div>
     <button
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? 'bg-accent-primary' : 'bg-gray-300 dark:bg-gray-600'
+        checked ? 'bg-accent-primary' : 'bg-gray-300 dark:bg-dark-300'
       } ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <span

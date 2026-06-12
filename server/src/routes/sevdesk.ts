@@ -1,10 +1,170 @@
 import express, { Response } from 'express';
+import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
 import * as aiService from '../services/aiService';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const configSchema = z.object({
+  apiToken: z.string().min(1).max(500).optional(),
+  defaultHourlyRate: z.number().min(0).max(10000).optional(),
+  paymentTermsDays: z.number().int().min(0).max(365).optional(),
+  taxRate: z.number().min(0).max(100).optional(),
+  autoSyncCustomers: z.boolean().optional(),
+  createAsFinal: z.boolean().optional(),
+});
+
+const testConnectionSchema = z.object({
+  apiToken: z.string().min(1, 'API token is required').max(500),
+});
+
+const linkCustomerSchema = z.object({
+  customerId: z.string().uuid(),
+  sevdeskCustomerId: z.string().min(1).max(100),
+});
+
+const invoicePositionSchema = z.object({
+  name: z.string().max(1000).optional(),
+  quantity: z.number().min(0).optional(),
+  price: z.number().optional(),
+  hours: z.number().min(0).optional(),
+  amount: z.number().optional(),
+  text: z.string().max(10000).optional(),
+  unity: z.any().optional(),
+});
+
+const createInvoiceSchema = z.object({
+  customerId: z.string().uuid(),
+  entryIds: z.array(z.string().uuid()).min(1).max(1000),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  header: z.string().max(500).optional(),
+  headText: z.string().max(10000).optional(),
+  footText: z.string().max(10000).optional(),
+  positions: z.array(invoicePositionSchema).max(100).optional(),
+  reportFilename: z.string().max(500).optional(),
+});
+
+const previewReportSchema = z.object({
+  reportFilename: z.string().min(1).max(500),
+});
+
+const createVoucherSchema = z.object({
+  customerId: z.string().uuid(),
+  entryIds: z.array(z.string().uuid()).min(1).max(1000),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  totalHours: z.number().min(0).max(100000),
+  totalAmount: z.number().min(0).max(10000000),
+});
+
+const entrySchema = z.object({
+  id: z.string().uuid(),
+  date: z.string(),
+  description: z.string().max(10000).optional(),
+  duration: z.number().min(0),
+  hourlyRate: z.number().min(0).optional(),
+  amount: z.number().optional(),
+  projectName: z.string().max(500).optional(),
+  activityName: z.string().max(500).optional(),
+});
+
+const createInvoiceDirectSchema = z.object({
+  customerId: z.string().uuid(),
+  sevdeskContactId: z.string().min(1).max(100),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  entries: z.array(entrySchema).min(1).max(1000),
+});
+
+const saveEntriesForInvoiceSchema = z.object({
+  customerId: z.string().uuid(),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+});
+
+const uploadFileSchema = z.object({
+  fileData: z.string().min(1, 'File data is required'),
+  filename: z.string().min(1).max(500),
+  mimeType: z.string().min(1).max(100),
+});
+
+const createVoucherFromFileSchema = z.object({
+  fileId: z.string().min(1).max(100),
+  voucherDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  description: z.string().max(1000).optional(),
+  supplierName: z.string().max(500).optional(),
+  sumNet: z.number().min(0).max(10000000).optional(),
+  sumGross: z.number().min(0).max(10000000).optional(),
+  taxRate: z.number().min(0).max(100).optional(),
+  creditDebit: z.enum(['C', 'D']).optional(),
+});
+
+const quotePositionSchema = z.object({
+  name: z.string().max(1000),
+  quantity: z.number().min(0),
+  price: z.number(),
+  text: z.string().max(10000).optional(),
+  unity: z.any().optional(),
+});
+
+const createQuoteSchema = z.object({
+  contactId: z.string().min(1, 'contactId is required').max(100),
+  quoteDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  header: z.string().min(1, 'header (Betreff) is required').max(500),
+  headText: z.string().max(10000).optional(),
+  footText: z.string().max(10000).optional(),
+  positions: z.array(quotePositionSchema).min(1, 'At least one position is required').max(100),
+  status: z.number().int().min(0).max(1000).optional(),
+});
+
+const updateQuoteSchema = createQuoteSchema.partial();
+
+const importCustomerSchema = z.object({
+  sevdeskId: z.string().min(1).max(100),
+  name: z.string().min(1).max(500),
+  customerNumber: z.string().max(100).optional(),
+  email: z.string().email().max(500).optional().nullable(),
+  address: z.string().max(1000).optional(),
+});
+
+const importCustomersSchema = z.object({
+  imports: z.array(importCustomerSchema).min(1).max(500),
+});
+
+const updateCustomerFromSevdeskSchema = z.object({
+  sevdeskId: z.string().min(1).max(100),
+  name: z.string().min(1).max(500),
+  customerNumber: z.string().max(100).optional(),
+  email: z.string().email().max(500).optional().nullable(),
+  address: z.string().max(1000).optional(),
+  color: z.string().max(50).optional(),
+  hourlyRate: z.number().min(0).max(10000).optional().nullable(),
+});
+
+const recordExportSchema = z.object({
+  customerId: z.string().uuid(),
+  entryIds: z.array(z.string().uuid()).min(1).max(1000),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  totalHours: z.number().min(0).max(100000).optional(),
+  totalAmount: z.number().min(0).max(10000000).optional(),
+});
+
+const generateInvoiceTextsSchema = z.object({
+  customerId: z.string().uuid(),
+  sevdeskContactId: z.string().min(1).max(100).optional(),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  entries: z.array(entrySchema).min(1).max(1000),
+});
 
 // Middleware to check if billing feature is enabled
 async function requireBillingFeature(req: AuthRequest, res: Response, next: Function) {
@@ -77,7 +237,7 @@ router.get('/config', authenticateToken, requireBillingFeature, async (req: Auth
 });
 
 // PUT /api/sevdesk/config - Save sevDesk configuration
-router.put('/config', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.put('/config', authenticateToken, requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { apiToken, defaultHourlyRate, paymentTermsDays, taxRate, autoSyncCustomers, createAsFinal } = req.body;
@@ -106,13 +266,10 @@ router.put('/config', authenticateToken, requireBillingFeature, async (req: Auth
 });
 
 // POST /api/sevdesk/test-connection - Test sevDesk API connection
-router.post('/test-connection', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/test-connection', authenticateToken, requireBillingFeature, validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { apiToken } = req.body;
-
-    if (!apiToken) {
-      return res.status(400).json({ success: false, error: 'API token is required' });
-    }
+    // Validation handled by Zod
 
     const result = await sevdeskService.testConnection(apiToken);
 
@@ -150,13 +307,10 @@ router.get('/customers', authenticateToken, requireBillingFeature, async (req: A
 });
 
 // POST /api/sevdesk/link-customer - Link local customer to sevDesk customer
-router.post('/link-customer', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/link-customer', authenticateToken, requireBillingFeature, validate(linkCustomerSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { customerId, sevdeskCustomerId } = req.body;
-
-    if (!customerId || !sevdeskCustomerId) {
-      return res.status(400).json({ success: false, error: 'customerId and sevdeskCustomerId are required' });
-    }
+    // Validation handled by Zod
 
     await sevdeskService.linkCustomerToSevdesk(customerId, sevdeskCustomerId);
 
@@ -197,7 +351,7 @@ router.get('/billing-summary', authenticateToken, requireBillingFeature, async (
 });
 
 // POST /api/sevdesk/create-invoice - Create invoice in sevDesk
-router.post('/create-invoice', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/create-invoice', authenticateToken, requireBillingFeature, validate(createInvoiceSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions } = req.body;
@@ -205,14 +359,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     console.log('[create-invoice] Starting invoice creation for customer:', customerId);
     console.log('[create-invoice] Custom texts provided:', !!header, !!headText, !!footText);
     console.log('[create-invoice] Custom positions:', positions?.length || 0);
-
-    if (!customerId || !entryIds || !periodStart || !periodEnd) {
-      console.log('[create-invoice] Missing required fields');
-      return res.status(400).json({
-        success: false,
-        error: 'customerId, entryIds, periodStart, and periodEnd are required',
-      });
-    }
+    // Validation handled by Zod
 
     // Get config
     const config = await sevdeskService.getConfig(userId);
@@ -222,9 +369,17 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
     }
     console.log('[create-invoice] Config loaded, API token exists:', !!config.apiToken);
 
-    // Get customer info
+    // Get customer info + the linked default contract (for {contractNumber}/
+    // {contractTitle} substitution in the per-customer position template).
     const customerResult = await query(
-      'SELECT id, name, hourly_rate, sevdesk_customer_id, time_rounding_interval FROM customers WHERE id = $1 AND user_id = $2',
+      `SELECT
+         c.id, c.name, c.hourly_rate, c.sevdesk_customer_id, c.time_rounding_interval,
+         c.sevdesk_position_template, c.default_contract_id,
+         ct.contract_number AS default_contract_number,
+         ct.name AS default_contract_title
+       FROM customers c
+       LEFT JOIN contracts ct ON ct.id = c.default_contract_id
+       WHERE c.id = $1 AND c.user_id = $2`,
       [customerId, userId]
     );
 
@@ -240,7 +395,9 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       console.log('[create-invoice] Customer not linked to sevDesk');
       return res.status(400).json({
         success: false,
-        error: 'Customer is not linked to a sevDesk contact',
+        error: 'Kunde ist nicht mit einem sevdesk-Kontakt verknüpft.',
+        code: 'CUSTOMER_NOT_LINKED',
+        customerId,
       });
     }
 
@@ -278,6 +435,22 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
       console.log('[create-invoice] Calculated from entries - Total hours:', totalHours, 'amount:', totalAmount);
     }
 
+    // Build the template-context for per-position placeholder substitution.
+    // Frontend additionally passes reportFilename in the payload (if a
+    // service-report PDF was prepared) — picked up below.
+    const { reportFilename } = req.body;
+    const periodEndDate = new Date(periodEnd);
+    const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const templateContext = {
+      contractNumber: customer.default_contract_number ?? undefined,
+      contractTitle: customer.default_contract_title ?? undefined,
+      customerName: customer.name,
+      periodMonth: String(periodEndDate.getMonth() + 1).padStart(2, '0'),
+      periodYear: String(periodEndDate.getFullYear()),
+      periodLabel: `${monthNames[periodEndDate.getMonth()]} ${periodEndDate.getFullYear()}`,
+      reportFilename: reportFilename || undefined,
+    };
+
     // Create invoice in sevDesk with custom texts and positions
     console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
@@ -293,6 +466,8 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
         headText,
         footText,
         positions,
+        positionTemplate: customer.sevdesk_position_template ?? undefined,
+        templateContext,
       }
     );
     console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
@@ -329,17 +504,11 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, async (
 });
 
 // POST /api/sevdesk/record-export - Record time entries as exported (without sevDesk)
-router.post('/record-export', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/record-export', authenticateToken, requireBillingFeature, validate(recordExportSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount } = req.body;
-
-    if (!customerId || !entryIds || !periodStart || !periodEnd) {
-      return res.status(400).json({
-        success: false,
-        error: 'customerId, entryIds, periodStart, and periodEnd are required',
-      });
-    }
+    // Validation handled by Zod
 
     const exportId = await sevdeskService.recordInvoiceExport(
       userId,
@@ -364,17 +533,11 @@ router.post('/record-export', authenticateToken, requireBillingFeature, async (r
 });
 
 // POST /api/sevdesk/generate-invoice-texts - Generate AI-enhanced invoice texts
-router.post('/generate-invoice-texts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/generate-invoice-texts', authenticateToken, requireBillingFeature, validate(generateInvoiceTextsSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, sevdeskContactId, periodStart, periodEnd, entries } = req.body;
-
-    if (!customerId || !periodStart || !periodEnd || !entries) {
-      return res.status(400).json({
-        success: false,
-        error: 'customerId, periodStart, periodEnd, and entries are required',
-      });
-    }
+    // Validation handled by Zod
 
     // Get customer name
     const customerResult = await query(
@@ -719,7 +882,7 @@ router.get('/vouchers/:id', authenticateToken, requireBillingFeature, async (req
 });
 
 // POST /api/sevdesk/vouchers/upload - Upload a voucher file
-router.post('/vouchers/upload', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/vouchers/upload', authenticateToken, requireBillingFeature, validate(uploadFileSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -728,11 +891,8 @@ router.post('/vouchers/upload', authenticateToken, requireBillingFeature, async 
       return res.status(400).json({ success: false, error: 'sevDesk not configured' });
     }
 
-    // Check if file data is provided (base64 encoded)
+    // Validation handled by Zod
     const { fileData, filename, mimeType } = req.body;
-    if (!fileData || !filename) {
-      return res.status(400).json({ success: false, error: 'File data and filename required' });
-    }
 
     // Convert base64 to buffer
     const buffer = Buffer.from(fileData, 'base64');
@@ -755,7 +915,7 @@ router.post('/vouchers/upload', authenticateToken, requireBillingFeature, async 
 });
 
 // POST /api/sevdesk/vouchers/create - Create voucher from uploaded file
-router.post('/vouchers/create', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/vouchers/create', authenticateToken, requireBillingFeature, validate(createVoucherFromFileSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -764,11 +924,8 @@ router.post('/vouchers/create', authenticateToken, requireBillingFeature, async 
       return res.status(400).json({ success: false, error: 'sevDesk not configured' });
     }
 
+    // Validation handled by Zod
     const { fileId, voucherDate, description, supplierName, sumNet, sumGross, taxRate, creditDebit } = req.body;
-
-    if (!fileId || !voucherDate) {
-      return res.status(400).json({ success: false, error: 'fileId and voucherDate are required' });
-    }
 
     const result = await sevdeskService.createVoucherFromFile(config.apiToken, fileId, {
       voucherDate,
@@ -983,37 +1140,16 @@ router.get('/positions/suggestions', authenticateToken, requireBillingFeature, a
 });
 
 // POST /api/sevdesk/quotes/create - Create a new quote in sevDesk
-router.post('/quotes/create', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/quotes/create', authenticateToken, requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
 
-    // Validate required fields
-    if (!contactId) {
-      return res.status(400).json({ success: false, error: 'contactId is required' });
-    }
-    if (!header || header.trim() === '') {
-      return res.status(400).json({ success: false, error: 'header (Betreff) is required' });
-    }
-    if (!positions || !Array.isArray(positions) || positions.length === 0) {
-      return res.status(400).json({ success: false, error: 'At least one position is required' });
-    }
-
-    // Validate each position
+    // Additional business logic validation (beyond Zod schema)
     for (const pos of positions) {
-      if (!pos.name || pos.name.trim() === '') {
-        return res.status(400).json({ success: false, error: 'Each position must have a name' });
-      }
-      // Allow quantity=0 for headings (sections)
-      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
-      }
-      // For normal positions (quantity > 0), validate it's not zero
+      // For normal positions (quantity > 0), validate price constraint
       if (pos.quantity === 0 && pos.price !== 0) {
         return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
-      }
-      if (typeof pos.price !== 'number' || pos.price < 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
       }
     }
 
@@ -1072,37 +1208,16 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
 });
 
 // PUT /api/sevdesk/quotes/:id - Update an existing quote
-router.put('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.put('/quotes/:id', authenticateToken, requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const quoteId = req.params.id;
     const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
 
-    // Validate required fields
-    if (!contactId) {
-      return res.status(400).json({ success: false, error: 'contactId is required' });
-    }
-    if (!header || header.trim() === '') {
-      return res.status(400).json({ success: false, error: 'header (Betreff) is required' });
-    }
-    if (!positions || !Array.isArray(positions) || positions.length === 0) {
-      return res.status(400).json({ success: false, error: 'At least one position is required' });
-    }
-
-    // Validate each position
+    // Additional business logic validation (beyond Zod schema)
     for (const pos of positions) {
-      if (!pos.name || pos.name.trim() === '') {
-        return res.status(400).json({ success: false, error: 'Each position must have a name' });
-      }
-      // Allow quantity=0 for headings (sections)
-      if (typeof pos.quantity !== 'number' || pos.quantity < 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid quantity >= 0' });
-      }
       if (pos.quantity === 0 && pos.price !== 0) {
         return res.status(400).json({ success: false, error: 'Position with price must have quantity > 0' });
-      }
-      if (typeof pos.price !== 'number' || pos.price < 0) {
-        return res.status(400).json({ success: false, error: 'Each position must have a valid price >= 0' });
       }
     }
 
@@ -1178,14 +1293,11 @@ router.get('/import/preview', authenticateToken, requireBillingFeature, async (r
 });
 
 // POST /api/sevdesk/import/execute - Execute customer import
-router.post('/import/execute', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/import/execute', authenticateToken, requireBillingFeature, validate(importCustomersSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { imports } = req.body;
-
-    if (!imports || !Array.isArray(imports)) {
-      return res.status(400).json({ success: false, error: 'imports array is required' });
-    }
+    // Validation handled by Zod
 
     // Get config
     const config = await sevdeskService.getConfig(userId);
@@ -1210,14 +1322,11 @@ router.post('/import/execute', authenticateToken, requireBillingFeature, async (
 });
 
 // POST /api/sevdesk/import/single - Import a single customer
-router.post('/import/single', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/import/single', authenticateToken, requireBillingFeature, validate(updateCustomerFromSevdeskSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { sevdeskId, name, customerNumber, email, address, color, hourlyRate } = req.body;
-
-    if (!sevdeskId || !name) {
-      return res.status(400).json({ success: false, error: 'sevdeskId and name are required' });
-    }
+    // Validation handled by Zod
 
     const result = await sevdeskService.importSevdeskCustomer(
       userId,

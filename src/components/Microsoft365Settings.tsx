@@ -2,8 +2,10 @@ import { useState, useEffect, Fragment } from 'react';
 import { Settings, Save, CheckCircle, XCircle, AlertTriangle, Cloud, Mail, Shield, Loader2, Eye, EyeOff, ExternalLink, Key, FileText, RefreshCw, Play, Download, Check, Trash2, ChevronDown, ChevronUp, File, Undo2 } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { microsoft365Api, Microsoft365Config, ProcessedInvoice, InvoiceDocument } from '../services/api';
+import { useConfirm } from '../contexts/UIContext';
 
 export const Microsoft365Settings = () => {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -145,9 +147,13 @@ export const Microsoft365Settings = () => {
   };
 
   const handleDeleteDraft = async (invoiceId: string) => {
-    if (!confirm('Entwurf wirklich löschen? Die Dateien werden ebenfalls entfernt.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Entwurf löschen?',
+      message: 'Entwurf wirklich löschen? Die Dateien werden ebenfalls entfernt.',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.deleteInvoiceDraft(invoiceId);
@@ -165,9 +171,13 @@ export const Microsoft365Settings = () => {
 
   const handleClearFailed = async () => {
     const failedCount = processedInvoices.filter(i => i.status === 'failed').length;
-    if (!confirm(`${failedCount} fehlgeschlagene Einträge löschen und neu verarbeiten?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Fehlgeschlagene Einträge löschen?',
+      message: `${failedCount} fehlgeschlagene Einträge löschen und neu verarbeiten?`,
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.clearFailedInvoices();
@@ -184,9 +194,13 @@ export const Microsoft365Settings = () => {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('ALLE Einträge wirklich löschen? Alle Dokumente und Zuordnungen werden entfernt.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Alle Einträge löschen?',
+      message: 'ALLE Einträge wirklich löschen? Alle Dokumente und Zuordnungen werden entfernt.',
+      confirmText: 'Alle löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     try {
       const response = await microsoft365Api.clearAllInvoices();
@@ -347,12 +361,12 @@ export const Microsoft365Settings = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
-          <Cloud className="text-accent-primary dark:text-blue-400" size={24} />
+        <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+          <Cloud className="text-accent-primary dark:text-accent-primary" size={24} />
         </div>
         <div>
           <h2 className="text-xl font-semibold dark:text-white">Microsoft 365</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             Azure AD Integration fuer E-Mail und weitere Dienste
           </p>
         </div>
@@ -383,7 +397,7 @@ export const Microsoft365Settings = () => {
                 : 'Nicht konfiguriert'}
             </div>
             {config?.lastConnectionTest && (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-sm text-gray-500 dark:text-dark-400">
                 Letzter Test: {new Date(config.lastConnectionTest).toLocaleString('de-DE')}
               </div>
             )}
@@ -415,7 +429,7 @@ export const Microsoft365Settings = () => {
         <div className="space-y-4">
           {/* Tenant ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Tenant ID (Directory ID)
             </label>
             <input
@@ -429,7 +443,7 @@ export const Microsoft365Settings = () => {
 
           {/* Client ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Application (Client) ID
             </label>
             <input
@@ -443,7 +457,7 @@ export const Microsoft365Settings = () => {
 
           {/* Client Secret */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Client Secret {config?.hasClientSecret && <span className="text-green-600 dark:text-green-400">(gespeichert)</span>}
             </label>
             <div className="relative">
@@ -458,7 +472,7 @@ export const Microsoft365Settings = () => {
               <button
                 type="button"
                 onClick={() => setShowSecret(!showSecret)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500"
               >
                 {showSecret ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -470,7 +484,7 @@ export const Microsoft365Settings = () => {
             href="/docs/azure-setup"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-accent-primary dark:text-blue-400 hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-accent-primary dark:text-accent-primary hover:underline"
           >
             <ExternalLink size={14} />
             Azure App Registration Anleitung
@@ -488,7 +502,7 @@ export const Microsoft365Settings = () => {
         <div className="space-y-4">
           {/* Mail From */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Absender E-Mail (Mail From)
             </label>
             <input
@@ -498,14 +512,14 @@ export const Microsoft365Settings = () => {
               placeholder="noreply@ihredomain.de"
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
             />
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Muss ein existierendes M365 Postfach sein (auch Shared Mailbox moeglich)
             </p>
           </div>
 
           {/* Support Mailbox */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Support Postfach (fuer Inbox-Ueberwachung)
             </label>
             <input
@@ -519,7 +533,7 @@ export const Microsoft365Settings = () => {
 
           {/* Invoice Mailbox */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Rechnungs-Postfach (fuer automatische Belegverarbeitung)
             </label>
             <input
@@ -529,7 +543,7 @@ export const Microsoft365Settings = () => {
               placeholder="invoice@ihredomain.de"
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
             />
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               Eingehende E-Mails mit PDF-Anhaengen werden automatisch als Belege gespeichert
             </p>
           </div>
@@ -553,7 +567,7 @@ export const Microsoft365Settings = () => {
             />
             <div>
               <span className="font-medium dark:text-white">E-Mail Versand</span>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 System-E-Mails ueber Microsoft Graph API senden
               </p>
             </div>
@@ -571,7 +585,7 @@ export const Microsoft365Settings = () => {
               <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
                 Bald verfuegbar
               </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Eingehende E-Mails automatisch in Tickets umwandeln
               </p>
             </div>
@@ -704,18 +718,18 @@ export const Microsoft365Settings = () => {
             </div>
           </div>
 
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Postfach: <span className="font-medium text-gray-700 dark:text-gray-300">{invoiceMailbox}</span>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
+            Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{invoiceMailbox}</span>
           </p>
 
           {/* Processing Result */}
           {invoiceProcessResult && (
-            <div className="mb-4 p-3 bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="mb-4 p-3 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg">
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600 dark:text-green-400">
                   ✓ {invoiceProcessResult.processedCount} verarbeitet
                 </span>
-                <span className="text-gray-600 dark:text-gray-400">
+                <span className="text-gray-600 dark:text-dark-400">
                   ○ {invoiceProcessResult.skippedCount} übersprungen
                 </span>
                 {invoiceProcessResult.failedCount > 0 && (
@@ -737,12 +751,12 @@ export const Microsoft365Settings = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-dark-300">
-                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Datum</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Absender</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Betreff</th>
-                    <th className="text-center py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Anhaenge</th>
-                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Status</th>
-                    <th className="text-right py-2 px-3 font-medium text-gray-600 dark:text-gray-400">Aktionen</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Datum</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Absender</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Betreff</th>
+                    <th className="text-center py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Anhaenge</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Status</th>
+                    <th className="text-right py-2 px-3 font-medium text-gray-600 dark:text-dark-400">Aktionen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -759,23 +773,23 @@ export const Microsoft365Settings = () => {
                           })}
                         </td>
                         <td className="py-2 px-3 text-gray-900 dark:text-white">
-                          <div className="truncate max-w-[200px]" title={invoice.senderEmail}>
-                            {invoice.senderName || invoice.senderEmail}
+                          <div className="truncate max-w-[200px]" title={invoice.senderEmail ?? undefined}>
+                            {invoice.senderName || invoice.senderEmail || '—'}
                           </div>
                           {invoice.vendorName && (
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
                         </td>
-                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">
-                          <div className="truncate max-w-[250px]" title={invoice.emailSubject}>
-                            {invoice.emailSubject}
+                        <td className="py-2 px-3 text-gray-700 dark:text-dark-500">
+                          <div className="truncate max-w-[250px]" title={invoice.emailSubject ?? undefined}>
+                            {invoice.emailSubject || '—'}
                           </div>
                         </td>
                         <td className="py-2 px-3 text-center">
                           {invoice.attachmentCount > 0 ? (
                             <button
                               onClick={() => handleToggleDocuments(invoice.id)}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-accent-primary dark:text-blue-400 hover:bg-accent-light dark:hover:bg-blue-900/20 rounded transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-accent-primary dark:text-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/20 rounded transition-colors"
                               title="Dokumente anzeigen"
                             >
                               {loadingDocuments === invoice.id ? (
@@ -802,11 +816,11 @@ export const Microsoft365Settings = () => {
                             invoice.status === 'processed'
                               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                               : invoice.status === 'draft'
-                              ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                              ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                               : invoice.status === 'failed'
                               ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                               : invoice.status === 'skipped'
-                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                              ? 'bg-gray-100 dark:bg-dark-100 text-gray-600 dark:text-dark-400'
                               : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                           }`}>
                             {invoice.status === 'processed' && <CheckCircle size={12} />}
@@ -859,8 +873,8 @@ export const Microsoft365Settings = () => {
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
                           <td colSpan={6} className="py-3 px-4">
-                            <div className="pl-4 border-l-2 border-blue-300 dark:border-accent-primary">
-                              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
+                              <div className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                                 Anhänge
                               </div>
                               {loadingDocuments === invoice.id ? (
@@ -880,7 +894,7 @@ export const Microsoft365Settings = () => {
                                         <div className="font-medium text-gray-900 dark:text-white truncate">
                                           {doc.originalFilename}
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        <div className="text-xs text-gray-500 dark:text-dark-400">
                                           {formatFileSize(doc.size)} • {doc.mimeType}
                                         </div>
                                       </div>
@@ -904,7 +918,7 @@ export const Microsoft365Settings = () => {
                                   ))}
                                 </div>
                               ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                <div className="text-sm text-gray-500 dark:text-dark-400">
                                   Keine Dokumente gefunden
                                 </div>
                               )}
@@ -918,7 +932,7 @@ export const Microsoft365Settings = () => {
               </table>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               <FileText size={32} className="mx-auto mb-2 opacity-50" />
               <p>Noch keine Rechnungen verarbeitet</p>
               <p className="text-sm mt-1">Klicken Sie auf "Postfach verarbeiten" um E-Mails abzurufen</p>

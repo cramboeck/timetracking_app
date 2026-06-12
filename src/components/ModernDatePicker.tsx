@@ -133,7 +133,7 @@ export const ModernDatePicker = ({
   return (
     <div ref={containerRef} className="relative">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
           {label}
         </label>
       )}
@@ -149,7 +149,7 @@ export const ModernDatePicker = ({
               flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200
               ${formatDate(date) === value
                 ? 'bg-accent-primary text-white shadow-md'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 hover:bg-gray-200 dark:hover:bg-dark-300'
               }
             `}
           >
@@ -177,10 +177,10 @@ export const ModernDatePicker = ({
                   ${isSelected
                     ? 'bg-accent-primary text-white shadow-lg scale-105'
                     : isTodayDate
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                       : isFutureDate
-                        ? 'bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                        : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                        ? 'bg-gray-50 dark:bg-dark-100 text-gray-300 dark:text-dark-400 cursor-not-allowed'
+                        : 'bg-gray-50 dark:bg-dark-200 text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-300'
                   }
                 `}
               >
@@ -205,18 +205,18 @@ export const ModernDatePicker = ({
         onClick={() => setIsOpen(!isOpen)}
         className={`
           w-full flex items-center justify-between gap-3 px-4 py-3
-          bg-white dark:bg-gray-800
+          bg-white dark:bg-dark-100
           border-2 rounded-xl
           transition-all duration-200
           ${isOpen
             ? 'border-accent-primary ring-2 ring-accent-primary/20'
-            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+            : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-dark-border'
           }
         `}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
-            <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
+          <div className="w-10 h-10 rounded-lg bg-accent-light dark:bg-accent-primary/20 flex items-center justify-center">
+            <Calendar size={20} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div className="text-left">
             <span className="text-lg font-bold text-gray-900 dark:text-white">
@@ -229,7 +229,7 @@ export const ModernDatePicker = ({
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 w-full bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl p-4">
+        <div className="absolute z-50 mt-2 w-full bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border shadow-xl p-4">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-4">
             <IconButton
@@ -250,7 +250,7 @@ export const ModernDatePicker = ({
           {/* Day Labels */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
-              <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
+              <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-dark-400 py-1">
                 {day}
               </div>
             ))}
@@ -271,10 +271,10 @@ export const ModernDatePicker = ({
                     : isSelectedDate(d)
                       ? 'bg-accent-primary text-white'
                       : isToday(d)
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
                         : isFuture(d)
-                          ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          ? 'text-gray-300 dark:text-dark-400 cursor-not-allowed'
+                          : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
                   }
                 `}
               >

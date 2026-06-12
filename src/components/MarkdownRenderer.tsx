@@ -28,7 +28,7 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
         elements.push(
           <blockquote
             key={`bq-${elements.length}`}
-            className="pl-4 border-l-4 border-gray-300 dark:border-gray-600 italic text-gray-600 dark:text-gray-400 my-2"
+            className="pl-4 border-l-4 border-gray-300 dark:border-dark-border italic text-gray-600 dark:text-dark-400 my-2"
           >
             {blockquoteLines.map((line, i) => (
               <span key={i}>
@@ -79,7 +79,7 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
         )},
         // Inline code `code`
         { regex: /`([^`]+)`/, render: (m: RegExpMatchArray) => (
-          <code key={keyIndex++} className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-pink-600 dark:text-pink-400 rounded text-sm font-mono">
+          <code key={keyIndex++} className="px-1.5 py-0.5 bg-gray-100 dark:bg-dark-100 text-pink-600 dark:text-pink-400 rounded text-sm font-mono">
             {m[1]}
           </code>
         )},

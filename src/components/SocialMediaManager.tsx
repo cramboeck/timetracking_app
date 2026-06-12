@@ -12,6 +12,7 @@ import {
 import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide, ThemeSelectionOutput } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
+import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface SocialMediaManagerProps {
   customers?: Customer[];
@@ -40,7 +41,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   linkedin: 'bg-accent-primary',
   twitter: 'bg-sky-500',
   facebook: 'bg-blue-500',
-  instagram: 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500',
+  instagram: 'bg-gradient-to-r from-accent-light0 via-pink-500 to-orange-500',
 };
 
 const PLATFORM_LIMITS: Record<string, number> = {
@@ -52,6 +53,8 @@ const PLATFORM_LIMITS: Record<string, number> = {
 };
 
 export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) => {
+  const showToast = useToast();
+  const confirm = useConfirm();
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [posts, setPosts] = useState<SocialMediaPost[]>([]);
   const [templates, setTemplates] = useState<SocialMediaTemplate[]>([]);
@@ -546,7 +549,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     try {
       const result = await socialMediaApi.generateAutopilotContent();
       setAutopilotPending(result.posts);
-      alert(result.message);
+      showToast(result.message, 'info', 5000);
     } catch (err: any) {
       setError(err.message || 'Autopilot-Generierung fehlgeschlagen');
     } finally {
@@ -893,7 +896,13 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   };
 
   const deletePost = async (id: string) => {
-    if (!confirm('Post wirklich löschen?')) return;
+    const ok = await confirm({
+      title: 'Post löschen?',
+      message: 'Post wirklich löschen?',
+      confirmText: 'Löschen',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await socialMediaApi.deletePost(id);
       loadData();
@@ -1024,7 +1033,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
                   viewMode === tab.id
                     ? 'bg-accent-primary text-white'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-200'
+                    : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
                 }`}
               >
                 <tab.icon size={18} />
@@ -1044,14 +1053,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             </button>
             <button
               onClick={() => setShowHashtagResearch(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               <Search size={18} />
               Hashtags
             </button>
             <button
               onClick={() => setShowImportModal(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+              className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               <Upload size={18} />
               Import
@@ -1068,14 +1077,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="flex gap-2">
             <button
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               <Upload size={18} />
               CSV Import
             </button>
             <button
               onClick={() => setShowHashtagResearch(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
             >
               <Search size={18} />
               Hashtag-Recherche
@@ -1109,7 +1118,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
                 viewMode === tab.id
                   ? 'bg-accent-primary text-white'
-                  : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-300'
+                  : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 hover:bg-gray-200 dark:hover:bg-dark-300'
               }`}
             >
               <tab.icon size={18} />
@@ -1125,8 +1134,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-accent-lighter dark:bg-blue-900/30 rounded-lg">
-                  <CalendarDays size={20} className="text-accent-primary dark:text-blue-400" />
+                <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+                  <CalendarDays size={20} className="text-accent-primary dark:text-accent-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold dark:text-white">{posts.filter(p => p.status === 'scheduled').length}</p>
@@ -1158,8 +1167,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             </div>
             <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                  <Recycle size={20} className="text-purple-600 dark:text-purple-400" />
+                <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                  <Recycle size={20} className="text-accent-primary dark:text-accent-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold dark:text-white">{evergreenPosts.length}</p>
@@ -1192,14 +1201,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowPostEditor(true); }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:opacity-90"
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-accent-primary to-accent-dark text-white rounded-xl hover:opacity-90"
               >
                 <Plus size={24} />
                 <span className="text-sm font-medium">Neuer Post</span>
               </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowAiGenerator(true); }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90"
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-accent-light0 to-pink-500 text-white rounded-xl hover:opacity-90"
               >
                 <Sparkles size={24} />
                 <span className="text-sm font-medium">KI-Post</span>
@@ -1241,8 +1250,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   .slice(0, 5)
                   .map(post => (
                     <div key={post.id} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
-                      <div className="flex-shrink-0 p-2 bg-accent-lighter dark:bg-blue-900/30 rounded">
-                        <Clock size={16} className="text-accent-primary dark:text-blue-400" />
+                      <div className="flex-shrink-0 p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded">
+                        <Clock size={16} className="text-accent-primary dark:text-accent-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm dark:text-white truncate">{post.content.substring(0, 60)}...</p>
@@ -1319,7 +1328,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           {/* Workflow Suggestions */}
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+          <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-6 border border-accent-primary/30 dark:border-accent-primary/40">
             <h3 className="font-semibold dark:text-white mb-3 flex items-center gap-2">
               <Lightbulb size={20} className="text-amber-500" />
               Empfehlungen
@@ -1412,7 +1421,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
             {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
+              <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-dark-400 py-2">
                 {day}
               </div>
             ))}
@@ -1431,7 +1440,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 >
                   {day && (
                     <>
-                      <div className={`text-sm font-medium mb-1 ${isToday ? 'text-accent-primary' : 'text-gray-700 dark:text-gray-300'}`}>
+                      <div className={`text-sm font-medium mb-1 ${isToday ? 'text-accent-primary' : 'text-gray-700 dark:text-dark-500'}`}>
                         {day}
                       </div>
                       <div className="space-y-1">
@@ -1443,8 +1452,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               post.status === 'published'
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                 : post.status === 'scheduled'
-                                ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
-                                : 'bg-gray-200 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
+                                ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                                : 'bg-gray-200 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                             }`}
                           >
                             {post.title || post.content.substring(0, 20)}...
@@ -1467,7 +1476,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {viewMode === 'list' && (
         <div className="space-y-4">
           {posts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               Noch keine Posts erstellt
             </div>
           ) : (
@@ -1482,14 +1491,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       post.status === 'published'
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                         : post.status === 'scheduled'
-                        ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
-                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
+                        ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                        : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                     }`}>
                       {post.status === 'published' ? 'Veröffentlicht' :
                        post.status === 'scheduled' ? 'Geplant' : 'Entwurf'}
                     </span>
                     {post.aiGenerated && (
-                      <span className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                      <span className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary">
                         <Sparkles size={12} />
                         KI
                       </span>
@@ -1526,7 +1535,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 {post.title && (
                   <h4 className="font-medium dark:text-white mb-1">{post.title}</h4>
                 )}
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
+                <p className="text-gray-700 dark:text-dark-500 whitespace-pre-wrap line-clamp-3">
                   {post.content}
                 </p>
                 {post.hashtags && post.hashtags.length > 0 && (
@@ -1537,7 +1546,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
                 )}
                 {post.scheduledAt && (
-                  <div className="flex items-center gap-1 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center gap-1 mt-2 text-sm text-gray-500 dark:text-dark-400">
                     <Clock size={14} />
                     {new Date(post.scheduledAt).toLocaleString('de-DE')}
                   </div>
@@ -1565,7 +1574,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   createSubView === sub.id
                     ? 'bg-accent-primary text-white'
-                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200'
                 }`}
               >
                 <sub.icon size={16} />
@@ -1584,7 +1593,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-accent-primary cursor-pointer transition-colors"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-accent-lighter dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-accent-lighter dark:bg-accent-primary/30 rounded-full flex items-center justify-center mx-auto mb-4">
                       <PenTool size={28} className="text-accent-primary" />
                     </div>
                     <h3 className="font-semibold dark:text-white mb-2">Manuell erstellen</h3>
@@ -1595,11 +1604,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 {/* AI Post Card */}
                 <div
                   onClick={() => setShowAiGenerator(true)}
-                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-purple-500 cursor-pointer transition-colors"
+                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-accent-primary cursor-pointer transition-colors"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Sparkles size={28} className="text-purple-600" />
+                    <div className="w-16 h-16 bg-accent-lighter dark:bg-accent-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Sparkles size={28} className="text-accent-primary" />
                     </div>
                     <h3 className="font-semibold dark:text-white mb-2">KI-Generierung</h3>
                     <p className="text-sm text-gray-500">Lass KI einen Post basierend auf deinem Thema erstellen</p>
@@ -1624,7 +1633,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
                     <div>
                       <h3 className="font-semibold text-lg dark:text-white mb-1">Content Wizard</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      <p className="text-sm text-gray-600 dark:text-dark-400 mb-2">
                         Der Marketing-Experte erstellt professionellen Content mit kritischer Analyse und DALL-E Bildgenerierung
                       </p>
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -1680,7 +1689,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <h3 className="font-semibold dark:text-white mb-4">Carousel Einstellungen</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Thema *</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Thema *</label>
                       <input
                         type="text"
                         value={carouselTopic}
@@ -1692,7 +1701,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Plattform</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Plattform</label>
                         <select
                           value={carouselPlatform}
                           onChange={(e) => setCarouselPlatform(e.target.value as 'instagram' | 'linkedin')}
@@ -1703,7 +1712,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Anzahl Slides</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Anzahl Slides</label>
                         <input
                           type="number"
                           value={carouselSlideCount}
@@ -1717,7 +1726,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Stil</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Stil</label>
                         <select
                           value={carouselStyle}
                           onChange={(e) => setCarouselStyle(e.target.value as any)}
@@ -1732,7 +1741,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Tonalität</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Tonalität</label>
                         <select
                           value={carouselTone}
                           onChange={(e) => setCarouselTone(e.target.value as any)}
@@ -1747,7 +1756,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe (optional)</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Zielgruppe (optional)</label>
                       <input
                         type="text"
                         value={carouselTargetAudience}
@@ -1759,7 +1768,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Primärfarbe</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Primärfarbe</label>
                         <div className="flex gap-2">
                           <input
                             type="color"
@@ -1776,7 +1785,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium dark:text-gray-300 mb-1">Sekundärfarbe</label>
+                        <label className="block text-sm font-medium dark:text-dark-500 mb-1">Sekundärfarbe</label>
                         <div className="flex gap-2">
                           <input
                             type="color"
@@ -1801,13 +1810,13 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         onChange={(e) => setCarouselIncludeEmojis(e.target.checked)}
                         className="rounded"
                       />
-                      <span className="text-sm dark:text-gray-300">Emojis verwenden</span>
+                      <span className="text-sm dark:text-dark-500">Emojis verwenden</span>
                     </label>
 
                     <button
                       onClick={generateCarousel}
                       disabled={carouselGenerating || !carouselTopic.trim()}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg disabled:opacity-50 font-medium"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-accent-primary text-white rounded-lg disabled:opacity-50 font-medium"
                     >
                       {carouselGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                       {carouselGenerating ? 'Generiere...' : 'Carousel generieren'}
@@ -1826,7 +1835,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold dark:text-white">{carouselContent.title}</h3>
-                        <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                        <span className="text-xs px-2 py-1 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded">
                           {carouselContent.totalSlides} Slides
                         </span>
                       </div>
@@ -1864,7 +1873,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               key={idx}
                               onClick={() => setCarouselCurrentSlide(idx)}
                               className={`w-2 h-2 rounded-full transition-colors ${
-                                idx === carouselCurrentSlide ? 'bg-purple-500' : 'bg-gray-400'
+                                idx === carouselCurrentSlide ? 'bg-accent-primary' : 'bg-gray-400'
                               }`}
                             />
                           ))}
@@ -1940,7 +1949,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </button>
                         <button
                           onClick={() => socialMediaApi.exportCarousel(carouselContent, 'json')}
-                          className="flex items-center gap-1 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg text-sm"
+                          className="flex items-center gap-1 px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg text-sm"
                         >
                           <FileCode size={16} />
                           JSON Export
@@ -1948,7 +1957,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         <button
                           onClick={generateCarouselImages}
                           disabled={carouselGeneratingImages}
-                          className="flex items-center gap-1 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-sm"
+                          className="flex items-center gap-1 px-3 py-2 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded-lg text-sm"
                         >
                           {carouselGeneratingImages ? <Loader2 size={16} className="animate-spin" /> : <Image size={16} />}
                           Bilder generieren
@@ -1964,12 +1973,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                       {/* Canva Instructions */}
                       {carouselContent.canvaInstructions && (
-                        <div className="p-4 bg-accent-light dark:bg-blue-900/20 rounded-lg">
-                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                        <div className="p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
+                          <h4 className="text-sm font-medium text-accent-dark dark:text-accent-primary mb-2 flex items-center gap-2">
                             <Lightbulb size={16} />
                             Canva-Anleitung
                           </h4>
-                          <p className="text-sm text-accent-dark dark:text-blue-400">{carouselContent.canvaInstructions}</p>
+                          <p className="text-sm text-accent-dark dark:text-accent-primary">{carouselContent.canvaInstructions}</p>
                         </div>
                       )}
 
@@ -1977,7 +1986,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       {carouselContent.designTips?.length > 0 && (
                         <div className="p-4 bg-gray-50 dark:bg-dark-200 rounded-lg">
                           <h4 className="text-sm font-medium dark:text-white mb-2">Design-Tipps</h4>
-                          <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                          <ul className="text-sm text-gray-600 dark:text-dark-400 space-y-1">
                             {carouselContent.designTips.map((tip, i) => (
                               <li key={i}>• {tip}</li>
                             ))}
@@ -1994,7 +2003,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Batch Sub-View - Uses existing batch content */}
           {createSubView === 'batch' && (
             <div className="space-y-6">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-r from-accent-primary to-accent-primary rounded-xl p-6 text-white">
                 <div className="flex items-center gap-3 mb-2">
                   <Layers size={28} />
                   <h2 className="text-xl font-bold">Batch-Generierung</h2>
@@ -2005,7 +2014,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Themen (ein Thema pro Zeile)
                     </label>
                     <textarea
@@ -2019,7 +2028,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plattform</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Plattform</label>
                       <select
                         value={batchPlatform}
                         onChange={(e) => setBatchPlatform(e.target.value as Platform)}
@@ -2032,7 +2041,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ton</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Ton</label>
                       <select
                         value={batchTone}
                         onChange={(e) => setBatchTone(e.target.value as any)}
@@ -2052,11 +2061,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           onChange={(e) => setBatchAutoSchedule(e.target.checked)}
                           className="rounded"
                         />
-                        <span className="dark:text-gray-300">Auto-Planen</span>
+                        <span className="dark:text-dark-500">Auto-Planen</span>
                       </label>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Posts/Tag</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Posts/Tag</label>
                       <input
                         type="number"
                         value={batchPostsPerDay}
@@ -2071,7 +2080,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={generateBatch}
                     disabled={batchGenerating || !batchTopics.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-primary to-accent-primary text-white rounded-lg disabled:opacity-50"
                   >
                     {batchGenerating ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
                     {batchGenerating ? 'Generiere...' : 'Batch generieren'}
@@ -2129,7 +2138,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quell-Typ</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Quell-Typ</label>
                     <select
                       value={remixSourceType}
                       onChange={(e) => setRemixSourceType(e.target.value as any)}
@@ -2143,7 +2152,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Quell-Content
                     </label>
                     <textarea
@@ -2156,7 +2165,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Output-Plattformen
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -2175,7 +2184,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                               existing
                                 ? 'bg-accent-primary text-white'
-                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400'
+                                : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                             }`}
                           >
                             {PLATFORM_ICONS[p]}
@@ -2261,7 +2270,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   aiToolsSubView === sub.id
                     ? 'bg-accent-primary text-white'
-                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200'
                 }`}
               >
                 <sub.icon size={16} />
@@ -2301,7 +2310,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <h3 className="font-semibold dark:text-white mb-4">Einstellungen</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Posts pro Woche</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Posts pro Woche</label>
                       <input
                         type="number"
                         value={autopilotSettings.postsPerWeek}
@@ -2312,7 +2321,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Zielgruppe</label>
                       <input
                         type="text"
                         value={autopilotSettings.targetAudience}
@@ -2322,10 +2331,10 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-2">Content-Themen</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-2">Content-Themen</label>
                       <div className="flex flex-wrap gap-2 mb-2">
                         {autopilotSettings.contentThemes.map((theme, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-sm">
+                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded text-sm">
                             {theme}
                             <button onClick={() => setAutopilotSettings(s => ({ ...s, contentThemes: s.contentThemes.filter((_, i) => i !== idx) }))}>
                               <X size={12} />
@@ -2372,7 +2381,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={handleGenerateAutopilot}
                     disabled={autopilotGenerating || autopilotSettings.contentThemes.length === 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
                   >
                     {autopilotGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                     {autopilotGenerating ? 'Generiere...' : 'Posts generieren'}
@@ -2438,7 +2447,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <h4 className="font-medium dark:text-white">{trend.topic}</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">{trend.description}</p>
+                            <p className="text-sm text-gray-600 dark:text-dark-400">{trend.description}</p>
                           </div>
                           <span className={`px-2 py-1 text-xs rounded ${
                             trend.relevance === 'high' ? 'bg-green-100 text-green-700' :
@@ -2487,7 +2496,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
-                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">Themenbereich</label>
+                    <label className="block text-sm font-medium dark:text-dark-500 mb-1">Themenbereich</label>
                     <input
                       type="text"
                       value={ideasCategory}
@@ -2497,7 +2506,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium dark:text-gray-300 mb-1">Anzahl Ideen</label>
+                    <label className="block text-sm font-medium dark:text-dark-500 mb-1">Anzahl Ideen</label>
                     <input
                       type="number"
                       value={ideasCount}
@@ -2560,7 +2569,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   librarySubView === sub.id
                     ? 'bg-accent-primary text-white'
-                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200'
                 }`}
               >
                 <sub.icon size={16} />
@@ -2641,7 +2650,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           {template.platform === 'all' ? 'Alle' : template.platform}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">{template.content}</p>
+                      <p className="text-sm text-gray-600 dark:text-dark-400 line-clamp-3 mb-3">{template.content}</p>
                       <button
                         onClick={() => useTemplate(template)}
                         className="text-sm text-accent-primary hover:underline"
@@ -2663,7 +2672,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowHashtagResearch(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg"
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
                   >
                     <Search size={18} />
                     Hashtag-Recherche
@@ -2690,7 +2699,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       <h4 className="font-medium dark:text-white mb-2">{group.name}</h4>
                       <div className="flex flex-wrap gap-1 mb-3">
                         {group.hashtags.slice(0, 8).map((tag, idx) => (
-                          <span key={idx} className="text-xs px-2 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded">
+                          <span key={idx} className="text-xs px-2 py-1 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded">
                             #{tag}
                           </span>
                         ))}
@@ -2719,7 +2728,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         <div className="space-y-4">
           <button
             onClick={() => setShowTemplateEditor(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
           >
             <Plus size={18} />
             Neue Vorlage
@@ -2736,7 +2745,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     {template.platform === 'all' ? 'Alle' : template.platform}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3">
+                <p className="text-sm text-gray-600 dark:text-dark-400 line-clamp-3 mb-3">
                   {template.content}
                 </p>
                 <button
@@ -2756,7 +2765,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         <div className="space-y-4">
           <button
             onClick={() => setShowHashtagEditor(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
           >
             <Plus size={18} />
             Neue Hashtag-Gruppe
@@ -2782,7 +2791,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   onClick={() => {
                     navigator.clipboard.writeText(group.hashtags.join(' '));
                   }}
-                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-dark-500"
                 >
                   <Copy size={14} />
                   Kopieren
@@ -2796,8 +2805,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Accounts View */}
       {viewMode === 'accounts' && (
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <p className="text-sm text-accent-dark dark:text-blue-400">
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
               <strong>Hinweis:</strong> Die direkte Verbindung zu Social Media Plattformen wird in einer zukünftigen Version verfügbar sein.
               Aktuell können Sie Posts planen und den Content dann manuell auf den Plattformen veröffentlichen.
             </p>
@@ -2925,7 +2934,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Themen (ein Thema pro Zeile)
                   </label>
                   <textarea
@@ -2942,7 +2951,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Plattform
                     </label>
                     <select
@@ -2959,7 +2968,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                       Tonalität
                     </label>
                     <select
@@ -2983,7 +2992,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       onChange={(e) => setBatchIncludeHashtags(e.target.checked)}
                       className="rounded"
                     />
-                    <span className="text-sm dark:text-gray-300">Hashtags</span>
+                    <span className="text-sm dark:text-dark-500">Hashtags</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -2992,7 +3001,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       onChange={(e) => setBatchIncludeEmoji(e.target.checked)}
                       className="rounded"
                     />
-                    <span className="text-sm dark:text-gray-300">Emojis</span>
+                    <span className="text-sm dark:text-dark-500">Emojis</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -3001,14 +3010,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       onChange={(e) => setBatchAutoSchedule(e.target.checked)}
                       className="rounded"
                     />
-                    <span className="text-sm dark:text-gray-300">Auto-Planen</span>
+                    <span className="text-sm dark:text-dark-500">Auto-Planen</span>
                   </label>
                 </div>
 
                 {batchAutoSchedule && (
                   <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Start-Datum
                       </label>
                       <input
@@ -3019,7 +3028,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Posts/Tag
                       </label>
                       <input
@@ -3037,7 +3046,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 <button
                   onClick={generateBatch}
                   disabled={batchGenerating || batchTopics.split('\n').filter(t => t.trim()).length === 0}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
                 >
                   {batchGenerating ? (
                     <>
@@ -3082,7 +3091,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       {post.hashtags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {post.hashtags.map((tag, i) => (
-                            <span key={i} className="text-xs text-accent-primary bg-accent-lighter dark:bg-blue-900/30 px-1.5 py-0.5 rounded">
+                            <span key={i} className="text-xs text-accent-primary bg-accent-lighter dark:bg-accent-primary/30 px-1.5 py-0.5 rounded">
                               {tag}
                             </span>
                           ))}
@@ -3172,9 +3181,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                     ))}
                     {analyticsData.contentMix.recommendations?.length > 0 && (
-                      <div className="mt-4 p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg">
-                        <p className="text-sm text-accent-dark dark:text-blue-400 font-medium mb-2">Empfehlungen:</p>
-                        <ul className="text-sm text-accent-primary dark:text-blue-300 space-y-1">
+                      <div className="mt-4 p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
+                        <p className="text-sm text-accent-dark dark:text-accent-primary font-medium mb-2">Empfehlungen:</p>
+                        <ul className="text-sm text-accent-primary dark:text-accent-primary space-y-1">
                           {analyticsData.contentMix.recommendations.map((rec, idx) => (
                             <li key={idx}>• {rec}</li>
                           ))}
@@ -3239,7 +3248,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           {evergreenPosts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               <Recycle size={48} className="mx-auto mb-4 opacity-50" />
               <p>Noch keine Evergreen-Posts vorhanden.</p>
               <p className="text-sm mt-2">Markiere Posts in der Listen-Ansicht als Evergreen.</p>
@@ -3284,7 +3293,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </button>
                     </div>
                   </div>
-                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap line-clamp-3">
+                  <p className="text-gray-700 dark:text-dark-500 whitespace-pre-wrap line-clamp-3">
                     {post.content}
                   </p>
                   {post.hashtags && post.hashtags.length > 0 && (
@@ -3310,7 +3319,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {viewMode === 'autopilot' && (
         <div className="space-y-6">
           {/* Autopilot Header */}
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-r from-accent-light0 to-indigo-600 rounded-xl p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <Rocket size={28} />
               <h2 className="text-xl font-bold">Social Media Autopilot</h2>
@@ -3337,7 +3346,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Posts pro Woche</label>
+                <label className="block text-sm font-medium dark:text-dark-500 mb-1">Posts pro Woche</label>
                 <input
                   type="number"
                   value={autopilotSettings.postsPerWeek}
@@ -3349,7 +3358,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Modus</label>
+                <label className="block text-sm font-medium dark:text-dark-500 mb-1">Modus</label>
                 <select
                   value={autopilotSettings.approvalMode}
                   onChange={(e) => setAutopilotSettings(s => ({ ...s, approvalMode: e.target.value as 'auto' | 'review' }))}
@@ -3361,7 +3370,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium dark:text-gray-300 mb-1">Zielgruppe</label>
+                <label className="block text-sm font-medium dark:text-dark-500 mb-1">Zielgruppe</label>
                 <input
                   type="text"
                   value={autopilotSettings.targetAudience}
@@ -3374,7 +3383,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
             {/* Content Themes */}
             <div className="mt-4">
-              <label className="block text-sm font-medium dark:text-gray-300 mb-2">Content-Themen</label>
+              <label className="block text-sm font-medium dark:text-dark-500 mb-2">Content-Themen</label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {autopilotSettings.contentThemes.map((theme, idx) => (
                   <span key={idx} className="flex items-center gap-1 px-3 py-1 bg-accent-primary/10 text-accent-primary rounded-full text-sm">
@@ -3424,7 +3433,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <button
                 onClick={handleGenerateAutopilot}
                 disabled={autopilotGenerating || !autopilotSettings.enabled || autopilotSettings.contentThemes.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-indigo-600 text-white rounded-lg disabled:opacity-50"
               >
                 {autopilotGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                 Jetzt generieren
@@ -3488,7 +3497,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {/* Trends View */}
       {viewMode === 'trends' && (
         <div className="space-y-6">
-          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-r from-cyan-500 to-accent-dark rounded-xl p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <Globe size={28} />
               <h2 className="text-xl font-bold">Trend-Surfer</h2>
@@ -3843,7 +3852,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   engagementSubView === sub.id
                     ? 'bg-accent-primary text-white'
-                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200'
                 }`}
               >
                 <sub.icon size={16} />
@@ -4030,7 +4039,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Antwort-Stil</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Antwort-Stil</label>
                       <select
                         value={engagementSettings.responseStyle}
                         onChange={(e) => setEngagementSettings(s => ({ ...s, responseStyle: e.target.value as any }))}
@@ -4044,7 +4053,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-1">Tägliches Limit</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-1">Tägliches Limit</label>
                       <input
                         type="number"
                         value={engagementSettings.dailyLimit}
@@ -4057,7 +4066,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium dark:text-gray-300 mb-2">Keywords zum Verfolgen</label>
+                      <label className="block text-sm font-medium dark:text-dark-500 mb-2">Keywords zum Verfolgen</label>
                       <div className="flex flex-wrap gap-2 mb-2">
                         {engagementSettings.targetKeywords.map((kw, idx) => (
                           <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-sm">
@@ -4174,7 +4183,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                             })}
                           </span>
-                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded capitalize">
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded capitalize">
                             {entry.platform}
                           </span>
                         </div>
@@ -4206,12 +4215,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold dark:text-white">Stories & Bild-Generator</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Erstelle virale Stories mit KI-generierten Bildern</p>
+              <p className="text-sm text-gray-500 dark:text-dark-400">Erstelle virale Stories mit KI-generierten Bildern</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowImageGenerator(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
               >
                 <Image size={18} />
                 Bild generieren
@@ -4241,7 +4250,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Thema</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Thema</label>
                   <input
                     type="text"
                     value={storyTopic}
@@ -4252,7 +4261,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plattform</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Plattform</label>
                   <select
                     value={storyPlatform}
                     onChange={(e) => setStoryPlatform(e.target.value as 'instagram' | 'facebook' | 'linkedin')}
@@ -4265,7 +4274,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Story-Typ</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Story-Typ</label>
                   <select
                     value={storyType}
                     onChange={(e) => setStoryType(e.target.value as StoryType)}
@@ -4281,7 +4290,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Zielgruppe (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Zielgruppe (optional)</label>
                   <input
                     type="text"
                     value={storyTargetAudience}
@@ -4292,7 +4301,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Markenstimme (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Markenstimme (optional)</label>
                   <input
                     type="text"
                     value={storyBrandVoice}
@@ -4310,7 +4319,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       onChange={(e) => setStoryIncludeCTA(e.target.checked)}
                       className="rounded border-gray-300"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Call-to-Action einbinden</span>
+                    <span className="text-sm text-gray-700 dark:text-dark-500">Call-to-Action einbinden</span>
                   </label>
                 </div>
               </div>
@@ -4375,7 +4384,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 uppercase mb-1">Bild-Prompt (für KI-Generierung):</p>
                     <div className="flex gap-2">
-                      <p className="flex-1 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-100 p-2 rounded">
+                      <p className="flex-1 text-sm text-gray-700 dark:text-dark-500 bg-white dark:bg-dark-100 p-2 rounded">
                         {generatedStory.imagePrompt}
                       </p>
                       <button
@@ -4383,7 +4392,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           setImagePrompt(generatedStory.imagePrompt);
                           setShowImageGenerator(true);
                         }}
-                        className="px-3 py-1 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+                        className="px-3 py-1 bg-accent-primary text-white rounded text-sm hover:bg-accent-primary"
                       >
                         Bild generieren
                       </button>
@@ -4393,7 +4402,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {/* Image Suggestions */}
                   <div className="mb-4">
                     <p className="text-xs text-gray-500 uppercase mb-1">Bild-Vorschläge:</p>
-                    <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
+                    <ul className="list-disc list-inside text-sm text-gray-600 dark:text-dark-400">
                       {generatedStory.imageSuggestions.map((suggestion, idx) => (
                         <li key={idx}>{suggestion}</li>
                       ))}
@@ -4403,7 +4412,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {/* Hashtags & CTA */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {generatedStory.hashtags.map((tag, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded text-sm">
+                      <span key={idx} className="px-2 py-1 bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary rounded text-sm">
                         #{tag}
                       </span>
                     ))}
@@ -4438,7 +4447,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold dark:text-white flex items-center gap-2">
-                  <Image size={20} className="text-purple-500" />
+                  <Image size={20} className="text-accent-primary" />
                   KI-Bild generieren (DALL-E 3)
                 </h3>
                 <button onClick={() => setShowImageGenerator(false)} className="text-gray-500">
@@ -4448,7 +4457,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bild-Beschreibung</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Bild-Beschreibung</label>
                   <textarea
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
@@ -4459,7 +4468,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stil</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Stil</label>
                   <select
                     value={imageStyle}
                     onChange={(e) => setImageStyle(e.target.value as ImageStyle)}
@@ -4475,7 +4484,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Seitenverhältnis</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Seitenverhältnis</label>
                   <select
                     value={imageAspectRatio}
                     onChange={(e) => setImageAspectRatio(e.target.value as '1:1' | '9:16' | '16:9' | '4:5')}
@@ -4489,7 +4498,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Qualität</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Qualität</label>
                   <select
                     value={imageQuality}
                     onChange={(e) => setImageQuality(e.target.value as 'standard' | 'hd')}
@@ -4518,7 +4527,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       }
                     }}
                     disabled={loadingSuggestions}
-                    className="w-full px-4 py-2 border border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-900/20"
+                    className="w-full px-4 py-2 border border-accent-primary/40 text-accent-primary rounded-lg hover:bg-accent-light dark:border-accent-primary/40 dark:text-accent-primary dark:hover:bg-accent-primary/20"
                   >
                     {loadingSuggestions ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Prompt-Vorschläge'}
                   </button>
@@ -4527,17 +4536,17 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Prompt Suggestions */}
               {imageSuggestions.length > 0 && (
-                <div className="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <div className="mt-4 p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
                   <p className="text-xs text-gray-500 uppercase mb-2">Prompt-Vorschläge:</p>
                   <div className="space-y-2">
                     {imageSuggestions.map((suggestion, idx) => (
                       <div
                         key={idx}
                         onClick={() => setImagePrompt(suggestion.prompt)}
-                        className="p-2 bg-white dark:bg-dark-100 rounded cursor-pointer hover:ring-2 ring-purple-300"
+                        className="p-2 bg-white dark:bg-dark-100 rounded cursor-pointer hover:ring-2 ring-accent-primary/40"
                       >
                         <p className="text-xs text-gray-500">{suggestion.description}</p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{suggestion.prompt}</p>
+                        <p className="text-sm text-gray-700 dark:text-dark-500 truncate">{suggestion.prompt}</p>
                       </div>
                     ))}
                   </div>
@@ -4563,7 +4572,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   }
                 }}
                 disabled={generatingImage || !imagePrompt.trim()}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {generatingImage ? (
                   <>
@@ -4631,7 +4640,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </ul>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-br from-accent-light0 to-pink-500 rounded-xl p-6 text-white">
                 <Image size={32} className="mb-3" />
                 <h3 className="font-bold text-lg mb-2">Bild-Generierung</h3>
                 <ul className="text-sm space-y-1 opacity-90">
@@ -4655,7 +4664,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Kategorie/Themenbereich
             </label>
             <input
@@ -4668,7 +4677,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Anzahl Ideen: {ideasCount}
             </label>
             <input
@@ -4739,7 +4748,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* AI Generator Button */}
           <button
             onClick={() => setShowAiGenerator(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
           >
             <Sparkles size={18} />
             Mit KI generieren
@@ -4747,7 +4756,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Titel (optional)
             </label>
             <input
@@ -4762,7 +4771,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Platform Selection */}
           {!editingPost && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Plattformen
               </label>
               <div className="flex flex-wrap gap-2">
@@ -4779,7 +4788,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
                       postPlatforms.includes(platform)
                         ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
-                        : 'border-gray-300 dark:border-dark-200 text-gray-600 dark:text-gray-400'
+                        : 'border-gray-300 dark:border-dark-200 text-gray-600 dark:text-dark-400'
                     }`}
                   >
                     {PLATFORM_ICONS[platform]}
@@ -4793,7 +4802,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Content */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500">
                 Inhalt
               </label>
               <span className={`text-xs ${getCharacterCount().isOver ? 'text-red-500' : 'text-gray-500'}`}>
@@ -4811,7 +4820,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
           {/* Hashtags */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Hashtags
             </label>
             <div className="flex flex-wrap gap-1 mb-2">
@@ -4868,7 +4877,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Customer */}
           {!editingPost && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Kunde (optional)
               </label>
               <select
@@ -4886,7 +4895,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
           {/* Schedule */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Planen für (optional)
             </label>
             <input
@@ -4901,7 +4910,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => setShowPostEditor(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
             >
               Abbrechen
             </button>
@@ -4925,7 +4934,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Thema / Beschreibung
             </label>
             <textarea
@@ -4939,7 +4948,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Plattform
               </label>
               <select
@@ -4956,7 +4965,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                 Ton
               </label>
               <select
@@ -4980,7 +4989,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 onChange={(e) => setAiIncludeHashtags(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-accent-primary"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Hashtags</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Hashtags</span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -4989,21 +4998,21 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 onChange={(e) => setAiIncludeEmoji(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-accent-primary"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Emojis</span>
+              <span className="text-sm text-gray-700 dark:text-dark-500">Emojis</span>
             </label>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => setShowAiGenerator(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
             >
               Abbrechen
             </button>
             <button
               onClick={generateWithAi}
               disabled={generating || !aiTopic.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
             >
               {generating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               Generieren
@@ -5020,7 +5029,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Name
             </label>
             <input
@@ -5033,7 +5042,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Plattform
             </label>
             <select
@@ -5050,7 +5059,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Inhalt
             </label>
             <textarea
@@ -5065,7 +5074,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => setShowTemplateEditor(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
             >
               Abbrechen
             </button>
@@ -5089,7 +5098,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Name
             </label>
             <input
@@ -5102,7 +5111,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Hashtags (getrennt durch Leerzeichen oder Komma)
             </label>
             <textarea
@@ -5117,7 +5126,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => setShowHashtagEditor(false)}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
             >
               Abbrechen
             </button>
@@ -5145,16 +5154,16 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
         size="lg"
       >
         <div className="space-y-4">
-          <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <p className="text-sm text-accent-dark dark:text-blue-400">
-              Format: <code className="bg-accent-lighter dark:bg-blue-900/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
+          <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3">
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
+              Format: <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Inhalt;Datum (YYYY-MM-DD HH:MM)</code>
               <br />
-              Beispiel: <code className="bg-accent-lighter dark:bg-blue-900/50 px-1 rounded">Mein Post-Text;2025-01-15 09:00</code>
+              Beispiel: <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Mein Post-Text;2025-01-15 09:00</code>
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               CSV-Daten (eine Zeile pro Post)
             </label>
             <textarea
@@ -5168,7 +5177,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
           <button
             onClick={parseCSV}
-            className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
+            className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
           >
             Vorschau
           </button>
@@ -5199,7 +5208,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 setCsvText('');
                 setImportPreviews([]);
               }}
-              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+              className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
             >
               Abbrechen
             </button>
@@ -5228,7 +5237,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Thema/Branche
             </label>
             <div className="flex gap-2">
@@ -5310,7 +5319,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Neues Veröffentlichungsdatum
                 </label>
                 <input
@@ -5328,7 +5337,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   onChange={(e) => setRecycleModify(e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm dark:text-gray-300">
+                <span className="text-sm dark:text-dark-500">
                   Content leicht anpassen (KI-Variation)
                 </span>
               </label>
@@ -5339,7 +5348,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     setShowRecycleModal(false);
                     setRecyclingPost(null);
                   }}
-                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-gray-300 rounded-lg"
+                  className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg"
                 >
                   Abbrechen
                 </button>
@@ -5422,7 +5431,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="space-y-6">
               {/* Platform Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Plattform auswählen
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -5445,7 +5454,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Business Goal */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Business-Ziel
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -5477,7 +5486,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Topic Input */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Thema / Produkt / Dienstleistung
                 </label>
                 <textarea
@@ -5491,7 +5500,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Target Audience */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Zielgruppe
                 </label>
                 <input
@@ -5506,7 +5515,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               {/* Tone & Style */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Tonalität
                   </label>
                   <select
@@ -5522,7 +5531,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Content-Länge
                   </label>
                   <select
@@ -5536,7 +5545,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Buyer Journey
                   </label>
                   <select
@@ -5556,9 +5565,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Theme Strategy Preview */}
               {(wizardPlatform === 'linkedin' || wizardPlatform === 'instagram') && (
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                    <h4 className="text-sm font-medium text-accent-dark dark:text-accent-primary flex items-center gap-2">
                       <Lightbulb size={16} />
                       Strategische Theme-Auswahl
                     </h4>
@@ -5581,7 +5590,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         }
                       }}
                       disabled={wizardLoadingTheme}
-                      className="text-xs bg-purple-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                      className="text-xs bg-accent-primary text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-accent-dark disabled:opacity-50"
                     >
                       {wizardLoadingTheme ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -5595,7 +5604,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {wizardThemePreview ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-sm font-medium">
+                        <span className="px-3 py-1 bg-accent-primary text-white rounded-full text-sm font-medium">
                           {wizardThemePreview.selectedTheme.category.replace('_', ' ')}
                         </span>
                         <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded">
@@ -5603,24 +5612,24 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </span>
                       </div>
                       <div className="bg-white/50 dark:bg-black/20 rounded p-3">
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        <p className="text-xs text-gray-600 dark:text-dark-400 mb-1">
                           <strong>Winkel:</strong> {wizardThemePreview.selectedTheme.angle}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-dark-400">
                           {wizardThemePreview.reasoning.summary}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <span className="text-[10px] text-gray-500">Alternativen:</span>
                         {wizardThemePreview.alternatives.slice(0, 3).map((alt, i) => (
-                          <span key={i} className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-gray-600 dark:text-gray-400">
+                          <span key={i} className="text-[10px] bg-gray-100 dark:bg-dark-100 px-2 py-0.5 rounded text-gray-600 dark:text-dark-400">
                             {alt.category.replace('_', ' ')} ({alt.score})
                           </span>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-purple-600 dark:text-purple-400">
+                    <p className="text-xs text-accent-primary dark:text-accent-primary">
                       Klicke "Theme analysieren" um zu sehen, welches strategische Thema die KI für deine Konfiguration empfiehlt.
                     </p>
                   )}
@@ -5748,7 +5757,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           className={`px-2 py-1 rounded text-xs ${
                             wizardSelectedAlternative === idx
                               ? 'bg-amber-500 text-white'
-                              : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-gray-400 hover:bg-gray-300'
+                              : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 hover:bg-gray-300'
                           }`}
                         >
                           {idx === 0 ? 'Original' : `V${idx}`}
@@ -5766,7 +5775,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex flex-wrap gap-1.5">
                       {(wizardContent.post?.hashtags || []).map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400 rounded text-xs">
+                        <span key={tag} className="px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary rounded text-xs">
                           #{tag}
                         </span>
                       ))}
@@ -5789,7 +5798,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         }
                       }}
                       disabled={wizardAnalyzing}
-                      className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-purple-700 disabled:opacity-50"
+                      className="text-xs bg-accent-primary text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-accent-dark disabled:opacity-50"
                     >
                       {wizardAnalyzing ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -5803,11 +5812,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                 {/* Best Posting Time - Moved to left side */}
                 {wizardContent.bestPostingTime && (
-                  <div className="bg-accent-light dark:bg-blue-900/20 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-accent-light dark:bg-accent-primary/20 rounded-xl p-4 flex items-center gap-3">
                     <Clock size={20} className="text-accent-primary flex-shrink-0" />
                     <div>
                       <p className="font-medium dark:text-white text-sm">Optimaler Zeitpunkt</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                      <p className="text-xs text-gray-600 dark:text-dark-400">
                         {wizardContent.bestPostingTime.day} um {wizardContent.bestPostingTime.time}
                       </p>
                     </div>
@@ -5818,18 +5827,18 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               {/* RIGHT SIDE: Marketing Analysis */}
               <div className="space-y-4">
                 {wizardAnalyzing ? (
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-8 text-center">
-                    <Loader2 size={40} className="animate-spin text-purple-500 mx-auto mb-4" />
+                  <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-8 text-center">
+                    <Loader2 size={40} className="animate-spin text-accent-primary mx-auto mb-4" />
                     <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
                     <p className="text-sm text-gray-500 mt-1">Prüft Hook, Mehrwert, CTA und Plattform-Fit</p>
                   </div>
                 ) : wizardAnalysis && (
                   <>
                     {/* Score Header */}
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-5">
+                    <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-5">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold dark:text-white flex items-center gap-2">
-                          <Bot size={18} className="text-purple-600" />
+                          <Bot size={18} className="text-accent-primary" />
                           Experten-Analyse
                         </h3>
                         <div className={`text-2xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
@@ -5844,7 +5853,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           <div className="text-[10px] text-gray-500">Plattform</div>
                         </div>
                         <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
-                          <div className="text-lg font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                          <div className="text-lg font-bold text-accent-primary">{wizardAnalysis.viralPotential || 0}</div>
                           <div className="text-[10px] text-gray-500">Viral</div>
                         </div>
                         <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
@@ -5863,7 +5872,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             </h4>
                             <ul className="space-y-0.5">
                               {wizardAnalysis.strengths?.slice(0, 3).map((s, i) => (
-                                <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                                <li key={i} className="text-xs text-gray-600 dark:text-dark-400 flex items-start gap-1.5">
                                   <Check size={12} className="text-green-500 mt-0.5 flex-shrink-0" />
                                   {s}
                                 </li>
@@ -5879,7 +5888,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             </h4>
                             <ul className="space-y-0.5">
                               {wizardAnalysis.weaknesses?.slice(0, 3).map((w, i) => (
-                                <li key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-start gap-1.5">
+                                <li key={i} className="text-xs text-gray-600 dark:text-dark-400 flex items-start gap-1.5">
                                   <AlertCircle size={12} className="text-amber-500 mt-0.5 flex-shrink-0" />
                                   {w}
                                 </li>
@@ -5895,7 +5904,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4 mb-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-medium dark:text-white flex items-center gap-2">
-                          <Wand2 size={16} className="text-purple-600" />
+                          <Wand2 size={16} className="text-accent-primary" />
                           Verbesserungsvorschläge
                         </h4>
                         {/* Main auto-improve button - iteratively improves until target score */}
@@ -5931,7 +5940,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             }
                           }}
                           disabled={wizardAutoImproving || wizardImproving}
-                          className="text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
+                          className="text-xs bg-gradient-to-r from-accent-primary to-accent-dark text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
                         >
                           {wizardAutoImproving ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -5943,12 +5952,12 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                       <div className="space-y-2">
                         {wizardAnalysis.improvements.map((imp, i) => (
-                          <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-purple-300 transition-colors">
+                          <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-accent-primary transition-colors">
                             <div className="flex items-start gap-3">
                               <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
                                 imp.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
                                 imp.priority === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                                'bg-gray-100 text-gray-700 dark:bg-dark-100 dark:text-dark-400'
                               }`}>
                                 {imp.priority === 'high' ? '🔥' : imp.priority === 'medium' ? '⚡' : '○'}
                               </span>
@@ -5982,15 +5991,15 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                       }
                                     }}
                                     disabled={wizardImproving}
-                                    className="text-[10px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-purple-200 disabled:opacity-50"
+                                    className="text-[10px] bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded flex items-center gap-1 hover:bg-accent-lighter disabled:opacity-50"
                                   >
                                     <Wand2 size={10} />
                                     Verbessern
                                   </button>
                                 </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{imp.suggestion}</p>
+                                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">{imp.suggestion}</p>
                                 {imp.improvedExample && (
-                                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 italic">
+                                  <p className="text-xs text-accent-primary dark:text-accent-primary mt-1 italic">
                                     💡 Beispiel: "{imp.improvedExample}"
                                   </p>
                                 )}
@@ -6025,14 +6034,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                   {/* Auto-Improvement Progress */}
                   {wizardAutoImproving && (
-                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                    <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
                       <div className="flex items-center gap-3">
-                        <Loader2 size={20} className="animate-spin text-purple-600" />
+                        <Loader2 size={20} className="animate-spin text-accent-primary" />
                         <div>
-                          <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                          <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">
                             Auto-Verbesserung läuft...
                           </p>
-                          <p className="text-xs text-purple-600 dark:text-purple-400">
+                          <p className="text-xs text-accent-primary dark:text-accent-primary">
                             Der Content wird iterativ analysiert und verbessert bis Score ≥ 75
                           </p>
                         </div>
@@ -6049,7 +6058,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           Auto-Verbesserung abgeschlossen
                         </h4>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-gray-500 dark:text-dark-400">
                             Score: {wizardAutoImprovement.initialScore}
                           </span>
                           <ArrowRight size={12} className="text-green-600" />
@@ -6064,14 +6073,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         {wizardAutoImprovement.iterations.map((iter, i) => (
                           <div key={i} className="bg-white/50 dark:bg-black/20 rounded p-2 text-xs">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="font-medium text-gray-700 dark:text-gray-300">
+                              <span className="font-medium text-gray-700 dark:text-dark-500">
                                 Iteration {iter.iteration}: {iter.focus}
                               </span>
                               <span className="text-green-600 dark:text-green-400">
                                 {iter.beforeScore} → {iter.afterScore} (+{iter.afterScore - iter.beforeScore})
                               </span>
                             </div>
-                            <ul className="text-gray-500 dark:text-gray-400 list-disc list-inside">
+                            <ul className="text-gray-500 dark:text-dark-400 list-disc list-inside">
                               {iter.changes.slice(0, 2).map((change, j) => (
                                 <li key={j}>{change}</li>
                               ))}
@@ -6129,7 +6138,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         </div>
                       )}
 
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-2">
+                      <p className="text-[10px] text-gray-500 dark:text-dark-400 mt-2">
                         Dauer: {(wizardAutoImprovement.totalImprovementTime / 1000).toFixed(1)}s
                       </p>
                     </div>
@@ -6143,7 +6152,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="flex justify-between pt-4">
               <button
                 onClick={() => setWizardStep('goal')}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
               >
                 Zurück
               </button>
@@ -6184,7 +6193,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     }
                   }}
                   disabled={wizardAutoImproving || wizardImproving}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
                 >
                   {wizardAutoImproving ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -6227,7 +6236,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               {/* Image Options */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Bildformat
                   </label>
                   <select
@@ -6242,7 +6251,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Qualität
                   </label>
                   <select
@@ -6277,7 +6286,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="flex justify-between pt-4">
                 <button
                   onClick={() => setWizardStep('analyze')}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                  className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
                 >
                   Zurück
                 </button>
@@ -6301,7 +6310,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       }
                     }}
                     disabled={wizardGeneratingImage || !wizardContent?.imagePrompt}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
                   >
                     {wizardGeneratingImage ? (
                       <>
@@ -6356,7 +6365,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <p className="dark:text-white whitespace-pre-wrap">{wizardEditedContent}</p>
                   <div className="flex flex-wrap gap-2 mt-4">
                     {(wizardContent?.post?.hashtags || []).map(tag => (
-                      <span key={tag} className="text-sm text-accent-primary dark:text-blue-400">#{tag}</span>
+                      <span key={tag} className="text-sm text-accent-primary dark:text-accent-primary">#{tag}</span>
                     ))}
                   </div>
                   {wizardContent?.post.callToAction && (
@@ -6379,11 +6388,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="text-xs text-gray-500">Qualitäts-Score</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                    <div className="text-3xl font-bold text-accent-primary">{wizardAnalysis.viralPotential || 0}</div>
                     <div className="text-xs text-gray-500">Viral-Potenzial</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">{wizardAnalysis.emotionalTone}</div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-dark-500">{wizardAnalysis.emotionalTone}</div>
                     <div className="text-xs text-gray-500">Emotionale Tonalität</div>
                   </div>
                 </div>
@@ -6393,7 +6402,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <div className="flex justify-between pt-4">
                 <button
                   onClick={() => setWizardStep(wizardIncludeImage ? 'image' : 'analyze')}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
+                  className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg"
                 >
                   Zurück
                 </button>

@@ -962,16 +962,16 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
       />
 
       {/* Dialog */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg h-[600px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-lg h-[600px] max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-blue-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border bg-gradient-to-r from-accent-primary to-accent-dark">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
               <MessageCircle size={20} className="text-white" />
             </div>
             <div>
               <h2 className="font-bold text-white">Support-Assistent</h2>
-              <p className="text-xs text-blue-100">Wir helfen Ihnen gerne!</p>
+              <p className="text-xs text-accent-primary">Wir helfen Ihnen gerne!</p>
             </div>
           </div>
           <button
@@ -983,7 +983,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-dark-50">
           {messages.map((message) => (
             <div
               key={message.id}
@@ -993,7 +993,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                   message.type === 'user'
                     ? 'bg-accent-primary text-white rounded-br-md'
-                    : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm rounded-bl-md border border-gray-100 dark:border-gray-700'
+                    : 'bg-white dark:bg-dark-100 text-gray-900 dark:text-white shadow-sm rounded-bl-md border border-gray-100 dark:border-dark-border'
                 }`}
               >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -1019,10 +1019,10 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           {/* Loading indicator */}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-white dark:bg-gray-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-dark-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-gray-100 dark:border-dark-border">
                 <div className="flex items-center gap-2">
                   <Loader2 size={16} className="animate-spin text-accent-primary" />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Ticket wird erstellt...</span>
+                  <span className="text-sm text-gray-500 dark:text-dark-400">Ticket wird erstellt...</span>
                 </div>
               </div>
             </div>
@@ -1035,7 +1035,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                 <button
                   key={option.id}
                   onClick={() => handleOptionClick(option)}
-                  className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-accent-light dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary"
+                  className="px-4 py-2 bg-white dark:bg-dark-100 hover:bg-accent-light dark:hover:bg-dark-200 border border-gray-200 dark:border-dark-border rounded-full text-sm font-medium text-gray-700 dark:text-dark-500 transition-colors shadow-sm hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary"
                 >
                   {option.label}
                 </button>
@@ -1058,9 +1058,9 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
         {/* Uploaded files preview bar */}
         {uploadedFiles.length > 0 && !loading && (
-          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <div className="px-4 py-2 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+              <span className="text-xs text-gray-500 dark:text-dark-400 flex-shrink-0">
                 📎 {uploadedFiles.length} Anhang/Anhänge
               </span>
               <div className="flex gap-1 overflow-x-auto">
@@ -1086,12 +1086,12 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
         {/* Input */}
         {showInput && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
             <div className="flex gap-2">
               {/* Screenshot button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-gray-700 rounded-full transition-colors"
+                className="p-2.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-full transition-colors"
                 title="Screenshot hochladen"
               >
                 <Image size={18} />
@@ -1110,7 +1110,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                   }}
                   placeholder={currentStepData.inputPlaceholder}
                   rows={3}
-                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-dark-border rounded-xl bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               ) : (
                 <input
@@ -1124,13 +1124,13 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
                     }
                   }}
                   placeholder={currentStepData.inputPlaceholder}
-                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-full bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-dark-border rounded-full bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               )}
               <button
                 onClick={handleInputSubmit}
                 disabled={!inputValue.trim()}
-                className="p-2.5 bg-accent-primary hover:bg-accent-primary disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-full transition-colors"
+                className="p-2.5 bg-accent-primary hover:bg-accent-primary disabled:bg-gray-300 dark:disabled:bg-dark-300 text-white rounded-full transition-colors"
               >
                 <Send size={18} />
               </button>
@@ -1140,10 +1140,10 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
         {/* Options with screenshot button */}
         {showOptions && !showInput && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
               <Image size={16} />
               <span>Screenshot hinzufügen</span>
@@ -1153,10 +1153,10 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
         {/* Restart button when no input/options */}
         {!showInput && !showOptions && !loading && messages.length > 0 && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
             <button
               onClick={resetConversation}
-              className="w-full py-2.5 text-sm font-medium text-accent-primary dark:text-blue-400 hover:bg-accent-light dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="w-full py-2.5 text-sm font-medium text-accent-primary dark:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
               🔄 Neue Anfrage starten
             </button>

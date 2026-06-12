@@ -8,6 +8,7 @@ import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeEmailHtml } from '../utils/sanitize';
+import { useToast } from '../contexts/UIContext';
 
 interface TicketInfo {
   linked: boolean;
@@ -26,6 +27,7 @@ interface TicketInfo {
 }
 
 export const SupportInbox = () => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [supportMailbox, setSupportMailbox] = useState<string>('');
@@ -165,19 +167,21 @@ export const SupportInbox = () => {
       if (response.success && response.data) {
         const { ticketNumber, linkedToExisting, customerName } = response.data;
         const customerInfo = customerName ? ` (Kunde: ${customerName})` : '';
-        alert(
+        showToast(
           linkedToExisting
             ? `E-Mail wurde zu bestehendem Ticket ${ticketNumber} hinzugefügt${customerInfo}`
-            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`
+            : `Ticket ${ticketNumber} wurde erstellt${customerInfo}`,
+          'success',
+          5000
         );
         // Reload emails and ticket info
         await loadEmails();
         await loadTicketInfo(selectedEmail.id);
       } else {
-        alert(response.error || 'Fehler beim Erstellen des Tickets');
+        showToast(response.error || 'Fehler beim Erstellen des Tickets', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Erstellen des Tickets');
+      showToast(err.message || 'Fehler beim Erstellen des Tickets', 'error');
     } finally {
       setCreating(false);
       setShowUnknownCustomerDialog(false);
@@ -216,13 +220,13 @@ export const SupportInbox = () => {
         try {
           const response = await microsoft365Api.saveEmailAsInteraction(selectedEmail.id, customerId);
           if (response.success && response.data) {
-            alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+            showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
             await loadEmails();
           } else {
-            alert(response.error || 'Fehler beim Speichern der Interaktion');
+            showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
           }
         } catch (err: any) {
-          alert(err.message || 'Fehler beim Speichern');
+          showToast(err.message || 'Fehler beim Speichern', 'error');
         } finally {
           setSavingInteraction(false);
         }
@@ -252,14 +256,14 @@ export const SupportInbox = () => {
         selectedTicketInfo.suggestedTicket.ticket_id
       );
       if (response.success && response.data) {
-        alert(`E-Mail wurde zu Ticket ${response.data.ticketNumber} hinzugefügt`);
+        showToast(`E-Mail wurde zu Ticket ${response.data.ticketNumber} hinzugefügt`, 'success', 5000);
         await loadEmails();
         await loadTicketInfo(selectedEmail.id);
       } else {
-        alert(response.error || 'Fehler beim Verknüpfen');
+        showToast(response.error || 'Fehler beim Verknüpfen', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Verknüpfen');
+      showToast(err.message || 'Fehler beim Verknüpfen', 'error');
     } finally {
       setCreating(false);
     }
@@ -275,9 +279,9 @@ export const SupportInbox = () => {
 
       if (response.success) {
         if (response.alreadyExists) {
-          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+          showToast('Diese E-Mail wurde bereits als Interaktion gespeichert.', 'info', 5000);
         } else if (response.data) {
-          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
           await loadEmails();
         }
       } else if (response.requiresCustomer) {
@@ -290,10 +294,10 @@ export const SupportInbox = () => {
           setPendingPriority('interaction');
         }
       } else {
-        alert(response.error || 'Fehler beim Speichern der Interaktion');
+        showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern der Interaktion');
+      showToast(err.message || 'Fehler beim Speichern der Interaktion', 'error');
     } finally {
       setSavingInteraction(false);
     }
@@ -317,7 +321,7 @@ export const SupportInbox = () => {
       case 'low':
         return 'text-gray-400';
       default:
-        return 'text-gray-600 dark:text-gray-400';
+        return 'text-gray-600 dark:text-dark-400';
     }
   };
 
@@ -357,13 +361,13 @@ export const SupportInbox = () => {
             <Mail className="text-accent-primary" />
             Support E-Mails
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Postfach: <span className="font-medium text-gray-700 dark:text-gray-300">{supportMailbox}</span>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{supportMailbox}</span>
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
             <input
               type="checkbox"
               checked={showRead}
@@ -398,13 +402,13 @@ export const SupportInbox = () => {
         <div className="lg:col-span-2 bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300 overflow-hidden">
           <div className="p-4 border-b border-gray-200 dark:border-dark-300 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-white">E-Mail Eingang</h2>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-gray-500 dark:text-dark-400">
               {emails.length} E-Mail{emails.length !== 1 ? 's' : ''}
             </span>
           </div>
 
           {emails.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-12 text-gray-500 dark:text-dark-400">
               <Mail size={48} className="mx-auto mb-3 opacity-30" />
               <p className="text-lg font-medium">Keine E-Mails</p>
               <p className="text-sm mt-1">
@@ -419,9 +423,9 @@ export const SupportInbox = () => {
                   onClick={() => setSelectedEmail(email)}
                   className={`p-4 cursor-pointer transition-colors ${
                     selectedEmail?.id === email.id
-                      ? 'bg-accent-primary/10'
+                      ? 'bg-accent-primary/10 dark:bg-accent-primary/20'
                       : 'hover:bg-gray-50 dark:hover:bg-dark-200'
-                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-blue-900/10' : ''}`}
+                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/10' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-full ${
@@ -430,7 +434,7 @@ export const SupportInbox = () => {
                         : 'bg-gray-100 dark:bg-dark-200'
                     }`}>
                       <Mail size={16} className={
-                        !email.isRead ? 'text-accent-primary' : 'text-gray-400'
+                        !email.isRead ? 'text-accent-primary' : 'text-gray-400 dark:text-dark-400'
                       } />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -438,7 +442,7 @@ export const SupportInbox = () => {
                         <span className={`font-medium truncate ${
                           !email.isRead
                             ? 'text-gray-900 dark:text-white'
-                            : 'text-gray-600 dark:text-gray-300'
+                            : 'text-gray-600 dark:text-dark-500'
                         }`}>
                           {email.from.name || email.from.email}
                         </span>
@@ -446,21 +450,21 @@ export const SupportInbox = () => {
                           <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
                         )}
                         {email.hasAttachments && (
-                          <Paperclip size={14} className="text-gray-400 flex-shrink-0" />
+                          <Paperclip size={14} className="text-gray-400 dark:text-dark-400 flex-shrink-0" />
                         )}
                       </div>
                       <p className={`text-sm truncate ${
                         !email.isRead
-                          ? 'text-gray-800 dark:text-gray-200 font-medium'
-                          : 'text-gray-600 dark:text-gray-400'
+                          ? 'text-gray-800 dark:text-dark-500 font-medium'
+                          : 'text-gray-600 dark:text-dark-400'
                       }`}>
                         {email.subject}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 line-clamp-2">
+                      <p className="text-xs text-gray-500 dark:text-dark-400 mt-1 line-clamp-2">
                         {email.bodyPreview}
                       </p>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500 flex-shrink-0">
+                    <div className="text-xs text-gray-500 dark:text-dark-400 flex-shrink-0">
                       {formatDate(email.receivedDateTime)}
                     </div>
                   </div>
@@ -486,9 +490,9 @@ export const SupportInbox = () => {
                     tooltip="Schliessen"
                   />
                 </div>
-                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                <div className="mt-2 text-sm text-gray-600 dark:text-dark-400">
                   <p>
-                    <span className="text-gray-500">Von:</span>{' '}
+                    <span className="text-gray-500 dark:text-dark-400">Von:</span>{' '}
                     {selectedEmail.from.name} &lt;{selectedEmail.from.email}&gt;
                   </p>
                   <p className="text-xs mt-1">
@@ -511,12 +515,12 @@ export const SupportInbox = () => {
                       </p>
                     </div>
                   ) : selectedTicketInfo.suggestedTicket ? (
-                    <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                      <div className="flex items-center gap-2 text-accent-dark dark:text-blue-300">
+                    <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-accent-dark dark:text-accent-primary">
                         <Link2 size={16} />
                         <span className="text-sm font-medium">Passendes Ticket gefunden</span>
                       </div>
-                      <p className="text-sm text-accent-primary dark:text-blue-400 mt-1">
+                      <p className="text-sm text-accent-primary dark:text-accent-primary mt-1">
                         {selectedTicketInfo.suggestedTicket.ticket_number}: {selectedTicketInfo.suggestedTicket.title}
                       </p>
                       <Button
@@ -532,7 +536,7 @@ export const SupportInbox = () => {
                     </div>
                   ) : (
                     <div className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-gray-600 dark:text-dark-400">
                         Diese E-Mail ist noch mit keinem Ticket verknüpft.
                       </p>
                     </div>
@@ -560,12 +564,12 @@ export const SupportInbox = () => {
                       dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(selectedEmail.body.content) }}
                     />
                   ) : (
-                    <pre className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-sans">
+                    <pre className="text-sm text-gray-600 dark:text-dark-400 whitespace-pre-wrap font-sans">
                       {selectedEmail.body.content}
                     </pre>
                   )
                 ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-dark-400">
                     {selectedEmail.bodyPreview}
                   </p>
                 )}
@@ -576,7 +580,7 @@ export const SupportInbox = () => {
                 <div className="p-4 border-t border-gray-200 dark:border-dark-300 space-y-4">
                   {/* Ticket Creation */}
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Ticket erstellen:</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Ticket erstellen:</p>
                     <div className="grid grid-cols-3 gap-2">
                       <Button
                         onClick={() => handleCreateTicket('normal')}
@@ -607,7 +611,7 @@ export const SupportInbox = () => {
 
                   {/* Save as Interaction */}
                   <div className="pt-2 border-t border-gray-100 dark:border-dark-200">
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">Als Kunden-Interaktion speichern:</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">Als Kunden-Interaktion speichern:</p>
                     <Button
                       onClick={handleSaveAsInteraction}
                       disabled={creating || savingInteraction}
@@ -619,7 +623,7 @@ export const SupportInbox = () => {
                     >
                       Im Kunden-CRM speichern
                     </Button>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <p className="text-xs text-gray-400 dark:text-dark-400 mt-1">
                       Die E-Mail wird automatisch dem Kunden zugeordnet und in der Timeline angezeigt.
                     </p>
                   </div>
@@ -627,7 +631,7 @@ export const SupportInbox = () => {
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
               <Mail size={48} className="mb-3 opacity-30" />
               <p className="text-center">
                 Wählen Sie eine E-Mail aus,<br />um Details anzuzeigen
@@ -646,7 +650,7 @@ export const SupportInbox = () => {
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white">E-Mail zu Ticket</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-dark-400">
             Wählen Sie eine E-Mail aus und erstellen Sie daraus ein Support-Ticket.
             Die E-Mail wird dem Ticket zugeordnet und alle zukünftigen Antworten
             im selben Thread werden automatisch verknüpft.
@@ -660,7 +664,7 @@ export const SupportInbox = () => {
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-white">Automatische Zuordnung</h3>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-dark-400">
             E-Mails aus demselben Thread werden automatisch erkannt und können
             einfach zu bestehenden Tickets hinzugefügt werden. Die E-Mail-Historie
             wird im Ticket gespeichert.

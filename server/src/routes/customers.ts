@@ -15,6 +15,23 @@ import bcrypt from 'bcryptjs';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const CUSTOMER_COLUMNS = `
+  id, user_id, organization_id, name, color, customer_number, contact_person,
+  email, address, report_title, hourly_rate, payment_terms_days, time_rounding_interval,
+  ninjarmm_organization_id, display_name, import_aliases, sla_policy_id,
+  sevdesk_customer_id, sevdesk_position_template, default_contract_id, default_project_id,
+  is_vendor, vendor_domain, vendor_notes, vendor_api_config,
+  created_at, deleted_at
+`;
+
+const PORTAL_USER_COLUMNS = `
+  id, organization_id, customer_id, email, name, password_hash,
+  can_create_tickets, can_view_all_tickets, can_view_devices, can_view_invoices, can_view_quotes,
+  mfa_enabled, mfa_secret, invitation_token, invitation_expires_at, invitation_sent_at,
+  created_at, updated_at
+`;
+
 // Validation schemas
 const createCustomerSchema = z.object({
   name: z.string().min(1).max(200),
@@ -46,6 +63,11 @@ const updateCustomerSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
   importAliases: z.array(z.string().max(200)).nullable().optional(),
   customerType: z.enum(['company', 'individual']).nullable().optional(),
+  // sevdesk position template (per-customer text appended to every invoice
+  // position; supports {placeholders}). default_contract_id is the source for
+  // {contractNumber}/{contractTitle}.
+  sevdeskPositionTemplate: z.string().max(2000).nullable().optional(),
+  defaultContractId: z.string().nullable().optional(),
   // Vendor/Supplier fields
   isVendor: z.boolean().optional(),
   vendorDomain: z.string().max(100).nullable().optional(),
@@ -58,7 +80,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT * FROM customers WHERE organization_id = $1 ORDER BY name', [organizationId]);
+    const result = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
     const customers = transformRows(result.rows);
 
     res.json({
@@ -88,7 +110,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
     );
 
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL', [id]);
     const newCustomer = transformRow(customerResult.rows[0]);
 
     auditLog.log({
@@ -119,7 +141,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -198,6 +220,25 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       fields.push(`vendor_notes = $${paramCount++}`);
       values.push(updates.vendorNotes || null);
     }
+    if (updates.sevdeskPositionTemplate !== undefined) {
+      fields.push(`sevdesk_position_template = $${paramCount++}`);
+      values.push(updates.sevdeskPositionTemplate || null);
+    }
+    if (updates.defaultContractId !== undefined) {
+      // Validate the contract belongs to this customer (organization-scoped already
+      // by the customer FK chain). Empty string / null clears the link.
+      if (updates.defaultContractId) {
+        const contractCheck = await pool.query(
+          'SELECT id FROM contracts WHERE id = $1 AND customer_id = $2',
+          [updates.defaultContractId, id]
+        );
+        if (contractCheck.rows.length === 0) {
+          return res.status(400).json({ error: 'defaultContractId belongs to a different customer or does not exist' });
+        }
+      }
+      fields.push(`default_contract_id = $${paramCount++}`);
+      values.push(updates.defaultContractId || null);
+    }
     if (updates.defaultProjectId !== undefined) {
       fields.push(`default_project_id = $${paramCount++}`);
       values.push(updates.defaultProjectId || null);
@@ -208,10 +249,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     }
 
     values.push(id);
-    const query = `UPDATE customers SET ${fields.join(', ')} WHERE id = $${paramCount}`;
+    const query = `UPDATE customers SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT * FROM customers WHERE id = $1', [id]);
+    const updatedResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL', [id]);
     const updatedCustomer = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -241,7 +282,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     const { id } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -253,7 +294,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
       return res.status(400).json({ error: 'Cannot delete customer with existing projects. Please delete projects first.' });
     }
 
-    await pool.query('DELETE FROM customers WHERE id = $1', [id]);
+    await pool.query('UPDATE customers SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
 
     auditLog.log({
       userId,
@@ -314,7 +355,7 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
     const { customerId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -375,7 +416,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
     } = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -454,13 +495,13 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     const updates = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Verify portal user exists
-    const contactResult = await pool.query('SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
+    const contactResult = await pool.query('SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -584,13 +625,13 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
     const { customerId, contactId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Verify portal user exists
-    const contactResult = await pool.query('SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
+    const contactResult = await pool.query('SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -624,14 +665,14 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     const { customerId, contactId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -712,14 +753,14 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
     }
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT * FROM customers WHERE id = $1 AND organization_id = $2', [customerId, organizationId]);
+    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT * FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -778,7 +819,7 @@ router.get('/vendors/list', authenticateToken, attachOrganization, async (req: A
       `SELECT c.*,
               (SELECT COUNT(*) FROM processed_invoices pi WHERE pi.vendor_id = c.id) as invoice_count
        FROM customers c
-       WHERE c.organization_id = $1 AND c.is_vendor = true
+       WHERE c.organization_id = $1 AND c.deleted_at IS NULL AND c.is_vendor = true
        ORDER BY c.name`,
       [organizationId]
     );
@@ -804,7 +845,7 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT * FROM customers WHERE id = $1 AND organization_id = $2',
+      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -815,7 +856,9 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
 
     // Get processed invoices for this vendor
     const invoicesResult = await pool.query(
-      `SELECT * FROM processed_invoices
+      `SELECT id, email_id, email_subject, sender_email, sender_name, received_at,
+              attachment_count, status, error_message, processed_at
+       FROM processed_invoices
        WHERE organization_id = $1 AND vendor_id = $2
        ORDER BY received_at DESC
        LIMIT 50`,
@@ -826,7 +869,9 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
     let domainInvoices: any[] = [];
     if (customer.vendorDomain) {
       const domainResult = await pool.query(
-        `SELECT * FROM processed_invoices
+        `SELECT id, email_id, email_subject, sender_email, sender_name, received_at,
+                attachment_count, status, error_message, processed_at
+         FROM processed_invoices
          WHERE organization_id = $1
          AND vendor_id IS NULL
          AND LOWER(sender_email) LIKE $2
@@ -861,7 +906,8 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
     let documents: any[] = [];
     if (invoiceIds.length > 0) {
       const docsResult = await pool.query(
-        `SELECT * FROM invoice_documents WHERE processed_invoice_id = ANY($1)`,
+        `SELECT id, processed_invoice_id, filename, original_filename, mime_type, size, created_at
+         FROM invoice_documents WHERE processed_invoice_id = ANY($1)`,
         [invoiceIds]
       );
       documents = docsResult.rows.map(row => ({
@@ -910,7 +956,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
 
     // Verify customer belongs to organization and get vendor domain
     const customerResult = await pool.query(
-      'SELECT * FROM customers WHERE id = $1 AND organization_id = $2',
+      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -1006,7 +1052,7 @@ router.get('/:customerId/email-domains', authenticateToken, attachOrganization, 
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2',
+      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
       [customerId, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -1042,7 +1088,7 @@ router.post('/:customerId/email-domains', authenticateToken, attachOrganization,
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2',
+      'SELECT id, name FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
       [customerId, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -1108,7 +1154,7 @@ router.delete('/:customerId/email-domains/:domainId', authenticateToken, attachO
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2',
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
       [customerId, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -1167,7 +1213,7 @@ router.get('/email-domains/lookup', authenticateToken, attachOrganization, async
       SELECT c.id, c.name, c.customer_number, ced.domain, ced.is_primary
       FROM customers c
       JOIN customer_email_domains ced ON c.id = ced.customer_id
-      WHERE ced.organization_id = $1 AND LOWER(ced.domain) = $2
+      WHERE ced.organization_id = $1 AND LOWER(ced.domain) = $2 AND c.deleted_at IS NULL
       LIMIT 1
     `, [organizationId, domain]);
 
@@ -1184,7 +1230,7 @@ router.get('/email-domains/lookup', authenticateToken, attachOrganization, async
     const vendorResult = await pool.query(`
       SELECT id, name, customer_number, vendor_domain as domain
       FROM customers
-      WHERE organization_id = $1 AND LOWER(vendor_domain) = $2
+      WHERE organization_id = $1 AND deleted_at IS NULL AND LOWER(vendor_domain) = $2
       LIMIT 1
     `, [organizationId, domain]);
 
@@ -1254,7 +1300,7 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
     const customersWithEmail = await pool.query(`
       SELECT c.id, c.name, c.email, c.contact_person
       FROM customers c
-      WHERE c.organization_id = $1
+      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
         AND c.email IS NOT NULL
         AND c.email != ''
         AND NOT EXISTS (
@@ -1293,7 +1339,7 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
     const customersWithWebsite = await pool.query(`
       SELECT c.id, c.name, c.website
       FROM customers c
-      WHERE c.organization_id = $1
+      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
         AND c.website IS NOT NULL
         AND c.website != ''
     `, [organizationId]);
@@ -1340,7 +1386,7 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
     const customersWithEmailNoDomain = await pool.query(`
       SELECT c.id, c.name, c.email
       FROM customers c
-      WHERE c.organization_id = $1
+      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
         AND c.email IS NOT NULL
         AND c.email != ''
         AND c.email LIKE '%@%'

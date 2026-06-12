@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval, TimeFormat } from '../types';
+import { User, LoginCredentials, RegisterData, AccentColor, GrayTone, TimeRoundingInterval, TimeFormat, HeartbeatInterval } from '../types';
 import { storage } from '../utils/storage';
 import { validatePassword, validateEmail, validateUsername } from '../utils/auth';
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
 import { darkMode } from '../utils/darkMode';
-import { authApi, userApi } from '../services/api';
+import { authApi, userApi, SESSION_EXPIRED_EVENT } from '../services/api';
 
 // Helper to persist settings to backend
 const persistSettings = async (settings: Parameters<typeof userApi.updateSettings>[0]) => {
@@ -44,6 +44,7 @@ interface AuthContextType {
   updateDarkMode: (enabled: boolean) => void;
   updateTimeRoundingInterval: (interval: TimeRoundingInterval) => void;
   updateTimeFormat: (format: TimeFormat) => void;
+  updateHeartbeatInterval: (minutes: HeartbeatInterval) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -164,6 +165,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     loadUser();
+  }, []);
+
+  // Proactive logout detection. The API layer fires SESSION_EXPIRED_EVENT the
+  // moment the server rejects our refresh token, so we flip to the login
+  // screen right away — not only after the user's next save fails. We also
+  // re-validate whenever the app returns to the foreground (the typical
+  // "reopen the home-screen PWA" moment), which is when a session that died
+  // while the app was suspended would otherwise go unnoticed.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      console.log('🔒 [AUTH] Session expired — clearing local session');
+      storage.setCurrentUser(null);
+      setCurrentUser(null);
+    };
+
+    const revalidateSession = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!navigator.onLine) return;
+      if (!localStorage.getItem('auth_token')) return;
+      // getMe() runs through authFetch: a dead session triggers a refresh,
+      // and a failed refresh emits SESSION_EXPIRED_EVENT (handled above).
+      userApi.getMe().catch(() => { /* network errors are non-fatal */ });
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    // visibilitychange + focus zusammen: iOS PWAs feuern je nach Resume-Pfad
+    // mal das eine, mal das andere zuerst (oder nur eines). Doppelte getMe()-
+    // Calls sind harmlos (idempotent + Single-Flight im authFetch).
+    document.addEventListener('visibilitychange', revalidateSession);
+    window.addEventListener('focus', revalidateSession);
+
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+      document.removeEventListener('visibilitychange', revalidateSession);
+      window.removeEventListener('focus', revalidateSession);
+    };
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<LoginResult> => {
@@ -412,6 +449,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     storage.setCurrentUser(updatedUser);
   };
 
+  const updateHeartbeatInterval = (minutes: HeartbeatInterval) => {
+    if (!currentUser) return;
+
+    persistSettings({ heartbeatIntervalMinutes: minutes });
+
+    const updatedUser = { ...currentUser, heartbeatIntervalMinutes: minutes };
+    setCurrentUser(updatedUser);
+    storage.setCurrentUser(updatedUser);
+  };
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated: !!currentUser,
@@ -424,7 +471,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     updateGrayTone,
     updateDarkMode,
     updateTimeRoundingInterval,
-    updateTimeFormat
+    updateTimeFormat,
+    updateHeartbeatInterval
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

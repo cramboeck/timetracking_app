@@ -32,17 +32,17 @@ export default function ContentStudioPage() {
         return <BatchGenerator />;
       case 'carousel':
         return (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-gray-500">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-dark-400">
             <LayoutGrid size={48} className="opacity-40" />
-            <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400">Carousel Creator</h3>
+            <h3 className="text-lg font-semibold text-gray-600 dark:text-dark-400">Carousel Creator</h3>
             <p className="text-sm text-center max-w-xs">Dieser Bereich befindet sich in Entwicklung und wird in Kürze verfügbar sein.</p>
           </div>
         );
       case 'stories':
         return (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-gray-500">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400 dark:text-dark-400">
             <Film size={48} className="opacity-40" />
-            <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400">Story Creator</h3>
+            <h3 className="text-lg font-semibold text-gray-600 dark:text-dark-400">Story Creator</h3>
             <p className="text-sm text-center max-w-xs">Dieser Bereich befindet sich in Entwicklung und wird in Kürze verfügbar sein.</p>
           </div>
         );
@@ -62,7 +62,7 @@ export default function ContentStudioPage() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
               contentStudioTab === tab.id
                 ? 'bg-pink-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                : 'bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200 border border-gray-200 dark:border-dark-border'
             }`}
           >
             {tab.icon}

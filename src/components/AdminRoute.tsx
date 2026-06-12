@@ -13,8 +13,8 @@ export default function AdminRoute() {
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <Loader2 className="animate-spin text-purple-600" size={48} />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-50">
+        <Loader2 className="animate-spin text-accent-primary" size={48} />
       </div>
     );
   }

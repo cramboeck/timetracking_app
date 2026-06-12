@@ -8,6 +8,13 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const COMPANY_INFO_COLUMNS = `
+  id, user_id, company_name, address, phone, email, website,
+  tax_id, bank_name, bank_iban, bank_bic, logo_url, invoice_prefix,
+  invoice_footer, default_payment_terms, created_at
+`;
+
 // Validation schema for user settings
 const updateSettingsSchema = z.object({
   accentColor: z.string().optional(),
@@ -15,6 +22,7 @@ const updateSettingsSchema = z.object({
   darkMode: z.boolean().optional(),
   timeRoundingInterval: z.number().int().min(1).optional(),
   timeFormat: z.string().optional(),
+  heartbeatIntervalMinutes: z.union([z.literal(1), z.literal(5), z.literal(15)]).optional(),
   organizationName: z.string().max(200).optional()
 });
 
@@ -35,7 +43,7 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     const result = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, has_ticket_access, preferences, created_at, last_login
+              time_format, heartbeat_interval_minutes, has_ticket_access, preferences, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -86,6 +94,10 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
       fields.push(`time_format = $${paramCount++}`);
       values.push(updates.timeFormat);
     }
+    if (updates.heartbeatIntervalMinutes !== undefined) {
+      fields.push(`heartbeat_interval_minutes = $${paramCount++}`);
+      values.push(updates.heartbeatIntervalMinutes);
+    }
     if (updates.organizationName !== undefined) {
       fields.push(`organization_name = $${paramCount++}`);
       values.push(updates.organizationName || null);
@@ -102,7 +114,7 @@ router.put('/settings', authenticateToken, validate(updateSettingsSchema), async
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number, display_name,
               team_id, team_role, mfa_enabled, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, has_ticket_access, created_at, last_login
+              time_format, heartbeat_interval_minutes, has_ticket_access, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -184,7 +196,7 @@ router.get('/company', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const result = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const result = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
     const company = result.rows.length > 0 ? transformRow(result.rows[0]) : null;
 
     res.json({
@@ -204,7 +216,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
     const { name, address, city, zipCode, country, email, phone, website, taxId, logo } = req.body;
 
     // Check if company info already exists
-    const existingResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const existingResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
     const existing = existingResult.rows[0];
 
     if (existing) {
@@ -226,7 +238,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
       );
     }
 
-    const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const companyResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
     const company = transformRow(companyResult.rows[0]);
 
     auditLog.log({
@@ -256,25 +268,25 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const userResult = await pool.query(
       `SELECT id, username, email, account_type, role, organization_name, customer_number,
               display_name, accent_color, gray_tone, dark_mode, time_rounding_interval,
-              time_format, created_at, last_login
+              time_format, heartbeat_interval_minutes, created_at, last_login
        FROM users WHERE id = $1`,
       [userId]
     );
     const user = transformRow(userResult.rows[0]);
 
-    const customersResult = await pool.query('SELECT * FROM customers WHERE user_id = $1', [userId]);
+    const customersResult = await pool.query(`SELECT id, user_id, organization_id, name, color, customer_number, contact_person, email, address, hourly_rate, created_at FROM customers WHERE user_id = $1`, [userId]);
     const customers = transformRows(customersResult.rows);
 
-    const projectsResult = await pool.query('SELECT * FROM projects WHERE user_id = $1', [userId]);
+    const projectsResult = await pool.query(`SELECT id, user_id, organization_id, customer_id, name, is_active, rate_type, hourly_rate, created_at FROM projects WHERE user_id = $1`, [userId]);
     const projects = transformRows(projectsResult.rows);
 
-    const activitiesResult = await pool.query('SELECT * FROM activities WHERE user_id = $1', [userId]);
+    const activitiesResult = await pool.query(`SELECT id, user_id, organization_id, name, is_billable, is_active, created_at FROM activities WHERE user_id = $1`, [userId]);
     const activities = transformRows(activitiesResult.rows);
 
-    const entriesResult = await pool.query('SELECT * FROM time_entries WHERE user_id = $1', [userId]);
+    const entriesResult = await pool.query(`SELECT id, user_id, organization_id, project_id, activity_id, start_time, end_time, duration, description, is_running, is_billable, created_at FROM time_entries WHERE user_id = $1`, [userId]);
     const entries = transformRows(entriesResult.rows);
 
-    const companyResult = await pool.query('SELECT * FROM company_info WHERE user_id = $1', [userId]);
+    const companyResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
     const company = companyResult.rows.length > 0 ? transformRow(companyResult.rows[0]) : null;
 
     const exportData = {

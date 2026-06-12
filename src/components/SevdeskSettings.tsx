@@ -152,18 +152,18 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
   return (
     <div className="space-y-6">
       {/* Connection Status */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <div className="flex items-center gap-3 mb-4">
           <div className={`p-2 rounded-lg ${
             connectionStatus.success
               ? 'bg-green-100 dark:bg-green-900/30'
-              : 'bg-gray-100 dark:bg-gray-700'
+              : 'bg-gray-100 dark:bg-dark-200'
           }`}>
             <Link2 className={connectionStatus.success ? 'text-green-600' : 'text-gray-500'} size={20} />
           </div>
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white">sevDesk Verbindung</h4>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-dark-400">
               {connectionStatus.success
                 ? `Verbunden mit ${connectionStatus.companyName}`
                 : 'Nicht verbunden'}
@@ -174,7 +174,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
         {/* API Token Input */}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               API-Token
             </label>
             <div className="flex gap-2">
@@ -183,7 +183,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
                 value={apiToken}
                 onChange={(e) => setApiToken(e.target.value)}
                 placeholder={config?.hasToken ? '••••••••••••••••' : 'API-Token eingeben'}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
               />
               <Button
                 onClick={handleTestConnection}
@@ -195,7 +195,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
                 Testen
               </Button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
               Den API-Token finden Sie in sevDesk unter Einstellungen → API
             </p>
           </div>
@@ -217,12 +217,12 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
       </div>
 
       {/* Default Settings */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
         <h4 className="font-medium text-gray-900 dark:text-white mb-4">Standardeinstellungen</h4>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Standard-Stundensatz (€)
             </label>
             <input
@@ -231,12 +231,12 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
               onChange={(e) => setDefaultHourlyRate(parseFloat(e.target.value) || 0)}
               min="0"
               step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               Zahlungsziel (Tage)
             </label>
             <input
@@ -244,18 +244,18 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
               value={paymentTermsDays}
               onChange={(e) => setPaymentTermsDays(parseInt(e.target.value) || 14)}
               min="0"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
               MwSt-Satz (%)
             </label>
             <select
               value={taxRate}
               onChange={(e) => setTaxRate(parseFloat(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
             >
               <option value={19}>19%</option>
               <option value={7}>7%</option>
@@ -276,7 +276,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 Kunden automatisch synchronisieren
               </span>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-dark-400">
                 Neue Kunden werden automatisch mit sevDesk abgeglichen
               </p>
             </div>
@@ -293,7 +293,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 Rechnungen direkt als "Final" erstellen
               </span>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-dark-400">
                 Deaktiviert = Rechnungen werden als Entwurf erstellt
               </p>
             </div>
@@ -303,11 +303,11 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
 
       {/* Customer Import */}
       {connectionStatus.success && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium text-gray-900 dark:text-white">Kunden importieren</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Importieren Sie Kontakte aus sevDesk als Kunden
               </p>
             </div>
@@ -332,12 +332,12 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
       />
 
       {/* Info Box */}
-      <div className="bg-accent-light dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      <div className="bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <Info className="text-accent-primary dark:text-blue-400 flex-shrink-0 mt-0.5" size={18} />
-          <div className="text-sm text-blue-800 dark:text-blue-200">
+          <Info className="text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" size={18} />
+          <div className="text-sm text-accent-dark dark:text-accent-primary">
             <p className="font-medium mb-1">So funktioniert die sevDesk-Integration:</p>
-            <ol className="list-decimal list-inside space-y-1 text-accent-dark dark:text-blue-300">
+            <ol className="list-decimal list-inside space-y-1 text-accent-dark dark:text-accent-primary">
               <li>Verbinden Sie Ihr sevDesk-Konto mit dem API-Token</li>
               <li>Verknüpfen Sie Ihre Kunden mit sevDesk-Kontakten</li>
               <li>Wählen Sie im Bereich "Abrechnung" die zu fakturierenden Zeiten</li>

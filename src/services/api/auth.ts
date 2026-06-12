@@ -3,7 +3,7 @@
  * Handles user authentication, MFA, and password reset
  */
 
-import { API_BASE_URL, authFetch, handleResponse } from './base';
+import { API_BASE_URL, authFetch, handleResponse, tryRefreshAccessToken } from './base';
 
 // Trusted Device type
 export interface TrustedDevice {
@@ -16,6 +16,21 @@ export interface TrustedDevice {
   lastUsedAt: string;
   expiresAt: string;
 }
+
+// Pulls token + refreshToken out of either response shape (login returns
+// them at top level, register inside `data`) and persists both to
+// localStorage. Returns true if at least the access token was found.
+const persistTokensFromResponse = (result: any): boolean => {
+  const accessToken = result?.data?.token || result?.token;
+  const refreshToken = result?.data?.refreshToken || result?.refreshToken;
+  if (accessToken) {
+    localStorage.setItem('auth_token', accessToken);
+  }
+  if (refreshToken) {
+    localStorage.setItem('refresh_token', refreshToken);
+  }
+  return Boolean(accessToken);
+};
 
 // Auth API
 export const authApi = {
@@ -37,13 +52,8 @@ export const authApi = {
     const result = await handleResponse(response);
     console.log('🌐 [API] Register result:', result);
 
-    // Store token - backend returns { data: { token, user } }
-    const token = result?.data?.token || result?.token;
-    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found', { result });
-
-    if (token) {
-      localStorage.setItem('auth_token', token);
-      console.log('✅ [API] Token stored in localStorage');
+    if (persistTokensFromResponse(result)) {
+      console.log('✅ [API] Access + refresh tokens stored');
     } else {
       console.error('❌ [API] No token in response!', result);
     }
@@ -69,18 +79,25 @@ export const authApi = {
     const result = await handleResponse(response);
     console.log('🌐 [API] Login result:', result);
 
-    // Store token - backend returns { data: { token, user } }
-    const token = result?.data?.token || result?.token;
-    console.log('🌐 [API] Extracted token:', token ? '✅ Found' : '❌ Not found');
-
-    if (token) {
-      localStorage.setItem('auth_token', token);
-      console.log('✅ [API] Token stored in localStorage');
+    if (persistTokensFromResponse(result)) {
+      console.log('✅ [API] Access + refresh tokens stored');
     } else {
       console.error('❌ [API] No token in response!', result);
     }
     return result;
   },
+
+  /**
+   * Exchange the stored refresh token for a fresh access token (and a
+   * rotated refresh token). Both are persisted to localStorage on success.
+   * Returns the new access token, or null if the refresh failed (caller
+   * should treat that as "session lost" and route to login).
+   *
+   * This is a thin wrapper over the single-flight helper used internally by
+   * authFetch, so explicit refreshes and 401-driven refreshes can never
+   * race each other and burn two refresh tokens.
+   */
+  refresh: (): Promise<string | null> => tryRefreshAccessToken(),
 
   changePassword: async (currentPassword: string, newPassword: string) => {
     console.log('🌐 [API] Calling POST /auth/change-password');
@@ -99,7 +116,25 @@ export const authApi = {
   },
 
   logout: () => {
+    // Read refresh token before wiping, so we can still revoke it.
+    const refreshToken = localStorage.getItem('refresh_token');
+
+    // Clear local copies FIRST — logout must always succeed locally,
+    // regardless of network state.
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+
+    // Fire-and-forget server-side revocation of the refresh token. If the
+    // request fails, the token will still naturally expire after its TTL.
+    if (refreshToken) {
+      fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => {
+        // Ignore network failures.
+      });
+    }
   },
 
   // MFA verification during login
@@ -122,9 +157,8 @@ export const authApi = {
 
     const result = await response.json();
 
-    if (result.token) {
-      localStorage.setItem('auth_token', result.token);
-      console.log('✅ [API] MFA verified, token stored');
+    if (persistTokensFromResponse(result)) {
+      console.log('✅ [API] MFA verified, access + refresh tokens stored');
     }
 
     // Store device token if returned

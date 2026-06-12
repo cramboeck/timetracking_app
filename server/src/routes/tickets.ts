@@ -1,7 +1,9 @@
 import express from 'express';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../middleware/upload';
 import { emailService } from '../services/emailService';
@@ -10,6 +12,130 @@ import { auditLog } from '../services/auditLog';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const ticketPrioritySchema = z.enum(['low', 'normal', 'high', 'critical']);
+const ticketStatusSchema = z.enum(['open', 'in_progress', 'waiting', 'resolved', 'closed', 'archived']);
+
+const createTicketSchema = z.object({
+  customerId: z.string().uuid(),
+  projectId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(1).max(500),
+  description: z.string().max(50_000).optional(),
+  priority: ticketPrioritySchema.optional(),
+});
+
+const updateTicketSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional().nullable(),
+  title: z.string().trim().min(1).max(500).optional(),
+  description: z.string().max(50_000).optional().nullable(),
+  status: ticketStatusSchema.optional(),
+  priority: ticketPrioritySchema.optional(),
+  assignedToUserId: z.string().uuid().optional().nullable(),
+  solution: z.string().max(50_000).optional().nullable(),
+  resolutionType: z.string().max(100).optional().nullable(),
+});
+
+const mergeTicketsSchema = z.object({
+  sourceTicketIds: z.array(z.string().uuid()).min(1).max(50),
+});
+
+const createCommentSchema = z.object({
+  content: z.string().min(1).max(50_000),
+  isInternal: z.boolean().optional(),
+  notifyCustomer: z.boolean().optional(),
+  replyViaEmail: z.boolean().optional(),
+});
+
+const createContactSchema = z.object({
+  customerId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().max(200),
+  canCreateTickets: z.boolean().optional(),
+  canViewAllTickets: z.boolean().optional(),
+  notifyTicketCreated: z.boolean().optional(),
+  notifyTicketStatusChanged: z.boolean().optional(),
+  notifyTicketReply: z.boolean().optional(),
+});
+
+const updateContactSchema = createContactSchema.partial();
+
+const cannedResponseSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  content: z.string().min(1).max(50_000),
+  shortcut: z.string().trim().max(50).optional().nullable(),
+  category: z.string().trim().max(100).optional().nullable(),
+});
+
+const tagSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Must be a #RRGGBB color').optional(),
+});
+
+const slaPolicySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2_000).optional().nullable(),
+  priority: ticketPrioritySchema,
+  firstResponseMinutes: z.number().int().positive().max(525_600), // ≤ 1 year
+  resolutionMinutes: z.number().int().positive().max(525_600),
+  businessHoursOnly: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+const updateSlaPolicySchema = slaPolicySchema.partial();
+
+const ticketTaskSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  description: z.string().max(50_000).optional().nullable(),
+  visibleToCustomer: z.boolean().optional(),
+  assignedTo: z.string().uuid().optional().nullable(),
+  dueDate: z.string().datetime().optional().nullable(),
+});
+
+const updateTicketTaskSchema = ticketTaskSchema.extend({
+  completed: z.boolean().optional(),
+}).partial();
+
+const reorderTasksSchema = z.object({
+  taskIds: z.array(z.string().uuid()).min(1).max(500),
+});
+
+// ============================================================================
+// Explicit column lists (no SELECT *)
+// ============================================================================
+
+const NOTIFICATION_PREFS_COLUMNS = `
+  id, user_id, organization_id,
+  push_enabled, push_on_new_ticket, push_on_ticket_assigned, push_on_ticket_comment,
+  push_on_status_change, push_on_sla_warning, push_on_mention,
+  email_enabled, email_on_new_ticket, email_on_ticket_assigned, email_on_ticket_comment,
+  email_on_status_change, email_on_sla_warning, email_on_mention, email_daily_digest
+`;
+
+const TICKET_ATTACHMENT_COLUMNS = `
+  id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_user_id, created_at
+`;
+
+const CANNED_RESPONSE_COLUMNS = `
+  id, user_id, organization_id, title, content, shortcut, category, usage_count, created_at, updated_at
+`;
+
+const SLA_POLICY_COLUMNS = `
+  id, organization_id, user_id, name, description, priority,
+  first_response_minutes, resolution_minutes, business_hours_only,
+  is_active, is_default, created_at, updated_at
+`;
+
+const TICKET_TASK_COLUMNS = `
+  id, ticket_id, title, description, completed, sort_order, visible_to_customer,
+  assigned_to, due_date, created_at, completed_at
+`;
+
+const TICKET_BASIC_COLUMNS = `id, priority, created_at`;
 
 // Portal URL for email links
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
@@ -110,47 +236,98 @@ function transformComment(row: any) {
 // ============================================================================
 
 // GET /api/tickets - Get all tickets for organization
+// Supports pagination (?page=1&limit=50) and filters:
+//   ?status=open|in_progress|waiting|resolved|closed
+//   ?customerId=UUID  ?priority=low|normal|high|critical
+//   ?searchText=foo   (case-insensitive on title/description)
+// Backward-compatible: ?all=true returns all tickets without pagination (legacy)
 router.get('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { status, customerId, priority } = req.query;
+    const { status, customerId, priority, searchText } = req.query;
 
-    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}`);
+    // Legacy support: ?all=true bypasses pagination
+    const returnAll = req.query.all === 'true';
 
-    let queryText = `
-      SELECT t.*, c.name as customer_name, p.name as project_name
-      FROM tickets t
-      LEFT JOIN customers c ON t.customer_id = c.id
-      LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.organization_id = $1
-    `;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    logger.info(`📋 Fetching tickets for organization_id: ${organizationId}, page: ${page}, limit: ${limit}`);
+
+    // Build WHERE clause
     const params: any[] = [organizationId];
-    let paramIndex = 2;
+    let whereClause = 'WHERE t.organization_id = $1';
 
     if (status) {
-      queryText += ` AND t.status = $${paramIndex}`;
       params.push(status);
-      paramIndex++;
+      whereClause += ` AND t.status = $${params.length}`;
     }
 
     if (customerId) {
-      queryText += ` AND t.customer_id = $${paramIndex}`;
       params.push(customerId);
-      paramIndex++;
+      whereClause += ` AND t.customer_id = $${params.length}`;
     }
 
     if (priority) {
-      queryText += ` AND t.priority = $${paramIndex}`;
       params.push(priority);
-      paramIndex++;
+      whereClause += ` AND t.priority = $${params.length}`;
     }
 
-    queryText += ' ORDER BY t.created_at DESC';
+    if (searchText && typeof searchText === 'string' && searchText.trim()) {
+      params.push(`%${searchText.trim()}%`);
+      whereClause += ` AND (t.title ILIKE $${params.length} OR t.description ILIKE $${params.length})`;
+    }
 
-    const result = await query(queryText, params);
-    logger.info(`📋 Found ${result.rows.length} tickets for organization_id: ${organizationId}`);
-    res.json({ success: true, data: result.rows.map(transformTicket) });
+    // Explicit column list (no SELECT *)
+    const baseQuery = `
+      SELECT t.id, t.ticket_number, t.organization_id, t.user_id, t.customer_id, t.project_id,
+             t.assigned_to, t.title, t.description, t.status, t.priority, t.source,
+             t.due_date, t.first_response_at, t.resolved_at, t.closed_at,
+             t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
+             t.sla_response_breached, t.sla_resolution_breached,
+             t.created_at, t.updated_at, t.created_by_contact_id,
+             c.name as customer_name, p.name as project_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      ${whereClause}
+      ORDER BY t.created_at DESC`;
+
+    if (returnAll) {
+      // Legacy path: return all matching tickets without pagination
+      const result = await query(baseQuery, params);
+      logger.info(`📋 Found ${result.rows.length} tickets (all) for organization_id: ${organizationId}`);
+      return res.json({ success: true, data: result.rows.map(transformTicket) });
+    }
+
+    // Count total for pagination metadata
+    const countResult = await query(
+      `SELECT COUNT(*) FROM tickets t ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Fetch page
+    params.push(limit, offset);
+    const result = await query(
+      `${baseQuery} LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    logger.info(`📋 Found ${result.rows.length}/${total} tickets for organization_id: ${organizationId}`);
+    res.json({
+      success: true,
+      data: result.rows.map(transformTicket),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    });
   } catch (error) {
     logger.error('Error fetching tickets:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch tickets' });
@@ -452,7 +629,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
 });
 
 // POST /api/tickets - Create new ticket (requires member role)
-router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createTicketSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -533,7 +710,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 });
 
 // PUT /api/tickets/:id - Update ticket (requires member role)
-router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTicketSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -742,7 +919,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
             // Check notification preferences for assignee
             const prefsResult = await query(
-              'SELECT * FROM notification_preferences WHERE user_id = $1',
+              `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
               [assignedToUserId]
             );
             // Default preferences if not set
@@ -854,7 +1031,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 });
 
 // POST /api/tickets/:id/merge - Merge source tickets into target ticket (requires admin role)
-router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(mergeTicketsSchema), async (req, res) => {
   const client = await getClient();
 
   try {
@@ -1079,7 +1256,7 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
 // ============================================================================
 
 // POST /api/tickets/:id/comments - Add comment to ticket (requires member role)
-router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createCommentSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1217,7 +1394,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
         // Check notification preferences for assignee
         const prefsResult = await query(
-          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
           [ticket.assigned_to_user_id]
         );
         const prefs = prefsResult.rows[0] || {
@@ -1433,7 +1610,7 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachO
 
     // Get attachment to delete the file
     const attachmentResult = await query(
-      'SELECT * FROM ticket_attachments WHERE id = $1 AND ticket_id = $2',
+      `SELECT ${TICKET_ATTACHMENT_COLUMNS} FROM ticket_attachments WHERE id = $1 AND ticket_id = $2`,
       [attachmentId, ticketId]
     );
 
@@ -1565,7 +1742,7 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
 });
 
 // POST /api/tickets/contacts - Create customer contact
-router.post('/contacts', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/contacts', authenticateToken, attachOrganization, validate(createContactSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1618,7 +1795,7 @@ router.post('/contacts', authenticateToken, attachOrganization, async (req, res)
 });
 
 // PUT /api/tickets/contacts/:id - Update customer contact
-router.put('/contacts/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/contacts/:id', authenticateToken, attachOrganization, validate(updateContactSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1676,7 +1853,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
     const { category } = req.query;
 
     let queryText = `
-      SELECT * FROM canned_responses
+      SELECT ${CANNED_RESPONSE_COLUMNS} FROM canned_responses
       WHERE organization_id = $1
     `;
     const params: any[] = [organizationId];
@@ -1697,7 +1874,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
 });
 
 // POST /api/tickets/canned-responses - Create canned response
-router.post('/canned-responses', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/canned-responses', authenticateToken, attachOrganization, validate(cannedResponseSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1724,7 +1901,7 @@ router.post('/canned-responses', authenticateToken, attachOrganization, async (r
 });
 
 // PUT /api/tickets/canned-responses/:id - Update canned response
-router.put('/canned-responses/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/canned-responses/:id', authenticateToken, attachOrganization, validate(cannedResponseSchema.partial()), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -2041,7 +2218,7 @@ router.get('/tags/list', authenticateToken, attachOrganization, async (req, res)
 });
 
 // POST /api/tickets/tags - Create tag
-router.post('/tags', authenticateToken, attachOrganization, async (req, res) => {
+router.post('/tags', authenticateToken, attachOrganization, validate(tagSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2071,7 +2248,7 @@ router.post('/tags', authenticateToken, attachOrganization, async (req, res) => 
 });
 
 // PUT /api/tickets/tags/:id - Update tag
-router.put('/tags/:id', authenticateToken, attachOrganization, async (req, res) => {
+router.put('/tags/:id', authenticateToken, attachOrganization, validate(tagSchema.partial()), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -2490,7 +2667,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
     const organizationId = orgReq.organization.id;
 
     const result = await query(`
-      SELECT * FROM sla_policies
+      SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies
       WHERE organization_id = $1
       ORDER BY
         CASE priority
@@ -2510,7 +2687,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
 });
 
 // POST /api/tickets/sla/policies - Create SLA policy (requires admin role)
-router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(slaPolicySchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2563,7 +2740,7 @@ router.post('/sla/policies', authenticateToken, attachOrganization, requireOrgRo
 });
 
 // PUT /api/tickets/sla/policies/:id - Update SLA policy (requires admin role)
-router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req, res) => {
+router.put('/sla/policies/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(updateSlaPolicySchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2663,7 +2840,7 @@ router.delete('/sla/policies/:id', authenticateToken, attachOrganization, requir
 async function calculateSlaDeadlines(organizationId: string, priority: string, createdAt: Date = new Date()) {
   // Find applicable SLA policy
   const policyResult = await query(`
-    SELECT * FROM sla_policies
+    SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies
     WHERE organization_id = $1 AND is_active = TRUE
       AND (priority = $2 OR priority = 'all')
     ORDER BY
@@ -2697,7 +2874,7 @@ router.post('/sla/apply/:ticketId', authenticateToken, attachOrganization, async
 
     // Get ticket
     const ticketResult = await query(
-      'SELECT * FROM tickets WHERE id = $1 AND organization_id = $2',
+      `SELECT ${TICKET_BASIC_COLUMNS} FROM tickets WHERE id = $1 AND organization_id = $2`,
       [ticketId, organizationId]
     );
 
@@ -2876,7 +3053,7 @@ router.get('/:id/tasks', authenticateToken, attachOrganization, async (req, res)
 });
 
 // POST /api/tickets/:id/tasks - Create a new task (requires member role)
-router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole('member'), validate(ticketTaskSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2942,7 +3119,7 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
 });
 
 // PUT /api/tickets/:ticketId/tasks/:taskId - Update a task (requires member role)
-router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTicketTaskSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -2962,7 +3139,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 
     // Get current task state
     const currentTask = await query(
-      'SELECT * FROM ticket_tasks WHERE id = $1 AND ticket_id = $2',
+      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE id = $1 AND ticket_id = $2`,
       [taskId, ticketId]
     );
 
@@ -3091,7 +3268,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 });
 
 // PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks (requires member role)
-router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), async (req, res) => {
+router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), validate(reorderTasksSchema), async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -3122,7 +3299,7 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, re
 
     // Get updated tasks
     const result = await query(
-      'SELECT * FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC',
+      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC`,
       [ticketId]
     );
 

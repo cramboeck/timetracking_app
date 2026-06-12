@@ -86,11 +86,11 @@ export const UnknownCustomerDialog = ({
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden"
+          className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/20">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border bg-amber-50 dark:bg-amber-900/20">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-800/30 flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -99,7 +99,7 @@ export const UnknownCustomerDialog = ({
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Unbekannter Absender
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-dark-400">
                   Kein Kunde für diese E-Mail gefunden
                 </p>
               </div>
@@ -114,10 +114,10 @@ export const UnknownCustomerDialog = ({
           {/* Content */}
           <div className="p-4">
             {/* Sender Info */}
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
+            <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                  <span className="text-lg font-semibold text-gray-600 dark:text-gray-300">
+                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-dark-300 flex items-center justify-center">
+                  <span className="text-lg font-semibold text-gray-600 dark:text-dark-500">
                     {senderName?.charAt(0).toUpperCase() || senderEmail?.charAt(0).toUpperCase() || '?'}
                   </span>
                 </div>
@@ -125,7 +125,7 @@ export const UnknownCustomerDialog = ({
                   <p className="font-medium text-gray-900 dark:text-white truncate">
                     {senderName || 'Unbekannt'}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
                     {senderEmail}
                   </p>
                   {senderDomain && (
@@ -144,7 +144,7 @@ export const UnknownCustomerDialog = ({
                 {/* Option 1: Create new customer - navigates to Settings */}
                 <button
                   onClick={onNavigateToCreateCustomer}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all group"
+                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-dark-border rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all group"
                 >
                   <div className="w-12 h-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-200 dark:group-hover:bg-green-800/30 transition-colors">
                     <UserPlus className="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -154,7 +154,7 @@ export const UnknownCustomerDialog = ({
                       Neuen Kunden anlegen
                       <ExternalLink className="w-4 h-4 text-gray-400" />
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       In den Einstellungen anlegen
                       {senderDomain && `, dann Domain @${senderDomain} zuordnen`}
                     </p>
@@ -164,16 +164,16 @@ export const UnknownCustomerDialog = ({
                 {/* Option 2: Assign to existing customer */}
                 <button
                   onClick={() => setView('select')}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-gray-600 rounded-lg hover:border-accent-primary hover:bg-accent-light dark:hover:bg-blue-900/20 transition-all group"
+                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 dark:border-dark-border rounded-lg hover:border-accent-primary hover:bg-accent-light dark:hover:bg-accent-primary/20 transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-lg bg-accent-lighter dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/30 transition-colors">
-                    <Building2 className="w-6 h-6 text-accent-primary dark:text-blue-400" />
+                  <div className="w-12 h-12 rounded-lg bg-accent-lighter dark:bg-accent-primary/30 flex items-center justify-center group-hover:bg-accent-lighter dark:group-hover:bg-accent-primary/30 transition-colors">
+                    <Building2 className="w-6 h-6 text-accent-primary dark:text-accent-primary" />
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold text-gray-900 dark:text-white">
                       Bestehendem Kunden zuordnen
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-dark-400">
                       Kunde auswählen und Domain speichern
                     </p>
                   </div>
@@ -183,16 +183,16 @@ export const UnknownCustomerDialog = ({
                 {/* Option 3: Continue without customer */}
                 <button
                   onClick={onContinueWithoutCustomer}
-                  className="w-full flex items-center gap-4 p-4 border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-all group"
+                  className="w-full flex items-center gap-4 p-4 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-lg hover:border-gray-400 dark:hover:border-dark-border transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-dark-200 flex items-center justify-center">
                     <Users className="w-6 h-6 text-gray-400" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-medium text-gray-600 dark:text-gray-300">
+                    <p className="font-medium text-gray-600 dark:text-dark-500">
                       Ohne Kunde fortfahren
                     </p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                    <p className="text-sm text-gray-400 dark:text-dark-400">
                       Ticket ohne Kundenzuordnung erstellen
                     </p>
                   </div>
@@ -219,13 +219,13 @@ export const UnknownCustomerDialog = ({
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                         Kunde auswählen
                       </label>
                       <select
                         value={selectedCustomerId}
                         onChange={(e) => setSelectedCustomerId(e.target.value)}
-                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="w-full px-3 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                       >
                         <option value="">-- Kunde wählen --</option>
                         {customers.map((customer) => (
@@ -237,7 +237,7 @@ export const UnknownCustomerDialog = ({
                     </div>
 
                     {senderDomain && (
-                      <label className="flex items-start gap-3 p-3 bg-accent-light dark:bg-blue-900/20 rounded-lg cursor-pointer">
+                      <label className="flex items-start gap-3 p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg cursor-pointer">
                         <input
                           type="checkbox"
                           checked={saveDomainForCustomer}
@@ -248,7 +248,7 @@ export const UnknownCustomerDialog = ({
                           <p className="text-sm font-medium text-gray-900 dark:text-white">
                             Domain @{senderDomain} speichern
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-dark-400">
                             Zukünftige E-Mails von dieser Domain werden automatisch zugeordnet
                           </p>
                         </div>

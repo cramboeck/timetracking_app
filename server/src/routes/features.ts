@@ -1,9 +1,15 @@
 import { Router, Response } from 'express';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
+
+const enablePackageSchema = z.object({
+  expiresAt: z.string().datetime().optional().nullable(),
+});
 
 // Package definitions
 export const PACKAGES = {
@@ -72,7 +78,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/features/:packageName/enable - Enable a package (admin only for now)
-router.post('/:packageName/enable', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:packageName/enable', authenticateToken, validate(enablePackageSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { packageName } = req.params;

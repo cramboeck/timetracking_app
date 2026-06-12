@@ -69,6 +69,7 @@ import {
 } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { StatWidget } from './ui/StatWidget';
+import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
 import { Modal } from './Modal';
@@ -91,6 +92,10 @@ interface CustomerHubProps {
   onStartTimer?: (customerId: string, projectId?: string, description?: string) => void;
   onAddManualEntry?: (customerId: string, projectId?: string) => void;
   initialCustomerId?: string;
+  // True while App.tsx is still fetching customers/projects/entries on
+  // boot. Renamed from `isLoading` to avoid colliding with the local
+  // detail-fetch `isLoading` state below.
+  isInitialDataLoading?: boolean;
 }
 
 type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries';
@@ -298,12 +303,12 @@ const HealthBadge: React.FC<HealthBadgeProps> = ({ score, trend, showDetails, fa
       </button>
 
       {showTooltip && factors && (
-        <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-3 z-50">
+        <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-dark-100 rounded-lg shadow-xl border border-gray-200 dark:border-dark-border p-3 z-50">
           <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Health Score Details</h4>
           <div className="space-y-2">
             {factors.map((factor, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">{factor.label}</span>
+                <span className="text-gray-600 dark:text-dark-400">{factor.label}</span>
                 <span className={
                   factor.impact === 'positive' ? 'text-green-600 dark:text-green-400' :
                   factor.impact === 'negative' ? 'text-red-600 dark:text-red-400' :
@@ -344,7 +349,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
     { icon: UserPlus, label: 'Kontakt hinzufügen', onClick: onAddContact, color: 'text-accent-primary' },
     { icon: PhoneCall, label: 'Interaktion erfassen', onClick: onAddInteraction, color: 'text-green-600' },
     { icon: Ticket, label: 'Ticket erstellen', onClick: onCreateTicket, color: 'text-orange-600' },
-    { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-purple-600' },
+    { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-accent-primary' },
     { icon: Timer, label: 'Timer starten', onClick: onStartTimer, color: 'text-indigo-600' },
     { icon: Clock, label: 'Zeit manuell erfassen', onClick: onAddManualEntry, color: 'text-teal-600' },
   ];
@@ -362,7 +367,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-dark-100 rounded-lg shadow-xl border border-gray-200 dark:border-dark-border py-2 z-50">
             {actions.map((action, i) => (
               <button
                 key={i}
@@ -370,10 +375,10 @@ const QuickActions: React.FC<QuickActionsProps> = ({
                   action.onClick();
                   setIsOpen(false);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
               >
                 <action.icon size={18} className={action.color} />
-                <span className="text-gray-700 dark:text-gray-300">{action.label}</span>
+                <span className="text-gray-700 dark:text-dark-500">{action.label}</span>
               </button>
             ))}
           </div>
@@ -451,7 +456,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Health Score Details */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Heart size={18} className="text-red-500" />
             Kundengesundheit
@@ -469,7 +474,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           <div className="space-y-2">
             {healthScore.factors.map((factor, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">{factor.label}</span>
+                <span className="text-gray-600 dark:text-dark-400">{factor.label}</span>
                 <div className={`w-2 h-2 rounded-full ${
                   factor.impact === 'positive' ? 'bg-green-500' :
                   factor.impact === 'negative' ? 'bg-red-500' :
@@ -481,25 +486,25 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
 
         {/* Projects Overview */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Briefcase size={18} className="text-indigo-500" />
             Projekte ({activeProjects.length}/{customerProjects.length})
           </h3>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {customerProjects.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              <p className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
                 Keine Projekte
               </p>
             ) : (
               customerProjects.slice(0, 5).map(project => (
-                <div key={project.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <div key={project.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-200/50">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${project.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
                     <span className="text-sm text-gray-900 dark:text-white">{project.name}</span>
                   </div>
                   {project.hourlyRate && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-dark-400">
                       {project.hourlyRate}€/h
                     </span>
                   )}
@@ -510,32 +515,32 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
 
         {/* Contact Info */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Building2 size={18} className="text-accent-primary" />
             Kontaktdaten
           </h3>
           <div className="space-y-3 text-sm">
             {customer.email && (
-              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Mail size={16} />
                 {customer.email}
               </a>
             )}
             {customer.phone && (
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Phone size={16} />
                 {customer.phone}
               </a>
             )}
             {customer.website && (
-              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary dark:hover:text-blue-400">
+              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Globe size={16} />
                 {customer.website}
               </a>
             )}
             {customer.address && (
-              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-400">
+              <div className="flex items-start gap-2 text-gray-600 dark:text-dark-400">
                 <MapPin size={16} className="mt-0.5" />
                 <span>{customer.address}</span>
               </div>
@@ -545,16 +550,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       </div>
 
       {/* Unified Timeline */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Activity size={18} className="text-purple-500" />
+            <Activity size={18} className="text-accent-primary" />
             Letzte Aktivitäten
           </h3>
         </div>
-        <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto">
+        <div className="divide-y divide-gray-100 dark:divide-dark-border max-h-96 overflow-y-auto">
           {timeline.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <Activity size={32} className="mx-auto mb-2 opacity-50" />
               <p>Keine Aktivitäten</p>
             </div>
@@ -563,7 +568,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <button
                 key={`${item.type}-${item.id}`}
                 onClick={() => onTimelineItemClick(item)}
-                className="w-full p-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                className="w-full p-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors text-left"
               >
                 <div className={`p-2 rounded-lg ${item.color}`}>
                   <item.icon size={16} />
@@ -573,11 +578,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     {item.title}
                   </p>
                   {item.description && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
                       {item.description}
                     </p>
                   )}
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  <p className="text-xs text-gray-400 dark:text-dark-400 mt-1">
                     {getRelativeTime(item.timestamp)}
                   </p>
                 </div>
@@ -615,10 +620,10 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'decision_maker': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400';
+      case 'decision_maker': return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary';
+      case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary';
       case 'billing': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400';
+      default: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-400';
     }
   };
 
@@ -634,9 +639,9 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
       </div>
 
       {contacts.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <Users size={48} className="mx-auto mb-3 text-gray-400" />
-          <p className="text-gray-500 dark:text-gray-400">Keine Ansprechpartner vorhanden</p>
+          <p className="text-gray-500 dark:text-dark-400">Keine Ansprechpartner vorhanden</p>
           <Button onClick={onAddContact} variant="ghost" className="mt-3" icon={<Plus size={16} />}>
             Ersten Kontakt hinzufügen
           </Button>
@@ -646,11 +651,11 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
           {contacts.map(contact => (
             <div
               key={contact.id}
-              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4"
+              className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4"
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent-primary to-accent-primary flex items-center justify-center text-white font-bold text-lg">
                     {(contact.first_name?.[0] || '') + (contact.last_name?.[0] || '')}
                   </div>
                   <div>
@@ -661,7 +666,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
                       )}
                     </p>
                     {contact.job_title && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{contact.job_title}</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400">{contact.job_title}</p>
                     )}
                   </div>
                 </div>
@@ -683,7 +688,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
                 ) : (
                   <button
                     onClick={() => onEnablePortalAccess(contact)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-accent-lighter text-accent-dark dark:bg-blue-900/30 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                    className="text-xs px-2 py-0.5 rounded-full bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/50 transition-colors"
                   >
                     + Portal aktivieren
                   </button>
@@ -692,19 +697,19 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
 
               <div className="space-y-1 text-sm">
                 {contact.email && (
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
+                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary">
                     <Mail size={14} />
                     {contact.email}
                   </a>
                 )}
                 {contact.phone && (
-                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
+                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary">
                     <Phone size={14} />
                     {contact.phone}
                   </a>
                 )}
                 {contact.mobile && (
-                  <a href={`tel:${contact.mobile}`} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-accent-primary">
+                  <a href={`tel:${contact.mobile}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary">
                     <Phone size={14} />
                     {contact.mobile} (Mobil)
                   </a>
@@ -712,9 +717,9 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
               </div>
 
               {contact.recent_interactions && contact.recent_interactions.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Letzte Interaktion:</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-dark-border">
+                  <p className="text-xs text-gray-500 dark:text-dark-400 mb-1">Letzte Interaktion:</p>
+                  <p className="text-sm text-gray-700 dark:text-dark-500">
                     {contact.recent_interactions[0].subject || contact.recent_interactions[0].type}
                     <span className="text-gray-400 ml-2">
                       {getRelativeTime(contact.recent_interactions[0].occurred_at)}
@@ -748,7 +753,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const statusColors: Record<string, string> = {
     open: 'bg-blue-500',
     in_progress: 'bg-yellow-500',
-    waiting: 'bg-purple-500',
+    waiting: 'bg-accent-light0',
     resolved: 'bg-green-500',
     closed: 'bg-gray-500',
   };
@@ -764,8 +769,8 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const priorityColors: Record<string, string> = {
     critical: 'text-red-600 dark:text-red-400',
     high: 'text-orange-600 dark:text-orange-400',
-    normal: 'text-accent-primary dark:text-blue-400',
-    low: 'text-gray-600 dark:text-gray-400',
+    normal: 'text-accent-primary dark:text-accent-primary',
+    low: 'text-gray-600 dark:text-dark-400',
   };
 
   return (
@@ -790,24 +795,24 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
       </div>
 
       {filteredTickets.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <CheckCircle2 size={48} className="mx-auto mb-3 text-green-500" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             {filter === 'open' ? 'Keine offenen Tickets' : 'Keine Tickets vorhanden'}
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
           {filteredTickets.map(ticket => (
             <button
               key={ticket.id}
               onClick={() => onTicketClick(ticket)}
-              className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+              className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors text-left"
             >
               <div className={`w-3 h-3 rounded-full ${statusColors[ticket.status]}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                  <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                     {ticket.ticketNumber}
                   </span>
                   <span className={`text-xs ${priorityColors[ticket.priority]}`}>
@@ -818,7 +823,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
                 <p className="font-medium text-gray-900 dark:text-white truncate">
                   {ticket.title}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                   {statusLabels[ticket.status]} • {formatDate(ticket.createdAt)}
                 </p>
               </div>
@@ -835,9 +840,10 @@ interface TasksTabProps {
   tasks: Task[];
   onCreateTask: () => void;
   onTaskClick: (task: Task) => void;
+  onOpenTicket?: (ticketId: string) => void;
 }
 
-const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick }) => {
+const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick, onOpenTicket }) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
 
   const filteredTasks = tasks.filter(t => {
@@ -887,35 +893,45 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
       </div>
 
       {filteredTasks.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <CheckCircle2 size={48} className="mx-auto mb-3 text-green-500" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             {filter === 'active' ? 'Keine aktiven Aufgaben' : 'Keine Aufgaben vorhanden'}
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
           {filteredTasks.map(task => {
             const StatusIcon = statusIcons[task.status];
             const overdue = isOverdue(task);
+            const isTicketSource = task.taskSource === 'ticket';
 
             return (
-              <button
+              <div
                 key={task.id}
-                onClick={() => onTaskClick(task)}
-                className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                className="w-full p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors text-left"
               >
                 <StatusIcon size={20} className={statusColors[task.status]} />
-                <div className="flex-1 min-w-0">
-                  <p className={`font-medium ${
-                    task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'
-                  } truncate`}>
-                    {task.title}
-                  </p>
+                <button
+                  onClick={() => isTicketSource ? (task.ticketId && onOpenTicket?.(task.ticketId)) : onTaskClick(task)}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`font-medium ${
+                      task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-900 dark:text-white'
+                    } truncate`}>
+                      {task.title}
+                    </p>
+                    {isTicketSource && task.ticketNumber && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-accent-primary/10 dark:bg-accent-primary/20 text-accent-primary">
+                        Ticket {task.ticketNumber}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     {task.dueDate && (
                       <span className={`text-xs flex items-center gap-1 ${
-                        overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                        overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
                       }`}>
                         <Calendar size={12} />
                         {formatDate(task.dueDate)}
@@ -923,14 +939,14 @@ const TasksTab: React.FC<TasksTabProps> = ({ tasks, onCreateTask, onTaskClick })
                       </span>
                     )}
                     {task.assignedToName && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className="text-xs text-gray-500 dark:text-dark-400">
                         • {task.assignedToName}
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
                 <ChevronRight size={16} className="text-gray-400" />
-              </button>
+              </div>
             );
           })}
         </div>
@@ -974,12 +990,12 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
   }, 0);
 
   const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    draft: 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500',
     active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
     expiring: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
     expired: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    cancelled: 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500',
     terminated: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   };
 
@@ -1011,16 +1027,16 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Aktive Verträge</p>
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4">
+          <p className="text-sm text-gray-500 dark:text-dark-400">Aktive Verträge</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeContracts.length}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Monatlicher Wert</p>
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4">
+          <p className="text-sm text-gray-500 dark:text-dark-400">Monatlicher Wert</p>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyRevenue)}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Laufen bald aus</p>
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-4">
+          <p className="text-sm text-gray-500 dark:text-dark-400">Laufen bald aus</p>
           <p className={`text-2xl font-bold ${expiringCount > 0 ? 'text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
             {expiringCount}
           </p>
@@ -1044,14 +1060,14 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
 
       {/* Contract List */}
       {filteredContracts.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <FileSignature size={48} className="mx-auto mb-3 text-gray-400" />
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-gray-500 dark:text-dark-400">
             {filter === 'expiring' ? 'Keine auslaufenden Verträge' : 'Keine Verträge vorhanden'}
           </p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
           {filteredContracts.map(contract => {
             const daysUntilExpiry = contract.endDate ? getDaysUntilExpiry(contract.endDate) : null;
             const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 90 && daysUntilExpiry > 0;
@@ -1060,27 +1076,27 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
               <button
                 key={contract.id}
                 onClick={() => onContractClick?.(contract)}
-                className="w-full p-4 flex items-start gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                className="w-full p-4 flex items-start gap-4 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors text-left"
               >
                 <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
                   <FileSignature size={20} className="text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                    <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
                       {contract.contractNumber}
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[contract.status]}`}>
                       {statusLabels[contract.status]}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400">
                       {typeLabels[contract.contractType]}
                     </span>
                   </div>
                   <p className="font-medium text-gray-900 dark:text-white truncate">
                     {contract.name}
                   </p>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-dark-400">
                     <span className="flex items-center gap-1">
                       <Calendar size={12} />
                       {formatDate(contract.startDate)}
@@ -1156,13 +1172,13 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
       <div className="flex justify-between items-center">
         <div className="flex gap-4">
           <div className="text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Gesamt:</span>
+            <span className="text-gray-500 dark:text-dark-400">Gesamt:</span>
             <span className="ml-2 font-semibold text-gray-900 dark:text-white">
               {formatDuration(totalSeconds)}
             </span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Nicht abgerechnet:</span>
+            <span className="text-gray-500 dark:text-dark-400">Nicht abgerechnet:</span>
             <span className="ml-2 font-semibold text-orange-600 dark:text-orange-400">
               {formatDuration(unbilledSeconds)}
             </span>
@@ -1179,12 +1195,12 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
       </div>
 
       {entries.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <Clock size={48} className="mx-auto mb-3 text-gray-400" />
-          <p className="text-gray-500 dark:text-gray-400">Keine Zeiteinträge vorhanden</p>
+          <p className="text-gray-500 dark:text-dark-400">Keine Zeiteinträge vorhanden</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
           {entries.slice(0, 20).map(entry => {
             const duration = entry.duration ||
               (entry.startTime && entry.endTime
@@ -1198,7 +1214,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
                   <p className="font-medium text-gray-900 dark:text-white truncate">
                     {entry.description || getProjectName(entry.projectId)}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-dark-400">
                     {formatDate(entry.date || entry.startTime)} • {getProjectName(entry.projectId)}
                   </p>
                 </div>
@@ -1206,7 +1222,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
                   <p className="font-mono font-medium text-gray-900 dark:text-white">
                     {formatDuration(duration)}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-dark-400">
                     {entry.billed ? 'Abgerechnet' : 'Offen'}
                   </p>
                 </div>
@@ -1234,6 +1250,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   onStartTimer,
   onAddManualEntry,
   initialCustomerId,
+  isInitialDataLoading = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId || null);
@@ -1395,7 +1412,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         description: t.status === 'completed' ? 'Erledigt' : t.dueDate ? `Fällig: ${formatDate(t.dueDate)}` : undefined,
         timestamp: t.createdAt,
         icon: ListTodo,
-        color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+        color: 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary',
         metadata: { taskId: t.id },
       });
     });
@@ -1409,7 +1426,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         description: formatDuration(e.duration || 0),
         timestamp: e.date || e.startTime,
         icon: Clock,
-        color: 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400',
+        color: 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary',
       });
     });
 
@@ -1478,17 +1495,17 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
       {/* Customer List - Left Panel */}
       <div className={`
         ${selectedCustomerId ? 'hidden lg:block lg:w-80 xl:w-96' : 'w-full'}
-        border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800
+        border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100
         flex flex-col flex-shrink-0
       `}>
         {/* Search Header */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Building2 size={24} className="text-accent-primary dark:text-blue-400" />
+              <Building2 size={24} className="text-accent-primary dark:text-accent-primary" />
               Kunden
             </h1>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-gray-500 dark:text-dark-400">
               ({filteredCustomers.length})
             </span>
             <div className="flex items-center gap-2 ml-auto">
@@ -1516,8 +1533,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
               placeholder="Suchen..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600
-                bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-dark-border
+                bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white
                 focus:ring-2 focus:ring-accent-primary focus:border-transparent"
             />
           </div>
@@ -1539,13 +1556,20 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
         {/* Customer List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredCustomers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          {isInitialDataLoading && customers.length === 0 ? (
+            // Initial app boot — show skeletons instead of the empty state.
+            <div className="p-3 space-y-2" aria-busy="true" aria-label="Kunden werden geladen">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonListItem key={i} />
+              ))}
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <Users size={48} className="mx-auto mb-3 opacity-50" />
               <p>Keine Kunden gefunden</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-gray-100 dark:divide-dark-border">
               {filteredCustomers.map(customer => {
                 const isSelected = selectedCustomerId === customer.id;
                 const customerProjects = projects.filter(p => p.customerId === customer.id);
@@ -1556,8 +1580,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     onClick={() => handleCustomerSelect(customer.id)}
                     className={`w-full p-4 text-left transition-colors ${
                       isSelected
-                        ? 'bg-accent-light dark:bg-blue-900/20 border-l-4 border-accent-primary'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 border-l-4 border-transparent'
+                        ? 'bg-accent-light dark:bg-accent-primary/20 border-l-4 border-accent-primary'
+                        : 'hover:bg-gray-50 dark:hover:bg-dark-200/50 border-l-4 border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -1571,7 +1595,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                         <p className="font-medium text-gray-900 dark:text-white truncate">
                           {customer.name}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-dark-400">
                           {customerProjects.filter(p => p.isActive).length} Projekte
                         </p>
                       </div>
@@ -1587,13 +1611,13 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
       {/* Customer Detail - Right Panel */}
       {selectedCustomer ? (
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-50 dark:bg-gray-900">
+        <div className="flex-1 flex flex-col min-w-0 bg-gray-50 dark:bg-dark-50">
           {/* Customer Header */}
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 lg:p-6">
+          <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border p-4 lg:p-6">
             {/* Back Button (Mobile) */}
             <button
               onClick={() => setSelectedCustomerId(null)}
-              className="lg:hidden flex items-center gap-1 text-accent-primary dark:text-blue-400 mb-4"
+              className="lg:hidden flex items-center gap-1 text-accent-primary dark:text-accent-primary mb-4"
             >
               <ChevronLeft size={18} />
               <span>Zurück</span>
@@ -1613,7 +1637,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   </h2>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {selectedCustomer.email && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                      <span className="text-sm text-gray-500 dark:text-dark-400 truncate">
                         {selectedCustomer.email}
                       </span>
                     )}
@@ -1647,8 +1671,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     activeTab === tab.id
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
+                      : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200'
                   }`}
                 >
                   <tab.icon size={16} />
@@ -1656,8 +1680,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                   {tab.count !== undefined && tab.count > 0 && (
                     <span className={`px-1.5 py-0.5 rounded-full text-xs ${
                       activeTab === tab.id
-                        ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
-                        : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        ? 'bg-accent-light dark:bg-accent-primary/40 text-accent-dark dark:text-accent-primary'
+                        : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-500'
                     }`}>
                       {tab.count}
                     </span>
@@ -1711,6 +1735,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     tasks={tasks}
                     onCreateTask={handleCreateTask}
                     onTaskClick={(task) => onNavigateToTask?.(task.id)}
+                    onOpenTicket={(ticketId) => onNavigateToTicket?.(ticketId)}
                   />
                 )}
                 {activeTab === 'contracts' && (
@@ -1736,8 +1761,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         </div>
       ) : (
         !selectedCustomerId && (
-          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
-            <div className="text-center text-gray-500 dark:text-gray-400">
+          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-dark-50">
+            <div className="text-center text-gray-500 dark:text-dark-400">
               <Building2 size={64} className="mx-auto mb-4 opacity-30" />
               <p className="text-lg">Wählen Sie einen Kunden</p>
               <p className="text-sm mt-1">um die 360°-Ansicht anzuzeigen</p>

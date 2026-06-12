@@ -7,6 +7,7 @@ import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
 import { Button } from './ui';
+import { useToast } from '../contexts/UIContext';
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -15,13 +16,27 @@ interface StopwatchProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
+  entries: TimeEntry[];
   onOpenManualEntry?: () => void;
   prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
-export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
+const WEEKLY_GOAL_HOURS = 40;
+
+// Monday 00:00 of the current local week
+const getStartOfWeek = (): Date => {
+  const d = new Date();
+  const day = d.getDay(); // 0 = Sunday, 1 = Monday, ...
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, customers, activities, entries, onOpenManualEntry, prefilledEntry, onPrefilledEntryUsed }: StopwatchProps) => {
   const { currentUser } = useAuth();
+  const showToast = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [customerId, setCustomerId] = useState('');
@@ -70,7 +85,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     // Check if we have enough context
     if (!projectId && !activityId) {
       console.warn('🤖 [STOPWATCH] No project or activity selected');
-      alert('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus');
+      showToast('Bitte wähle zuerst ein Projekt oder eine Tätigkeit aus', 'warning');
       return;
     }
 
@@ -100,11 +115,11 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         setDescription(response.data.suggestion);
       } else {
         console.warn('🤖 [STOPWATCH] No suggestion in response:', response);
-        alert('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.');
+        showToast('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.', 'error', 5000);
       }
     } catch (err: any) {
       console.error('🤖 [STOPWATCH] Failed to generate description:', err);
-      alert(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`);
+      showToast(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`, 'error', 5000);
     } finally {
       setGeneratingDescription(false);
     }
@@ -143,6 +158,27 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
         : a.name,
     }));
   }, [activities]);
+
+  // Sum of all closed time entries in the current (Monday-based) week.
+  // Excludes the running entry — its live elapsed seconds are added below.
+  const closedWeekSeconds = useMemo(() => {
+    const weekStart = getStartOfWeek();
+    return entries.reduce((sum, e) => {
+      if (e.isRunning) return sum;
+      if (new Date(e.startTime) < weekStart) return sum;
+      return sum + (e.duration || 0);
+    }, 0);
+  }, [entries]);
+
+  const runningWeekSeconds = (runningEntry && new Date(runningEntry.startTime) >= getStartOfWeek())
+    ? elapsedSeconds
+    : 0;
+
+  const weekSeconds = closedWeekSeconds + runningWeekSeconds;
+  const weekGoalSeconds = WEEKLY_GOAL_HOURS * 3600;
+  const weekPercent = Math.min(100, (weekSeconds / weekGoalSeconds) * 100);
+  const weekHours = Math.floor(weekSeconds / 3600);
+  const weekMinutes = Math.floor((weekSeconds % 3600) / 60);
 
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
@@ -201,7 +237,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
   const handleStart = () => {
     if (!projectId) {
-      alert('Bitte wähle ein Projekt aus');
+      showToast('Bitte wähle ein Projekt aus', 'warning');
       return;
     }
 
@@ -316,7 +352,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
           setElapsedSeconds(prev => prev + 1);
         }, 1000);
       }
-      alert('Fehler beim Speichern. Bitte versuche es erneut.');
+      showToast('Fehler beim Speichern. Bitte versuche es erneut.', 'error', 5000);
     } finally {
       setIsStopping(false);
     }
@@ -331,9 +367,9 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const selectedCustomer = selectedProject ? customers.find(c => c.id === selectedProject.customerId) : null;
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 to-accent-light dark:from-dark-50 dark:to-dark-100">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 sm:py-4">
+      <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Zeiterfassung</h1>
           {onOpenManualEntry && (
@@ -345,29 +381,51 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             </Button>
           )}
         </div>
+
+        {/* Weekly goal progress: live total of this week (Mo–So) vs. 40h target */}
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-xs sm:text-sm mb-1.5">
+            <span className="text-gray-500 dark:text-dark-400">Wochenziel</span>
+            <span className="font-medium text-gray-700 dark:text-dark-500 tabular-nums">
+              {weekHours}h {String(weekMinutes).padStart(2, '0')}min
+              <span className="text-gray-400 dark:text-dark-400"> / {WEEKLY_GOAL_HOURS}h</span>
+              <span className="ml-2 text-accent-primary">{Math.round(weekPercent)}%</span>
+            </span>
+          </div>
+          <div className="h-1.5 bg-gray-200 dark:bg-dark-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                weekPercent >= 100
+                  ? 'bg-green-500'
+                  : 'bg-gradient-to-r from-accent-primary to-accent-dark'
+              }`}
+              style={{ width: `${weekPercent}%` }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6">
         {/* Timer Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 md:p-8 mb-8 w-full max-w-2xl">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl border border-gray-200 dark:border-dark-border p-4 sm:p-6 md:p-8 mb-8 w-full max-w-2xl">
           {/* Timer Display */}
           <div className="text-center mb-8">
             <div className={`text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-mono font-bold tracking-tight sm:tracking-wider mb-4 transition-colors break-all ${
               isRunning
-                ? 'text-accent-primary dark:text-blue-400 animate-pulse'
-                : 'text-gray-800 dark:text-gray-100'
+                ? 'text-accent-primary dark:text-accent-primary animate-pulse'
+                : 'text-gray-800 dark:text-dark-500'
             }`}>
               {formatDuration(elapsedSeconds)}
             </div>
 
             {/* Active Project Info */}
             {isRunning && selectedProject && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800 max-w-full">
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-accent-primary/30 rounded-full border border-accent-primary/30 dark:border-accent-primary/40 max-w-full">
                 <div
                   className="w-3 h-3 rounded-full animate-pulse flex-shrink-0"
                   style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
                 />
-                <span className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-100 truncate">
+                <span className="text-xs sm:text-sm font-medium text-accent-dark dark:text-accent-primary truncate">
                   {selectedCustomer?.name} - {selectedProject.name}
                 </span>
               </div>
@@ -378,7 +436,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
           <div className="space-y-4 mb-8">
             {/* Customer Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Kunde
               </label>
               <SearchableSelect
@@ -393,7 +451,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 disabled={isRunning || customersWithProjects.length === 0}
               />
               {customersWithProjects.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
                   Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
                 </p>
               )}
@@ -401,7 +459,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             {/* Project Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Projekt
               </label>
               <SearchableSelect
@@ -415,7 +473,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Tätigkeit (optional)
               </label>
               <SearchableSelect
@@ -428,7 +486,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 allowClear={true}
               />
               {activityId && activities.find(a => a.id === activityId)?.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
                   {activities.find(a => a.id === activityId)?.description}
                 </p>
               )}
@@ -436,10 +494,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
                   Beschreibung (optional)
                   {isRunning && (
-                    <span className="ml-2 text-xs text-accent-primary dark:text-blue-400">
+                    <span className="ml-2 text-xs text-accent-primary dark:text-accent-primary">
                       · editierbar während der Erfassung
                     </span>
                   )}
@@ -456,7 +514,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                     size="sm"
                     variant="ghost"
                     icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
-                    className="text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                    className="text-accent-dark dark:text-accent-primary bg-accent-lighter dark:bg-accent-primary/20 hover:bg-accent-lighter dark:hover:bg-accent-primary/30"
                   >
                     KI-Vorschlag
                   </Button>
@@ -490,10 +548,10 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   }
                 }}
                 rows={3}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none transition-colors"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none transition-colors"
               />
               {isRunning && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                   Die Beschreibung wird automatisch gespeichert
                 </p>
               )}
@@ -580,7 +638,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
         {/* Helper Text */}
         {!isRunning && elapsedSeconds === 0 && (
-          <div className="text-center text-gray-500 dark:text-gray-400 text-sm max-w-md">
+          <div className="text-center text-gray-500 dark:text-dark-400 text-sm max-w-md">
             <p>Wähle einen Kunden und ein Projekt aus, dann starte die Zeiterfassung mit einem Klick auf Start</p>
           </div>
         )}

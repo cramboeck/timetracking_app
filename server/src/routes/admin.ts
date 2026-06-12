@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
+import { validate } from '../middleware/validation';
 import { auditLog } from '../services/auditLog';
 import { logger } from '../utils/logger';
 import { exec } from 'child_process';
@@ -9,10 +11,72 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const roleSchema = z.object({
+  role: z.enum(['user', 'admin']),
+});
+
+const bulkUpdateSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(1000),
+  status: z.string().max(50).optional(),
+  olderThan: z.string().max(50).optional(),
+});
+
+const featureToggleSchema = z.object({
+  enabled: z.boolean(),
+  expiresAt: z.string().datetime().optional().nullable(),
+});
+
+const bulkFeatureSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(500),
+  packageName: z.string().min(1).max(100),
+  enabled: z.boolean(),
+  expiresAt: z.string().datetime().optional().nullable(),
+});
+
+const backupSchema = z.object({
+  compress: z.boolean().optional(),
+});
+
+const restoreConfirmSchema = z.object({
+  confirm: z.literal('RESTORE'),
+});
+
+const cleanupSchema = z.object({
+  olderThanDays: z.number().int().min(1).max(365).optional(),
+});
+
+const vacuumTableSchema = z.object({
+  table: z.string().regex(/^[a-z_]+$/, 'Invalid table name').max(100).optional(),
+});
+
+const maintenanceSchema = z.object({
+  title: z.string().min(1).max(200),
+  message: z.string().min(1).max(5000),
+  type: z.enum(['info', 'warning', 'critical']).optional(),
+  expiresAt: z.string().datetime().optional().nullable(),
+});
+
+const moveUserSchema = z.object({
+  to: z.string().uuid(),
+});
+
+const testEmailSchema = z.object({
+  to: z.string().email().max(200).optional(),
+});
+
 const execAsync = promisify(exec);
 const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 
 const router = Router();
+
+// Explicit column lists (no SELECT *)
+const SYSTEM_NOTIFICATION_COLUMNS = `
+  id, title, message, type, created_by, is_active, expires_at, created_at
+`;
 
 // All admin routes require authentication and admin role
 router.use(authenticate, requireAdmin);
@@ -78,8 +142,8 @@ router.get('/stats', async (req, res) => {
 // GET /api/admin/users - List all users with pagination
 router.get('/users', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const search = req.query.search as string || '';
     const offset = (page - 1) * limit;
 
@@ -195,14 +259,11 @@ router.get('/users/:id', async (req, res) => {
 });
 
 // PUT /api/admin/users/:id/role - Update user role
-router.put('/users/:id/role', async (req: AuthRequest, res) => {
+router.put('/users/:id/role', validate(roleSchema), async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body;
-
-    if (!role || !['user', 'admin'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role. Must be "user" or "admin"' });
-    }
+    // Validation handled by Zod
 
     // Check if user exists
     const userResult = await pool.query('SELECT id FROM users WHERE id = $1', [id]);
@@ -269,8 +330,8 @@ router.delete('/users/:id', async (req: AuthRequest, res) => {
 // GET /api/admin/audit-logs - Get audit logs with pagination
 router.get('/audit-logs', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 100;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 100));
     const userId = req.query.userId as string;
     const action = req.query.action as string;
     const offset = (page - 1) * limit;
@@ -405,8 +466,8 @@ router.get('/analytics', async (req, res) => {
 // GET /api/admin/maintenance - List all maintenance announcements
 router.get('/maintenance', async (req, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const status = req.query.status as string;
     const userId = req.query.userId as string;
     const offset = (page - 1) * limit;
@@ -560,15 +621,10 @@ router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements
-router.delete('/maintenance/bulk', async (req: AuthRequest, res) => {
+router.delete('/maintenance/bulk', validate(bulkUpdateSchema), async (req: AuthRequest, res) => {
   try {
     const { ids, status, olderThan } = req.body;
-
-    if (!ids && !status && !olderThan) {
-      return res.status(400).json({
-        error: 'Please provide ids, status, or olderThan filter'
-      });
-    }
+    // At least one filter is required - Zod ensures ids array exists
 
     let query = 'DELETE FROM maintenance_announcements WHERE 1=1';
     const params: any[] = [];
@@ -708,7 +764,7 @@ router.get('/features', async (req, res) => {
 });
 
 // PUT /api/admin/features/:userId/:packageName - Enable/disable package for user
-router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
+router.put('/features/:userId/:packageName', validate(featureToggleSchema), async (req: AuthRequest, res) => {
   try {
     const { userId, packageName } = req.params;
     const { enabled, expiresAt } = req.body;
@@ -764,13 +820,10 @@ router.put('/features/:userId/:packageName', async (req: AuthRequest, res) => {
 });
 
 // POST /api/admin/features/bulk - Bulk enable/disable package for multiple users
-router.post('/features/bulk', async (req: AuthRequest, res) => {
+router.post('/features/bulk', validate(bulkFeatureSchema), async (req: AuthRequest, res) => {
   try {
     const { userIds, packageName, enabled, expiresAt } = req.body;
-
-    if (!Array.isArray(userIds) || userIds.length === 0) {
-      return res.status(400).json({ error: 'userIds must be a non-empty array' });
-    }
+    // userIds validation handled by Zod
 
     if (!PACKAGES[packageName as keyof typeof PACKAGES]) {
       return res.status(400).json({ error: 'Invalid package name' });
@@ -883,7 +936,7 @@ router.get('/backups', async (req, res) => {
 });
 
 // POST /api/admin/backups - Create a new backup
-router.post('/backups', async (req: AuthRequest, res) => {
+router.post('/backups', validate(backupSchema), async (req: AuthRequest, res) => {
   try {
     const { compress = true } = req.body;
 
@@ -950,16 +1003,11 @@ router.post('/backups', async (req: AuthRequest, res) => {
 });
 
 // POST /api/admin/backups/:filename/restore - Restore from a backup
-router.post('/backups/:filename/restore', async (req: AuthRequest, res) => {
+router.post('/backups/:filename/restore', validate(restoreConfirmSchema), async (req: AuthRequest, res) => {
   try {
     const { filename } = req.params;
     const { confirm } = req.body;
-
-    if (confirm !== 'RESTORE') {
-      return res.status(400).json({
-        error: 'Bitte bestätige die Wiederherstellung mit confirm: "RESTORE"'
-      });
-    }
+    // Validation handled by Zod
 
     const filePath = path.join(BACKUP_DIR, filename);
 
@@ -1063,7 +1111,7 @@ router.delete('/backups/:filename', async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/admin/backups - Delete old backups (cleanup)
-router.delete('/backups', async (req: AuthRequest, res) => {
+router.delete('/backups', validate(cleanupSchema), async (req: AuthRequest, res) => {
   try {
     const { olderThanDays = 30 } = req.body;
 
@@ -1287,12 +1335,12 @@ router.get('/database/stats', async (req, res) => {
 });
 
 // POST /api/admin/database/vacuum - Run VACUUM ANALYZE
-router.post('/database/vacuum', async (req: AuthRequest, res) => {
+router.post('/database/vacuum', validate(vacuumTableSchema), async (req: AuthRequest, res) => {
   try {
     const { table } = req.body;
 
     if (table) {
-      // Validate table name to prevent SQL injection
+      // Validate table name against actual database tables
       const validTables = await pool.query(
         "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
       );
@@ -1503,7 +1551,7 @@ router.get('/system/logs', async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM system_notifications
+      SELECT ${SYSTEM_NOTIFICATION_COLUMNS} FROM system_notifications
       ORDER BY created_at DESC
       LIMIT 50
     `);
@@ -1520,13 +1568,10 @@ router.get('/notifications', async (req, res) => {
 });
 
 // POST /api/admin/notifications - Create system notification
-router.post('/notifications', async (req: AuthRequest, res) => {
+router.post('/notifications', validate(maintenanceSchema), async (req: AuthRequest, res) => {
   try {
     const { title, message, type = 'info', expiresAt } = req.body;
-
-    if (!title || !message) {
-      return res.status(400).json({ error: 'Titel und Nachricht sind erforderlich' });
-    }
+    // Validation handled by Zod
 
     // Create table if not exists
     await pool.query(`
@@ -1858,7 +1903,7 @@ router.get('/email/config', async (req, res) => {
 });
 
 // POST /api/admin/email/test - Send a test email
-router.post('/email/test', async (req: AuthRequest, res) => {
+router.post('/email/test', validate(testEmailSchema), async (req: AuthRequest, res) => {
   try {
     const { to } = req.body;
     const testEmail = to || req.user?.email;

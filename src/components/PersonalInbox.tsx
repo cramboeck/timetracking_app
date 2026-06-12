@@ -8,6 +8,7 @@ import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeHtml } from '../utils/sanitize';
+import { useToast } from '../contexts/UIContext';
 
 interface PersonalEmail extends SupportEmail {
   matchedCustomer?: {
@@ -22,6 +23,7 @@ interface PersonalInboxProps {
 }
 
 export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userEmail, setUserEmail] = useState<string>('');
@@ -80,9 +82,9 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
 
       if (response.success) {
         if (response.alreadyExists) {
-          alert('Diese E-Mail wurde bereits als Interaktion gespeichert.');
+          showToast('Diese E-Mail wurde bereits als Interaktion gespeichert.', 'info', 5000);
         } else if (response.data) {
-          alert(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`);
+          showToast(`E-Mail wurde als Interaktion bei "${response.data.customerName}" gespeichert.`, 'success', 5000);
           onEmailSaved?.(response.data.interactionId, response.data.customerId);
           await loadEmails();
         }
@@ -94,10 +96,10 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
         }
         setShowUnknownCustomerDialog(true);
       } else {
-        alert(response.error || 'Fehler beim Speichern der Interaktion');
+        showToast(response.error || 'Fehler beim Speichern der Interaktion', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Speichern der Interaktion');
+      showToast(err.message || 'Fehler beim Speichern der Interaktion', 'error');
     } finally {
       setSaving(false);
     }
@@ -125,7 +127,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       setShowUnknownCustomerDialog(false);
       await handleSaveAsInteraction(newCustomer.id);
     } catch (err: any) {
-      alert(err.message || 'Fehler beim Erstellen des Kunden');
+      showToast(err.message || 'Fehler beim Erstellen des Kunden', 'error');
     }
   };
 
@@ -189,17 +191,17 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
             <Mail className="text-accent-primary" />
             Mein Posteingang
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
             {userEmail}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
             <input
               type="checkbox"
               checked={showRead}
               onChange={(e) => setShowRead(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
+              className="rounded border-gray-300 dark:border-dark-border"
             />
             Gelesene anzeigen
           </label>
@@ -232,7 +234,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
         <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-300 overflow-hidden">
           <div className="max-h-[50vh] md:max-h-[500px] overflow-y-auto divide-y divide-gray-100 dark:divide-dark-200 scroll-touch touch-manipulation">
             {filteredEmails.length === 0 ? (
-              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+              <div className="p-8 text-center text-gray-500 dark:text-dark-400">
                 <Mail size={48} className="mx-auto mb-3 opacity-30" />
                 <p>Keine E-Mails gefunden</p>
               </div>
@@ -244,20 +246,20 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
                     selectedEmail?.id === email.id
                       ? 'bg-accent-primary/10 border-l-4 border-accent-primary'
                       : 'hover:bg-gray-50 dark:hover:bg-dark-200 border-l-4 border-transparent'
-                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-blue-900/10' : ''}`}
+                  } ${!email.isRead ? 'bg-accent-light/50 dark:bg-accent-primary/40/10' : ''}`}
                   onClick={() => setSelectedEmail(email)}
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`font-medium truncate ${!email.isRead ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <span className={`font-medium truncate ${!email.isRead ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-dark-400'}`}>
                           {email.from.name || email.from.email}
                         </span>
                         {email.hasAttachments && (
                           <Paperclip size={14} className="text-gray-400 flex-shrink-0" />
                         )}
                       </div>
-                      <p className={`text-sm truncate ${!email.isRead ? 'font-medium text-gray-800 dark:text-gray-200' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <p className={`text-sm truncate ${!email.isRead ? 'font-medium text-gray-800 dark:text-dark-500' : 'text-gray-600 dark:text-dark-400'}`}>
                         {email.subject}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -287,7 +289,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                   {selectedEmail.subject}
                 </h3>
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                   <span className="font-medium">{selectedEmail.from.name}</span>
                   <span>&lt;{selectedEmail.from.email}&gt;</span>
                 </div>
@@ -315,7 +317,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
                     }}
                   />
                 ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-dark-400">
                     {selectedEmail.bodyPreview}
                   </p>
                 )}
@@ -343,7 +345,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
 
               {/* Actions */}
               <div className="p-4 border-t border-gray-200 dark:border-dark-300">
-                <p className="text-xs text-gray-500 dark:text-gray-500 mb-2 flex items-center gap-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mb-2 flex items-center gap-1">
                   <MessageSquare size={14} />
                   Als Kunden-Interaktion speichern:
                 </p>
@@ -369,7 +371,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+            <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
               <Mail size={48} className="mb-3 opacity-30" />
               <p className="text-center">
                 Wählen Sie eine E-Mail aus,<br />um Details anzuzeigen
@@ -380,14 +382,14 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       </div>
 
       {/* Info */}
-      <div className="bg-accent-light dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+      <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
         <div className="flex items-start gap-3">
-          <MessageSquare className="text-accent-primary dark:text-blue-400 flex-shrink-0 mt-0.5" size={20} />
+          <MessageSquare className="text-accent-primary dark:text-accent-primary flex-shrink-0 mt-0.5" size={20} />
           <div>
-            <h4 className="font-medium text-blue-800 dark:text-blue-200">
+            <h4 className="font-medium text-accent-dark dark:text-accent-primary">
               E-Mails als Interaktionen speichern
             </h4>
-            <p className="text-sm text-accent-dark dark:text-blue-300 mt-1">
+            <p className="text-sm text-accent-dark dark:text-accent-primary mt-1">
               Speichern Sie wichtige E-Mails direkt im CRM, um die komplette Kommunikationshistorie
               mit Ihren Kunden zu dokumentieren. Die E-Mails erscheinen dann in der Timeline des Kunden.
             </p>

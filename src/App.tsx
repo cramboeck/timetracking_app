@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
-import { AreaNavigation, Area, SubView, getAreaFromSubView, getDefaultSubView } from './components/AreaNavigation';
+import { AreaNavigation, SubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
 import { ManualEntryModern } from './components/ManualEntryModern';
-import { TimeEntriesList } from './components/TimeEntriesList';
-import { CalendarView } from './components/CalendarView';
+import { TimeViews } from './components/TimeViews';
 import { DashboardOverview } from './components/DashboardOverview';
 import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
@@ -20,14 +19,17 @@ import SalesPipeline from './components/SalesPipeline';
 import Leads from './components/Leads';
 import { CRMDashboard } from './components/CRMDashboard';
 import { InvoiceInbox } from './components/InvoiceInbox';
+import { DocumentsSearch } from './components/DocumentsSearch';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
 import SocialMediaLayout from './features/social-media/SocialMediaLayout';
 import AdminPortal from './components/AdminPortal';
 import { ReportsPage } from './components/ReportsPage';
 import { FloatingActionButton } from './components/FloatingActionButton';
+import { GlobalTimerWidget } from './components/GlobalTimerWidget';
 import { Auth } from './components/Auth';
 import { OfflineBanner } from './components/OfflineBanner';
+import { ForgottenTimerBanner } from './components/ForgottenTimerBanner';
 import { NotificationPermissionRequest } from './components/NotificationPermissionRequest';
 import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
@@ -35,139 +37,90 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
-import { useSwipeGesture } from './hooks/useSwipeGesture';
+import { useToast } from './contexts/UIContext';
+import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
+import { useCurrentNavigation } from './hooks/useCurrentNavigation';
+import { useUserPreferences } from './hooks/useUserPreferences';
+import { useSwipeNavigation } from './hooks/useSwipeNavigation';
+import { useOfflineEntrySync } from './hooks/useOfflineEntrySync';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { haptics } from './utils/haptics';
+import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
-import { addPendingEntry, getRetryableEntries, removePendingEntry, getPendingCount, getFailedCount, markEntryFailed, isRetryableError, resetFailedEntry, discardFailedEntry } from './utils/offlineStorage';
-import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, userApi } from './services/api';
-
-const SIDEBAR_COLLAPSED_KEY = 'sidebar_collapsed';
+import { addPendingEntry } from './utils/offlineStorage';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, SESSION_EXPIRED_EVENT } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
+  const showToast = useToast();
   const isDesktop = useIsDesktop();
   const { isOnline, wasOffline } = useOnlineStatus();
 
-  // Offline sync state
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [pendingCount, setPendingCount] = useState(() => getPendingCount());
-  const [failedCount, setFailedCount] = useState(() => getFailedCount());
-  const syncMutexRef = useRef(false);
+  // Sidebar collapsed state (driven by DesktopSidebar's localStorage write)
+  const sidebarCollapsed = useSidebarCollapsed();
 
-  // Track sidebar collapsed state for layout adjustment
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
-    }
-    return false;
-  });
+  // URL is the source of truth for navigation. currentArea/currentSubView
+  // are *derived* from useLocation, not React state — Pass 4c.
+  const {
+    currentArea,
+    currentSubView,
+    navigateToArea,
+    navigateToSubView,
+    navigateTo,
+  } = useCurrentNavigation('arbeiten', 'stopwatch');
 
-  // Listen for sidebar collapse changes from localStorage
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === SIDEBAR_COLLAPSED_KEY) {
-        setSidebarCollapsed(e.newValue === 'true');
-      }
-    };
-
-    // Also listen for custom event from DesktopSidebar
-    const handleSidebarToggle = () => {
-      setSidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true');
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('sidebar-toggle', handleSidebarToggle);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
-    };
-  }, []);
-
-  // Use localStorage as initial fallback, will be overwritten by server preferences
-  const [currentArea, setCurrentArea] = useState<Area>(() => {
-    const saved = localStorage.getItem('currentArea');
-    return (saved as Area) || 'arbeiten';
-  });
-  const [currentSubView, setCurrentSubView] = useState<SubView>(() => {
-    const saved = localStorage.getItem('currentSubView');
-    return (saved as SubView) || 'stopwatch';
-  });
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+
+  // Background sync for entries saved locally while offline
+  const {
+    isSyncing,
+    syncError,
+    pendingCount,
+    failedCount,
+    refreshCounts: refreshOfflineCounts,
+    syncPendingEntries,
+    handleRetryFailedEntry,
+    handleDiscardFailedEntry,
+  } = useOfflineEntrySync({ isOnline, wasOffline, setEntries });
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  // Tracks the initial Promise.all() data fetch on app boot so child views
+  // can show skeletons instead of misleading "no data" empty states while
+  // customers/projects/entries are still in flight.
+  const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
   const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
+  const [initialCustomerId, setInitialCustomerId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
-  // Track if we're currently saving preferences to avoid loops
-  const savingPreferencesRef = useRef(false);
 
-  // Load preferences from database on mount
-  useEffect(() => {
-    const loadPreferences = async () => {
-      if (!currentUser || !isAuthenticated) return;
+  // Cross-area navigation helpers: jump from a Task → its Ticket or Customer.
+  const handleOpenTicket = useCallback((ticketId: string) => {
+    setInitialTicketId(ticketId);
+    navigateTo('support', 'tickets');
+  }, [navigateTo]);
 
-      try {
-        const response = await userApi.getPreferences();
-        if (response.success && response.data) {
-          const prefs = response.data;
-          if (prefs.currentArea) {
-            setCurrentArea(prefs.currentArea as Area);
-          }
-          if (prefs.currentSubView) {
-            setCurrentSubView(prefs.currentSubView as SubView);
-          }
-          console.log('✅ [PREFS] Loaded user preferences from database:', prefs);
-        }
-      } catch (error) {
-        console.log('📋 [PREFS] No saved preferences found, using defaults');
-      } finally {
-        setPreferencesLoaded(true);
-      }
-    };
+  const handleOpenCustomer = useCallback((customerId: string) => {
+    setInitialCustomerId(customerId);
+    navigateTo('crm', 'customers');
+  }, [navigateTo]);
 
-    loadPreferences();
-  }, [currentUser, isAuthenticated]);
-
-  // Save preferences to database when they change (debounced)
-  useEffect(() => {
-    // Don't save until initial preferences are loaded (to avoid overwriting server state)
-    if (!preferencesLoaded || !currentUser || !isAuthenticated) return;
-    // Prevent concurrent saves
-    if (savingPreferencesRef.current) return;
-
-    const savePreferences = async () => {
-      savingPreferencesRef.current = true;
-      try {
-        await userApi.updatePreferences({
-          currentArea,
-          currentSubView,
-        });
-        // Also save to localStorage as fallback
-        localStorage.setItem('currentArea', currentArea);
-        localStorage.setItem('currentSubView', currentSubView);
-      } catch (error) {
-        console.error('❌ [PREFS] Failed to save preferences:', error);
-      } finally {
-        savingPreferencesRef.current = false;
-      }
-    };
-
-    // Debounce saves
-    const timer = setTimeout(savePreferences, 500);
-    return () => clearTimeout(timer);
-  }, [currentArea, currentSubView, preferencesLoaded, currentUser, isAuthenticated]);
+  // Load + persist server-side user preferences (last-used area/subView)
+  useUserPreferences({
+    currentUser,
+    isAuthenticated,
+    currentArea,
+    currentSubView,
+    navigateTo,
+  });
 
   // Load all data from API on mount
   useEffect(() => {
@@ -242,6 +195,8 @@ function App() {
         console.log('✅ [DATA] All data loaded successfully');
       } catch (error) {
         console.error('❌ [DATA] Error loading data:', error);
+      } finally {
+        setIsInitialDataLoading(false);
       }
     };
 
@@ -274,13 +229,13 @@ function App() {
         const response = await organizationsApi.acceptInvitation(pendingInvitation);
         if (response.success) {
           console.log('✅ [INVITATION] Successfully joined organization:', response.message);
-          alert(`Erfolgreich beigetreten: ${response.message}`);
+          showToast(`Erfolgreich beigetreten: ${response.message}`, 'success');
           // Reload the page to refresh data with new organization context
           window.location.reload();
         }
       } catch (error: any) {
         console.error('❌ [INVITATION] Failed to accept invitation:', error);
-        alert(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`);
+        showToast(`Fehler beim Beitreten: ${error.message || 'Unbekannter Fehler'}`, 'error');
       } finally {
         // Always remove the pending invitation
         localStorage.removeItem('pending_invitation');
@@ -331,6 +286,22 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Sichtbares Feedback wenn die Session unfreiwillig stirbt. AuthContext
+  // killt den User-State (→ Auth-Screen rendert), aber ohne Toast wäre der
+  // Sprung auf den Login-Screen unkommentiert. UIProvider rendert Toast oberhalb
+  // der Routes, das überlebt das Auth/App-Switching.
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      showToast(
+        'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.',
+        'warning',
+        6000
+      );
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [showToast]);
+
   // Handle deep link to ticket via ?ticket= URL parameter
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -341,9 +312,8 @@ function App() {
     if (ticketId) {
       console.log('📬 [DEEPLINK] Found ticket ID in URL:', ticketId);
       setInitialTicketId(ticketId);
-      setCurrentArea('support');
-      setCurrentSubView('tickets');
-      // Clean URL
+      navigateTo('support', 'tickets');
+      // Clean query param (preserve the pathname useNavigate just set)
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAuthenticated]);
@@ -384,8 +354,7 @@ function App() {
           const ticketId = url.replace('/tickets/', '').split('?')[0];
           console.log('📬 [SW Message] Opening ticket:', ticketId);
           setInitialTicketId(ticketId);
-          setCurrentArea('support');
-          setCurrentSubView('tickets');
+          navigateTo('support', 'tickets');
         }
       }
     };
@@ -500,7 +469,7 @@ function App() {
 
       // Save to local storage for later sync
       addPendingEntry(entry, action);
-      setPendingCount(getPendingCount());
+      refreshOfflineCounts();
 
       // Clear running entry if stopping
       if (isUpdatingRunningEntry && !entry.isRunning) {
@@ -549,7 +518,7 @@ function App() {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.log('📴 [ENTRY] Network error - saving entry locally:', entry.id);
         addPendingEntry(entry, action);
-        setPendingCount(getPendingCount());
+        refreshOfflineCounts();
 
         // Still update local state
         if (action === 'update') {
@@ -611,107 +580,10 @@ function App() {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.log('📴 [ENTRY] Network error - saving running entry update locally:', entry.id);
         addPendingEntry(entry, 'update');
-        setPendingCount(getPendingCount());
+        refreshOfflineCounts();
       }
     }
   };
-
-  // Sync pending entries when back online
-  const syncPendingEntries = useCallback(async () => {
-    // Mutex: prevent concurrent sync attempts
-    if (syncMutexRef.current) {
-      console.log('🔒 [SYNC] Sync already in progress, skipping');
-      return;
-    }
-
-    const pending = getRetryableEntries();
-    if (pending.length === 0) return;
-
-    syncMutexRef.current = true;
-    console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
-    setIsSyncing(true);
-    setSyncError(null);
-
-    let successCount = 0;
-    let failCount = 0;
-    let permanentFailCount = 0;
-
-    for (const { entry, action } of pending) {
-      try {
-        if (action === 'update') {
-          const response = await entriesApi.update(entry.id, entry);
-          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
-        } else {
-          // Send clientId for idempotent creation
-          const response = await entriesApi.create({ ...entry, clientId: entry.id });
-          setEntries(prev => prev.map(e => e.id === entry.id ? response.data : e));
-        }
-        removePendingEntry(entry.id);
-        successCount++;
-        console.log('✅ [SYNC] Synced entry:', entry.id);
-      } catch (error) {
-        const retryable = isRetryableError(error);
-        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
-        markEntryFailed(entry.id, errorMessage, !retryable);
-        console.error('❌ [SYNC] Failed to sync entry:', entry.id, retryable ? '(will retry)' : '(permanent)', error);
-        failCount++;
-        if (!retryable) permanentFailCount++;
-      }
-    }
-
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-    setIsSyncing(false);
-    syncMutexRef.current = false;
-
-    if (permanentFailCount > 0) {
-      setSyncError(`${permanentFailCount} ${permanentFailCount === 1 ? 'Eintrag konnte' : 'Einträge konnten'} nicht synchronisiert werden (Daten ungültig)`);
-    } else if (failCount > 0) {
-      setSyncError(`${failCount} ${failCount === 1 ? 'Eintrag' : 'Einträge'} – Retry läuft automatisch`);
-      setTimeout(() => setSyncError(null), 5000);
-    }
-
-    console.log('🔄 [SYNC] Sync complete:', successCount, 'synced,', failCount, 'failed (' + permanentFailCount + ' permanent)');
-  }, []);
-
-  // Auto-sync when coming back online
-  useEffect(() => {
-    if (isOnline && wasOffline) {
-      console.log('🌐 [SYNC] Back online, checking for pending entries...');
-      syncPendingEntries();
-    }
-  }, [isOnline, wasOffline, syncPendingEntries]);
-
-  // Periodic sync retry every 30 seconds while there are retryable pending entries
-  useEffect(() => {
-    if (!isOnline) return;
-
-    const interval = setInterval(() => {
-      const retryable = getRetryableEntries();
-      if (retryable.length > 0) {
-        console.log('🔄 [SYNC] Periodic retry: found', retryable.length, 'retryable entries');
-        syncPendingEntries();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [isOnline, syncPendingEntries]);
-
-  // Handlers for failed entry management (called from OfflineBanner)
-  const handleRetryFailedEntry = useCallback((entryId: string) => {
-    resetFailedEntry(entryId);
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-    // Trigger immediate sync
-    syncPendingEntries();
-  }, [syncPendingEntries]);
-
-  const handleDiscardFailedEntry = useCallback((entryId: string) => {
-    discardFailedEntry(entryId);
-    setEntries(prev => prev.filter(e => e.id !== entryId));
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
-  }, []);
 
   // TIMER SAFETY: Warn user before closing page with running timer
   useEffect(() => {
@@ -744,15 +616,19 @@ function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [runningEntry]);
 
-  // TIMER SAFETY: Periodic heartbeat - save running timer to backend every 5 minutes
-  // This ensures the server has the latest state even if the client crashes
+  // TIMER SAFETY: Periodic heartbeat — save running timer to backend every
+  // N minutes (configurable per user, default 5). Ensures the server has
+  // the latest state even if the client crashes.
   useEffect(() => {
     if (!runningEntry || !isOnline) return;
+
+    const intervalMinutes = currentUser?.heartbeatIntervalMinutes ?? 5;
+    const intervalMs = intervalMinutes * 60 * 1000;
 
     const heartbeatInterval = setInterval(async () => {
       if (runningEntry && runningEntry.isRunning) {
         try {
-          console.log('💓 [TIMER] Heartbeat: saving running timer state...');
+          console.log(`💓 [TIMER] Heartbeat (every ${intervalMinutes}min): saving running timer state...`);
           await entriesApi.update(runningEntry.id, {
             ...runningEntry,
             duration: Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000),
@@ -764,10 +640,10 @@ function App() {
           addPendingEntry(runningEntry, 'update');
         }
       }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, intervalMs);
 
     return () => clearInterval(heartbeatInterval);
-  }, [runningEntry, isOnline]);
+  }, [runningEntry, isOnline, currentUser?.heartbeatIntervalMinutes]);
 
   // TIMER SAFETY: Save running timer to localStorage as backup
   useEffect(() => {
@@ -942,32 +818,39 @@ function App() {
     }
   };
 
-  // Repeat Entry handler
-  const handleRepeatEntry = (entry: TimeEntry) => {
-    setPrefilledEntry({
+  // Repeat Entry handler — starts a new running timer immediately with the
+  // same project/activity/description. A previously running timer is
+  // automatically closed server-side (see PR #54 overlap-prevention).
+  const handleRepeatEntry = async (entry: TimeEntry) => {
+    if (!currentUser) return;
+
+    // Switch to the stopwatch view first so the user sees the new timer
+    // already counting when the view renders.
+    navigateTo('arbeiten', 'stopwatch');
+
+    const now = new Date().toISOString();
+    const newEntry: TimeEntry = {
+      id: generateUUID(),
+      userId: currentUser.id,
+      startTime: now,
+      duration: 0,
       projectId: entry.projectId,
       activityId: entry.activityId,
-      description: entry.description
-    });
-    setCurrentArea('arbeiten');
-    setCurrentSubView('stopwatch');
+      ticketId: entry.ticketId,
+      description: entry.description || '',
+      isRunning: true,
+      isBillable: entry.isBillable ?? true,
+      createdAt: now,
+    };
+
+    await handleUpdateRunning(newEntry);
   };
 
-  // Area change handler
-  const handleAreaChange = (area: Area) => {
-    setCurrentArea(area);
-    setCurrentSubView(getDefaultSubView(area));
-  };
+  // Area change handler — navigateToArea picks the area's default subView
+  const handleAreaChange = navigateToArea;
 
-  // SubView change handler
-  const handleSubViewChange = (subView: SubView) => {
-    setCurrentSubView(subView);
-    // Update area if subView belongs to different area
-    const newArea = getAreaFromSubView(subView);
-    if (newArea !== currentArea) {
-      setCurrentArea(newArea);
-    }
-  };
+  // SubView change handler — navigateToSubView infers the area from the subView
+  const handleSubViewChange = navigateToSubView;
 
   // Dark Mode handler
   const handleToggleDarkMode = () => {
@@ -975,71 +858,17 @@ function App() {
     updateDarkMode(newMode);
   };
 
-  // Get visible areas for swipe navigation
-  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
-
-  // SubView configuration for each area (matching AreaNavigation)
-  const subViewConfig: Record<Area, SubView[]> = {
-    dashboard: ['overview'],
-    arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
-    support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
-    crm: ['customers', 'leads', 'pipeline', 'contracts'],
-    finanzen: ['invoices', 'billing', 'reports'],
-  };
-
-  // Swipe between areas (Bottom zone - bottom 30%)
-  const handleSwipeLeftArea = useCallback(() => {
-    const currentIndex = visibleAreas.indexOf(currentArea);
-    if (currentIndex < visibleAreas.length - 1) {
-      haptics.light();
-      handleAreaChange(visibleAreas[currentIndex + 1]);
-    }
-  }, [currentArea, visibleAreas]);
-
-  const handleSwipeRightArea = useCallback(() => {
-    const currentIndex = visibleAreas.indexOf(currentArea);
-    if (currentIndex > 0) {
-      haptics.light();
-      handleAreaChange(visibleAreas[currentIndex - 1]);
-    }
-  }, [currentArea, visibleAreas]);
-
-  // Swipe between subviews (Top zone - top 30%)
-  const handleSwipeLeftSubView = useCallback(() => {
-    const currentSubViews = subViewConfig[currentArea];
-    const currentIndex = currentSubViews.indexOf(currentSubView);
-    if (currentIndex < currentSubViews.length - 1) {
-      haptics.light();
-      handleSubViewChange(currentSubViews[currentIndex + 1]);
-    }
-  }, [currentArea, currentSubView]);
-
-  const handleSwipeRightSubView = useCallback(() => {
-    const currentSubViews = subViewConfig[currentArea];
-    const currentIndex = currentSubViews.indexOf(currentSubView);
-    if (currentIndex > 0) {
-      haptics.light();
-      handleSubViewChange(currentSubViews[currentIndex - 1]);
-    }
-  }, [currentArea, currentSubView]);
-
-  const swipeHandlers = useSwipeGesture({
-    // Top zone (30%): Navigate between subviews
-    onSwipeLeftTop: handleSwipeLeftSubView,
-    onSwipeRightTop: handleSwipeRightSubView,
-    // Bottom zone (30%): Navigate between areas
-    onSwipeLeftBottom: handleSwipeLeftArea,
-    onSwipeRightBottom: handleSwipeRightArea,
-    // Middle zone (40%): No swipe navigation - allows normal scrolling
-    minSwipeDistance: 75,
-    topZoneThreshold: 0.30,
-    bottomZoneThreshold: 0.30,
+  // Mobile swipe gestures: bottom 30% → area switch, top 30% → subView switch
+  const swipeHandlers = useSwipeNavigation({
+    currentArea,
+    currentSubView,
+    onAreaChange: handleAreaChange,
+    onSubViewChange: handleSubViewChange,
   });
 
   // FAB handlers
   const handleFABStartTimer = () => {
-    setCurrentArea('arbeiten');
-    setCurrentSubView('stopwatch');
+    navigateTo('arbeiten', 'stopwatch');
   };
 
   const handleFABStopTimer = async () => {
@@ -1059,10 +888,10 @@ function App() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Lädt...</p>
+          <p className="text-gray-600 dark:text-dark-400">Lädt...</p>
         </div>
       </div>
     );
@@ -1075,7 +904,7 @@ function App() {
 
   // Authenticated - show main app
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-x-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-dark-50 overflow-x-hidden">
       {/* Offline Banner */}
       <OfflineBanner
         isOnline={isOnline}
@@ -1087,6 +916,13 @@ function App() {
         onRetryFailed={handleRetryFailedEntry}
         onDiscardFailed={handleDiscardFailedEntry}
         onRetryAll={syncPendingEntries}
+      />
+
+      {/* Forgotten-timer warning (>8h running) */}
+      <ForgottenTimerBanner
+        runningEntry={runningEntry}
+        onGoToTimer={() => navigateTo('arbeiten', 'stopwatch')}
+        onStopTimer={handleFABStopTimer}
       />
 
       {/* Global Command Palette (Cmd+K / Ctrl+K) */}
@@ -1114,7 +950,7 @@ function App() {
         {/* Suspense catches lazy-loaded modules while they are being fetched */}
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary" />
           </div>
         }>
         {currentSubView === 'stopwatch' && (
@@ -1125,7 +961,8 @@ function App() {
             projects={projects}
             customers={customers}
             activities={activities}
-            onOpenManualEntry={() => setCurrentSubView('manual')}
+            entries={entries}
+            onOpenManualEntry={() => navigateToSubView('manual')}
             prefilledEntry={prefilledEntry}
             onPrefilledEntryUsed={() => setPrefilledEntry(null)}
           />
@@ -1138,31 +975,18 @@ function App() {
             activities={activities}
           />
         )}
-        {currentSubView === 'list' && (
-          <TimeEntriesList
+        {(currentSubView === 'zeiten' || currentSubView === 'grid' || currentSubView === 'list' || currentSubView === 'calendar') && (
+          <TimeViews
             entries={entries}
             projects={projects}
             customers={customers}
             activities={activities}
-            onDelete={handleDeleteEntry}
-            onEdit={handleEditEntry}
+            onCreateEntry={handleSaveEntry}
+            onEditEntry={handleEditEntry}
+            onDeleteEntry={handleDeleteEntry}
             onRepeatEntry={handleRepeatEntry}
             onBulkUpdate={handleBulkUpdateEntries}
-          />
-        )}
-        {currentSubView === 'calendar' && (
-          <CalendarView
-            entries={entries}
-            projects={projects}
-            customers={customers}
-            activities={activities}
-            onEditEntry={(entry) => {
-              // Open edit modal - for now, just log
-              console.log('Edit entry:', entry);
-              // TODO: Implement edit modal
-            }}
-            onUpdateEntry={handleEditEntry}
-            onCreateEntry={async (entry) => {
+            onCalendarCreate={async (entry) => {
               try {
                 const response = await entriesApi.create(entry);
                 setEntries(prev => [...prev, response.data]);
@@ -1183,6 +1007,8 @@ function App() {
               console.log('Stop timer for task:', taskId);
               // Timer is handled inside TaskHub via API
             }}
+            onOpenTicket={handleOpenTicket}
+            onOpenCustomer={handleOpenCustomer}
           />
         )}
         {currentSubView === 'overview' && (
@@ -1191,14 +1017,9 @@ function App() {
             projects={projects}
             customers={customers}
             runningEntry={runningEntry}
-            onNavigate={(area, subView) => {
-              setCurrentArea(area);
-              setCurrentSubView(subView);
-            }}
-            onStartTimer={() => {
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
-            }}
+            isLoading={isInitialDataLoading}
+            onNavigate={(area, subView) => navigateTo(area, subView)}
+            onStartTimer={() => navigateTo('arbeiten', 'stopwatch')}
           />
         )}
         {currentSubView === 'customers' && (
@@ -1206,37 +1027,29 @@ function App() {
             customers={customers}
             projects={projects}
             entries={entries}
-            onNavigateToTicket={(ticketId) => {
-              // Navigate to tickets view - the ticket will be opened from there
-              setCurrentArea('support');
-              setCurrentSubView('tickets');
+            isInitialDataLoading={isInitialDataLoading}
+            initialCustomerId={initialCustomerId ?? undefined}
+            onNavigateToTicket={(ticketId) => handleOpenTicket(ticketId)}
+            onNavigateToTask={(_taskId) => {
+              navigateTo('arbeiten', 'tasks');
             }}
-            onNavigateToTask={(taskId) => {
-              // Navigate to tasks view
-              setCurrentArea('arbeiten');
-              setCurrentSubView('tasks');
-            }}
-            onStartTimer={(customerId, projectId, description) => {
-              // Set prefilled entry and switch to stopwatch
+            onStartTimer={(_customerId, projectId, description) => {
               if (projectId) {
                 setPrefilledEntry({
                   projectId,
                   description: description || '',
                 });
               }
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
+              navigateTo('arbeiten', 'stopwatch');
             }}
-            onAddManualEntry={(customerId, projectId) => {
-              // Set prefilled entry and switch to manual entry
+            onAddManualEntry={(_customerId, projectId) => {
               if (projectId) {
                 setPrefilledEntry({
                   projectId,
                   description: '',
                 });
               }
-              setCurrentArea('arbeiten');
-              setCurrentSubView('manual');
+              navigateTo('arbeiten', 'manual');
             }}
           />
         )}
@@ -1257,8 +1070,7 @@ function App() {
                 description: `${ticket.ticketNumber}: ${ticket.title}`,
                 ticketId: ticket.id,
               });
-              setCurrentArea('arbeiten');
-              setCurrentSubView('stopwatch');
+              navigateTo('arbeiten', 'stopwatch');
             }}
             initialTicketId={initialTicketId}
             onTicketIdHandled={() => setInitialTicketId(null)}
@@ -1279,18 +1091,21 @@ function App() {
         {currentSubView === 'invoices' && (
           <InvoiceInbox />
         )}
+        {currentSubView === 'documents-search' && (
+          <DocumentsSearch />
+        )}
         {currentSubView === 'billing' && (
-          <Finanzen onBack={() => setCurrentSubView('overview')} />
+          <Finanzen onBack={() => navigateToSubView('overview')} />
         )}
         {currentSubView === 'crm-dashboard' && (
           <CRMDashboard
             customers={customers}
             projects={projects}
-            onNavigateToCustomer={(customerId) => {
-              setCurrentSubView('customers');
+            onNavigateToCustomer={(_customerId) => {
+              navigateToSubView('customers');
             }}
-            onNavigateToOpportunity={(opportunityId) => {
-              setCurrentSubView('pipeline');
+            onNavigateToOpportunity={(_opportunityId) => {
+              navigateToSubView('pipeline');
             }}
           />
         )}
@@ -1341,6 +1156,21 @@ function App() {
         )}
         </Suspense>
       </main>
+
+      {/* Global timer widget (mobile only) — sits above the bottom nav,
+          visible on every view except the stopwatch itself while a timer
+          is running. Hides the FAB by virtue of FAB's isTimerRunning guard. */}
+      {!isDesktop && (
+        <GlobalTimerWidget
+          runningEntry={runningEntry}
+          projects={projects}
+          customers={customers}
+          activities={activities}
+          currentSubView={currentSubView}
+          onGoToTimer={() => navigateTo('arbeiten', 'stopwatch')}
+          onStopTimer={handleFABStopTimer}
+        />
+      )}
 
       {/* Floating Action Button - only on mobile */}
       {!isDesktop && (

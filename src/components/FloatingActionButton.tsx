@@ -20,6 +20,12 @@ export const FloatingActionButton = ({
   if (!showOnViews.includes(currentView)) {
     return null;
   }
+  // When a timer is running, the GlobalTimerWidget already covers both
+  // "show the running state" and "stop" — having an extra red FAB on top
+  // of it would be redundant and visually conflict.
+  if (isTimerRunning) {
+    return null;
+  }
 
   const handleClick = () => {
     haptics.heavy();

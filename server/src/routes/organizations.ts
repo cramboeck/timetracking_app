@@ -1,10 +1,33 @@
 import express from 'express';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { auditLog } from '../services/auditLog';
 
 const router = express.Router();
+
+// Zod schemas
+const createOrgSchema = z.object({
+  name: z.string().min(1).max(200),
+  settings: z.record(z.any()).optional(),
+});
+
+const updateOrgSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  settings: z.record(z.any()).optional(),
+  logo: z.string().max(10000).optional().nullable(),
+});
+
+const updateMemberRoleSchema = z.object({
+  role: z.enum(['admin', 'member', 'viewer']),
+});
+
+const inviteMemberSchema = z.object({
+  email: z.string().email().max(200),
+  role: z.enum(['admin', 'member', 'viewer']).optional(),
+});
 
 // Helper function to generate a slug from a name
 function generateSlug(name: string): string {
@@ -124,14 +147,11 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/organizations - Create new organization
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authenticateToken, validate(createOrgSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const { name, settings } = req.body;
-
-    if (!name?.trim()) {
-      return res.status(400).json({ success: false, error: 'Organization name is required' });
-    }
+    // Validation handled by Zod
 
     const id = crypto.randomUUID();
     let slug = generateSlug(name);
@@ -170,7 +190,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/organizations/:id - Update organization
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authenticateToken, validate(updateOrgSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
@@ -245,15 +265,12 @@ router.get('/:id/members', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/organizations/:id/members/:memberId - Update member role
-router.put('/:id/members/:memberId', authenticateToken, async (req, res) => {
+router.put('/:id/members/:memberId', authenticateToken, validate(updateMemberRoleSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const { id, memberId } = req.params;
     const { role } = req.body;
-
-    if (!['admin', 'member', 'viewer'].includes(role)) {
-      return res.status(400).json({ success: false, error: 'Invalid role' });
-    }
+    // Validation handled by Zod
 
     // Check if user is admin/owner
     if (!await isOrgAdmin(userId, id)) {
@@ -372,15 +389,12 @@ router.get('/:id/invitations', authenticateToken, async (req, res) => {
 });
 
 // POST /api/organizations/:id/invitations - Create invitation
-router.post('/:id/invitations', authenticateToken, async (req, res) => {
+router.post('/:id/invitations', authenticateToken, validate(inviteMemberSchema), async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const { id } = req.params;
     const { email, role = 'member' } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'Email is required' });
-    }
+    // Validation handled by Zod
 
     if (!['admin', 'member', 'viewer'].includes(role)) {
       return res.status(400).json({ success: false, error: 'Invalid role' });

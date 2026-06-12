@@ -215,9 +215,9 @@ export default function TaskModal({
         />
 
         {/* Modal */}
-        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full mx-auto transform transition-all">
+        <div className="relative bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full mx-auto transform transition-all">
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               {task ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'}
             </h2>
@@ -240,7 +240,7 @@ export default function TaskModal({
             <div className="space-y-4">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Titel *
                 </label>
                 <input
@@ -248,14 +248,14 @@ export default function TaskModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Was muss erledigt werden?"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   autoFocus
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Beschreibung
                 </label>
                 <textarea
@@ -263,20 +263,20 @@ export default function TaskModal({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Weitere Details..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary resize-none"
                 />
               </div>
 
               {/* Priority & Status */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Priorität
                   </label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="low">Niedrig</option>
                     <option value="normal">Normal</option>
@@ -285,13 +285,13 @@ export default function TaskModal({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     Status
                   </label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="pending">Ausstehend</option>
                     <option value="in_progress">In Arbeit</option>
@@ -304,7 +304,7 @@ export default function TaskModal({
               {/* Due Date & Time */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     <Calendar className="w-4 h-4 inline mr-1" />
                     Fällig am
                   </label>
@@ -312,11 +312,11 @@ export default function TaskModal({
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     <Clock className="w-4 h-4 inline mr-1" />
                     Uhrzeit
                   </label>
@@ -324,14 +324,14 @@ export default function TaskModal({
                     type="time"
                     value={dueTime}
                     onChange={(e) => setDueTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                 </div>
               </div>
 
               {/* Estimated Time */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   <Clock className="w-4 h-4 inline mr-1" />
                   Geschätzte Zeit (Minuten)
                 </label>
@@ -342,7 +342,7 @@ export default function TaskModal({
                     value={estimatedMinutes}
                     onChange={(e) => setEstimatedMinutes(e.target.value ? parseInt(e.target.value) : '')}
                     placeholder="z.B. 30"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                   {suggestedMinutes && !estimatedMinutes && (
                     <Button
@@ -351,7 +351,7 @@ export default function TaskModal({
                       size="sm"
                       icon={<Sparkles className="w-4 h-4" />}
                       title="Basierend auf ähnlichen Aufgaben"
-                      className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                      className="bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/30"
                     >
                       ~{suggestedMinutes}min
                     </Button>
@@ -362,7 +362,7 @@ export default function TaskModal({
               {/* Customer & Project */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     <Building2 className="w-4 h-4 inline mr-1" />
                     Kunde
                   </label>
@@ -372,7 +372,7 @@ export default function TaskModal({
                       setCustomerId(e.target.value);
                       setProjectId(''); // Reset project when customer changes
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   >
                     <option value="">Kein Kunde</option>
                     {customers.map(c => (
@@ -381,14 +381,14 @@ export default function TaskModal({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                     <Folder className="w-4 h-4 inline mr-1" />
                     Projekt
                   </label>
                   <select
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                     disabled={filteredProjects.length === 0}
                   >
                     <option value="">Kein Projekt</option>
@@ -401,7 +401,7 @@ export default function TaskModal({
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   <Tag className="w-4 h-4 inline mr-1" />
                   Kategorie
                 </label>
@@ -410,12 +410,12 @@ export default function TaskModal({
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   placeholder="z.B. Entwicklung, Support, Admin"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                 />
               </div>
 
               {/* Recurrence */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="border-t border-gray-200 dark:border-dark-border pt-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -424,7 +424,7 @@ export default function TaskModal({
                     className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                   />
                   <Repeat className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
                     Wiederkehrende Aufgabe
                   </span>
                 </label>
@@ -432,13 +432,13 @@ export default function TaskModal({
                 {isRecurring && (
                   <div className="grid grid-cols-2 gap-4 mt-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Wiederholung
                       </label>
                       <select
                         value={recurrencePattern}
                         onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                       >
                         <option value="">Auswählen...</option>
                         <option value="daily">Täglich</option>
@@ -448,7 +448,7 @@ export default function TaskModal({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                         Intervall
                       </label>
                       <input
@@ -456,7 +456,7 @@ export default function TaskModal({
                         min="1"
                         value={recurrenceInterval}
                         onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                       />
                     </div>
                   </div>
@@ -464,8 +464,8 @@ export default function TaskModal({
               </div>
 
               {/* Checklist */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <ListTodo className="w-4 h-4" />
                   Checkliste
                 </label>
@@ -484,7 +484,7 @@ export default function TaskModal({
                             <Circle className="w-4 h-4" />
                           )}
                         </button>
-                        <span className={`flex-1 text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                        <span className={`flex-1 text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700 dark:text-dark-500'}`}>
                           {item.title}
                         </span>
                         <IconButton
@@ -506,7 +506,7 @@ export default function TaskModal({
                     onChange={(e) => setNewChecklistItem(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addChecklistItem()}
                     placeholder="Neuer Punkt..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
                   />
                   <IconButton
                     onClick={addChecklistItem}
@@ -520,7 +520,7 @@ export default function TaskModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-dark-border">
             <Button
               onClick={onClose}
               variant="secondary"

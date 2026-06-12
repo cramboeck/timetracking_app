@@ -54,7 +54,7 @@ export default function TrendsTab() {
         );
       default:
         return (
-          <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium">
+          <span className="px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded text-xs font-medium">
             Niedrige Relevanz
           </span>
         );
@@ -64,14 +64,14 @@ export default function TrendsTab() {
   return (
     <div className="space-y-6">
       {/* Industry Input */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={20} className="text-pink-600" />
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
             Trend-Analyse
           </h2>
         </div>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <p className="text-gray-600 dark:text-dark-400 mb-4">
           Entdecke aktuelle Trends in deiner Branche und erhalte Content-Ideen.
         </p>
         <div className="flex gap-3">
@@ -80,7 +80,7 @@ export default function TrendsTab() {
             value={industry}
             onChange={(e) => setIndustry(e.target.value)}
             placeholder="Deine Branche eingeben (z.B. SaaS, E-Commerce, Fitness...)"
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
           />
           <button
             onClick={analyzeTrends}
@@ -111,7 +111,7 @@ export default function TrendsTab() {
             </h3>
             <button
               onClick={analyzeTrends}
-              className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+              className="flex items-center gap-1 text-sm text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
             >
               <RefreshCw size={14} />
               Aktualisieren
@@ -121,7 +121,7 @@ export default function TrendsTab() {
           {trends.map((trend, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+              className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -140,15 +140,15 @@ export default function TrendsTab() {
                 </button>
               </div>
 
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-gray-600 dark:text-dark-400 mb-4">
                 {trend.description}
               </p>
 
               {trend.suggestedAngles && trend.suggestedAngles.length > 0 && (
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                <div className="bg-gray-50 dark:bg-dark-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Lightbulb size={16} className="text-yellow-600" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
                       Content-Ideen
                     </span>
                   </div>
@@ -156,7 +156,7 @@ export default function TrendsTab() {
                     {trend.suggestedAngles.map((angle, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400"
+                        className="flex items-start gap-2 text-sm text-gray-600 dark:text-dark-400"
                       >
                         <span className="text-pink-600">•</span>
                         {angle}
@@ -172,12 +172,12 @@ export default function TrendsTab() {
 
       {/* Empty State */}
       {!loading && trends.length === 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 text-center">
-          <TrendingUp size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-          <p className="text-gray-500 dark:text-gray-400 mb-2">
+        <div className="bg-white dark:bg-dark-100 rounded-xl p-8 shadow-sm border border-gray-200 dark:border-dark-border text-center">
+          <TrendingUp size={48} className="mx-auto mb-4 text-gray-300 dark:text-dark-400" />
+          <p className="text-gray-500 dark:text-dark-400 mb-2">
             Keine Trends analysiert.
           </p>
-          <p className="text-sm text-gray-400 dark:text-gray-500">
+          <p className="text-sm text-gray-400 dark:text-dark-400">
             Gib deine Branche ein, um aktuelle Trends zu entdecken.
           </p>
         </div>

@@ -1,11 +1,48 @@
 import express, { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
 import { sendPushToUser } from '../services/pushNotifications';
 
 const router = express.Router();
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const configSchema = z.object({
+  clientId: z.string().max(200).optional(),
+  clientSecret: z.string().max(500).optional(),
+  instanceUrl: z.string().url().max(500).optional().or(z.literal('')),
+  autoSyncDevices: z.boolean().optional(),
+  syncIntervalMinutes: z.number().int().min(1).max(1440).optional(),
+});
+
+const linkCustomerSchema = z.object({
+  customerId: z.string().uuid().optional().nullable(),
+});
+
+const resolveAlertSchema = z.object({
+  ticketId: z.string().uuid().optional(),
+  resetInNinja: z.boolean().optional(),
+});
+
+const exclusionRuleSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  matchType: z.enum(['contains', 'equals', 'starts_with', 'ends_with', 'regex']).optional(),
+  matchField: z.enum(['message', 'device_name', 'source_type', 'all']).optional(),
+  matchValue: z.string().min(1).max(500),
+  isActive: z.boolean().optional(),
+});
+
+const testExclusionSchema = z.object({
+  matchField: z.enum(['message', 'device_name', 'source_type', 'all']).optional(),
+  matchType: z.enum(['contains', 'equals', 'starts_with', 'ends_with', 'regex']).optional(),
+});
 
 // Helper function to parse Unix timestamps (handles both seconds and milliseconds)
 function parseTimestamp(timestamp: number | string | null | undefined): Date {
@@ -81,7 +118,7 @@ router.get('/config', authenticateToken, requireNinjaFeature, async (req: AuthRe
 });
 
 // PUT /api/ninjarmm/config - Save NinjaRMM configuration
-router.put('/config', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+router.put('/config', authenticateToken, requireNinjaFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { clientId, clientSecret, instanceUrl, autoSyncDevices, syncIntervalMinutes } = req.body;
@@ -294,7 +331,7 @@ router.get('/organizations', authenticateToken, requireNinjaFeature, async (req:
 });
 
 // PUT /api/ninjarmm/organizations/:id/link - Link organization to customer
-router.put('/organizations/:id/link', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+router.put('/organizations/:id/link', authenticateToken, requireNinjaFeature, validate(linkCustomerSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
@@ -710,16 +747,16 @@ router.get('/alerts', authenticateToken, requireNinjaFeature, async (req: AuthRe
 });
 
 // POST /api/ninjarmm/alerts/:id/resolve - Mark alert as resolved
-router.post('/alerts/:id/resolve', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+router.post('/alerts/:id/resolve', authenticateToken, requireNinjaFeature, validate(resolveAlertSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { ticketId } = req.body;
+    const { ticketId, resetInNinja } = req.body;
 
     await ninjaService.markAlertResolved(userId, id, ticketId);
 
     // Optionally reset the alert in NinjaRMM
-    if (req.body.resetInNinja) {
+    if (resetInNinja) {
       const result = await query(
         'SELECT ninja_uid FROM ninjarmm_alerts WHERE id = $1 AND user_id = $2',
         [id, userId]
@@ -1784,26 +1821,11 @@ router.get('/exclusions', authenticateToken, requireNinjaFeature, async (req: Au
 });
 
 // POST /api/ninjarmm/exclusions - Create new exclusion
-router.post('/exclusions', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+router.post('/exclusions', authenticateToken, requireNinjaFeature, validate(exclusionRuleSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { name, description, matchType, matchField, matchValue, isActive } = req.body;
-
-    if (!name || !matchValue) {
-      return res.status(400).json({
-        success: false,
-        error: 'Name und Match-Wert sind erforderlich',
-      });
-    }
-
-    // Validate matchType
-    const validMatchTypes = ['contains', 'equals', 'regex', 'starts_with', 'ends_with'];
-    if (matchType && !validMatchTypes.includes(matchType)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Ungültiger Match-Typ',
-      });
-    }
+    // Validation handled by Zod
 
     // Validate matchField
     const validMatchFields = ['message', 'source_name', 'condition_name', 'device_name', 'severity'];
@@ -1855,7 +1877,7 @@ router.post('/exclusions', authenticateToken, requireNinjaFeature, async (req: A
 });
 
 // PUT /api/ninjarmm/exclusions/:id - Update exclusion
-router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, validate(exclusionRuleSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

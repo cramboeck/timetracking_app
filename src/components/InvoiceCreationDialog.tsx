@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem } from '../services/api';
+import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import type { Customer } from '../types';
 
 interface InvoicePosition {
   projectName: string;
@@ -53,6 +55,12 @@ export const InvoiceCreationDialog = ({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  // Tracks a successful link inside this dialog session so the user can push
+  // immediately without closing/reopening the InvoiceCreationDialog.
+  const [linkedSevdeskId, setLinkedSevdeskId] = useState<string | null>(null);
+  const effectiveSevdeskCustomerId = linkedSevdeskId ?? customer.sevdeskCustomerId ?? null;
+  const isCustomerLinked = !!effectiveSevdeskCustomerId;
 
   // Header texts
   const [invoiceHeader, setInvoiceHeader] = useState('');
@@ -210,9 +218,17 @@ export const InvoiceCreationDialog = ({
   };
 
   const handleCreateInvoice = async () => {
-    setIsCreating(true);
     setError(null);
 
+    // Pre-check: customer must be linked to a sevdesk contact, otherwise the
+    // draft invoice arrives with an empty Kunde-field and the address ends up
+    // in the recipient slot — exactly the bug we just fixed server-side.
+    if (!isCustomerLinked) {
+      setError('Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Bitte zuerst verknüpfen, dann die Rechnung erneut anlegen.');
+      return;
+    }
+
+    setIsCreating(true);
     try {
       const entryIds = customer.entries.map(e => e.id);
       const hourlyRate = customer.hourlyRate || 95;
@@ -238,7 +254,9 @@ export const InvoiceCreationDialog = ({
         })),
       ];
 
-      // Create invoice with grouped positions and custom texts
+      // Create invoice with grouped positions and custom texts. reportFilename
+      // is passed so the backend can substitute {reportFilename} in the
+      // per-customer position template.
       const response = await sevdeskApi.createInvoice({
         customerId: customer.customerId,
         entryIds,
@@ -248,6 +266,7 @@ export const InvoiceCreationDialog = ({
         headText: headText,
         footText: footText,
         positions: invoicePositions,
+        reportFilename: generateReportFilename(),
       });
 
       if (response.success) {
@@ -257,7 +276,15 @@ export const InvoiceCreationDialog = ({
         throw new Error('Rechnungserstellung fehlgeschlagen');
       }
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Erstellen der Rechnung');
+      // Race-Fall: lokaler State sagt verknüpft, Server widerspricht (z. B.
+      // Verknüpfung wurde inzwischen entfernt). Gleicher UX-Flow wie Pre-Check.
+      const message = err?.message || 'Fehler beim Erstellen der Rechnung';
+      if (message.includes('CUSTOMER_NOT_LINKED') || message.includes('nicht mit einem sevdesk-Kontakt verknüpft')) {
+        setLinkedSevdeskId(null);
+        setError('Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Bitte zuerst verknüpfen, dann die Rechnung erneut anlegen.');
+      } else {
+        setError(message);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -292,9 +319,9 @@ export const InvoiceCreationDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-border">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               Rechnung erstellen
@@ -312,6 +339,21 @@ export const InvoiceCreationDialog = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!isCustomerLinked && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-3">
+                <AlertCircle size={20} />
+                <span>Dieser Kunde ist nicht mit einem sevdesk-Kontakt verknüpft. Verknüpfen, damit die Rechnung mit korrektem Empfänger ankommt.</span>
+              </div>
+              <Button
+                onClick={() => setLinkDialogOpen(true)}
+                variant="primary"
+                size="sm"
+              >
+                Jetzt verknüpfen
+              </Button>
+            </div>
+          )}
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-400">
               <AlertCircle size={20} />
@@ -320,10 +362,10 @@ export const InvoiceCreationDialog = ({
           )}
 
           {/* AI Button */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
-                <Sparkles size={20} className="text-purple-600" />
+              <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+                <Sparkles size={20} className="text-accent-primary" />
               </div>
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">KI-Textgenerierung</p>
@@ -352,38 +394,38 @@ export const InvoiceCreationDialog = ({
 
             <div className="grid gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Betreff / Header
                 </label>
                 <input
                   type="text"
                   value={invoiceHeader}
                   onChange={(e) => setInvoiceHeader(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Einleitungstext
                 </label>
                 <textarea
                   value={headText}
                   onChange={(e) => setHeadText(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Schlusstext
                 </label>
                 <input
                   type="text"
                   value={footText}
                   onChange={(e) => setFootText(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                 />
               </div>
             </div>
@@ -400,11 +442,11 @@ export const InvoiceCreationDialog = ({
               {positions.map((position, index) => (
                 <div
                   key={index}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                  className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
                 >
                   {/* Position Header */}
                   <div
-                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 cursor-pointer"
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-200/50 cursor-pointer"
                     onClick={() => togglePosition(index)}
                   >
                     <div className="flex-1">
@@ -439,9 +481,9 @@ export const InvoiceCreationDialog = ({
 
                   {/* Position Details */}
                   {expandedPositions.has(index) && (
-                    <div className="p-4 space-y-3 bg-white dark:bg-gray-800">
+                    <div className="p-4 space-y-3 bg-white dark:bg-dark-100">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Beschreibung
                         </label>
                         <textarea
@@ -449,7 +491,7 @@ export const InvoiceCreationDialog = ({
                           onChange={(e) => updatePositionDescription(index, e.target.value)}
                           rows={2}
                           placeholder="Tätigkeit: IT Consulting im Bereich..."
-                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
 
@@ -478,7 +520,7 @@ export const InvoiceCreationDialog = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        <div className="p-6 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-sm text-gray-500">
@@ -510,6 +552,30 @@ export const InvoiceCreationDialog = ({
           </div>
         </div>
       </div>
+
+      {/* Inline customer-sevdesk link dialog. Constructs a minimal Customer
+          stub from BillingSummaryItem because CustomerSevdeskLink only reads
+          id/name/sevdeskCustomerId. */}
+      <CustomerSevdeskLink
+        customer={{
+          id: customer.customerId,
+          name: customer.customerName,
+          sevdeskCustomerId: effectiveSevdeskCustomerId ?? undefined,
+        } as Customer}
+        isOpen={linkDialogOpen}
+        onClose={() => setLinkDialogOpen(false)}
+        onLinked={() => {
+          // The link dialog updates the DB but we don't get the new sevdesk-id
+          // back. The user should re-trigger the push — server will return the
+          // proper error if linking didn't actually succeed.
+          setLinkDialogOpen(false);
+          setError(null);
+          // Mark as "presumably linked" so the warning banner goes away. If the
+          // user pushes and server says CUSTOMER_NOT_LINKED, we flip back via
+          // the catch-handler in handleCreateInvoice.
+          setLinkedSevdeskId('__pending__');
+        }}
+      />
     </div>
   );
 };

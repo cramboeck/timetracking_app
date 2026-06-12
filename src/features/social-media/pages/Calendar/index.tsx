@@ -134,7 +134,7 @@ export default function CalendarPage() {
         );
       default:
         return (
-          <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-400">
             <Edit size={12} />
             Entwurf
           </span>
@@ -153,7 +153,7 @@ export default function CalendarPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={previousMonth}
-              className="p-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 text-gray-600 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
               <ChevronLeft size={20} />
             </button>
@@ -162,13 +162,13 @@ export default function CalendarPage() {
             </span>
             <button
               onClick={nextMonth}
-              className="p-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 text-gray-600 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
               <ChevronRight size={20} />
             </button>
             <button
               onClick={goToToday}
-              className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
               Heute
             </button>
@@ -184,13 +184,13 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
         {/* Weekday Headers */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-dark-border">
           {weekDays.map((day) => (
             <div
               key={day}
-              className="px-2 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400"
+              className="px-2 py-3 text-center text-sm font-medium text-gray-500 dark:text-dark-400"
             >
               {day}
             </div>
@@ -207,10 +207,10 @@ export default function CalendarPage() {
             {calendarDays.map((day, index) => (
               <div
                 key={index}
-                className={`min-h-[120px] border-b border-r border-gray-100 dark:border-gray-700 p-2 ${
+                className={`min-h-[120px] border-b border-r border-gray-100 dark:border-dark-border p-2 ${
                   !day.isCurrentMonth
-                    ? 'bg-gray-50 dark:bg-gray-900/50'
-                    : 'bg-white dark:bg-gray-800'
+                    ? 'bg-gray-50 dark:bg-dark-50/50'
+                    : 'bg-white dark:bg-dark-100'
                 } ${index % 7 === 6 ? 'border-r-0' : ''}`}
               >
                 {/* Day Number */}
@@ -221,13 +221,13 @@ export default function CalendarPage() {
                         ? 'w-7 h-7 flex items-center justify-center bg-pink-600 text-white rounded-full'
                         : day.isCurrentMonth
                         ? 'text-gray-800 dark:text-white'
-                        : 'text-gray-400 dark:text-gray-600'
+                        : 'text-gray-400 dark:text-dark-400'
                     }`}
                   >
                     {day.dayOfMonth}
                   </span>
                   {day.posts.length > 0 && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-dark-400">
                       {day.posts.length} Post{day.posts.length > 1 ? 's' : ''}
                     </span>
                   )}
@@ -244,7 +244,7 @@ export default function CalendarPage() {
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                           : post.status === 'scheduled'
                           ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          : 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500'
                       } hover:opacity-80 transition-opacity`}
                     >
                       <div className="flex items-center gap-1">
@@ -275,7 +275,7 @@ export default function CalendarPage() {
                           setSelectedPost(day.posts[0]);
                         }
                       }}
-                      className="w-full text-center text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                      className="w-full text-center text-xs text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-500"
                     >
                       +{day.posts.length - 3} weitere
                     </button>
@@ -294,11 +294,11 @@ export default function CalendarPage() {
           onClick={() => setSelectedPost(null)}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <div className="flex items-center gap-2">
                 {(selectedPost.platforms || []).map((platform) => (
                   <span
@@ -313,7 +313,7 @@ export default function CalendarPage() {
                 {getStatusBadge(selectedPost.status)}
                 <button
                   onClick={() => setSelectedPost(null)}
-                  className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                  className="p-1 text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
                 >
                   <MoreHorizontal size={20} />
                 </button>
@@ -324,7 +324,7 @@ export default function CalendarPage() {
             <div className="p-4 space-y-4">
               {/* Scheduled Time */}
               {selectedPost.scheduledAt && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-dark-400">
                   <Clock size={16} />
                   <span>
                     {new Date(selectedPost.scheduledAt).toLocaleDateString('de-DE', {
@@ -350,7 +350,7 @@ export default function CalendarPage() {
                   {selectedPost.hashtags.map((tag, i) => (
                     <span
                       key={i}
-                      className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-sm"
+                      className="px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-500 rounded text-sm"
                     >
                       #{tag}
                     </span>
@@ -374,10 +374,10 @@ export default function CalendarPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={() => setSelectedPost(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 dark:text-dark-400 dark:hover:text-white"
               >
                 Schließen
               </button>
@@ -400,17 +400,17 @@ export default function CalendarPage() {
           onClick={closeEditModal}
         >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                 Post bearbeiten
               </h2>
               <button
                 onClick={closeEditModal}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+                className="text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
               >
                 <X size={20} />
               </button>
@@ -420,7 +420,7 @@ export default function CalendarPage() {
             <div className="p-4 space-y-4">
               {/* Platforms */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Plattformen
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -431,7 +431,7 @@ export default function CalendarPage() {
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         editPlatforms.includes(platform)
                           ? `${PLATFORM_COLORS[platform]} text-white`
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
                       }`}
                     >
                       {PLATFORM_ICONS[platform]}
@@ -443,23 +443,23 @@ export default function CalendarPage() {
 
               {/* Content */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   Inhalt
                 </label>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white resize-none"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white resize-none"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                   {editContent.length} Zeichen
                 </p>
               </div>
 
               {/* Hashtags */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <Hash size={14} className="inline mr-1" />
                   Hashtags
                 </label>
@@ -483,11 +483,11 @@ export default function CalendarPage() {
                     onChange={(e) => setHashtagInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEditHashtag())}
                     placeholder="Hashtag hinzufügen..."
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white text-sm"
                   />
                   <button
                     onClick={addEditHashtag}
-                    className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    className="px-3 py-2 bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-300"
                   >
                     +
                   </button>
@@ -496,7 +496,7 @@ export default function CalendarPage() {
 
               {/* Schedule */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                   <Calendar size={14} className="inline mr-1" />
                   Veröffentlichung planen
                 </label>
@@ -504,7 +504,7 @@ export default function CalendarPage() {
                   type="datetime-local"
                   value={editScheduledAt}
                   onChange={(e) => setEditScheduledAt(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-800 dark:text-white"
                 />
                 {editScheduledAt && (
                   <button
@@ -518,10 +518,10 @@ export default function CalendarPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
                 onClick={closeEditModal}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                className="px-4 py-2 text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-white"
               >
                 Abbrechen
               </button>

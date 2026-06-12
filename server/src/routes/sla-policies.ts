@@ -10,6 +10,19 @@ import { logger } from '../utils/logger';
 const router = Router();
 
 // ============================================================================
+// Explicit column lists (no SELECT *)
+// ============================================================================
+
+const SLA_POLICY_COLUMNS = `
+  id, organization_id, name, description, is_default,
+  response_time_low, response_time_normal, response_time_high, response_time_critical,
+  resolution_time_low, resolution_time_normal, resolution_time_high, resolution_time_critical,
+  business_hours_only, business_hours_start, business_hours_end, business_days,
+  escalation_enabled, escalation_after_percent, escalation_notify_users,
+  is_active, created_at, updated_at
+`;
+
+// ============================================================================
 // VALIDATION SCHEMAS
 // ============================================================================
 
@@ -238,7 +251,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'
 
     // Verify policy exists and belongs to organization
     const existingResult = await query(
-      'SELECT * FROM sla_policies WHERE id = $1 AND organization_id = $2',
+      `SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 
@@ -331,7 +344,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
 
     // Verify policy exists and belongs to organization
     const existingResult = await query(
-      'SELECT * FROM sla_policies WHERE id = $1 AND organization_id = $2',
+      `SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 
@@ -387,7 +400,7 @@ router.put('/:id/set-default', authenticateToken, attachOrganization, requireOrg
 
     // Verify policy exists and belongs to organization
     const existingResult = await client.query(
-      'SELECT * FROM sla_policies WHERE id = $1 AND organization_id = $2',
+      `SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 

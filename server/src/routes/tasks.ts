@@ -10,6 +10,19 @@ import crypto from 'crypto';
 
 const router = Router();
 
+// Explicit column lists (no SELECT * on direct table queries)
+const TASK_COLUMNS = `
+  id, organization_id, title, description, status, priority,
+  ticket_id, project_id, customer_id, assigned_to, created_by,
+  due_date, due_time, reminder_at, estimated_minutes,
+  is_recurring, recurrence_pattern, recurrence_interval, recurrence_days, recurrence_end_date,
+  category, tags, color, completed_at, completed_by, sort_order, created_at, updated_at
+`;
+
+const CHECKLIST_ITEM_COLUMNS = `
+  id, task_id, title, is_completed, sort_order, created_at, updated_at
+`;
+
 // Validation schemas
 const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
@@ -554,7 +567,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req: AuthReques
 
     // Get checklist items
     const checklistResult = await pool.query(`
-      SELECT * FROM task_checklist_items
+      SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items
       WHERE task_id = $1
       ORDER BY sort_order ASC, created_at ASC
     `, [id]);
@@ -691,7 +704,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // First check if task exists in standalone tasks table
     const existingTask = await pool.query(
-      'SELECT * FROM tasks WHERE id = $1 AND organization_id = $2',
+      'SELECT ${TASK_COLUMNS} FROM tasks WHERE id = $1 AND organization_id = $2',
       [id, organizationId]
     );
 
@@ -947,7 +960,7 @@ router.post('/:id/checklist', authenticateToken, attachOrganization, requireOrgR
     `, [itemId, taskId, title, orderResult.rows[0].next_order]);
 
     const result = await pool.query(
-      'SELECT * FROM task_checklist_items WHERE id = $1',
+      'SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1',
       [itemId]
     );
 
@@ -1002,7 +1015,7 @@ router.put('/:taskId/checklist/:itemId', authenticateToken, attachOrganization, 
     );
 
     const result = await pool.query(
-      'SELECT * FROM task_checklist_items WHERE id = $1',
+      'SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1',
       [itemId]
     );
 

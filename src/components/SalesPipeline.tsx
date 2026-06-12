@@ -33,6 +33,7 @@ import { Customer } from '../types';
 import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
+import { useToast } from '../contexts/UIContext';
 
 // ============================================
 // Helper Functions
@@ -98,7 +99,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
         e.dataTransfer.setData('opportunityId', opportunity.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className={`group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 dark:hover:border-accent-primary transition-all ${
+      className={`group bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 dark:hover:border-accent-primary transition-all ${
         isDragging ? 'opacity-50 rotate-2 scale-105' : ''
       }`}
     >
@@ -118,7 +119,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]">
+              <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border py-1 min-w-[140px]">
                 <Button
                   onClick={() => {
                     setShowMenu(false);
@@ -131,7 +132,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
                 >
                   Bearbeiten
                 </Button>
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                <div className="border-t border-gray-200 dark:border-dark-border my-1" />
                 <div className="px-3 py-1 text-xs text-gray-500 uppercase">Verschieben zu</div>
                 {stages
                   .filter((s) => s.id !== opportunity.stage_id)
@@ -150,7 +151,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
                       {stage.name}
                     </Button>
                   ))}
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                <div className="border-t border-gray-200 dark:border-dark-border my-1" />
                 <Button
                   onClick={() => {
                     setShowMenu(false);
@@ -171,7 +172,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
 
       {/* Customer */}
       {opportunity.customer_name && (
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-2">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-dark-400 mb-2">
           <div
             className="w-2.5 h-2.5 rounded-full"
             style={{ backgroundColor: opportunity.customer_color || '#6B7280' }}
@@ -192,7 +193,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-dark-400">
         {/* Expected Close */}
         <div className="flex items-center gap-1">
           <Calendar size={12} />
@@ -222,7 +223,7 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({
 
       {/* Next Step */}
       {opportunity.next_step && (
-        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-dark-border text-xs text-gray-500 dark:text-dark-400">
           <span className="font-medium">Nächster Schritt:</span> {opportunity.next_step}
         </div>
       )}
@@ -280,7 +281,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
 
   return (
     <div
-      className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-gray-800/50 rounded-xl flex flex-col max-h-full ${
+      className={`flex-shrink-0 w-72 bg-gray-100 dark:bg-dark-100/50 rounded-xl flex flex-col max-h-full ${
         isDragOver ? 'ring-2 ring-accent-primary ring-opacity-50' : ''
       }`}
       onDragOver={handleDragOver}
@@ -288,7 +289,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
       onDrop={handleDrop}
     >
       {/* Header */}
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-3 border-b border-gray-200 dark:border-dark-border">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div
@@ -298,7 +299,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
               {stage.name}
             </h3>
-            <span className="text-xs text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+            <span className="text-xs text-gray-500 bg-gray-200 dark:bg-dark-200 px-1.5 py-0.5 rounded">
               {opportunities.length}
             </span>
           </div>
@@ -309,7 +310,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
             tooltip="Opportunity hinzufügen"
           />
         </div>
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-dark-400">
           <span>{formatCurrency(totalValue)}</span>
           <span>{stage.probability}% Chance</span>
         </div>
@@ -329,7 +330,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
         ))}
 
         {opportunities.length === 0 && (
-          <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+          <div className="text-center py-4 text-gray-400 dark:text-dark-400 text-sm">
             Keine Opportunities
           </div>
         )}
@@ -359,6 +360,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
   onSave,
   onCancel,
 }) => {
+  const showToast = useToast();
   const [name, setName] = useState(opportunity?.name || '');
   const [description, setDescription] = useState(opportunity?.description || '');
   const [customerId, setCustomerId] = useState(opportunity?.customer_id || '');
@@ -409,7 +411,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
       onSave(result);
     } catch (err) {
       console.error('Failed to save opportunity:', err);
-      alert('Fehler beim Speichern');
+      showToast('Fehler beim Speichern', 'error');
     } finally {
       setSaving(false);
     }
@@ -419,14 +421,14 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Name <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           placeholder="z.B. Website Redesign"
           required
         />
@@ -434,13 +436,13 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
 
       {/* Customer */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Kunde
         </label>
         <select
           value={customerId}
           onChange={(e) => setCustomerId(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
         >
           <option value="">Kein Kunde</option>
           {customers.map((c) => (
@@ -454,7 +456,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
       {/* Value & Probability */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Wert (EUR)
           </label>
           <input
@@ -463,12 +465,12 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
             onChange={(e) => setValue(e.target.value)}
             min={0}
             step={100}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
             placeholder="10000"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
             Wahrscheinlichkeit (%)
           </label>
           <input
@@ -477,20 +479,20 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
             onChange={(e) => setProbability(e.target.value)}
             min={0}
             max={100}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           />
         </div>
       </div>
 
       {/* Stage */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Pipeline-Phase
         </label>
         <select
           value={stageId}
           onChange={(e) => setStageId(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
         >
           {stages.map((s) => (
             <option key={s.id} value={s.id}>
@@ -502,41 +504,41 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
 
       {/* Expected Close Date */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Erwarteter Abschluss
         </label>
         <input
           type="date"
           value={expectedCloseDate}
           onChange={(e) => setExpectedCloseDate(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
         />
       </div>
 
       {/* Next Step */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Nachster Schritt
         </label>
         <input
           type="text"
           value={nextStep}
           onChange={(e) => setNextStep(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
           placeholder="z.B. Demo vereinbaren"
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
           Beschreibung
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
         />
       </div>
 
@@ -576,9 +578,9 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-xl p-4 animate-pulse">
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 mb-2" />
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-24" />
+          <div key={i} className="bg-white dark:bg-dark-100 rounded-xl p-4 animate-pulse">
+            <div className="h-4 bg-gray-200 dark:bg-dark-200 rounded w-20 mb-2" />
+            <div className="h-8 bg-gray-200 dark:bg-dark-200 rounded w-24" />
           </div>
         ))}
       </div>
@@ -587,8 +589,8 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm mb-1">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
           <Target size={16} />
           Pipeline-Wert
         </div>
@@ -600,8 +602,8 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm mb-1">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
           <TrendingUp size={16} />
           Win-Rate
         </div>
@@ -613,8 +615,8 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm mb-1">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
           <Award size={16} />
           Gewonnen diesen Monat
         </div>
@@ -626,8 +628,8 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm mb-1">
+      <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-border">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
           <Clock size={16} />
           Bald abschliessend
         </div>
@@ -647,6 +649,7 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
 // ============================================
 
 const SalesPipeline: React.FC = () => {
+  const showToast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pipeline, setPipeline] = useState<PipelineView | null>(null);
@@ -716,7 +719,7 @@ const SalesPipeline: React.FC = () => {
       await loadData();
     } catch (err) {
       console.error('Failed to move opportunity:', err);
-      alert('Fehler beim Verschieben');
+      showToast('Fehler beim Verschieben', 'error');
     }
   };
 
@@ -739,7 +742,7 @@ const SalesPipeline: React.FC = () => {
       setDeleteOpportunity(null);
     } catch (err) {
       console.error('Failed to delete opportunity:', err);
-      alert('Fehler beim Loschen');
+      showToast('Fehler beim Loschen', 'error');
     } finally {
       setDeleting(false);
     }
@@ -789,7 +792,7 @@ const SalesPipeline: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Sales Pipeline
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-dark-400">
             {pipeline?.totals.total_opportunities || 0} offene Opportunities
           </p>
         </div>
@@ -801,7 +804,7 @@ const SalesPipeline: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Suchen..."
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+              className="pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white w-48 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
             />
           </div>
           <Button
@@ -840,8 +843,8 @@ const SalesPipeline: React.FC = () => {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowForm(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingOpportunity ? 'Opportunity bearbeiten' : 'Neue Opportunity'}
               </h3>

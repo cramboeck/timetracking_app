@@ -13,7 +13,7 @@ import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
-import { uploadVoucherFile, createVoucherFromFile } from './sevdeskService';
+import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherFile, SevdeskVoucherDetail } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -78,17 +78,29 @@ export interface ExtractedInvoiceData {
 export interface ProcessedInvoice {
   id: string;
   organizationId: string;
-  emailId: string;
-  emailSubject: string;
-  senderEmail: string;
-  senderName: string;
+  emailId: string | null;
+  emailSubject: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   receivedAt: string;
   attachmentCount: number;
   documentIds: string[];
   vendorId: string | null;
-  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped';
+  status: 'pending' | 'draft' | 'processed' | 'failed' | 'skipped' | 'imported';
   errorMessage: string | null;
-  processedAt: string;
+  processedAt: string | null;
+  // SSOT-Felder ab Phase 1
+  source: 'email' | 'manual' | 'sevdesk_import';
+  originalFilename: string | null;
+  sevdeskVoucherId: string | null;
+  sevdeskVoucherNumber: string | null;
+  invoiceNumber: string | null;
+  supplierName: string | null;
+  invoiceDate: string | null;
+  netAmount: number | null;
+  grossAmount: number | null;
+  vatAmount: number | null;
+  currency: string | null;
 }
 
 export interface InvoiceDocument {
@@ -633,12 +645,15 @@ class InvoiceProcessorService {
   ): Promise<string> {
     const id = uuidv4();
 
+    // ON CONFLICT muss die WHERE-Klausel des partiellen Index spiegeln, der
+    // den alten UNIQUE-Constraint nach der SSOT-Migration ersetzt hat -
+    // sonst kann PostgreSQL den Conflict-Target nicht inferieren.
     await query(
       `INSERT INTO processed_invoices (
         id, organization_id, email_id, email_subject, sender_email, sender_name,
-        received_at, attachment_count, document_ids, vendor_id, status, error_message, processed_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
-      ON CONFLICT (organization_id, email_id) DO UPDATE SET
+        received_at, attachment_count, document_ids, vendor_id, status, error_message, processed_at, source
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'email')
+      ON CONFLICT (organization_id, email_id) WHERE email_id IS NOT NULL DO UPDATE SET
         status = $11,
         error_message = $12,
         document_ids = $9,
@@ -752,18 +767,25 @@ class InvoiceProcessorService {
     organizationId: string,
     options: {
       status?: string;
+      source?: string;  // 'email,manual,sevdesk_import' comma-separiert moeglich
       limit?: number;
       offset?: number;
     } = {}
   ): Promise<{ invoices: ProcessedInvoice[]; total: number }> {
-    const { status, limit = 50, offset = 0 } = options;
+    const { status, source, limit = 50, offset = 0 } = options;
 
     let whereClause = 'WHERE organization_id = $1';
     const params: any[] = [organizationId];
 
     if (status) {
-      params.push(status);
-      whereClause += ` AND status = $${params.length}`;
+      const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+      params.push(statuses);
+      whereClause += ` AND status = ANY($${params.length})`;
+    }
+    if (source) {
+      const sources = source.split(',').map(s => s.trim()).filter(Boolean);
+      params.push(sources);
+      whereClause += ` AND source = ANY($${params.length})`;
     }
 
     // Get total count
@@ -796,6 +818,17 @@ class InvoiceProcessorService {
       status: row.status,
       errorMessage: row.error_message,
       processedAt: row.processed_at,
+      source: row.source || 'email',
+      originalFilename: row.original_filename,
+      sevdeskVoucherId: row.sevdesk_voucher_id,
+      sevdeskVoucherNumber: row.sevdesk_voucher_number,
+      invoiceNumber: row.invoice_number,
+      supplierName: row.supplier_name,
+      invoiceDate: row.invoice_date,
+      netAmount: row.net_amount !== null ? Number(row.net_amount) : null,
+      grossAmount: row.gross_amount !== null ? Number(row.gross_amount) : null,
+      vatAmount: row.vat_amount !== null ? Number(row.vat_amount) : null,
+      currency: row.currency,
     }));
 
     return { invoices, total };
@@ -1046,7 +1079,22 @@ class InvoiceProcessorService {
   /**
    * Extract invoice data from PDF using text extraction and AI parsing
    */
-  async extractInvoiceData(organizationId: string, processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+  async extractInvoiceData(
+    organizationId: string,
+    processedInvoiceId: string,
+    options: { force?: boolean } = {},
+  ): Promise<ExtractedInvoiceData | null> {
+    // Cache-Pfad: wenn bereits extrahiert und nicht explizit erzwungen, gib
+    // die persistierten strukturierten Felder zurueck ohne PDF re-parsing
+    // oder Vision-Call (das spart Geld bei OpenAI-Konfigurationen).
+    if (!options.force) {
+      const cached = await this.getStoredExtraction(processedInvoiceId);
+      if (cached) {
+        logger.info(`Returning cached extraction for invoice ${processedInvoiceId}`);
+        return cached;
+      }
+    }
+
     // Get the invoice with email info for fallback extraction
     const invoiceResult = await query(
       `SELECT * FROM processed_invoices WHERE id = $1`,
@@ -1176,6 +1224,11 @@ class InvoiceProcessorService {
         logger.info('No AI config found - using regex/email extraction only');
       }
 
+      // Persist the extracted text + structured fields into processed_invoices.full_text
+      // so the search-vector trigger can index the receipt's content. Done after
+      // the full pipeline (regex + AI) so the most enriched data lands in search.
+      await this.persistExtractedData(processedInvoiceId, rawText, result);
+
       return result;
 
     } catch (error: any) {
@@ -1183,6 +1236,121 @@ class InvoiceProcessorService {
       result.rawText = `Fehler: ${error.message}`;
       return result;
     }
+  }
+
+  /**
+   * Persist the full extraction result into processed_invoices: full_text
+   * (rawText + structured-concat for FTS) PLUS every structured field as its
+   * own typed column. extracted_at acts as the "fresh cache" signal — next
+   * extractInvoiceData call can return the stored data without re-running OCR
+   * unless force=true. Non-fatal on error.
+   */
+  private async persistExtractedData(
+    processedInvoiceId: string,
+    rawText: string,
+    extracted: ExtractedInvoiceData,
+  ): Promise<void> {
+    const cappedRaw = (rawText || '').substring(0, 10000);
+    const structuredParts = [
+      extracted.supplierName,
+      extracted.supplierAddress,
+      extracted.taxId,
+      extracted.invoiceNumber,
+      extracted.orderNumber,
+      extracted.customerNumber,
+      extracted.iban,
+      extracted.bic,
+      extracted.paymentMethod,
+    ].filter(Boolean).join(' ');
+    const fullText = [structuredParts, cappedRaw].filter(Boolean).join('\n');
+    try {
+      await query(
+        `UPDATE processed_invoices SET
+           full_text = $1,
+           supplier_name = $2,
+           supplier_address = $3,
+           supplier_tax_id = $4,
+           invoice_number = $5,
+           customer_number = $6,
+           invoice_date = $7,
+           due_date = $8,
+           net_amount = $9,
+           gross_amount = $10,
+           vat_amount = $11,
+           vat_rate = $12,
+           currency = COALESCE($13, currency),
+           iban = $14,
+           bic = $15,
+           payment_method = $16,
+           extracted_at = NOW(),
+           extraction_confidence = $17
+         WHERE id = $18`,
+        [
+          fullText,
+          extracted.supplierName,
+          extracted.supplierAddress,
+          extracted.taxId,
+          extracted.invoiceNumber,
+          extracted.customerNumber,
+          extracted.invoiceDate,
+          extracted.dueDate,
+          extracted.netAmount,
+          extracted.grossAmount,
+          extracted.vatAmount,
+          extracted.vatRate,
+          extracted.currency,
+          extracted.iban,
+          extracted.bic,
+          extracted.paymentMethod,
+          extracted.confidence,
+          processedInvoiceId,
+        ]
+      );
+    } catch (err: any) {
+      logger.error(`Failed to persist extracted data for invoice ${processedInvoiceId}: ${err.message}`);
+      // Non-fatal — search just won't find this invoice until next extraction.
+    }
+  }
+
+  /**
+   * Read the previously persisted extraction back from processed_invoices
+   * columns into the ExtractedInvoiceData shape. Returns null if no extraction
+   * has been run yet (extracted_at IS NULL).
+   */
+  private async getStoredExtraction(processedInvoiceId: string): Promise<ExtractedInvoiceData | null> {
+    const result = await query(
+      `SELECT supplier_name, supplier_address, supplier_tax_id, customer_number,
+              invoice_number, invoice_date, due_date,
+              net_amount, gross_amount, vat_amount, vat_rate, currency,
+              iban, bic, payment_method,
+              extraction_confidence, extracted_at
+       FROM processed_invoices WHERE id = $1`,
+      [processedInvoiceId]
+    );
+    if (result.rows.length === 0 || !result.rows[0].extracted_at) return null;
+    const r = result.rows[0];
+    return {
+      supplierName: r.supplier_name,
+      supplierAddress: r.supplier_address,
+      taxId: r.supplier_tax_id,
+      recipientName: null,
+      recipientAddress: null,
+      customerNumber: r.customer_number,
+      invoiceNumber: r.invoice_number,
+      orderNumber: null,
+      invoiceDate: r.invoice_date ? new Date(r.invoice_date).toISOString().slice(0, 10) : null,
+      dueDate: r.due_date ? new Date(r.due_date).toISOString().slice(0, 10) : null,
+      deliveryDate: null,
+      netAmount: r.net_amount !== null ? Number(r.net_amount) : null,
+      grossAmount: r.gross_amount !== null ? Number(r.gross_amount) : null,
+      vatAmount: r.vat_amount !== null ? Number(r.vat_amount) : null,
+      vatRate: r.vat_rate !== null ? Number(r.vat_rate) : null,
+      currency: r.currency || 'EUR',
+      paymentMethod: r.payment_method,
+      iban: r.iban,
+      bic: r.bic,
+      confidence: r.extraction_confidence !== null ? Number(r.extraction_confidence) : 0,
+    };
   }
 
   /**
@@ -2092,6 +2260,313 @@ SPEZIELLE RECHNUNGSTYPEN:
 
     const processResult = await this.processEmail(organizationId, email);
     return processResult.status === 'draft';
+  }
+
+  /**
+   * sevDesk-Vouchers in processed_invoices spiegeln. Holt alle Debit-
+   * Vouchers (Eingangsrechnungen) der Org via sevDesk-API, ueberspringt
+   * solche die schon ueber sevdesk_voucher_id verlinkt sind, und legt fuer
+   * die unbekannten neue Rows mit source='sevdesk_import' an. Das PDF wird
+   * sofort runtergeladen und in den org-Storage geschrieben, damit die UI
+   * dieselbe Card-Logik (View/Download) nutzen kann wie fuer Inbox-Belege.
+   *
+   * Idempotent: existierende Rows werden bei Bedarf mit den neuesten
+   * Status-/Beleg-Daten aktualisiert (Status kann sich in sevDesk aendern
+   * z. B. von open zu paid).
+   */
+  async syncSevdeskVouchers(organizationId: string): Promise<{ created: number; updated: number; skipped: number; errors: number }> {
+    const stats = { created: 0, updated: 0, skipped: 0, errors: 0 };
+
+    // sevdesk_config ist per-user (legacy), nicht per-org. Hole ein Token
+    // eines beliebigen Users der Org; in der Praxis hat pro Org meist nur
+    // ein Admin sevDesk konfiguriert.
+    const tokenResult = await query(
+      `SELECT sc.api_token FROM sevdesk_config sc
+       JOIN users u ON sc.user_id = u.id
+       WHERE u.organization_id = $1 AND sc.api_token IS NOT NULL AND sc.api_token <> ''
+       LIMIT 1`,
+      [organizationId]
+    );
+    if (tokenResult.rows.length === 0) {
+      logger.info(`Org ${organizationId}: kein sevDesk-Token, sync skipped`);
+      return stats;
+    }
+    const apiToken = tokenResult.rows[0].api_token;
+
+    let vouchers: SevdeskVoucherDetail[];
+    try {
+      vouchers = await getVouchers(apiToken, { creditDebit: 'D', limit: 500 });
+    } catch (err: any) {
+      logger.error(`Org ${organizationId}: getVouchers failed: ${err.message}`);
+      stats.errors++;
+      return stats;
+    }
+
+    for (const v of vouchers) {
+      if (!v.id) { stats.skipped++; continue; }
+      try {
+        // Schon verlinkt? Dann nur Metadaten-Update.
+        const existing = await query(
+          `SELECT id FROM processed_invoices WHERE organization_id = $1 AND sevdesk_voucher_id = $2 LIMIT 1`,
+          [organizationId, v.id]
+        );
+        if (existing.rows.length > 0) {
+          await query(
+            `UPDATE processed_invoices SET
+               sevdesk_voucher_number = $1,
+               supplier_name = COALESCE($2, supplier_name),
+               invoice_number = COALESCE($3, invoice_number),
+               invoice_date = COALESCE($4, invoice_date),
+               net_amount = COALESCE($5, net_amount),
+               gross_amount = COALESCE($6, gross_amount),
+               vat_amount = COALESCE($7, vat_amount),
+               currency = COALESCE($8, currency),
+               status = CASE WHEN status NOT IN ('processed', 'imported') THEN 'processed' ELSE status END
+             WHERE id = $9`,
+            [
+              v.voucherNumber,
+              v.supplier?.name ?? null,
+              v.voucherNumber,
+              v.voucherDate,
+              v.sumNet,
+              v.sumGross,
+              v.sumTax,
+              v.currency,
+              existing.rows[0].id,
+            ]
+          );
+          stats.updated++;
+          continue;
+        }
+
+        // Neuer Voucher - PDF runterladen falls vorhanden.
+        let storedDoc: { path: string; filename: string; mimeType: string; size: number } | null = null;
+        if (v.document?.id) {
+          try {
+            const dl = await downloadVoucherFile(apiToken, v.document.id);
+            if (dl) {
+              const uploadDir = await this.ensureUploadDir(organizationId);
+              const ext = path.extname(v.document.filename || '') || (dl.mimeType.includes('pdf') ? '.pdf' : '');
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+              const filename = `${timestamp}_sevdesk-${v.id}${ext}`;
+              const filePath = path.join(uploadDir, filename);
+              await fs.promises.writeFile(filePath, dl.buffer);
+              storedDoc = {
+                path: filePath,
+                filename,
+                mimeType: dl.mimeType,
+                size: dl.buffer.length,
+              };
+            }
+          } catch (err: any) {
+            logger.error(`Voucher ${v.id}: PDF-Download fehlgeschlagen: ${err.message}`);
+            // Weiter ohne PDF - der Datensatz wird trotzdem angelegt.
+          }
+        }
+
+        const processedInvoiceId = uuidv4();
+        const documentId = storedDoc ? uuidv4() : null;
+        const documentIds = documentId ? [documentId] : [];
+
+        await query(
+          `INSERT INTO processed_invoices (
+            id, organization_id, email_id, email_subject, sender_email, sender_name,
+            received_at, attachment_count, document_ids, status, source,
+            sevdesk_voucher_id, sevdesk_voucher_number, original_filename,
+            supplier_name, invoice_number, invoice_date,
+            net_amount, gross_amount, vat_amount, currency,
+            processed_at
+          ) VALUES ($1, $2, NULL, $3, NULL, $4, $5, $6, $7, 'imported', 'sevdesk_import',
+                    $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+          ON CONFLICT (organization_id, sevdesk_voucher_id) WHERE sevdesk_voucher_id IS NOT NULL DO NOTHING`,
+          [
+            processedInvoiceId,
+            organizationId,
+            v.description || v.voucherNumber || 'sevDesk-Beleg',
+            v.supplier?.name || null,
+            v.voucherDate || new Date().toISOString(),
+            documentIds.length,
+            JSON.stringify(documentIds),
+            v.id,
+            v.voucherNumber,
+            v.document?.filename || null,
+            v.supplier?.name || null,
+            v.voucherNumber || null,
+            v.voucherDate || null,
+            v.sumNet,
+            v.sumGross,
+            v.sumTax,
+            v.currency || 'EUR',
+          ]
+        );
+
+        if (storedDoc && documentId) {
+          await query(
+            `INSERT INTO invoice_documents (
+              id, organization_id, processed_invoice_id, filename, original_filename,
+              mime_type, size, storage_path, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+            [
+              documentId,
+              organizationId,
+              processedInvoiceId,
+              storedDoc.filename,
+              v.document?.filename || storedDoc.filename,
+              storedDoc.mimeType,
+              storedDoc.size,
+              storedDoc.path,
+            ]
+          );
+        }
+
+        stats.created++;
+      } catch (err: any) {
+        logger.error(`Voucher ${v.id} sync fehlgeschlagen: ${err.message}`);
+        stats.errors++;
+      }
+    }
+
+    logger.info(`sevDesk-Voucher-Sync fuer Org ${organizationId}: created=${stats.created} updated=${stats.updated} skipped=${stats.skipped} errors=${stats.errors}`);
+    return stats;
+  }
+
+  /**
+   * Manual-Upload: PDF/Image-Buffer landet als processed_invoice mit
+   * source='manual', invoice_documents-Row und sofortigem Extractor-Lauf.
+   * Schliesst die Pipeline-Luecke fuer Belege, die nicht per Mail kommen.
+   * Returns the new processedInvoiceId + extracted data so the frontend can
+   * jump straight into the confirmation modal.
+   */
+  async createManualReceipt(
+    organizationId: string,
+    fileBuffer: Buffer,
+    originalFilename: string,
+    mimeType: string,
+  ): Promise<{ processedInvoiceId: string; extracted: ExtractedInvoiceData | null }> {
+    const uploadDir = await this.ensureUploadDir(organizationId);
+    const ext = path.extname(originalFilename) || '.pdf';
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${timestamp}_${uuidv4().substring(0, 8)}${ext}`;
+    const filePath = path.join(uploadDir, filename);
+    await fs.promises.writeFile(filePath, fileBuffer);
+
+    const processedInvoiceId = uuidv4();
+    const documentId = uuidv4();
+
+    await query(
+      `INSERT INTO processed_invoices (
+        id, organization_id, email_id, email_subject, sender_email, sender_name,
+        received_at, attachment_count, document_ids, status, source, original_filename, processed_at
+      ) VALUES ($1, $2, NULL, $3, NULL, NULL, NOW(), 1, $4, 'draft', 'manual', $5, NOW())`,
+      [
+        processedInvoiceId,
+        organizationId,
+        originalFilename,
+        JSON.stringify([documentId]),
+        originalFilename,
+      ]
+    );
+
+    await query(
+      `INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        documentId,
+        organizationId,
+        processedInvoiceId,
+        filename,
+        originalFilename,
+        mimeType,
+        fileBuffer.length,
+        filePath,
+      ]
+    );
+
+    // Sofort extrahieren - der User bekommt direkt das Modal mit vor-
+    // ausgefuellten Feldern. force=true, weil es eh frisch ist.
+    const extracted = await this.extractInvoiceData(organizationId, processedInvoiceId, { force: true });
+    return { processedInvoiceId, extracted };
+  }
+
+  /**
+   * Full-text search over received invoices (processed_invoices). Searches the
+   * email metadata (subject, sender) AND the PDF-extracted text persisted in
+   * full_text. Mirrors the sevdesk_documents search pattern: German tsvector,
+   * prefix-match per term (`:*`), AND-combined.
+   */
+  async searchProcessedInvoices(
+    organizationId: string,
+    searchQuery: string,
+    options: { status?: string; vendorId?: string; limit?: number; offset?: number } = {}
+  ): Promise<any[]> {
+    const { status, vendorId, limit = 50, offset = 0 } = options;
+
+    const terms = searchQuery
+      .trim()
+      .split(/\s+/)
+      .filter(t => t.length > 0)
+      .map(t => `${t.replace(/[&|!():*]/g, '')}:*`)
+      .join(' & ');
+
+    if (!terms) return [];
+
+    const params: any[] = [organizationId, terms];
+    let sql = `
+      SELECT
+        pi.id, pi.email_subject, pi.sender_email, pi.sender_name,
+        pi.received_at, pi.status, pi.vendor_id, pi.attachment_count,
+        pi.document_ids, pi.processed_at, pi.source, pi.supplier_name,
+        pi.invoice_number, pi.sevdesk_voucher_number,
+        c.name AS vendor_name,
+        ts_rank(pi.search_vector, to_tsquery('german', $2)) AS rank
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON c.id = pi.vendor_id
+      WHERE pi.organization_id = $1
+        AND pi.search_vector @@ to_tsquery('german', $2)
+    `;
+
+    if (status) {
+      sql += ` AND pi.status = $${params.length + 1}`;
+      params.push(status);
+    }
+    if (vendorId) {
+      sql += ` AND pi.vendor_id = $${params.length + 1}`;
+      params.push(vendorId);
+    }
+
+    sql += ` ORDER BY rank DESC, pi.received_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  /**
+   * One-off helper to backfill full_text + search_vector for invoices that
+   * existed before this migration. Iterates and re-runs the extractor.
+   */
+  async backfillSearchIndex(organizationId: string, limit = 200): Promise<{ processed: number; errors: number }> {
+    const result = await query(
+      `SELECT id FROM processed_invoices
+       WHERE organization_id = $1 AND (full_text IS NULL OR full_text = '')
+       ORDER BY received_at DESC
+       LIMIT $2`,
+      [organizationId, limit]
+    );
+    let processed = 0;
+    let errors = 0;
+    for (const row of result.rows) {
+      try {
+        await this.extractInvoiceData(organizationId, row.id);
+        processed++;
+      } catch (err: any) {
+        errors++;
+        logger.error(`Backfill failed for ${row.id}: ${err.message}`);
+      }
+    }
+    return { processed, errors };
   }
 }
 

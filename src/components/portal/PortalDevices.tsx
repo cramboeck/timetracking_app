@@ -51,8 +51,8 @@ const severityColors: Record<string, { bg: string; text: string; icon: string }>
   CRITICAL: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', icon: 'text-red-600' },
   MAJOR: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', icon: 'text-orange-600' },
   MODERATE: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-400', icon: 'text-yellow-600' },
-  MINOR: { bg: 'bg-accent-lighter dark:bg-blue-900/30', text: 'text-accent-dark dark:text-blue-400', icon: 'text-accent-primary' },
-  NONE: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-700 dark:text-gray-400', icon: 'text-gray-600' },
+  MINOR: { bg: 'bg-accent-lighter dark:bg-accent-primary/30', text: 'text-accent-dark dark:text-accent-primary', icon: 'text-accent-primary' },
+  NONE: { bg: 'bg-gray-100 dark:bg-dark-200', text: 'text-gray-700 dark:text-dark-400', icon: 'text-gray-600' },
 };
 
 export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) => {
@@ -348,7 +348,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
             <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
               <Wifi size={14} /> {deviceStats.online} Online
             </span>
-            <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-dark-400">
               <WifiOff size={14} /> {deviceStats.offline} Offline
             </span>
             {deviceStats.withProblems > 0 && (
@@ -382,7 +382,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
       </div>
 
       {/* Search & Filters Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+      <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-3">
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search */}
           <div className="relative flex-1">
@@ -392,7 +392,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               placeholder="Gerät, Benutzer suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent text-sm"
             />
           </div>
 
@@ -401,7 +401,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
             onClick={() => setShowFilters(!showFilters)}
             variant={showFilters || activeFiltersCount > 0 ? 'primary' : 'ghost'}
             icon={<Filter size={16} />}
-            className={activeFiltersCount > 0 ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-dark dark:text-blue-400' : ''}
+            className={activeFiltersCount > 0 ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary' : ''}
           >
             Filter
             {activeFiltersCount > 0 && (
@@ -414,12 +414,12 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
         {/* Expanded Filters */}
         {showFilters && (
-          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
             <div className="flex flex-wrap gap-3">
               {/* Device Type Filter */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Typ:</span>
-                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <span className="text-xs text-gray-500 dark:text-dark-400 font-medium">Typ:</span>
+                <div className="flex bg-gray-100 dark:bg-dark-200 rounded-lg p-0.5">
                   {[
                     { value: 'all' as DeviceTypeFilter, label: 'Alle', count: devices.length },
                     { value: 'servers' as DeviceTypeFilter, label: 'Server', count: deviceStats.servers },
@@ -430,8 +430,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       onClick={() => setDeviceTypeFilter(opt.value)}
                       className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
                         deviceTypeFilter === opt.value
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                          ? 'bg-white dark:bg-dark-300 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
                       }`}
                     >
                       {opt.label} ({opt.count})
@@ -442,8 +442,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
               {/* Problem Filter */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Status:</span>
-                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <span className="text-xs text-gray-500 dark:text-dark-400 font-medium">Status:</span>
+                <div className="flex bg-gray-100 dark:bg-dark-200 rounded-lg p-0.5">
                   {[
                     { value: 'all' as ProblemFilter, label: 'Alle' },
                     { value: 'problems' as ProblemFilter, label: 'Mit Meldungen', icon: AlertTriangle, color: 'text-red-500' },
@@ -454,8 +454,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       onClick={() => setProblemFilter(opt.value)}
                       className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md transition-colors ${
                         problemFilter === opt.value
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                          ? 'bg-white dark:bg-dark-300 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-dark-400 hover:text-gray-700'
                       }`}
                     >
                       {opt.icon && <opt.icon size={12} className={problemFilter === opt.value ? opt.color : ''} />}
@@ -466,21 +466,21 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               </div>
 
               {/* Offline Toggle */}
-              <label className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-lg cursor-pointer">
+              <label className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-dark-200 rounded-lg cursor-pointer">
                 <input
                   type="checkbox"
                   checked={showOffline}
                   onChange={(e) => setShowOffline(e.target.checked)}
                   className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary w-3.5 h-3.5"
                 />
-                <span className="text-xs text-gray-600 dark:text-gray-300">Offline zeigen</span>
+                <span className="text-xs text-gray-600 dark:text-dark-500">Offline zeigen</span>
               </label>
 
               {/* Reset Filters */}
               {activeFiltersCount > 0 && (
                 <button
                   onClick={resetFilters}
-                  className="text-xs text-accent-primary dark:text-blue-400 hover:underline"
+                  className="text-xs text-accent-primary dark:text-accent-primary hover:underline"
                 >
                   Filter zurücksetzen
                 </button>
@@ -492,7 +492,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
       {/* Results Info */}
       {(searchTerm || activeFiltersCount > 0) && (
-        <div className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="text-sm text-gray-500 dark:text-dark-400">
           {filteredDevices.length} von {devices.length} Geräten
         </div>
       )}
@@ -504,9 +504,9 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
       )}
 
       {filteredDevices.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <Monitor size={48} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-500 dark:text-gray-400">
+        <div className="text-center py-12 bg-gray-50 dark:bg-dark-100 rounded-lg">
+          <Monitor size={48} className="mx-auto text-gray-300 dark:text-dark-400 mb-3" />
+          <p className="text-gray-500 dark:text-dark-400">
             {searchTerm ? 'Keine Geräte gefunden' : 'Keine Geräte vorhanden'}
           </p>
         </div>
@@ -522,21 +522,21 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                 onClick={() => openDevice(device)}
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                   isSelected
-                    ? 'border-accent-primary bg-accent-light dark:bg-blue-900/20'
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
                     : device.offline
-                    ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 opacity-60'
-                    : 'border-green-200 dark:border-green-800 bg-white dark:bg-gray-800 hover:border-green-300'
+                    ? 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 opacity-60'
+                    : 'border-green-200 dark:border-green-800 bg-white dark:bg-dark-100 hover:border-green-300'
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div className={`p-2.5 rounded-lg ${
                     device.offline
-                      ? 'bg-gray-100 dark:bg-gray-700'
+                      ? 'bg-gray-100 dark:bg-dark-200'
                       : 'bg-green-100 dark:bg-green-900/30'
                   }`}>
                     <DeviceIcon size={22} className={
                       device.offline
-                        ? 'text-gray-500 dark:text-gray-400'
+                        ? 'text-gray-500 dark:text-dark-400'
                         : 'text-green-600 dark:text-green-400'
                     } />
                   </div>
@@ -552,10 +552,10 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 truncate">
                       {device.osVersion || device.osName}
                     </p>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 dark:text-gray-500">
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 dark:text-dark-400">
                       {device.offline ? (
                         <WifiOff size={12} />
                       ) : (
@@ -581,13 +581,13 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
           />
 
           {/* Panel */}
-          <div className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[600px] bg-white dark:bg-gray-800 shadow-2xl transform transition-transform duration-300 ease-out flex flex-col`}>
+          <div className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[600px] bg-white dark:bg-dark-100 shadow-2xl transform transition-transform duration-300 ease-out flex flex-col`}>
             {/* Panel Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-2 rounded-lg ${
                   selectedDevice.offline
-                    ? 'bg-gray-200 dark:bg-gray-700'
+                    ? 'bg-gray-200 dark:bg-dark-200'
                     : 'bg-green-100 dark:bg-green-900/30'
                 }`}>
                   {(() => {
@@ -614,7 +614,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       </span>
                     )}
                     <span className="text-gray-400">•</span>
-                    <span className="text-gray-500 dark:text-gray-400">{formatRelativeTime(selectedDevice.lastContact)}</span>
+                    <span className="text-gray-500 dark:text-dark-400">{formatRelativeTime(selectedDevice.lastContact)}</span>
                   </div>
                 </div>
               </div>
@@ -627,7 +627,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2">
+            <div className="flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 px-2">
               {[
                 { id: 'overview' as DetailTab, label: 'Übersicht', icon: Info },
                 { id: 'software' as DetailTab, label: 'Software', icon: Package },
@@ -639,8 +639,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'border-accent-primary text-accent-primary dark:text-blue-400'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
                   }`}
                 >
                   <tab.icon size={16} />
@@ -660,8 +660,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
               {activeTab === 'overview' && (
                 <div className="space-y-6">
                   {/* System Info */}
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                  <div className="bg-gray-50 dark:bg-dark-200/50 rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3 flex items-center gap-2">
                       <Monitor size={16} /> System
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
@@ -677,8 +677,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
                   {/* Hardware Info */}
                   {(selectedDevice.processorName || selectedDevice.memoryGb) && (
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <div className="bg-gray-50 dark:bg-dark-200/50 rounded-xl p-4">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3 flex items-center gap-2">
                         <Cpu size={16} /> Hardware
                       </h4>
                       <div className="grid grid-cols-2 gap-4">
@@ -699,8 +699,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
 
                   {/* Network Info */}
                   {(selectedDevice.privateIp || selectedDevice.publicIp) && (
-                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <div className="bg-gray-50 dark:bg-dark-200/50 rounded-xl p-4">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3 flex items-center gap-2">
                         <Globe size={16} /> Netzwerk
                       </h4>
                       <div className="grid grid-cols-2 gap-4">
@@ -715,8 +715,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   )}
 
                   {/* Activity Info */}
-                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                  <div className="bg-gray-50 dark:bg-dark-200/50 rounded-xl p-4">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3 flex items-center gap-2">
                       <Activity size={16} /> Aktivität
                     </h4>
                     <div className="grid grid-cols-2 gap-4">
@@ -743,7 +743,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                         placeholder="Software suchen..."
                         value={softwareSearch}
                         onChange={(e) => setSoftwareSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                       />
                     </div>
                     <IconButton
@@ -759,19 +759,19 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
                     </div>
                   ) : filteredSoftware.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                       <Package size={32} className="mx-auto mb-2 opacity-50" />
                       <p>{softwareSearch ? 'Keine Treffer' : 'Keine Software gefunden'}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">
                         {filteredSoftware.length} Programme
                       </p>
                       {filteredSoftware.map(sw => (
-                        <div key={sw.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div key={sw.id} className="p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
                           <p className="font-medium text-sm text-gray-900 dark:text-white">{sw.name}</p>
-                          <div className="flex items-center justify-between mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center justify-between mt-1 text-xs text-gray-500 dark:text-dark-400">
                             <span>{sw.publisher || '-'}</span>
                             <div className="flex items-center gap-3">
                               <span className="font-mono">{sw.version || '-'}</span>
@@ -796,7 +796,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                         placeholder="Update suchen (KB...)..."
                         value={patchesSearch}
                         onChange={(e) => setPatchesSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                       />
                     </div>
                     <IconButton
@@ -808,13 +808,13 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                   </div>
 
                   {/* Tabs for pending/installed */}
-                  <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                  <div className="flex bg-gray-100 dark:bg-dark-200 rounded-lg p-1">
                     <button
                       onClick={() => setPatchesTab('pending')}
                       className={`flex-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
                         patchesTab === 'pending'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400'
+                          ? 'bg-white dark:bg-dark-300 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-dark-400'
                       }`}
                     >
                       Ausstehend ({devicePatches[selectedDevice.id]?.pending?.length || 0})
@@ -823,8 +823,8 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       onClick={() => setPatchesTab('installed')}
                       className={`flex-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
                         patchesTab === 'installed'
-                          ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400'
+                          ? 'bg-white dark:bg-dark-300 text-gray-900 dark:text-white shadow-sm'
+                          : 'text-gray-500 dark:text-dark-400'
                       }`}
                     >
                       Installiert ({devicePatches[selectedDevice.id]?.installed?.length || 0})
@@ -836,19 +836,19 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
                     </div>
                   ) : filteredPatches.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                       <Shield size={32} className="mx-auto mb-2 opacity-50" />
                       <p>{patchesSearch ? 'Keine Treffer' : patchesTab === 'pending' ? 'Keine ausstehenden Updates' : 'Keine Updates gefunden'}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {filteredPatches.map(patch => (
-                        <div key={patch.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div key={patch.id} className="p-3 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="font-medium text-sm text-gray-900 dark:text-white">{patch.name}</p>
                               {patch.kbNumber && (
-                                <p className="text-xs font-mono text-accent-primary dark:text-blue-400 mt-0.5">{patch.kbNumber}</p>
+                                <p className="text-xs font-mono text-accent-primary dark:text-accent-primary mt-0.5">{patch.kbNumber}</p>
                               )}
                             </div>
                             {patch.severity && (
@@ -858,7 +858,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                             )}
                           </div>
                           {patchesTab === 'installed' && patch.installDate && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                            <p className="text-xs text-gray-500 dark:text-dark-400 mt-2 flex items-center gap-1">
                               <CheckCircle size={12} className="text-green-500" />
                               Installiert: {formatSoftwareDate(patch.installDate)}
                             </p>
@@ -881,11 +881,11 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                     <div className="text-center py-8">
                       <CheckCircle size={48} className="mx-auto text-green-500 mb-3" />
                       <p className="text-green-600 dark:text-green-400 font-medium">Keine Meldungen</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Alles in Ordnung</p>
+                      <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">Alles in Ordnung</p>
                     </div>
                   ) : (
                     <>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className="text-xs text-gray-500 dark:text-dark-400">
                         {(deviceAlerts[selectedDevice.id] || []).filter(a => !a.resolved).length} offene Meldungen
                       </p>
                       {(deviceAlerts[selectedDevice.id] || []).map(alert => {
@@ -901,7 +901,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
                                 <p className={`font-medium text-sm ${style.text}`}>
                                   {alert.message}
                                 </p>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-dark-400">
                                   <Clock size={12} />
                                   <span>{formatRelativeTime(alert.activityTime)}</span>
                                   {alert.resolved && (
@@ -935,7 +935,7 @@ const InfoItem = ({ label, value, mono }: { label: string; value?: string | null
   if (!value) return null;
   return (
     <div>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="text-xs text-gray-500 dark:text-dark-400">{label}</p>
       <p className={`text-sm font-medium text-gray-900 dark:text-white ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>
   );

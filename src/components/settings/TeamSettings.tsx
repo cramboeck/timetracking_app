@@ -82,7 +82,7 @@ export const TeamSettings = () => {
                         {member.display_name || member.username}
                       </span>
                       {member.user_id === currentUser?.id && (
-                        <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400 rounded">Du</span>
+                        <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary rounded">Du</span>
                       )}
                     </div>
                     <p className="text-sm text-gray-500 dark:text-dark-400">{member.email}</p>
@@ -92,9 +92,9 @@ export const TeamSettings = () => {
                   {/* Role Badge */}
                   <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
                     member.role === 'owner'
-                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary'
                       : member.role === 'admin'
-                      ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                       : member.role === 'viewer'
                       ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
                       : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
@@ -111,7 +111,7 @@ export const TeamSettings = () => {
                       <select
                         value={member.role}
                         onChange={(e) => updateMemberRole(member.id, e.target.value as 'admin' | 'member' | 'viewer')}
-                        className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-200 rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-gray-300"
+                        className="text-xs px-2 py-1 border border-gray-300 dark:border-dark-200 rounded bg-white dark:bg-dark-100 text-gray-700 dark:text-dark-500"
                       >
                         <option value="admin">Admin</option>
                         <option value="member">Mitglied</option>
@@ -225,7 +225,7 @@ export const TeamSettings = () => {
                       </span>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                         invitation.role === 'admin'
-                          ? 'bg-accent-lighter dark:bg-blue-900/30 text-accent-primary dark:text-blue-400'
+                          ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                           : invitation.role === 'viewer'
                           ? 'bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400'
                           : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'

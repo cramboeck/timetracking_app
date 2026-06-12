@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Clock, List, Calendar,
+  Clock, CalendarClock,
   Ticket, Monitor, Bell, Wrench, Mail,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
@@ -34,8 +34,7 @@ const areaConfig = {
     subViews: [
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
       { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
-      { view: 'list' as SubView, icon: List, label: 'Einträge' },
-      { view: 'calendar' as SubView, icon: Calendar, label: 'Kalender' },
+      { view: 'zeiten' as SubView, icon: CalendarClock, label: 'Zeiten' },
     ],
   },
   support: {
@@ -117,14 +116,14 @@ export const DesktopSidebar = ({
   return (
     <aside
       className={`fixed left-0 top-0 h-full z-40 flex flex-col overflow-hidden
-        bg-white dark:bg-gray-900
-        border-r border-gray-200 dark:border-gray-700
+        bg-white dark:bg-dark-50
+        border-r border-gray-200 dark:border-dark-border
         transition-all duration-300 ease-in-out
         ${collapsed ? 'w-16' : 'w-56'}
       `}
     >
       {/* Logo / Brand Area */}
-      <div className={`h-14 flex items-center border-b border-gray-200 dark:border-gray-700 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
+      <div className={`h-14 flex items-center border-b border-gray-200 dark:border-dark-border ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
         {collapsed ? (
           <div className="w-8 h-8 rounded-lg bg-accent-primary flex items-center justify-center">
             <span className="text-white font-bold text-sm">R</span>
@@ -142,7 +141,7 @@ export const DesktopSidebar = ({
           const isAreaActive = currentArea === area;
 
           return (
-            <div key={area} className={areaIndex > 0 ? 'mt-4 pt-4 border-t border-gray-100 dark:border-gray-800' : ''}>
+            <div key={area} className={areaIndex > 0 ? 'mt-4 pt-4 border-t border-gray-100 dark:border-dark-border' : ''}>
               {/* Area Header */}
               <button
                 onClick={() => onAreaChange(area)}
@@ -150,7 +149,7 @@ export const DesktopSidebar = ({
                   ${collapsed ? 'justify-center' : ''}
                   ${isAreaActive
                     ? 'bg-accent-primary/10 text-accent-primary'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
+                    : 'text-gray-500 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-100'}
                 `}
                 title={collapsed ? config.label : undefined}
               >
@@ -178,7 +177,7 @@ export const DesktopSidebar = ({
                         ${collapsed ? 'justify-center' : ''}
                         ${isActive
                           ? 'bg-accent-primary text-white shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
+                          : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-100'}
                       `}
                       title={collapsed ? label : undefined}
                     >
@@ -198,7 +197,7 @@ export const DesktopSidebar = ({
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+      <div className="border-t border-gray-200 dark:border-dark-border p-2">
         {/* Admin Portal - only for admins */}
         {isAdmin && (
           <button
@@ -206,8 +205,8 @@ export const DesktopSidebar = ({
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mb-1
               ${collapsed ? 'justify-center' : ''}
               ${currentSubView === 'admin'
-                ? 'bg-purple-600 text-white'
-                : 'text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+                ? 'bg-accent-primary text-white'
+                : 'text-accent-primary dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20'}
             `}
             title={collapsed ? 'Admin Portal' : undefined}
           >
@@ -223,7 +222,7 @@ export const DesktopSidebar = ({
             ${collapsed ? 'justify-center' : ''}
             ${currentSubView === 'settings'
               ? 'bg-accent-primary text-white'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
+              : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-100'}
           `}
           title={collapsed ? 'Einstellungen' : undefined}
         >
@@ -235,8 +234,8 @@ export const DesktopSidebar = ({
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={`w-full flex items-center gap-3 px-3 py-2 mt-1 rounded-lg
-            text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
-            hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors
+            text-gray-400 hover:text-gray-600 dark:hover:text-dark-500
+            hover:bg-gray-100 dark:hover:bg-dark-100 transition-colors
             ${collapsed ? 'justify-center' : ''}
           `}
           title={collapsed ? 'Sidebar erweitern ([)' : 'Sidebar einklappen ([)'}
