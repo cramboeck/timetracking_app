@@ -1278,6 +1278,33 @@ export async function initializeDatabase() {
         WHEN others THEN NULL;
       END $$;
     `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN due_date TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN closed_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
 
     // Migration: Add portal_user_id to ticket_comments if not exists
     await client.query(`
