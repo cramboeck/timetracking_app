@@ -496,15 +496,15 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### 🔴 Sprint A — Datenbankfundament: Buchungsarten und Kundensichtbarkeit
+### ✅ Sprint A — Datenbankfundament: Buchungsarten und Kundensichtbarkeit
 
 **Abhängigkeit:** keiner | **Kann parallel zu:** Sprint C
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Migration: `entry_scope` + `internal_category` + `customer_visibility`** | `server/src/config/database.ts` | 2h | `entry_scope` NOT NULL DEFAULT 'customer_project' CHECK IN ('customer_project','internal','absence'). `internal_category` nullable. `customer_visibility` NOT NULL DEFAULT 'hidden' CHECK IN ('hidden','summary','detailed'). `project_id` DROP NOT NULL. Indexes auf `(user_id, entry_scope, date)` und `(project_id, customer_visibility)`. Migration idempotent (IF NOT EXISTS). |
-| ⬜ | **Zod-Schema aktualisieren** | `server/src/routes/entries.ts` | 1h | `project_id` optional machen. `.refine()` Regel: project_id Pflicht wenn entry_scope = 'customer_project'. |
-| ⬜ | **TypeScript-Interface aktualisieren** | `src/types/index.ts` | 30min | `TimeEntry` um `entryScope`, `internalCategory?`, `customerVisibility` erweitern. |
+| ✅ | **Migration: `entry_scope` + `internal_category` + `customer_visibility`** | `server/src/config/database.ts` | 2h | Commit c23b069. Alle Spalten + project_id DROP NOT NULL + 2 Indexes. |
+| ✅ | **Zod-Schema aktualisieren** | `server/src/routes/entries.ts` | 1h | Commit c23b069. projectId optional, .refine() Regel, neue Felder in INSERT/UPDATE. |
+| ✅ | **TypeScript-Interface aktualisieren** | `src/types.ts` | 30min | Commit c23b069. EntryScope + CustomerVisibility Types, TimeEntry erweitert. |
 
 ---
 
@@ -570,4 +570,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 ✅ komplett. Neue Anforderungen: Sprints A–F (Interne Arbeitszeit + Kundenportal). Nächster Schritt: Sprint A (DB-Fundament) oder Sprint 4 (Features).*
+*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 + Sprint A ✅ komplett. Nächster Schritt: Sprint B (UI für interne Arbeitszeit) oder Sprint C (Portal-Fundament).*
