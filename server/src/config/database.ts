@@ -4555,36 +4555,49 @@ export async function initializeDatabase() {
     logger.info('✅ Multi-tenancy: organization_id backfilled from user relationships');
 
     // Create indexes on organization_id for the newly added columns
-    const indexStatements = [
-      'CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_trusted_devices_org ON trusted_devices(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_email_notifications_org ON email_notifications(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_org ON password_reset_tokens(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_notification_settings_org ON notification_settings(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_org ON ninjarmm_alerts(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_org ON ninjarmm_webhook_events(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_org ON ninjarmm_alert_exclusions(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ticket_comments_org ON ticket_comments(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ai_config_org ON ai_config(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_org ON ticket_ai_suggestions(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_lead_activities_org ON lead_activities(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_task_checklist_items_org ON task_checklist_items(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_task_comments_org ON task_comments(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_task_activity_log_org ON task_activity_log(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_contracts_org ON contracts(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_contract_activity_log_org ON contract_activity_log(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_sevdesk_config_org ON sevdesk_config(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_invoice_exports_org ON invoice_exports(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_clockodo_config_org ON clockodo_config(organization_id)',
-      // Additional indexes mentioned in CLAUDE.md as missing
-      'CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_org ON ticket_tag_assignments(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ticket_sequences_new_org ON ticket_sequences_new(organization_id)',
-      'CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_org ON ticket_email_attachments(organization_id)'
+    // Wrapped in DO $$ to skip if column doesn't exist (safe for partial migrations)
+    const indexesToCreate = [
+      { table: 'teams', index: 'idx_teams_org' },
+      { table: 'trusted_devices', index: 'idx_trusted_devices_org' },
+      { table: 'email_notifications', index: 'idx_email_notifications_org' },
+      { table: 'password_reset_tokens', index: 'idx_password_reset_tokens_org' },
+      { table: 'audit_logs', index: 'idx_audit_logs_org' },
+      { table: 'notification_settings', index: 'idx_notification_settings_org' },
+      { table: 'ninjarmm_alerts', index: 'idx_ninjarmm_alerts_org' },
+      { table: 'ninjarmm_webhook_events', index: 'idx_ninjarmm_webhook_events_org' },
+      { table: 'ninjarmm_alert_exclusions', index: 'idx_ninjarmm_alert_exclusions_org' },
+      { table: 'ticket_comments', index: 'idx_ticket_comments_org' },
+      { table: 'ai_config', index: 'idx_ai_config_org' },
+      { table: 'ticket_ai_suggestions', index: 'idx_ticket_ai_suggestions_org' },
+      { table: 'lead_activities', index: 'idx_lead_activities_org' },
+      { table: 'task_checklist_items', index: 'idx_task_checklist_items_org' },
+      { table: 'task_comments', index: 'idx_task_comments_org' },
+      { table: 'task_activity_log', index: 'idx_task_activity_log_org' },
+      { table: 'contracts', index: 'idx_contracts_org' },
+      { table: 'contract_activity_log', index: 'idx_contract_activity_log_org' },
+      { table: 'sevdesk_config', index: 'idx_sevdesk_config_org' },
+      { table: 'invoice_exports', index: 'idx_invoice_exports_org' },
+      { table: 'clockodo_config', index: 'idx_clockodo_config_org' },
+      // These tables already have organization_id from earlier schema definitions
+      { table: 'ticket_tag_assignments', index: 'idx_ticket_tag_assignments_org' },
+      { table: 'ticket_sequences_new', index: 'idx_ticket_sequences_new_org' },
+      { table: 'ticket_email_attachments', index: 'idx_ticket_email_attachments_org' }
     ];
 
-    for (const stmt of indexStatements) {
-      await client.query(stmt);
+    for (const { table, index } of indexesToCreate) {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${table}' AND column_name = 'organization_id'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = '${index}'
+          ) THEN
+            CREATE INDEX ${index} ON ${table}(organization_id);
+          END IF;
+        END $$;
+      `);
     }
     logger.info('✅ Multi-tenancy: indexes created on organization_id columns');
 
