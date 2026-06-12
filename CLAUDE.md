@@ -569,16 +569,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### ⚪ Sprint F — Abwesenheitskalender und Teamübersicht
+### ✅ Sprint F — Abwesenheitskalender und Teamübersicht
 
-**Abhängigkeit:** Sprint B vollständig | **Kann parallel zu:** Sprint D, E
+**Abhängigkeit:** Sprint B vollständig | **Status:** Komplett (Commit 95ba593)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Abwesenheitskalender (eigene Einträge)** | `src/components/AbsenceCalendar.tsx` (neu) | 3h | Monatskalender (shadcn/ui Calendar als Basis). Urlaub = Grün, Krankheit = Rot, Sonderurlaub = Gelb. Klick auf Tag → ManualEntry mit vorausgefüllter Buchungsart. Erreichbar unter „Berichte" → „Abwesenheiten". |
-| ⬜ | **Teamübersicht für Admin/Manager** | `src/components/TeamAbsenceOverview.tsx` (neu) | 3h | Nur für Rollen `admin` und `manager`. Horizontale Zeitleiste (Gantt-ähnlich) aller Teammitglieder. Daten aus `time_entries` WHERE `entry_scope = 'absence'`. Jahresverbrauch pro Mitarbeiter. Keine separate Urlaubskonto-Tabelle — Zählung direkt aus Buchungen. |
-| ✅ | **Admin-Zeitenübersicht (alle Teammitglieder)** | `src/components/AdminTeamTimeView.tsx` (neu), `server/src/routes/entries.ts` | 3-4h | Commit 2634e4b. Dashboard mit Dropdown zur Mitarbeiterauswahl, Zeiten-Liste org-weit, Filter nach Zeitraum/Buchungsart/Mitarbeiter. CSV-Export. Backend: `GET /api/entries/team` + `GET /api/entries/team/export`. Erreichbar unter „Berichte" → „Team-Zeiten" (nur Admin/Owner). |
+| ✅ | **Abwesenheitskalender (eigene Einträge)** | `src/components/AbsenceCalendar.tsx` | 3h | Monatskalender mit farbcodierten Abwesenheiten (Urlaub=grün, Krankheit=rot, Sonderurlaub=gelb). Monats-/Jahresstatistik. Erreichbar unter „Berichte" → „Abwesenheit". |
+| ✅ | **Teamübersicht für Admin/Manager** | `src/components/TeamAbsenceOverview.tsx` | 3h | Gantt-artige Jahresübersicht aller Teammitglieder. Heute-Marker, Monatsheader, Jahresnavigation. Nutzt `GET /api/entries/team?entryScope=absence`. Erreichbar unter „Berichte" → „Team-Urlaub" (nur Admin/Owner). |
+| ✅ | **Admin-Zeitenübersicht (alle Teammitglieder)** | `src/components/AdminTeamTimeView.tsx`, `server/src/routes/entries.ts` | 3-4h | Dashboard mit Dropdown zur Mitarbeiterauswahl, Zeiten-Liste org-weit, Filter, CSV-Export. Erreichbar unter „Berichte" → „Team" (nur Admin/Owner). |
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 + Sprint A + Sprint B ✅ komplett. Admin-Zeitenübersicht (Sprint F) ✅ umgesetzt. Verbleibend: Sprint C-E + restliche Sprint F Tasks (Abwesenheitskalender, Team-Abwesenheitsübersicht).*
+*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 + Sprint A + Sprint B + Sprint F ✅ komplett. Interne Zeiterfassung mit Buchungsarten, Abwesenheitskalender, Team-Zeitübersicht, Team-Urlaubsübersicht. Verbleibend: Sprint C-E (Portal-Features).*
