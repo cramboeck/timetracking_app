@@ -4436,9 +4436,8 @@ export async function initializeDatabase() {
     logger.info('✅ Multi-tenancy: organization_id columns added to all tables');
 
     // Backfill organization_id from user_id via organization_members
-    // Only for tables that have user_id and newly added organization_id
+    // Only for tables that have user_id column
     const tablesToBackfill = [
-      'teams',
       'trusted_devices',
       'email_notifications',
       'password_reset_tokens',
@@ -4468,6 +4467,16 @@ export async function initializeDatabase() {
           AND om.organization_id IS NOT NULL
       `);
     }
+
+    // Special backfill for teams (uses owner_id instead of user_id)
+    await client.query(`
+      UPDATE teams t
+      SET organization_id = om.organization_id
+      FROM organization_members om
+      WHERE t.owner_id = om.user_id
+        AND t.organization_id IS NULL
+        AND om.organization_id IS NOT NULL
+    `);
 
     // Special backfill for ticket_comments (uses ticket's organization_id)
     await client.query(`
