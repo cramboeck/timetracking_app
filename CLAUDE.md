@@ -341,9 +341,9 @@ Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben 
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h | Alle `req.body` werden aktuell ungeprüft destructuriert (Z. 83, 111, 155, 203, 760). Schema-Beispiel aus `tickets.ts` (PR #61) als Vorlage nutzen. |
-| ⬜ | **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h | Neue Belege-Endpoints aus Commits 80eebc8/ce45f2b/80bb6df haben noch keine Zod-Validierung. |
-| ⬜ | **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h | `parseInt(limit)` ohne Maximum — `limit=999999` ist möglich (DoS-Vektor). Fix: `Math.min(parseInt(limit) \|\| 50, 200)`. |
+| ✅ | **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h | 14 Endpoints + 20 Schemas. Commit 96c2aa3. |
+| ✅ | **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h | Mit obigem Commit erledigt (vouchers/upload, vouchers/create). |
+| ✅ | **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h | 3 Endpoints (users, audit-logs, maintenance). Commit 96c2aa3. |
 
 ### 🟠 Sprint 2 — Farb-Cleanup & Toter Code
 
