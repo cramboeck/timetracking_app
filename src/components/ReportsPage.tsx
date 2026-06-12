@@ -7,7 +7,7 @@ import { AdminTeamTimeView } from './AdminTeamTimeView';
 import { AbsenceCalendar } from './AbsenceCalendar';
 import { TeamAbsenceOverview } from './TeamAbsenceOverview';
 import { TimeEntry, Project, Customer, Activity } from '../types';
-import { useTeam } from '../contexts/TeamContext';
+import { useAuth } from '../contexts/AuthContext';
 
 type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences';
 
@@ -26,11 +26,10 @@ export const ReportsPage = ({
 }: ReportsPageProps) => {
   const [reportAssistantOpen, setReportAssistantOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReportTab>('customer');
-  const { currentOrganization } = useTeam();
+  const { currentUser } = useAuth();
 
-  // Check if user is admin or owner
-  const userRole = currentOrganization?.user_role;
-  const isAdmin = userRole === 'admin' || userRole === 'owner';
+  // Check if user is admin
+  const isAdmin = currentUser?.role === 'admin';
 
   // Calculate some quick stats
   const thisMonth = new Date();
