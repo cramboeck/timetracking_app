@@ -288,13 +288,13 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     }
 
     // Check if customer has projects
-    const countResult = await pool.query(`SELECT COUNT(*) as count FROM projects WHERE customer_id = $1`, [id]);
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM projects WHERE customer_id = $1', [id]);
     const projectCount = countResult.rows[0];
     if (projectCount.count > 0) {
       return res.status(400).json({ error: 'Cannot delete customer with existing projects. Please delete projects first.' });
     }
 
-    await pool.query('UPDATE customers SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, [id]);
+    await pool.query('UPDATE customers SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
 
     auditLog.log({
       userId,
@@ -432,7 +432,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
 
     // If setting as primary, unset other primary contacts
     if (isPrimary) {
-      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1`, [customerId]);
+      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1', [customerId]);
     }
 
     const id = crypto.randomUUID();
@@ -508,7 +508,7 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
 
     // If setting as primary, unset other primary contacts
     if (updates.isPrimary) {
-      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1 AND id != $2`, [customerId, contactId]);
+      await pool.query('UPDATE customer_portal_users SET is_primary_contact = FALSE WHERE customer_id = $1 AND id != $2', [customerId, contactId]);
     }
 
     // Build dynamic update query
@@ -636,7 +636,7 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
       return res.status(404).json({ error: 'Contact not found' });
     }
 
-    await pool.query('DELETE FROM customer_portal_users WHERE id = $1`, [contactId]);
+    await pool.query('DELETE FROM customer_portal_users WHERE id = $1', [contactId]);
 
     auditLog.log({
       userId,
@@ -694,7 +694,7 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     );
 
     // Get user info for email
-    const userResult = await pool.query(`SELECT username, email FROM users WHERE id = $1`, [userId]);
+    const userResult = await pool.query('SELECT username, email FROM users WHERE id = $1', [userId]);
     const user = userResult.rows[0];
 
     // Send activation email

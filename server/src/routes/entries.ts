@@ -25,7 +25,7 @@ const PROJECT_COLUMNS = `
 `;
 
 const ACTIVITY_COLUMNS = `
-  id, organization_id, user_id, name, is_billable, created_at
+  id, organization_id, user_id, name, is_billable, is_active, created_at, deleted_at
 `;
 
 const TICKET_COLUMNS_BASIC = `
@@ -472,7 +472,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       ).catch(err => console.error('Failed to log ticket time activity:', err));
 
       // Update ticket's updated_at
-      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1`, [ticketId]);
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [ticketId]);
     }
 
     res.status(201).json({
@@ -611,7 +611,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       ).catch(err => console.error('Failed to log ticket time activity:', err));
 
       // Update ticket's updated_at
-      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1`, [newTicketId]);
+      await pool.query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', [newTicketId]);
     }
 
     res.json({
@@ -638,7 +638,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('mem
       return res.status(404).json({ error: 'Entry not found' });
     }
 
-    await pool.query('DELETE FROM time_entries WHERE id = $1`, [id]);
+    await pool.query('DELETE FROM time_entries WHERE id = $1', [id]);
 
     auditLog.log({
       userId,

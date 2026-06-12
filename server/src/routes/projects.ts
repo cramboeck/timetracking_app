@@ -192,13 +192,13 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     }
 
     // Check if project has time entries
-    const countResult = await pool.query(`SELECT COUNT(*) as count FROM time_entries WHERE project_id = $1`, [id]);
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE project_id = $1', [id]);
     const entryCount = countResult.rows[0];
     if (entryCount.count > 0) {
       return res.status(400).json({ error: 'Cannot delete project with existing time entries. Please delete entries first or mark project as inactive.' });
     }
 
-    await pool.query('UPDATE projects SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, [id]);
+    await pool.query('UPDATE projects SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL', [id]);
 
     auditLog.log({
       userId,

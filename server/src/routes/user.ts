@@ -331,7 +331,7 @@ router.delete('/account', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     // Delete user (cascades to all related data due to foreign keys)
-    await pool.query('DELETE FROM users WHERE id = $1`, [userId]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 
     res.json({
       success: true,
