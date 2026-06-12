@@ -434,7 +434,7 @@ router.post('/announcements/:id/send', authenticateToken, validate(sendNotificat
     const announcement = announcementResult.rows[0];
 
     // Get user info for sender name
-    const userResult = await query('SELECT username, email FROM users WHERE id = $1', [userId]);
+    const userResult = await query(`SELECT username, email FROM users WHERE id = $1`, [userId]);
     const senderName = userResult.rows[0]?.username || 'Administrator';
 
     // Get customers to notify
