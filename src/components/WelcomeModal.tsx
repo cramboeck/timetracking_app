@@ -40,7 +40,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
                 PDF & Statistiken
               </div>
             </div>
-            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <div className="text-center p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
               <div className="text-3xl mb-2">💼</div>
               <div className="text-sm font-medium text-gray-900 dark:text-white">Multi-Kunde</div>
               <div className="text-xs text-gray-600 dark:text-dark-400 mt-1">
@@ -150,7 +150,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
               </p>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+            <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/15 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
               <div className="text-2xl mb-2">📝</div>
               <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Manuell</h4>
               <p className="text-sm text-gray-700 dark:text-dark-500">

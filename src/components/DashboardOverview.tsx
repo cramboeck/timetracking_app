@@ -394,8 +394,8 @@ export const DashboardOverview = ({
                 transition-colors
               "
             >
-              <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center mb-3">
-                <Users size={18} className="text-purple-600 dark:text-purple-400" />
+              <div className="w-9 h-9 rounded-lg bg-accent-light dark:bg-accent-primary/20 flex items-center justify-center mb-3">
+                <Users size={18} className="text-accent-primary dark:text-accent-primary" />
               </div>
               <div className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
                 {activeCustomerCount}
@@ -519,7 +519,7 @@ export const DashboardOverview = ({
                       const statusColors = {
                         open: 'bg-blue-500',
                         in_progress: 'bg-yellow-500',
-                        waiting: 'bg-purple-500',
+                        waiting: 'bg-accent-light0',
                         resolved: 'bg-green-500',
                       };
 

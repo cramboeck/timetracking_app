@@ -1314,7 +1314,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   size="sm"
                   icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
                   title="KI-Vorschlag generieren"
-                  className="text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                  className="text-accent-dark dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20"
                 >
                   KI-Vorschlag
                 </Button>

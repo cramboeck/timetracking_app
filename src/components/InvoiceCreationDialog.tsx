@@ -362,10 +362,10 @@ export const InvoiceCreationDialog = ({
           )}
 
           {/* AI Button */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl border border-purple-200 dark:border-purple-800">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
-                <Sparkles size={20} className="text-purple-600" />
+              <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
+                <Sparkles size={20} className="text-accent-primary" />
               </div>
               <div>
                 <p className="font-medium text-gray-900 dark:text-white">KI-Textgenerierung</p>

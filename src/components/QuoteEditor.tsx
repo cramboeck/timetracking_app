@@ -644,7 +644,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                   variant="secondary"
                   size="sm"
                   icon={generatingHeadText ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
+                  className="text-xs bg-accent-lighter hover:bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:hover:bg-accent-primary/30 dark:text-accent-primary"
                 >
                   KI-Text
                 </Button>
@@ -864,7 +864,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                         variant="secondary"
                                         size="sm"
                                         icon={generatingDescription === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                                        className="text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
+                                        className="text-xs px-2 py-0.5 bg-accent-lighter hover:bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:hover:bg-accent-primary/30 dark:text-accent-primary"
                                       >
                                         Beschreibung
                                       </Button>
@@ -874,7 +874,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                                         variant="secondary"
                                         size="sm"
                                         icon={researchingPrice === pos.id ? <Loader2 size={10} className="animate-spin" /> : <Bot size={10} />}
-                                        className="text-xs px-2 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
+                                        className="text-xs px-2 py-0.5 bg-accent-lighter hover:bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:hover:bg-accent-primary/30 dark:text-accent-primary"
                                       >
                                         Preis
                                       </Button>
@@ -890,7 +890,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                               />
                               {/* Price Research Result */}
                               {priceResearchResult?.positionId === pos.id && (
-                                <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded text-xs text-purple-800 dark:text-purple-300 whitespace-pre-wrap">
+                                <div className="mt-2 p-2 bg-accent-light dark:bg-accent-primary/20 border border-accent-primary/30 dark:border-accent-primary/40 rounded text-xs text-accent-dark dark:text-accent-primary whitespace-pre-wrap">
                                   {priceResearchResult.result}
                                 </div>
                               )}
@@ -1055,7 +1055,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
                   variant="secondary"
                   size="sm"
                   icon={generatingFootText ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
+                  className="text-xs bg-accent-lighter hover:bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:hover:bg-accent-primary/30 dark:text-accent-primary"
                 >
                   KI-Text
                 </Button>

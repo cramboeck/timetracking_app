@@ -514,7 +514,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                     size="sm"
                     variant="ghost"
                     icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
-                    className="text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                    className="text-accent-dark dark:text-accent-primary bg-accent-lighter dark:bg-accent-primary/20 hover:bg-accent-lighter dark:hover:bg-accent-primary/30"
                   >
                     KI-Vorschlag
                   </Button>

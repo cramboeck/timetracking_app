@@ -41,7 +41,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   linkedin: 'bg-accent-primary',
   twitter: 'bg-sky-500',
   facebook: 'bg-blue-500',
-  instagram: 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500',
+  instagram: 'bg-gradient-to-r from-accent-light0 via-pink-500 to-orange-500',
 };
 
 const PLATFORM_LIMITS: Record<string, number> = {
@@ -1167,8 +1167,8 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             </div>
             <div className="bg-white dark:bg-dark-100 rounded-xl p-4 border border-gray-200 dark:border-dark-200">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                  <Recycle size={20} className="text-purple-600 dark:text-purple-400" />
+                <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                  <Recycle size={20} className="text-accent-primary dark:text-accent-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold dark:text-white">{evergreenPosts.length}</p>
@@ -1208,7 +1208,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowAiGenerator(true); }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90"
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-accent-light0 to-pink-500 text-white rounded-xl hover:opacity-90"
               >
                 <Sparkles size={24} />
                 <span className="text-sm font-medium">KI-Post</span>
@@ -1328,7 +1328,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           </div>
 
           {/* Workflow Suggestions */}
-          <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800">
+          <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-6 border border-accent-primary/30 dark:border-accent-primary/40">
             <h3 className="font-semibold dark:text-white mb-3 flex items-center gap-2">
               <Lightbulb size={20} className="text-amber-500" />
               Empfehlungen
@@ -1498,7 +1498,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                        post.status === 'scheduled' ? 'Geplant' : 'Entwurf'}
                     </span>
                     {post.aiGenerated && (
-                      <span className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                      <span className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary">
                         <Sparkles size={12} />
                         KI
                       </span>
@@ -1604,11 +1604,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 {/* AI Post Card */}
                 <div
                   onClick={() => setShowAiGenerator(true)}
-                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-purple-500 cursor-pointer transition-colors"
+                  className="bg-white dark:bg-dark-100 rounded-xl p-6 border-2 border-dashed border-gray-300 dark:border-dark-200 hover:border-accent-primary cursor-pointer transition-colors"
                 >
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Sparkles size={28} className="text-purple-600" />
+                    <div className="w-16 h-16 bg-accent-lighter dark:bg-accent-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Sparkles size={28} className="text-accent-primary" />
                     </div>
                     <h3 className="font-semibold dark:text-white mb-2">KI-Generierung</h3>
                     <p className="text-sm text-gray-500">Lass KI einen Post basierend auf deinem Thema erstellen</p>
@@ -1816,7 +1816,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <button
                       onClick={generateCarousel}
                       disabled={carouselGenerating || !carouselTopic.trim()}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-lg disabled:opacity-50 font-medium"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-pink-500 to-accent-primary text-white rounded-lg disabled:opacity-50 font-medium"
                     >
                       {carouselGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                       {carouselGenerating ? 'Generiere...' : 'Carousel generieren'}
@@ -1835,7 +1835,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold dark:text-white">{carouselContent.title}</h3>
-                        <span className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                        <span className="text-xs px-2 py-1 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded">
                           {carouselContent.totalSlides} Slides
                         </span>
                       </div>
@@ -1873,7 +1873,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                               key={idx}
                               onClick={() => setCarouselCurrentSlide(idx)}
                               className={`w-2 h-2 rounded-full transition-colors ${
-                                idx === carouselCurrentSlide ? 'bg-purple-500' : 'bg-gray-400'
+                                idx === carouselCurrentSlide ? 'bg-accent-primary' : 'bg-gray-400'
                               }`}
                             />
                           ))}
@@ -1957,7 +1957,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         <button
                           onClick={generateCarouselImages}
                           disabled={carouselGeneratingImages}
-                          className="flex items-center gap-1 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-sm"
+                          className="flex items-center gap-1 px-3 py-2 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded-lg text-sm"
                         >
                           {carouselGeneratingImages ? <Loader2 size={16} className="animate-spin" /> : <Image size={16} />}
                           Bilder generieren
@@ -2003,7 +2003,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* Batch Sub-View - Uses existing batch content */}
           {createSubView === 'batch' && (
             <div className="space-y-6">
-              <div className="bg-gradient-to-r from-accent-primary to-purple-600 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-r from-accent-primary to-accent-primary rounded-xl p-6 text-white">
                 <div className="flex items-center gap-3 mb-2">
                   <Layers size={28} />
                   <h2 className="text-xl font-bold">Batch-Generierung</h2>
@@ -2080,7 +2080,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={generateBatch}
                     disabled={batchGenerating || !batchTopics.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-primary to-purple-600 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-primary to-accent-primary text-white rounded-lg disabled:opacity-50"
                   >
                     {batchGenerating ? <Loader2 size={20} className="animate-spin" /> : <Zap size={20} />}
                     {batchGenerating ? 'Generiere...' : 'Batch generieren'}
@@ -2334,7 +2334,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       <label className="block text-sm font-medium dark:text-dark-500 mb-2">Content-Themen</label>
                       <div className="flex flex-wrap gap-2 mb-2">
                         {autopilotSettings.contentThemes.map((theme, idx) => (
-                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-sm">
+                          <span key={idx} className="flex items-center gap-1 px-2 py-1 bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary rounded text-sm">
                             {theme}
                             <button onClick={() => setAutopilotSettings(s => ({ ...s, contentThemes: s.contentThemes.filter((_, i) => i !== idx) }))}>
                               <X size={12} />
@@ -2381,7 +2381,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={handleGenerateAutopilot}
                     disabled={autopilotGenerating || autopilotSettings.contentThemes.length === 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
                   >
                     {autopilotGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                     {autopilotGenerating ? 'Generiere...' : 'Posts generieren'}
@@ -2672,7 +2672,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowHashtagResearch(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg"
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg"
                   >
                     <Search size={18} />
                     Hashtag-Recherche
@@ -3046,7 +3046,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 <button
                   onClick={generateBatch}
                   disabled={batchGenerating || batchTopics.split('\n').filter(t => t.trim()).length === 0}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
                 >
                   {batchGenerating ? (
                     <>
@@ -3319,7 +3319,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {viewMode === 'autopilot' && (
         <div className="space-y-6">
           {/* Autopilot Header */}
-          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-r from-accent-light0 to-indigo-600 rounded-xl p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <Rocket size={28} />
               <h2 className="text-xl font-bold">Social Media Autopilot</h2>
@@ -3433,7 +3433,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <button
                 onClick={handleGenerateAutopilot}
                 disabled={autopilotGenerating || !autopilotSettings.enabled || autopilotSettings.contentThemes.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-indigo-600 text-white rounded-lg disabled:opacity-50"
               >
                 {autopilotGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                 Jetzt generieren
@@ -4220,7 +4220,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowImageGenerator(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
               >
                 <Image size={18} />
                 Bild generieren
@@ -4392,7 +4392,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           setImagePrompt(generatedStory.imagePrompt);
                           setShowImageGenerator(true);
                         }}
-                        className="px-3 py-1 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
+                        className="px-3 py-1 bg-accent-primary text-white rounded text-sm hover:bg-accent-primary"
                       >
                         Bild generieren
                       </button>
@@ -4447,7 +4447,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold dark:text-white flex items-center gap-2">
-                  <Image size={20} className="text-purple-500" />
+                  <Image size={20} className="text-accent-primary" />
                   KI-Bild generieren (DALL-E 3)
                 </h3>
                 <button onClick={() => setShowImageGenerator(false)} className="text-gray-500">
@@ -4527,7 +4527,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       }
                     }}
                     disabled={loadingSuggestions}
-                    className="w-full px-4 py-2 border border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 dark:border-purple-700 dark:text-purple-400 dark:hover:bg-purple-900/20"
+                    className="w-full px-4 py-2 border border-accent-primary/40 text-accent-primary rounded-lg hover:bg-accent-light dark:border-accent-primary/40 dark:text-accent-primary dark:hover:bg-accent-primary/20"
                   >
                     {loadingSuggestions ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Prompt-Vorschläge'}
                   </button>
@@ -4536,14 +4536,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Prompt Suggestions */}
               {imageSuggestions.length > 0 && (
-                <div className="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <div className="mt-4 p-3 bg-accent-light dark:bg-accent-primary/20 rounded-lg">
                   <p className="text-xs text-gray-500 uppercase mb-2">Prompt-Vorschläge:</p>
                   <div className="space-y-2">
                     {imageSuggestions.map((suggestion, idx) => (
                       <div
                         key={idx}
                         onClick={() => setImagePrompt(suggestion.prompt)}
-                        className="p-2 bg-white dark:bg-dark-100 rounded cursor-pointer hover:ring-2 ring-purple-300"
+                        className="p-2 bg-white dark:bg-dark-100 rounded cursor-pointer hover:ring-2 ring-accent-primary/40"
                       >
                         <p className="text-xs text-gray-500">{suggestion.description}</p>
                         <p className="text-sm text-gray-700 dark:text-dark-500 truncate">{suggestion.prompt}</p>
@@ -4572,7 +4572,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   }
                 }}
                 disabled={generatingImage || !imagePrompt.trim()}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {generatingImage ? (
                   <>
@@ -4640,7 +4640,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </ul>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-br from-accent-light0 to-pink-500 rounded-xl p-6 text-white">
                 <Image size={32} className="mb-3" />
                 <h3 className="font-bold text-lg mb-2">Bild-Generierung</h3>
                 <ul className="text-sm space-y-1 opacity-90">
@@ -4748,7 +4748,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* AI Generator Button */}
           <button
             onClick={() => setShowAiGenerator(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
           >
             <Sparkles size={18} />
             Mit KI generieren
@@ -5012,7 +5012,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <button
               onClick={generateWithAi}
               disabled={generating || !aiTopic.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
             >
               {generating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               Generieren
@@ -5565,9 +5565,9 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
               {/* Theme Strategy Preview */}
               {(wizardPlatform === 'linkedin' || wizardPlatform === 'instagram') && (
-                <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                    <h4 className="text-sm font-medium text-accent-dark dark:text-accent-primary flex items-center gap-2">
                       <Lightbulb size={16} />
                       Strategische Theme-Auswahl
                     </h4>
@@ -5590,7 +5590,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         }
                       }}
                       disabled={wizardLoadingTheme}
-                      className="text-xs bg-purple-600 text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-purple-700 disabled:opacity-50"
+                      className="text-xs bg-accent-primary text-white px-3 py-1 rounded-full flex items-center gap-1 hover:bg-accent-dark disabled:opacity-50"
                     >
                       {wizardLoadingTheme ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -5604,7 +5604,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {wizardThemePreview ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-3">
-                        <span className="px-3 py-1 bg-purple-600 text-white rounded-full text-sm font-medium">
+                        <span className="px-3 py-1 bg-accent-primary text-white rounded-full text-sm font-medium">
                           {wizardThemePreview.selectedTheme.category.replace('_', ' ')}
                         </span>
                         <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded">
@@ -5629,7 +5629,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-purple-600 dark:text-purple-400">
+                    <p className="text-xs text-accent-primary dark:text-accent-primary">
                       Klicke "Theme analysieren" um zu sehen, welches strategische Thema die KI für deine Konfiguration empfiehlt.
                     </p>
                   )}
@@ -5798,7 +5798,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                         }
                       }}
                       disabled={wizardAnalyzing}
-                      className="text-xs bg-purple-600 text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-purple-700 disabled:opacity-50"
+                      className="text-xs bg-accent-primary text-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-accent-dark disabled:opacity-50"
                     >
                       {wizardAnalyzing ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -5827,18 +5827,18 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               {/* RIGHT SIDE: Marketing Analysis */}
               <div className="space-y-4">
                 {wizardAnalyzing ? (
-                  <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-8 text-center">
-                    <Loader2 size={40} className="animate-spin text-purple-500 mx-auto mb-4" />
+                  <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-8 text-center">
+                    <Loader2 size={40} className="animate-spin text-accent-primary mx-auto mb-4" />
                     <p className="font-medium dark:text-white">Marketing-Experte analysiert...</p>
                     <p className="text-sm text-gray-500 mt-1">Prüft Hook, Mehrwert, CTA und Plattform-Fit</p>
                   </div>
                 ) : wizardAnalysis && (
                   <>
                     {/* Score Header */}
-                    <div className="bg-gradient-to-r from-purple-50 to-accent-light dark:from-purple-900/20 dark:to-accent-primary/20 rounded-xl p-5">
+                    <div className="bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl p-5">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold dark:text-white flex items-center gap-2">
-                          <Bot size={18} className="text-purple-600" />
+                          <Bot size={18} className="text-accent-primary" />
                           Experten-Analyse
                         </h3>
                         <div className={`text-2xl font-bold ${wizardAnalysis.overallScore >= 80 ? 'text-green-600' : wizardAnalysis.overallScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
@@ -5853,7 +5853,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                           <div className="text-[10px] text-gray-500">Plattform</div>
                         </div>
                         <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
-                          <div className="text-lg font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                          <div className="text-lg font-bold text-accent-primary">{wizardAnalysis.viralPotential || 0}</div>
                           <div className="text-[10px] text-gray-500">Viral</div>
                         </div>
                         <div className="bg-white/60 dark:bg-dark-100/60 rounded-lg p-2 text-center">
@@ -5904,7 +5904,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="bg-white/50 dark:bg-dark-100/50 rounded-lg p-4 mb-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="text-sm font-medium dark:text-white flex items-center gap-2">
-                          <Wand2 size={16} className="text-purple-600" />
+                          <Wand2 size={16} className="text-accent-primary" />
                           Verbesserungsvorschläge
                         </h4>
                         {/* Main auto-improve button - iteratively improves until target score */}
@@ -5940,7 +5940,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                             }
                           }}
                           disabled={wizardAutoImproving || wizardImproving}
-                          className="text-xs bg-gradient-to-r from-purple-600 to-accent-dark text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
+                          className="text-xs bg-gradient-to-r from-accent-primary to-accent-dark text-white px-4 py-1.5 rounded-full flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 font-medium"
                         >
                           {wizardAutoImproving ? (
                             <Loader2 size={12} className="animate-spin" />
@@ -5952,7 +5952,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                       <div className="space-y-2">
                         {wizardAnalysis.improvements.map((imp, i) => (
-                          <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-purple-300 transition-colors">
+                          <div key={i} className="border border-gray-200 dark:border-dark-100 rounded-lg p-3 hover:border-accent-primary transition-colors">
                             <div className="flex items-start gap-3">
                               <span className={`px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
                                 imp.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
@@ -5991,7 +5991,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                       }
                                     }}
                                     disabled={wizardImproving}
-                                    className="text-[10px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-purple-200 disabled:opacity-50"
+                                    className="text-[10px] bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded flex items-center gap-1 hover:bg-accent-lighter disabled:opacity-50"
                                   >
                                     <Wand2 size={10} />
                                     Verbessern
@@ -5999,7 +5999,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                                 </div>
                                 <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">{imp.suggestion}</p>
                                 {imp.improvedExample && (
-                                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 italic">
+                                  <p className="text-xs text-accent-primary dark:text-accent-primary mt-1 italic">
                                     💡 Beispiel: "{imp.improvedExample}"
                                   </p>
                                 )}
@@ -6034,14 +6034,14 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
 
                   {/* Auto-Improvement Progress */}
                   {wizardAutoImproving && (
-                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                    <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-4 border border-accent-primary/30 dark:border-accent-primary/40">
                       <div className="flex items-center gap-3">
-                        <Loader2 size={20} className="animate-spin text-purple-600" />
+                        <Loader2 size={20} className="animate-spin text-accent-primary" />
                         <div>
-                          <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                          <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">
                             Auto-Verbesserung läuft...
                           </p>
-                          <p className="text-xs text-purple-600 dark:text-purple-400">
+                          <p className="text-xs text-accent-primary dark:text-accent-primary">
                             Der Content wird iterativ analysiert und verbessert bis Score ≥ 75
                           </p>
                         </div>
@@ -6193,7 +6193,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     }
                   }}
                   disabled={wizardAutoImproving || wizardImproving}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
                 >
                   {wizardAutoImproving ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -6310,7 +6310,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       }
                     }}
                     disabled={wizardGeneratingImage || !wizardContent?.imagePrompt}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-accent-primary text-white rounded-lg hover:bg-accent-dark disabled:opacity-50"
                   >
                     {wizardGeneratingImage ? (
                       <>
@@ -6388,7 +6388,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                     <div className="text-xs text-gray-500">Qualitäts-Score</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600">{wizardAnalysis.viralPotential || 0}</div>
+                    <div className="text-3xl font-bold text-accent-primary">{wizardAnalysis.viralPotential || 0}</div>
                     <div className="text-xs text-gray-500">Viral-Potenzial</div>
                   </div>
                   <div className="text-center">

@@ -1136,17 +1136,17 @@ export const Settings = ({
                 <p className="text-xs text-green-700 dark:text-green-300 mt-1">Aktive Projekte</p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/15 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40 p-5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-purple-500 rounded-lg">
+                  <div className="p-2 bg-accent-light0 rounded-lg">
                     <Users size={20} className="text-white" />
                   </div>
-                  <p className="text-sm font-medium text-purple-900 dark:text-purple-200">Kunden</p>
+                  <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">Kunden</p>
                 </div>
-                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                <p className="text-3xl font-bold text-accent-dark dark:text-accent-light">
                   {customers.length}
                 </p>
-                <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">Registrierte Kunden</p>
+                <p className="text-xs text-accent-dark dark:text-accent-primary mt-1">Registrierte Kunden</p>
               </div>
             </div>
 
@@ -1510,7 +1510,7 @@ export const Settings = ({
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
                                 {customer.customerType === 'individual' ? (
-                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
                                     <UserIcon className="w-3 h-3" />
                                     Privat
                                   </span>
@@ -1558,7 +1558,7 @@ export const Settings = ({
                                   </span>
                                 )}
                                 {customer.ninjarmmOrganizationId && (
-                                  <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
+                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full">
                                     NinjaRMM
                                   </span>
                                 )}
@@ -2017,8 +2017,8 @@ export const Settings = ({
             {/* Header */}
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-                  <Bot size={28} className="text-purple-600 dark:text-purple-400" />
+                <div className="p-3 bg-accent-lighter dark:bg-accent-primary/20 rounded-xl">
+                  <Bot size={28} className="text-accent-primary dark:text-accent-primary" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">KI-Assistent</h2>
@@ -2144,7 +2144,7 @@ export const Settings = ({
                     </label>
                     <label className={`flex-1 flex items-center justify-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-colors ${
                       customerType === 'individual'
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                        ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary'
                         : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-200 text-gray-700 dark:text-dark-500'
                     }`}>
                       <input

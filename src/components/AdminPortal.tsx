@@ -736,7 +736,7 @@ export default function AdminPortal() {
       {/* Header */}
       <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-4">
         <div className="flex items-center gap-3">
-          <Shield className="text-purple-600" size={28} />
+          <Shield className="text-accent-primary" size={28} />
           <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Admin Portal</h1>
         </div>
       </div>
@@ -764,7 +764,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'dashboard'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -775,7 +775,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('users')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'users'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -786,7 +786,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('features')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'features'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -797,7 +797,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('audit')}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'audit'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -808,7 +808,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('backup')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'backup'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -819,7 +819,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('system')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'system'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -830,7 +830,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('database')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'database'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -841,7 +841,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('security')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'security'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -852,7 +852,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('logs')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'logs'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -863,7 +863,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('notifications')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'notifications'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -874,7 +874,7 @@ export default function AdminPortal() {
             onClick={() => setActiveTab('email')}
             className={`flex items-center gap-2 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === 'email'
-                ? 'border-purple-600 text-purple-600'
+                ? 'border-accent-primary text-accent-primary'
                 : 'border-transparent text-gray-600 dark:text-dark-400 hover:text-gray-800 dark:hover:text-dark-500'
             }`}
           >
@@ -891,7 +891,7 @@ export default function AdminPortal() {
           <div className="space-y-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-purple-600" size={32} />
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
               </div>
             ) : stats ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -921,8 +921,8 @@ export default function AdminPortal() {
 
                 <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
-                    <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <Clock className="text-purple-600 dark:text-purple-400" size={24} />
+                    <div className="p-3 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                      <Clock className="text-accent-primary dark:text-accent-primary" size={24} />
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 dark:text-dark-400">Zeiteinträge</p>
@@ -961,7 +961,7 @@ export default function AdminPortal() {
                   setUsersSearch(e.target.value);
                   setUsersPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
               />
             </div>
 
@@ -969,7 +969,7 @@ export default function AdminPortal() {
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {usersLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1000,7 +1000,7 @@ export default function AdminPortal() {
                               disabled={user.id === currentUser?.id}
                               className={`px-2 py-1 rounded text-xs font-medium ${
                                 user.role === 'admin'
-                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                                  ? 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary'
                                   : 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500'
                               } ${user.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
@@ -1096,7 +1096,7 @@ export default function AdminPortal() {
                   setFeaturesSearch(e.target.value);
                   setFeaturesPage(1);
                 }}
-                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
               />
             </div>
 
@@ -1104,7 +1104,7 @@ export default function AdminPortal() {
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {featuresLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1194,7 +1194,7 @@ export default function AdminPortal() {
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {auditLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1305,7 +1305,7 @@ export default function AdminPortal() {
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {backupsLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : backups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-dark-400">
@@ -1436,7 +1436,7 @@ export default function AdminPortal() {
 
             {systemStatusLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-purple-600" size={32} />
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
               </div>
             ) : systemStatus ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1483,8 +1483,8 @@ export default function AdminPortal() {
                 {/* Disk Usage */}
                 <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <HardDrive className="text-purple-600 dark:text-purple-400" size={20} />
+                    <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                      <HardDrive className="text-accent-primary dark:text-accent-primary" size={20} />
                     </div>
                     <div>
                       <p className="font-medium dark:text-white">Festplatte</p>
@@ -1581,7 +1581,7 @@ export default function AdminPortal() {
 
             {databaseStatsLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-purple-600" size={32} />
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
               </div>
             ) : databaseStats ? (
               <div className="space-y-4">
@@ -1589,7 +1589,7 @@ export default function AdminPortal() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                     <p className="text-sm text-gray-500 dark:text-dark-400">Datenbankgröße</p>
-                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{databaseStats.databaseSize}</p>
+                    <p className="text-2xl font-bold text-accent-primary dark:text-accent-primary">{databaseStats.databaseSize}</p>
                   </div>
                   <div className="bg-white dark:bg-dark-100 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-dark-border">
                     <p className="text-sm text-gray-500 dark:text-dark-400">Verbindungen</p>
@@ -1655,7 +1655,7 @@ export default function AdminPortal() {
 
             {securityLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-purple-600" size={32} />
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
               </div>
             ) : securityData ? (
               <div className="space-y-4">
@@ -1801,7 +1801,7 @@ export default function AdminPortal() {
             <div className="bg-gray-900 rounded-xl shadow-sm border border-gray-700 overflow-hidden">
               {logsLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : (
                 <div className="p-4 max-h-[600px] overflow-auto font-mono text-xs text-green-400">
@@ -1883,7 +1883,7 @@ export default function AdminPortal() {
             <div className="bg-white dark:bg-dark-100 rounded-xl shadow-sm border border-gray-200 dark:border-dark-border overflow-hidden">
               {notificationsLoading ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="animate-spin text-purple-600" size={32} />
+                  <Loader2 className="animate-spin text-accent-primary" size={32} />
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-dark-400">
@@ -1938,7 +1938,7 @@ export default function AdminPortal() {
           <div className="space-y-6">
             {emailLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-purple-600" size={32} />
+                <Loader2 className="animate-spin text-accent-primary" size={32} />
               </div>
             ) : (
               <>
@@ -1992,7 +1992,7 @@ export default function AdminPortal() {
                       value={testEmailAddress}
                       onChange={(e) => setTestEmailAddress(e.target.value)}
                       placeholder="Email-Adresse (leer = eigene Email)"
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-accent-primary"
                     />
                     <Button
                       variant="primary"
@@ -2050,8 +2050,8 @@ export default function AdminPortal() {
                     </div>
                     <div className="bg-white dark:bg-dark-100 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-dark-border">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                          <Mail className="text-purple-600 dark:text-purple-400" size={20} />
+                        <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                          <Mail className="text-accent-primary dark:text-accent-primary" size={20} />
                         </div>
                         <span className="text-sm text-gray-500 dark:text-dark-400">Dieser Monat</span>
                       </div>
@@ -2140,7 +2140,7 @@ export default function AdminPortal() {
                             setEmailLogsPage(1);
                           }}
                           placeholder="Suchen..."
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-accent-primary"
                         />
                       </div>
                       <select
@@ -2149,7 +2149,7 @@ export default function AdminPortal() {
                           setEmailStatusFilter(e.target.value);
                           setEmailLogsPage(1);
                         }}
-                        className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-purple-500"
+                        className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 dark:text-white focus:ring-2 focus:ring-accent-primary"
                       >
                         <option value="">Alle Status</option>
                         <option value="sent">Gesendet</option>

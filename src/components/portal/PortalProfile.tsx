@@ -807,8 +807,8 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
       {/* Push Notifications */}
       <div className="bg-white dark:bg-dark-100 rounded-2xl border border-gray-200 dark:border-dark-border p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-            <BellRing size={20} className="text-purple-600 dark:text-purple-400" />
+          <div className="w-10 h-10 rounded-xl bg-accent-lighter dark:bg-accent-primary/20 flex items-center justify-center">
+            <BellRing size={20} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -822,7 +822,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
 
         {pushLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !pushSupported ? (
           <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
@@ -873,7 +873,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                     variant="primary"
                     loading={pushTestSending}
                     icon={<Send size={16} />}
-                    className="px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-700"
+                    className="px-4 py-3 rounded-xl bg-accent-primary hover:bg-accent-dark"
                   >
                     {pushTestSending ? 'Sende...' : 'Test'}
                   </Button>
@@ -886,7 +886,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                   disabled={pushPermission === 'denied'}
                   loading={pushLoading}
                   icon={<BellRing size={18} />}
-                  className="py-3 rounded-xl bg-purple-600 hover:bg-purple-700"
+                  className="py-3 rounded-xl bg-accent-primary hover:bg-accent-dark"
                 >
                   Push-Benachrichtigungen aktivieren
                 </Button>
@@ -904,7 +904,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                     type="checkbox"
                     checked={pushPrefs.push_on_ticket_reply}
                     onChange={(e) => handleUpdatePushPrefs({ push_on_ticket_reply: e.target.checked })}
-                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                    className="w-5 h-5 rounded text-accent-primary focus:ring-accent-primary"
                   />
                 </label>
 
@@ -914,7 +914,7 @@ export const PortalProfile = ({ contact, onBack }: PortalProfileProps) => {
                     type="checkbox"
                     checked={pushPrefs.push_on_status_change}
                     onChange={(e) => handleUpdatePushPrefs({ push_on_status_change: e.target.checked })}
-                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                    className="w-5 h-5 rounded text-accent-primary focus:ring-accent-primary"
                   />
                 </label>
               </div>

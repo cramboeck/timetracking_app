@@ -1353,7 +1353,7 @@ const DocumentsTab = () => {
             size="sm"
             onClick={() => setShowVoucherUpload(true)}
             icon={<Camera size={14} />}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-accent-primary hover:bg-accent-dark"
           >
             <span className="hidden xs:inline sm:inline">Beleg</span>
           </Button>
@@ -1562,7 +1562,7 @@ const DocumentsTab = () => {
                     <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(result.status, result.documentType === 'invoice' ? 'invoices' : 'quotes')}`}>
                       {result.statusName}
                     </span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hidden sm:inline">
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary hidden sm:inline">
                       {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
                     </span>
                   </div>

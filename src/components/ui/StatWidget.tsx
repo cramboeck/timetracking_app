@@ -31,9 +31,9 @@ const colorStyles = {
     ring: 'ring-orange-500/20',
   },
   purple: {
-    bg: 'bg-purple-50 dark:bg-purple-900/20',
-    icon: 'text-purple-600 dark:text-purple-400',
-    ring: 'ring-purple-500/20',
+    bg: 'bg-accent-light dark:bg-accent-primary/20',
+    icon: 'text-accent-primary dark:text-accent-primary',
+    ring: 'ring-accent-primary/20',
   },
   red: {
     bg: 'bg-red-50 dark:bg-red-900/20',

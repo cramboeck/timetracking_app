@@ -77,7 +77,7 @@ const getTypeColor = (type: InteractionType) => {
     case 'email':
       return 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary';
     case 'meeting':
-      return 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400';
+      return 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary';
     case 'demo':
       return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
     case 'support':

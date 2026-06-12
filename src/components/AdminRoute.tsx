@@ -14,7 +14,7 @@ export default function AdminRoute() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-50">
-        <Loader2 className="animate-spin text-purple-600" size={48} />
+        <Loader2 className="animate-spin text-accent-primary" size={48} />
       </div>
     );
   }

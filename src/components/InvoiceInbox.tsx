@@ -1342,7 +1342,7 @@ export const InvoiceInbox = () => {
                                   )}
                                   <div className="flex flex-wrap gap-2 mt-1">
                                     {item.productType && (
-                                      <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-1.5 py-0.5 rounded">
+                                      <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-1.5 py-0.5 rounded">
                                         {item.productType}
                                       </span>
                                     )}

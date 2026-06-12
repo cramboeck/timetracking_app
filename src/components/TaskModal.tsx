@@ -351,7 +351,7 @@ export default function TaskModal({
                       size="sm"
                       icon={<Sparkles className="w-4 h-4" />}
                       title="Basierend auf ähnlichen Aufgaben"
-                      className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                      className="bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/30"
                     >
                       ~{suggestedMinutes}min
                     </Button>

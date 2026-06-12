@@ -552,7 +552,7 @@ const StatusCard = ({ label, count, icon: Icon, color, onClick }: StatusCardProp
   const colorClasses = {
     blue: 'bg-accent-light dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary border-accent-primary/30 dark:border-accent-primary/40',
     yellow: 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800',
-    purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+    purple: 'bg-accent-light dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary border-accent-primary/30 dark:border-accent-primary/40',
     green: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
     gray: 'bg-gray-50 dark:bg-dark-100 text-gray-600 dark:text-dark-400 border-gray-200 dark:border-dark-border',
     accent: 'bg-accent-primary/10 text-accent-primary border-accent-primary/30',
@@ -633,7 +633,7 @@ const TrendCard = ({ label, value, change = 0, showChange = true, inverse = fals
 const ActivityIcon = ({ actionType }: { actionType: string }) => {
   const iconMap: Record<string, { icon: typeof Clock; color: string }> = {
     created: { icon: AlertCircle, color: 'text-accent-primary bg-accent-lighter dark:bg-accent-primary/30' },
-    status_changed: { icon: Activity, color: 'text-purple-500 bg-purple-100 dark:bg-purple-900/30' },
+    status_changed: { icon: Activity, color: 'text-accent-primary bg-accent-lighter dark:bg-accent-primary/20' },
     priority_changed: { icon: Target, color: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
     assigned: { icon: Users, color: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' },
     unassigned: { icon: Users, color: 'text-gray-500 bg-gray-100 dark:bg-dark-200' },

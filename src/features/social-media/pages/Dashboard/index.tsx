@@ -130,8 +130,8 @@ export default function DashboardPage() {
 
         <div className="bg-white dark:bg-dark-100 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <TrendingUp size={20} className="text-purple-600 dark:text-purple-400" />
+            <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+              <TrendingUp size={20} className="text-accent-primary dark:text-accent-primary" />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.upcoming}</p>

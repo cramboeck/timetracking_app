@@ -167,17 +167,17 @@ export const AccountSettings = ({
           <p className="text-xs text-green-700 dark:text-green-300 mt-1">Aktive Projekte</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/15 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40 p-5 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-purple-500 rounded-lg">
+            <div className="p-2 bg-accent-primary rounded-lg">
               <Users size={20} className="text-white" />
             </div>
-            <p className="text-sm font-medium text-purple-900 dark:text-purple-200">Kunden</p>
+            <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">Kunden</p>
           </div>
-          <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+          <p className="text-3xl font-bold text-accent-dark dark:text-accent-light">
             {customers.length}
           </p>
-          <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">Registrierte Kunden</p>
+          <p className="text-xs text-accent-dark dark:text-accent-primary mt-1">Registrierte Kunden</p>
         </div>
       </div>
 

@@ -44,7 +44,7 @@ import { useToast, useConfirm } from '../contexts/UIContext';
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bgColor: string }> = {
   new: { label: 'Neu', color: 'text-accent-primary', bgColor: 'bg-accent-lighter dark:bg-accent-primary/30' },
   contacted: { label: 'Kontaktiert', color: 'text-cyan-600', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30' },
-  qualified: { label: 'Qualifiziert', color: 'text-purple-600', bgColor: 'bg-purple-100 dark:bg-purple-900/30' },
+  qualified: { label: 'Qualifiziert', color: 'text-accent-primary', bgColor: 'bg-accent-lighter dark:bg-accent-primary/20' },
   proposal: { label: 'Angebot', color: 'text-orange-600', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
   negotiation: { label: 'Verhandlung', color: 'text-yellow-600', bgColor: 'bg-yellow-100 dark:bg-yellow-900/30' },
   won: { label: 'Gewonnen', color: 'text-green-600', bgColor: 'bg-green-100 dark:bg-green-900/30' },

@@ -205,8 +205,8 @@ export const DesktopSidebar = ({
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mb-1
               ${collapsed ? 'justify-center' : ''}
               ${currentSubView === 'admin'
-                ? 'bg-purple-600 text-white'
-                : 'text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30'}
+                ? 'bg-accent-primary text-white'
+                : 'text-accent-primary dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20'}
             `}
             title={collapsed ? 'Admin Portal' : undefined}
           >

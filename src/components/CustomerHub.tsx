@@ -349,7 +349,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
     { icon: UserPlus, label: 'Kontakt hinzufügen', onClick: onAddContact, color: 'text-accent-primary' },
     { icon: PhoneCall, label: 'Interaktion erfassen', onClick: onAddInteraction, color: 'text-green-600' },
     { icon: Ticket, label: 'Ticket erstellen', onClick: onCreateTicket, color: 'text-orange-600' },
-    { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-purple-600' },
+    { icon: ListTodo, label: 'Aufgabe erstellen', onClick: onCreateTask, color: 'text-accent-primary' },
     { icon: Timer, label: 'Timer starten', onClick: onStartTimer, color: 'text-indigo-600' },
     { icon: Clock, label: 'Zeit manuell erfassen', onClick: onAddManualEntry, color: 'text-teal-600' },
   ];
@@ -553,7 +553,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Activity size={18} className="text-purple-500" />
+            <Activity size={18} className="text-accent-primary" />
             Letzte Aktivitäten
           </h3>
         </div>
@@ -620,7 +620,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'decision_maker': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+      case 'decision_maker': return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/20 dark:text-accent-primary';
       case 'technical': return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary';
       case 'billing': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
       default: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-400';
@@ -655,7 +655,7 @@ const ContactsTab: React.FC<ContactsTabProps> = ({
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent-primary to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent-primary to-accent-primary flex items-center justify-center text-white font-bold text-lg">
                     {(contact.first_name?.[0] || '') + (contact.last_name?.[0] || '')}
                   </div>
                   <div>
@@ -753,7 +753,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const statusColors: Record<string, string> = {
     open: 'bg-blue-500',
     in_progress: 'bg-yellow-500',
-    waiting: 'bg-purple-500',
+    waiting: 'bg-accent-light0',
     resolved: 'bg-green-500',
     closed: 'bg-gray-500',
   };
@@ -1412,7 +1412,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         description: t.status === 'completed' ? 'Erledigt' : t.dueDate ? `Fällig: ${formatDate(t.dueDate)}` : undefined,
         timestamp: t.createdAt,
         icon: ListTodo,
-        color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+        color: 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary',
         metadata: { taskId: t.id },
       });
     });

@@ -120,13 +120,13 @@ export const CustomerNinjaRMMLink = ({
       <div className="space-y-4">
         {/* Current Status */}
         {customer.ninjarmmOrganizationId && (
-          <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
-            <div className="flex items-center gap-2 text-purple-700">
+          <div className="flex items-center justify-between p-3 bg-accent-light border border-accent-primary/30 rounded-lg">
+            <div className="flex items-center gap-2 text-accent-dark">
               <Check size={18} />
               <div>
                 <span className="text-sm font-medium">Mit NinjaRMM verknüpft</span>
                 {currentOrg && (
-                  <span className="text-xs text-purple-600 ml-2">
+                  <span className="text-xs text-accent-primary ml-2">
                     ({currentOrg.name})
                   </span>
                 )}
@@ -164,7 +164,7 @@ export const CustomerNinjaRMMLink = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Organisation suchen..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:bg-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
           />
         </div>
 
@@ -172,7 +172,7 @@ export const CustomerNinjaRMMLink = ({
         <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
           {loading ? (
             <div className="flex items-center justify-center p-8">
-              <Loader2 className="animate-spin text-purple-600" size={24} />
+              <Loader2 className="animate-spin text-accent-primary" size={24} />
             </div>
           ) : filteredOrganizations.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
@@ -193,7 +193,7 @@ export const CustomerNinjaRMMLink = ({
                       isLinkedToOther
                         ? 'opacity-50 cursor-not-allowed bg-gray-50'
                         : selectedOrgId === org.id
-                        ? 'bg-purple-50'
+                        ? 'bg-accent-light'
                         : 'hover:bg-gray-50'
                     }`}
                   >
@@ -201,7 +201,7 @@ export const CustomerNinjaRMMLink = ({
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
                           selectedOrgId === org.id
-                            ? 'border-purple-600 bg-purple-600'
+                            ? 'border-accent-primary bg-accent-primary'
                             : isCurrentlyLinked
                             ? 'border-green-600 bg-green-600'
                             : 'border-gray-300'
@@ -213,7 +213,7 @@ export const CustomerNinjaRMMLink = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <Server size={16} className="text-purple-500 flex-shrink-0" />
+                          <Server size={16} className="text-accent-primary flex-shrink-0" />
                           <span className="font-medium text-gray-900 truncate">
                             {org.name}
                           </span>

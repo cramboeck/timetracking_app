@@ -215,8 +215,8 @@ export const ModernDatePicker = ({
         `}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
-            <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
+          <div className="w-10 h-10 rounded-lg bg-accent-light dark:bg-accent-primary/20 flex items-center justify-center">
+            <Calendar size={20} className="text-accent-primary dark:text-accent-primary" />
           </div>
           <div className="text-left">
             <span className="text-lg font-bold text-gray-900 dark:text-white">

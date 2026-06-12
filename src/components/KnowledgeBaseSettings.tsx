@@ -783,21 +783,21 @@ export const KnowledgeBaseSettings = () => {
         <div className="space-y-4">
           {/* AI Generation from Ticket - only for new articles */}
           {!editingArticle && aiConfigured && (
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="p-4 bg-accent-light dark:bg-accent-primary/20 rounded-lg border border-accent-primary/30 dark:border-accent-primary/40">
               {!showTicketSelector ? (
                 <Button
                   onClick={() => setShowTicketSelector(true)}
                   variant="ghost"
                   icon={<Sparkles size={18} />}
-                  className="text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200"
+                  className="text-accent-dark dark:text-accent-primary hover:text-accent-dark dark:hover:text-accent-primary"
                 >
                   <span className="font-medium">Aus Ticket generieren</span>
-                  <span className="text-sm text-purple-600 dark:text-purple-400">(KI)</span>
+                  <span className="text-sm text-accent-primary dark:text-accent-primary">(KI)</span>
                 </Button>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                    <div className="flex items-center gap-2 text-accent-dark dark:text-accent-primary">
                       <Ticket size={18} />
                       <span className="font-medium">Ticket auswählen</span>
                     </div>
@@ -816,7 +816,7 @@ export const KnowledgeBaseSettings = () => {
                       placeholder="Tickets durchsuchen..."
                       value={ticketSearch}
                       onChange={(e) => setTicketSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 text-sm border border-purple-200 dark:border-purple-700 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-accent-primary/30 dark:border-accent-primary/40 rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/20"
                     />
                   </div>
 
@@ -835,7 +835,7 @@ export const KnowledgeBaseSettings = () => {
                           onClick={() => setSelectedTicketId(ticket.id)}
                           className={`w-full text-left p-2 rounded-lg text-sm transition-colors ${
                             selectedTicketId === ticket.id
-                              ? 'bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700'
+                              ? 'bg-accent-lighter dark:bg-accent-primary/25 border border-accent-primary/40 dark:border-accent-primary/40'
                               : 'hover:bg-gray-100 dark:hover:bg-dark-100'
                           }`}
                         >

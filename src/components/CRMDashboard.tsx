@@ -246,7 +246,7 @@ const RecentInteraction: React.FC<RecentInteractionProps> = ({ interaction, onCl
   const typeColors: Record<string, string> = {
     call: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
     email: 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary',
-    meeting: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+    meeting: 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary',
     demo: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
     support: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
     followup: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
@@ -587,7 +587,7 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
         <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
           <div className="p-4 border-b border-gray-200 dark:border-dark-border">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <MessageSquare size={18} className="text-purple-500" />
+              <MessageSquare size={18} className="text-accent-primary" />
               Letzte Interaktionen
             </h3>
           </div>

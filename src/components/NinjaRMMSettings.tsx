@@ -806,8 +806,8 @@ export const NinjaRMMSettings = () => {
           {/* Sync Settings */}
           <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <Clock className="text-purple-600 dark:text-purple-400" size={20} />
+              <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                <Clock className="text-accent-primary dark:text-accent-primary" size={20} />
               </div>
               <div>
                 <h3 className="font-medium text-gray-900 dark:text-white">Synchronisations-Einstellungen</h3>
@@ -1216,8 +1216,8 @@ export const NinjaRMMSettings = () => {
               {/* Webhook URL & Secret */}
               <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                    <Webhook className="text-purple-600 dark:text-purple-400" size={20} />
+                  <div className="p-2 bg-accent-lighter dark:bg-accent-primary/20 rounded-lg">
+                    <Webhook className="text-accent-primary dark:text-accent-primary" size={20} />
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">Webhook-Endpunkt</h3>

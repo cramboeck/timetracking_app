@@ -527,7 +527,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                             </span>
                           )}
                           {contact.canViewQuotes && (
-                            <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                            <span className="bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
                               Angebote
                             </span>
                           )}

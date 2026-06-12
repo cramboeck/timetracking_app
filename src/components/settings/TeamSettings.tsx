@@ -92,7 +92,7 @@ export const TeamSettings = () => {
                   {/* Role Badge */}
                   <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
                     member.role === 'owner'
-                      ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                      ? 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-primary dark:text-accent-primary'
                       : member.role === 'admin'
                       ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary'
                       : member.role === 'viewer'

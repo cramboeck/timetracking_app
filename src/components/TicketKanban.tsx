@@ -32,7 +32,7 @@ interface TicketKanbanProps {
 const statusColumns: { status: TicketStatus; label: string; color: string; bgColor: string }[] = [
   { status: 'open', label: 'Offen', color: 'border-accent-primary', bgColor: 'bg-accent-light dark:bg-accent-primary/20' },
   { status: 'in_progress', label: 'In Bearbeitung', color: 'border-yellow-500', bgColor: 'bg-yellow-50 dark:bg-yellow-900/20' },
-  { status: 'waiting', label: 'Wartend', color: 'border-purple-500', bgColor: 'bg-purple-50 dark:bg-purple-900/20' },
+  { status: 'waiting', label: 'Wartend', color: 'border-accent-primary', bgColor: 'bg-accent-light dark:bg-accent-primary/20' },
   { status: 'resolved', label: 'Gelöst', color: 'border-green-500', bgColor: 'bg-green-50 dark:bg-green-900/20' },
 ];
 
