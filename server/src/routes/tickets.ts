@@ -104,6 +104,39 @@ const reorderTasksSchema = z.object({
   taskIds: z.array(z.string().uuid()).min(1).max(500),
 });
 
+// ============================================================================
+// Explicit column lists (no SELECT *)
+// ============================================================================
+
+const NOTIFICATION_PREFS_COLUMNS = `
+  id, user_id, organization_id,
+  push_enabled, push_on_new_ticket, push_on_ticket_assigned, push_on_ticket_comment,
+  push_on_status_change, push_on_sla_warning, push_on_mention,
+  email_enabled, email_on_new_ticket, email_on_ticket_assigned, email_on_ticket_comment,
+  email_on_status_change, email_on_sla_warning, email_on_mention, email_daily_digest
+`;
+
+const TICKET_ATTACHMENT_COLUMNS = `
+  id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_user_id, created_at
+`;
+
+const CANNED_RESPONSE_COLUMNS = `
+  id, user_id, organization_id, title, content, shortcut, category, usage_count, created_at, updated_at
+`;
+
+const SLA_POLICY_COLUMNS = `
+  id, organization_id, user_id, name, description, priority,
+  first_response_minutes, resolution_minutes, business_hours_only,
+  is_active, is_default, created_at, updated_at
+`;
+
+const TICKET_TASK_COLUMNS = `
+  id, ticket_id, title, description, completed, sort_order, visible_to_customer,
+  assigned_to, due_date, created_at, completed_at
+`;
+
+const TICKET_BASIC_COLUMNS = `id, priority, created_at`;
+
 // Portal URL for email links
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
 
@@ -886,7 +919,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
             // Check notification preferences for assignee
             const prefsResult = await query(
-              'SELECT * FROM notification_preferences WHERE user_id = $1',
+              `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
               [assignedToUserId]
             );
             // Default preferences if not set
@@ -1361,7 +1394,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
         // Check notification preferences for assignee
         const prefsResult = await query(
-          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
           [ticket.assigned_to_user_id]
         );
         const prefs = prefsResult.rows[0] || {
@@ -1577,7 +1610,7 @@ router.delete('/:ticketId/attachments/:attachmentId', authenticateToken, attachO
 
     // Get attachment to delete the file
     const attachmentResult = await query(
-      'SELECT * FROM ticket_attachments WHERE id = $1 AND ticket_id = $2',
+      `SELECT ${TICKET_ATTACHMENT_COLUMNS} FROM ticket_attachments WHERE id = $1 AND ticket_id = $2`,
       [attachmentId, ticketId]
     );
 
@@ -1820,7 +1853,7 @@ router.get('/canned-responses/list', authenticateToken, attachOrganization, asyn
     const { category } = req.query;
 
     let queryText = `
-      SELECT * FROM canned_responses
+      SELECT ${CANNED_RESPONSE_COLUMNS} FROM canned_responses
       WHERE organization_id = $1
     `;
     const params: any[] = [organizationId];
@@ -2634,7 +2667,7 @@ router.get('/sla/policies', authenticateToken, attachOrganization, async (req, r
     const organizationId = orgReq.organization.id;
 
     const result = await query(`
-      SELECT * FROM sla_policies
+      SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies
       WHERE organization_id = $1
       ORDER BY
         CASE priority
@@ -2807,7 +2840,7 @@ router.delete('/sla/policies/:id', authenticateToken, attachOrganization, requir
 async function calculateSlaDeadlines(organizationId: string, priority: string, createdAt: Date = new Date()) {
   // Find applicable SLA policy
   const policyResult = await query(`
-    SELECT * FROM sla_policies
+    SELECT ${SLA_POLICY_COLUMNS} FROM sla_policies
     WHERE organization_id = $1 AND is_active = TRUE
       AND (priority = $2 OR priority = 'all')
     ORDER BY
@@ -2841,7 +2874,7 @@ router.post('/sla/apply/:ticketId', authenticateToken, attachOrganization, async
 
     // Get ticket
     const ticketResult = await query(
-      'SELECT * FROM tickets WHERE id = $1 AND organization_id = $2',
+      `SELECT ${TICKET_BASIC_COLUMNS} FROM tickets WHERE id = $1 AND organization_id = $2`,
       [ticketId, organizationId]
     );
 
@@ -3106,7 +3139,7 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
 
     // Get current task state
     const currentTask = await query(
-      'SELECT * FROM ticket_tasks WHERE id = $1 AND ticket_id = $2',
+      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE id = $1 AND ticket_id = $2`,
       [taskId, ticketId]
     );
 
@@ -3266,7 +3299,7 @@ router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, re
 
     // Get updated tasks
     const result = await query(
-      'SELECT * FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC',
+      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC`,
       [ticketId]
     );
 
