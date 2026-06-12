@@ -4392,6 +4392,149 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ refresh_tokens table ready');
 
+    // ============================================
+    // Multi-Tenancy Migration: Add organization_id to remaining tables
+    // ============================================
+    // Tables that need organization_id for proper multi-tenant isolation
+    const tablesNeedingOrgId = [
+      'teams',
+      'trusted_devices',
+      'email_notifications',
+      'password_reset_tokens',
+      'audit_logs',
+      'notification_settings',
+      'ninjarmm_alerts',
+      'ninjarmm_webhook_events',
+      'ninjarmm_alert_exclusions',
+      'ticket_comments',
+      'ai_config',
+      'ticket_ai_suggestions',
+      'lead_activities',
+      'task_checklist_items',
+      'task_comments',
+      'task_activity_log',
+      'contracts',
+      'contract_activity_log',
+      'sevdesk_config',
+      'invoice_exports',
+      'clockodo_config'
+    ];
+
+    for (const tableName of tablesNeedingOrgId) {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'organization_id'
+          ) THEN
+            ALTER TABLE ${tableName} ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          END IF;
+        END $$;
+      `);
+    }
+    logger.info('✅ Multi-tenancy: organization_id columns added to all tables');
+
+    // Backfill organization_id from user_id via organization_members
+    // Only for tables that have user_id and newly added organization_id
+    const tablesToBackfill = [
+      'teams',
+      'trusted_devices',
+      'email_notifications',
+      'password_reset_tokens',
+      'audit_logs',
+      'notification_settings',
+      'ninjarmm_alerts',
+      'ninjarmm_webhook_events',
+      'ninjarmm_alert_exclusions',
+      'ai_config',
+      'ticket_ai_suggestions',
+      'task_comments',
+      'task_activity_log',
+      'contracts',
+      'contract_activity_log',
+      'sevdesk_config',
+      'invoice_exports',
+      'clockodo_config'
+    ];
+
+    for (const tableName of tablesToBackfill) {
+      await client.query(`
+        UPDATE ${tableName} t
+        SET organization_id = om.organization_id
+        FROM organization_members om
+        WHERE t.user_id = om.user_id
+          AND t.organization_id IS NULL
+          AND om.organization_id IS NOT NULL
+      `);
+    }
+
+    // Special backfill for ticket_comments (uses ticket's organization_id)
+    await client.query(`
+      UPDATE ticket_comments tc
+      SET organization_id = t.organization_id
+      FROM tickets t
+      WHERE tc.ticket_id = t.id
+        AND tc.organization_id IS NULL
+        AND t.organization_id IS NOT NULL
+    `);
+
+    // Special backfill for lead_activities (uses lead's organization_id)
+    await client.query(`
+      UPDATE lead_activities la
+      SET organization_id = l.organization_id
+      FROM leads l
+      WHERE la.lead_id = l.id
+        AND la.organization_id IS NULL
+        AND l.organization_id IS NOT NULL
+    `);
+
+    // Special backfill for task_checklist_items (uses task's organization_id)
+    await client.query(`
+      UPDATE task_checklist_items tci
+      SET organization_id = t.organization_id
+      FROM tasks t
+      WHERE tci.task_id = t.id
+        AND tci.organization_id IS NULL
+        AND t.organization_id IS NOT NULL
+    `);
+
+    logger.info('✅ Multi-tenancy: organization_id backfilled from user relationships');
+
+    // Create indexes on organization_id for the newly added columns
+    const indexStatements = [
+      'CREATE INDEX IF NOT EXISTS idx_teams_org ON teams(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_trusted_devices_org ON trusted_devices(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_email_notifications_org ON email_notifications(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_org ON password_reset_tokens(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_notification_settings_org ON notification_settings(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_org ON ninjarmm_alerts(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_webhook_events_org ON ninjarmm_webhook_events(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ninjarmm_alert_exclusions_org ON ninjarmm_alert_exclusions(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ticket_comments_org ON ticket_comments(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ai_config_org ON ai_config(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ticket_ai_suggestions_org ON ticket_ai_suggestions(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_lead_activities_org ON lead_activities(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_task_checklist_items_org ON task_checklist_items(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_task_comments_org ON task_comments(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_task_activity_log_org ON task_activity_log(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_contracts_org ON contracts(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_contract_activity_log_org ON contract_activity_log(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_sevdesk_config_org ON sevdesk_config(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_invoice_exports_org ON invoice_exports(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_clockodo_config_org ON clockodo_config(organization_id)',
+      // Additional indexes mentioned in CLAUDE.md as missing
+      'CREATE INDEX IF NOT EXISTS idx_ticket_tag_assignments_org ON ticket_tag_assignments(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ticket_sequences_new_org ON ticket_sequences_new(organization_id)',
+      'CREATE INDEX IF NOT EXISTS idx_ticket_email_attachments_org ON ticket_email_attachments(organization_id)'
+    ];
+
+    for (const stmt of indexStatements) {
+      await client.query(stmt);
+    }
+    logger.info('✅ Multi-tenancy: indexes created on organization_id columns');
+
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');
   } catch (error) {
