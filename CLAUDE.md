@@ -333,38 +333,57 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 ## Offene Aufgaben (Roadmap) — Priorisiert nach Sprints
 
-### 🔴 Sprint 1 — Sicherheit (kritisch, nächster Schritt)
+> **Für Claude Code:** Sprints der Reihe nach abarbeiten. Nach jedem PR die Checkbox in der jeweiligen Tabelle auf ✅ setzen und PR-Nummer eintragen. Branch-Konvention beachten (immer von `claude/next-version-roadmap-ks0D0` abzweigen, PR gegen denselben Branch).
 
-| Task | Datei | Aufwand |
-|---|---|---|
-| **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h |
-| **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h |
-| **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h |
+### 🔴 Sprint 1 — Sicherheit (kritisch, sofort umsetzen)
 
-### 🟠 Sprint 2 — Performance & Konsistenz
+Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben behoben werden.
 
-| Task | Datei | Aufwand |
-|---|---|---|
-| **Tickets-Paginierung** im Main-Endpoint (analog PR #62) | `server/src/routes/tickets.ts` | 3-4h |
-| **Multi-Tenancy**: org_id für `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams` | `server/src/config/database.ts` | 4-6h |
-| **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h |
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h | Alle `req.body` werden aktuell ungeprüft destructuriert (Z. 83, 111, 155, 203, 760). Schema-Beispiel aus `tickets.ts` (PR #61) als Vorlage nutzen. |
+| ⬜ | **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h | Neue Belege-Endpoints aus Commits 80eebc8/ce45f2b/80bb6df haben noch keine Zod-Validierung. |
+| ⬜ | **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h | `parseInt(limit)` ohne Maximum — `limit=999999` ist möglich (DoS-Vektor). Fix: `Math.min(parseInt(limit) \|\| 50, 200)`. |
 
-### 🟡 Sprint 3 — Features
+### 🟠 Sprint 2 — Farb-Cleanup & Toter Code
 
-| Task | Datei | Aufwand |
-|---|---|---|
-| **Vertrags-Stunden-Cron** (Tabellen existieren, Job fehlt) | neue Datei in `server/src/jobs/` | 4-6h |
-| **CommandPalette-Historie** (letzte 3-5 Aktionen via localStorage) | `src/components/CommandPalette.tsx` | 2-3h |
-| **SSE für Echtzeit-Updates** (NinjaRMM Alerts, E-Mails) | neuer Endpoint + Frontend | 1-2 Tage |
+Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
-### 🔵 Sprint 4 — Tech-Debt
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Purple-Cleanup** — ~194 `purple-*` Klassen auf Design-Tokens umstellen | 47 Dateien | 3-4h | Nicht-semantische `purple-*` Klassen (Buttons, Tabs, Highlights) durch `bg-accent-primary`, `text-accent-primary`, `border-accent-primary` ersetzen. **Ausnahmen:** `instagram`/`social`-Kontext (Brand-Farbe), `AI`/`ai`-Kontext (KI-Farbe = intentional lila). Priorität: `AdminPortal.tsx`, `Settings.tsx`, `CustomerHub.tsx`, `TicketKanban.tsx`, `DashboardOverview.tsx`. |
+| ⬜ | **Toter Code entfernen** — 4 Komponenten ohne Imports | diverse | 1h | `CustomerView.tsx`, `SevdeskDocuments.tsx`, `SwipeableRow.tsx`, `VendorHub.tsx` — alle haben 0 Imports. Vor dem Löschen kurz prüfen ob sie in `App.tsx` oder einem Route-Config-Objekt referenziert werden. |
+| ⬜ | **text-gray-* Cleanup** — `text-gray-*` ohne `dark:`-Pendant auf `text-dark-400/500` umstellen | ~495 Stellen | 4-6h | Betrifft Light-Mode-Kompatibilität. Nur Stellen ohne begleitendes `dark:text-*` anfassen. Semantische Ausnahmen (Placeholder, disabled) dürfen bleiben. |
 
-| Task | Datei | Aufwand |
-|---|---|---|
-| **TS-Fehler auf 0** (~16 verbleibend, v.a. Social-Media Platform-Types) | PostsTab, TemplatesTab, CRMDashboard | 2-3h |
-| **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h |
-| **SocialMediaManager.tsx splitten** (6482 → mehrere Komponenten) | `src/components/SocialMediaManager.tsx` | 1 Tag |
-| **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag |
+### 🟡 Sprint 3 — Performance & Konsistenz
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Tickets-Paginierung** im Main-Endpoint | `server/src/routes/tickets.ts` | 3-4h | Analog PR #62 (TimeEntriesList). `?page=&limit=` mit `?all=true` Fallback für Legacy. |
+| ⬜ | **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h | Explizite Spaltenlisten statt `SELECT *`. Priorität: `tickets.ts`, `customers.ts`, `entries.ts`, `social-media.ts`. |
+| ⬜ | **Multi-Tenancy**: `organization_id` für ~30 Tabellen nachrüsten | `server/src/config/database.ts` | 4-6h | Migration mit `IF NOT EXISTS` + Backfill aus `user_id`. Betroffene Tabellen: `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams`, `trusted_devices`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_*`, `customer_portal_*`, `ai_config`, `sevdesk_*`, `invoice_exports`, `clockodo_config`. |
+| ⬜ | **Fehlende DB-Indexes** auf `organization_id` | `server/src/config/database.ts` | 1-2h | `CREATE INDEX IF NOT EXISTS` für: `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_*`, `ticket_email_attachments`. |
+
+### 🟢 Sprint 4 — Features
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Vertrags-Stunden-Cron** — automatische Stunden-Abrechnung aus Verträgen | neue Datei `server/src/jobs/contractHoursCron.ts` | 4-6h | Tabellen `contracts` + `contract_hours` existieren bereits. Job soll täglich prüfen ob gebuchte Stunden das Kontingent überschreiten und eine Warnung erstellen. |
+| ⬜ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Via `localStorage` persistieren. Beim Öffnen der Palette als erste Sektion „Zuletzt verwendet" anzeigen. |
+| ⬜ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Bei Lead-Status „Won" Button „Angebot erstellen" → öffnet `QuoteEditor` mit vorausgefülltem Kunden. |
+| ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
+| ⬜ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` + diverse | 3-4h | Kanban-Board auf `md:` breakpoint verstecken, stattdessen Card-Liste zeigen. |
+
+### 🔵 Sprint 5 — Tech-Debt & Architektur
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **TS-Fehler auf 0** (~16 verbleibend) | `PostsTab.tsx`, `TemplatesTab.tsx`, `CRMDashboard.tsx`, `CalendarView.tsx` | 2-3h | Hauptsächlich Platform-Type-Mismatch im Social-Media-Modul. |
+| ⬜ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | Analog Epic 5 Pass 3. `useEffect`+`loadData` → `useQuery`, Mutations via `useMutation`. |
+| ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
+| ⬜ | **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag | Fokus: `src/utils/`, `src/hooks/`, Backend-Middleware. |
+| ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
+| ⬜ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | `push_subscriptions` + `portal_push_subscriptions` in eine Tabelle mit `type`-Spalte. |
 
 ---
 
@@ -455,4 +474,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 10.6.2026 — Belege-SSOT Phase 1-3, WeeklyGridView, Zeiten-Konsolidierung, TaskHub integrativ, sevDesk-Fixes (Kunden-Mapping, Position-Template), globale Dokumenten-Suche, Auth-Verbesserungen (Token-TTL 8h, Mobile-Logout-Fix, Session-Toast). TS-Fehler: 452 → ~16. Kritisch entdeckt: sevdesk.ts komplett ohne Zod-Validierung, SELECT * in 31 Dateien.*
+*Zuletzt aktualisiert: 12.6.2026 — Roadmap vollständig neu strukturiert in 5 Sprints mit Checkboxen und Implementierungshinweisen für Claude Code. Neu dokumentiert: Purple-Cleanup (194 Vorkommen, 47 Dateien), toter Code (4 Komponenten), text-gray-Cleanup (495 Stellen). Sprint 1 (Sicherheit) hat höchste Priorität: sevdesk.ts ohne Zod-Validierung, SELECT * in 31 Dateien, parseInt ohne Bounds in admin.ts.*
