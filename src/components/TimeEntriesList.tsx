@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar } from 'lucide-react';
+import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -11,6 +11,23 @@ import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SkeletonTimeEntry } from './Skeleton';
 import { useToast } from '../contexts/UIContext';
+
+// Entry scope category labels
+const INTERNAL_CATEGORY_LABELS: Record<string, string> = {
+  admin: 'Administration',
+  sales: 'Vertrieb',
+  marketing: 'Marketing',
+  training: 'Weiterbildung',
+  meeting: 'Meeting',
+  internal_support: 'Interner Support',
+  travel: 'Reise',
+};
+
+const ABSENCE_CATEGORY_LABELS: Record<string, string> = {
+  vacation: 'Urlaub',
+  sick: 'Krankheit',
+  special_leave: 'Sonderurlaub',
+};
 
 interface TimeEntriesListProps {
   projects: Project[];
@@ -152,6 +169,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   const [showFilters, setShowFilters] = useState(false);
   const [filterCustomerId, setFilterCustomerId] = useState<string>('');
   const [filterProjectId, setFilterProjectId] = useState<string>('');
+  const [filterEntryScope, setFilterEntryScope] = useState<EntryScope | ''>('');
   const [filterTimeframeType, setFilterTimeframeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
   const [filterMonth, setFilterMonth] = useState(() => {
     const now = new Date();
@@ -287,9 +305,41 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   const getActivityById = (id: string) => activities.find(a => a.id === id);
 
   const getProjectDisplay = (entry: TimeEntry) => {
+    // Handle internal time entries
+    if (entry.entryScope === 'internal') {
+      return entry.internalCategory
+        ? INTERNAL_CATEGORY_LABELS[entry.internalCategory] || entry.internalCategory
+        : 'Interne Zeit';
+    }
+    // Handle absence entries
+    if (entry.entryScope === 'absence') {
+      return entry.internalCategory
+        ? ABSENCE_CATEGORY_LABELS[entry.internalCategory] || entry.internalCategory
+        : 'Abwesenheit';
+    }
+    // Handle customer project entries
     const project = getProjectById(entry.projectId);
     const customer = project ? getCustomerById(project.customerId) : null;
     return project && customer ? `${customer.name} - ${project.name}` : 'Unbekanntes Projekt';
+  };
+
+  // Get entry scope badge info
+  const getEntryScopeBadge = (entry: TimeEntry) => {
+    if (entry.entryScope === 'internal') {
+      return {
+        icon: Coffee,
+        label: 'Intern',
+        className: 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-dark-200',
+      };
+    }
+    if (entry.entryScope === 'absence') {
+      return {
+        icon: Calendar,
+        label: 'Abwesend',
+        className: 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30',
+      };
+    }
+    return null; // No badge for customer_project (default)
   };
 
   const calculateAmount = (entry: TimeEntry): number => {
@@ -365,7 +415,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   // All filters (timeframe, projectId, customerId, searchText) are applied
   // server-side now — see the fetch useEffect above. The current page is
   // already correctly filtered; no client-side narrowing needed.
-  const filteredEntries = entries;
+  // Client-side filter for entry scope (server doesn't support this filter yet)
+  const filteredEntries = useMemo(() => {
+    if (!filterEntryScope) return entries;
+    return entries.filter(e => e.entryScope === filterEntryScope);
+  }, [entries, filterEntryScope]);
 
   const sortedEntries = useMemo(() =>
     [...filteredEntries].sort(
@@ -387,11 +441,12 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   );
 
   const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.duration, 0);
-  const hasActiveFilters = filterCustomerId || filterProjectId || (filterTimeframeType === 'custom' && (filterDateFrom || filterDateTo)) || filterDescription;
+  const hasActiveFilters = filterCustomerId || filterProjectId || filterEntryScope || (filterTimeframeType === 'custom' && (filterDateFrom || filterDateTo)) || filterDescription;
 
   const clearFilters = () => {
     setFilterCustomerId('');
     setFilterProjectId('');
+    setFilterEntryScope('');
     setFilterTimeframeType('month');
     const now = new Date();
     setFilterMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
@@ -703,6 +758,21 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                 </select>
               </div>
 
+              {/* Entry Scope Filter */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Buchungsart</label>
+                <select
+                  value={filterEntryScope}
+                  onChange={(e) => setFilterEntryScope(e.target.value as EntryScope | '')}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                >
+                  <option value="">Alle</option>
+                  <option value="customer_project">Projektzeit</option>
+                  <option value="internal">Interne Zeit</option>
+                  <option value="absence">Abwesenheit</option>
+                </select>
+              </div>
+
               {/* Timeframe Type Filter */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Zeitraum</label>
@@ -921,7 +991,23 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             {isRunning && (
                               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
                             )}
-                            {customer && (
+                            {/* Entry scope badge for internal/absence */}
+                            {(() => {
+                              const badge = getEntryScopeBadge(entry);
+                              if (!badge) return customer ? (
+                                <div
+                                  className="w-3 h-3 rounded flex-shrink-0"
+                                  style={{ backgroundColor: customer.color }}
+                                />
+                              ) : null;
+                              const Icon = badge.icon;
+                              return (
+                                <span className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${badge.className}`}>
+                                  <Icon size={12} />
+                                </span>
+                              );
+                            })()}
+                            {entry.entryScope === 'customer_project' && customer && (
                               <div
                                 className="w-3 h-3 rounded flex-shrink-0"
                                 style={{ backgroundColor: customer.color }}
@@ -930,7 +1016,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
-                            {activity && (
+                            {activity && entry.entryScope === 'customer_project' && (
                               <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[40%] truncate">
                                 {activity.name}
                               </span>
@@ -1012,16 +1098,29 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             {isRunning && (
                               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
                             )}
-                            {customer && (
-                              <div
-                                className="w-3 h-3 rounded flex-shrink-0"
-                                style={{ backgroundColor: customer.color }}
-                              />
-                            )}
+                            {/* Entry scope badge for internal/absence */}
+                            {(() => {
+                              const badge = getEntryScopeBadge(entry);
+                              if (badge) {
+                                const Icon = badge.icon;
+                                return (
+                                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${badge.className}`}>
+                                    <Icon size={12} />
+                                    <span className="hidden lg:inline">{badge.label}</span>
+                                  </span>
+                                );
+                              }
+                              return customer ? (
+                                <div
+                                  className="w-3 h-3 rounded flex-shrink-0"
+                                  style={{ backgroundColor: customer.color }}
+                                />
+                              ) : null;
+                            })()}
                             <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
-                            {activity && (
+                            {activity && entry.entryScope === 'customer_project' && (
                               <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[180px] truncate">
                                 {activity.name}
                               </span>
@@ -1118,16 +1217,40 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                               <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
                             </div>
                           )}
-                          {!isRunningNormal && customer && (
-                            <div
-                              className="w-10 h-10 rounded-lg flex-shrink-0"
-                              style={{ backgroundColor: customer.color }}
-                            />
-                          )}
+                          {/* Entry type indicator */}
+                          {!isRunningNormal && (() => {
+                            const badge = getEntryScopeBadge(entry);
+                            if (badge) {
+                              const Icon = badge.icon;
+                              return (
+                                <div className={`w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center ${badge.className}`}>
+                                  <Icon size={20} />
+                                </div>
+                              );
+                            }
+                            return customer ? (
+                              <div
+                                className="w-10 h-10 rounded-lg flex-shrink-0"
+                                style={{ backgroundColor: customer.color }}
+                              />
+                            ) : null;
+                          })()}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
-                              {activity && (
+                              {/* Entry scope badge */}
+                              {(() => {
+                                const badge = getEntryScopeBadge(entry);
+                                if (badge) {
+                                  return (
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.className}`}>
+                                      {badge.label}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {activity && entry.entryScope === 'customer_project' && (
                                 <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-2 py-0.5 rounded-full">
                                   {activity.name}
                                 </span>
