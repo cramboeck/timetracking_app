@@ -75,6 +75,19 @@ async function createPortalTrustedDevice(contactId: string, userAgent: string | 
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const NOTIFICATION_PREFS_COLUMNS = `
+  id, user_id, organization_id,
+  push_enabled, push_on_new_ticket, push_on_ticket_assigned, push_on_ticket_comment,
+  push_on_status_change, push_on_sla_warning, push_on_mention,
+  email_enabled, email_on_new_ticket, email_on_ticket_assigned, email_on_ticket_comment,
+  email_on_status_change, email_on_sla_warning, email_on_mention, email_daily_digest
+`;
+
+const TICKET_ATTACHMENT_COLUMNS = `
+  id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_user_id, uploaded_by_contact_id, created_at
+`;
+
 // Helper to get contact permissions from either customer_contacts or customer_portal_users
 async function getContactPermissions(contactId: string): Promise<{
   can_view_devices: boolean;
@@ -702,7 +715,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
 
         // Check notification preferences for assignee
         const prefsResult = await pool.query(
-          'SELECT * FROM notification_preferences WHERE user_id = $1',
+          `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
           [ticket.assigned_to_user_id]
         );
         const prefs = prefsResult.rows[0] || {
@@ -1181,7 +1194,7 @@ router.delete('/tickets/:ticketId/attachments/:attachmentId', authenticateCustom
 
     // Get attachment and verify it was uploaded by this contact
     const attachmentResult = await pool.query(
-      'SELECT * FROM ticket_attachments WHERE id = $1 AND ticket_id = $2 AND uploaded_by_contact_id = $3',
+      `SELECT ${TICKET_ATTACHMENT_COLUMNS} FROM ticket_attachments WHERE id = $1 AND ticket_id = $2 AND uploaded_by_contact_id = $3`,
       [attachmentId, ticketId, req.contactId]
     );
 

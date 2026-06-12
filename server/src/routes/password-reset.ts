@@ -7,6 +7,9 @@ import { emailService } from '../services/emailService';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const PASSWORD_RESET_TOKEN_COLUMNS = `id, user_id, token, expires_at, used, created_at`;
+
 // Validation schemas
 const requestResetSchema = z.object({
   email: z.string().email()
@@ -88,7 +91,7 @@ router.post('/reset', validate(resetPasswordSchema), async (req, res) => {
 
     // Find valid token
     const tokenResult = await pool.query(
-      `SELECT * FROM password_reset_tokens
+      `SELECT ${PASSWORD_RESET_TOKEN_COLUMNS} FROM password_reset_tokens
        WHERE token = $1 AND used = FALSE AND expires_at > NOW()`,
       [token]
     );
@@ -134,7 +137,7 @@ router.get('/verify/:token', async (req, res) => {
     const { token } = req.params;
 
     const tokenResult = await pool.query(
-      `SELECT * FROM password_reset_tokens
+      `SELECT ${PASSWORD_RESET_TOKEN_COLUMNS} FROM password_reset_tokens
        WHERE token = $1 AND used = FALSE AND expires_at > NOW()`,
       [token]
     );

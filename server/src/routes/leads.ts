@@ -10,6 +10,14 @@ import crypto from 'crypto';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const LEAD_COLUMNS = `
+  id, organization_id, customer_id, name, company, email, phone, website,
+  status, source, priority, estimated_value, probability, assigned_to, created_by,
+  expected_close_date, last_contact_date, next_follow_up, description, notes, tags,
+  custom_fields, created_at, updated_at, converted_at, lost_reason
+`;
+
 // Validation schemas
 const createLeadSchema = z.object({
   name: z.string().min(1).max(200),
@@ -235,7 +243,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // Verify lead belongs to organization
     const existingLead = await pool.query(
-      'SELECT * FROM leads WHERE id = $1 AND organization_id = $2',
+      `SELECT ${LEAD_COLUMNS} FROM leads WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 
@@ -451,7 +459,7 @@ router.post('/:id/convert', authenticateToken, attachOrganization, requireOrgRol
 
     // Get lead
     const leadResult = await pool.query(
-      'SELECT * FROM leads WHERE id = $1 AND organization_id = $2',
+      `SELECT ${LEAD_COLUMNS} FROM leads WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 

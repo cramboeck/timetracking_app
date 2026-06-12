@@ -7,6 +7,11 @@ import { transformRow } from '../utils/dbTransform';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const COMPANY_INFO_COLUMNS = `
+  id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, customer_number, logo
+`;
+
 // Validation schema
 const companyInfoSchema = z.object({
   name: z.string().min(1),
@@ -28,7 +33,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const result = await pool.query(
-      'SELECT * FROM company_info WHERE user_id = $1',
+      `SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`,
       [userId]
     );
 

@@ -73,6 +73,11 @@ const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const SYSTEM_NOTIFICATION_COLUMNS = `
+  id, title, message, type, created_by, is_active, expires_at, created_at
+`;
+
 // All admin routes require authentication and admin role
 router.use(authenticate, requireAdmin);
 
@@ -1546,7 +1551,7 @@ router.get('/system/logs', async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT * FROM system_notifications
+      SELECT ${SYSTEM_NOTIFICATION_COLUMNS} FROM system_notifications
       ORDER BY created_at DESC
       LIMIT 50
     `);
