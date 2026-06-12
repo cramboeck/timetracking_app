@@ -704,7 +704,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // First check if task exists in standalone tasks table
     const existingTask = await pool.query(
-      'SELECT ${TASK_COLUMNS} FROM tasks WHERE id = $1 AND organization_id = $2',
+      `SELECT ${TASK_COLUMNS} FROM tasks WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 
@@ -960,7 +960,7 @@ router.post('/:id/checklist', authenticateToken, attachOrganization, requireOrgR
     `, [itemId, taskId, title, orderResult.rows[0].next_order]);
 
     const result = await pool.query(
-      'SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1',
+      `SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1`,
       [itemId]
     );
 
@@ -1015,7 +1015,7 @@ router.put('/:taskId/checklist/:itemId', authenticateToken, attachOrganization, 
     );
 
     const result = await pool.query(
-      'SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1',
+      `SELECT ${CHECKLIST_ITEM_COLUMNS} FROM task_checklist_items WHERE id = $1`,
       [itemId]
     );
 

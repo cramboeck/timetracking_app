@@ -204,7 +204,7 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
     // If updating projectId, verify project belongs to organization
     if (updates.projectId) {
       const projectResult = await pool.query(
-        'SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2',
+        `SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`,
         [updates.projectId, organizationId]
       );
       if (projectResult.rows.length === 0) {
@@ -341,7 +341,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     // Idempotency: If clientId is provided, check if entry already exists
     if (clientId) {
       const existingResult = await pool.query(
-        'SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2',
+        `SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`,
         [clientId, organizationId]
       );
       if (existingResult.rows.length > 0) {

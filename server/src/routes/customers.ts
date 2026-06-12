@@ -672,7 +672,7 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      `SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`,
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -760,7 +760,7 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      `SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`,
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -845,7 +845,7 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      `SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -956,7 +956,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
 
     // Verify customer belongs to organization and get vendor domain
     const customerResult = await pool.query(
-      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      `SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {

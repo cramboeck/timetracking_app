@@ -140,7 +140,7 @@ router.get('/announcements/:id', authenticateToken, async (req: AuthRequest, res
 
     // Get announcement
     const announcementResult = await query(
-      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      `SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
@@ -290,7 +290,7 @@ router.put('/announcements/:id', authenticateToken, validate(updateAnnouncementS
 
     // Check ownership and status
     const existing = await query(
-      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      `SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
@@ -423,7 +423,7 @@ router.post('/announcements/:id/send', authenticateToken, validate(sendNotificat
 
     // Get announcement
     const announcementResult = await query(
-      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      `SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
@@ -522,7 +522,7 @@ router.post('/announcements/:id/remind', authenticateToken, async (req: AuthRequ
     const userId = req.userId!;
 
     const announcementResult = await query(
-      'SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2',
+      `SELECT ${ANNOUNCEMENT_COLUMNS} FROM maintenance_announcements WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
