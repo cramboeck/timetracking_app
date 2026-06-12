@@ -11,8 +11,8 @@ const router = Router();
 
 // Explicit column lists (no SELECT *)
 const ACTIVITY_COLUMNS = `
-  id, user_id, organization_id, name, description, is_billable, is_active,
-  pricing_type, flat_rate, created_at, deleted_at
+  id, user_id, organization_id, name, description, is_billable,
+  pricing_type, flat_rate, created_at
 `;
 
 // Validation schemas

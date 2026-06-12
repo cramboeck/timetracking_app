@@ -25,7 +25,7 @@ const PROJECT_COLUMNS = `
 `;
 
 const ACTIVITY_COLUMNS = `
-  id, organization_id, user_id, name, is_billable, is_active, created_at, deleted_at
+  id, organization_id, user_id, name, is_billable, created_at
 `;
 
 const TICKET_COLUMNS_BASIC = `
