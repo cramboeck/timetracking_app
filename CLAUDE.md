@@ -367,7 +367,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ✅ | **Multi-Tenancy**: `organization_id` für ~30 Tabellen nachrüsten | `server/src/config/database.ts` | 4-6h | Commit d750b30. 21 Tabellen mit `organization_id` erweitert, Backfill via `user_id` → `organization_members` bzw. Parent-Tabellen. |
 | ✅ | **Fehlende DB-Indexes** auf `organization_id` | `server/src/config/database.ts` | 1-2h | Commit d750b30. 24 Indexes erstellt (21 neue Tabellen + `ticket_tag_assignments`, `ticket_sequences_new`, `ticket_email_attachments`). |
 
-### 🟢 Sprint 4 — Features
+### 🟢 Sprint 4 — Features (unabhängig, jederzeit einschiebbar)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
@@ -377,7 +377,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
 | ⬜ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` + diverse | 3-4h | Kanban-Board auf `md:` breakpoint verstecken, stattdessen Card-Liste zeigen. |
 
-### 🔵 Sprint 5 — Tech-Debt & Architektur
+### 🔵 Sprint 5 — Tech-Debt & Architektur (unabhängig, jederzeit einschiebbar)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
@@ -476,7 +476,13 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Neue Anforderungen — Interne Arbeitszeiterfassung & Kundenportal (Stand 12.6.2026)
 
-> **Für Claude Code:** Diese Sprints (A–F) sind nach den Sprints 1–5 umzusetzen. Sprints A und C können parallel gestartet werden. Alle Architekturentscheidungen sind bereits getroffen und verbindlich — keine Rückfragen nötig.
+> **Für Claude Code:** Sprints 1–3 sind abgeschlossen ✅. **Empfohlene Reihenfolge:**
+> 1. **Sprint A** (DB-Fundament) — Voraussetzung für B, D, F
+> 2. **Sprint C** (Portal-Fundament) — kann parallel zu A, Voraussetzung für D, E
+> 3. **Sprints B, D, E, F** — nach ihren Abhängigkeiten
+> 4. **Sprints 4 + 5** (Features + Tech-Debt) — unabhängig, können jederzeit eingeschoben werden
+>
+> Alle Architekturentscheidungen sind bereits getroffen und verbindlich — keine Rückfragen nötig.
 
 ### Architekturentscheidungen (verbindlich)
 
