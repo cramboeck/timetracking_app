@@ -9,6 +9,12 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const REPORT_APPROVAL_COLUMNS = `
+  id, user_id, token, recipient_email, recipient_name, report_data, status,
+  comment, sent_at, reviewed_at, expires_at, created_at
+`;
+
 // Validation schemas
 const sendApprovalSchema = z.object({
   recipientEmail: z.string().email(),
@@ -521,7 +527,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
 
     // Check if approval belongs to user
     const result = await pool.query(
-      'SELECT * FROM report_approvals WHERE id = $1 AND user_id = $2',
+      `SELECT ${REPORT_APPROVAL_COLUMNS} FROM report_approvals WHERE id = $1 AND user_id = $2`,
       [id, userId]
     );
 
@@ -830,7 +836,7 @@ router.post('/create-revision/:id', authenticateToken, async (req: AuthRequest, 
 
     // Get the rejected/revision_requested report
     const result = await pool.query(
-      `SELECT * FROM report_approvals
+      `SELECT ${REPORT_APPROVAL_COLUMNS} FROM report_approvals
        WHERE id = $1 AND user_id = $2 AND status IN ('rejected', 'revision_requested')`,
       [id, userId]
     );

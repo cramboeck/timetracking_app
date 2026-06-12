@@ -11,6 +11,26 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const TIME_ENTRY_COLUMNS = `
+  id, organization_id, user_id, project_id, activity_id, ticket_id,
+  start_time, end_time, duration, description, is_running, is_billable,
+  external_id, external_source, created_at
+`;
+
+const PROJECT_COLUMNS = `
+  id, organization_id, user_id, customer_id, name, is_active, rate_type,
+  hourly_rate, created_at, deleted_at
+`;
+
+const ACTIVITY_COLUMNS = `
+  id, organization_id, user_id, name, is_billable, is_active, created_at, deleted_at
+`;
+
+const TICKET_COLUMNS_BASIC = `
+  id, organization_id, ticket_number, title, status, priority, customer_id
+`;
+
 // Validation schemas
 const createEntrySchema = z.object({
   clientId: z.string().uuid().optional(), // Client-generated ID for idempotency
@@ -171,7 +191,7 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
     // If updating projectId, verify project belongs to organization
     if (updates.projectId) {
       const projectResult = await pool.query(
-        'SELECT * FROM projects WHERE id = $1 AND organization_id = $2',
+        'SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2',
         [updates.projectId, organizationId]
       );
       if (projectResult.rows.length === 0) {
@@ -264,7 +284,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req: AuthReques
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    const result = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const result = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     const entry = transformRow(result.rows[0]);
 
     if (!entry) {
@@ -292,7 +312,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     // Idempotency: If clientId is provided, check if entry already exists
     if (clientId) {
       const existingResult = await pool.query(
-        'SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2',
+        'SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2',
         [clientId, organizationId]
       );
       if (existingResult.rows.length > 0) {
@@ -306,14 +326,14 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
+    const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
     }
 
     // Verify activity belongs to organization (if provided)
     if (activityId) {
-      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [activityId, organizationId]);
+      const activityResult = await pool.query('SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2', [activityId, organizationId]);
       if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
@@ -321,7 +341,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 
     // Verify ticket belongs to organization (if provided)
     if (ticketId) {
-      const ticketResult = await pool.query('SELECT * FROM tickets WHERE id = $1 AND organization_id = $2', [ticketId, organizationId]);
+      const ticketResult = await pool.query('SELECT ${TICKET_COLUMNS_BASIC} FROM tickets WHERE id = $1 AND organization_id = $2', [ticketId, organizationId]);
       if (ticketResult.rows.length === 0) {
         return res.status(400).json({ error: 'Ticket not found or does not belong to your organization' });
       }
@@ -392,7 +412,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       ]
     );
 
-    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
+    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1', [id]);
     const newEntry = transformRow(entryResult.rows[0]);
 
     auditLog.log({
@@ -444,14 +464,14 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify entry belongs to organization
-    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
     // Verify project belongs to organization (if updating projectId)
     if (updates.projectId) {
-      const projectResult = await pool.query('SELECT * FROM projects WHERE id = $1 AND organization_id = $2', [updates.projectId, organizationId]);
+      const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2', [updates.projectId, organizationId]);
       if (projectResult.rows.length === 0) {
         return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
       }
@@ -459,7 +479,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // Verify activity belongs to organization (if updating activityId)
     if (updates.activityId) {
-      const activityResult = await pool.query('SELECT * FROM activities WHERE id = $1 AND organization_id = $2', [updates.activityId, organizationId]);
+      const activityResult = await pool.query('SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2', [updates.activityId, organizationId]);
       if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
@@ -515,7 +535,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const query = `UPDATE time_entries SET ${fields.join(', ')} WHERE id = $${paramCount}`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
+    const updatedResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1', [id]);
     const updatedEntry = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -569,7 +589,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('mem
     const { id } = req.params;
 
     // Verify entry belongs to organization
-    const entryResult = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }

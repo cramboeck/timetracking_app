@@ -91,6 +91,65 @@ const queueSettingsSchema = z.object({
 });
 
 // ============================================
+// Explicit column lists (no SELECT *)
+// ============================================
+
+const SM_POST_COLUMNS = `
+  id, user_id, organization_id, customer_id, title, content, media_urls, hashtags,
+  status, scheduled_at, published_at, ai_generated, ai_prompt, content_category,
+  evergreen, recycle_count, last_recycled_at, created_at, updated_at
+`;
+
+const SM_TEMPLATE_COLUMNS = `
+  id, user_id, organization_id, name, content, platform, category, hashtags, is_active, created_at
+`;
+
+const SM_HASHTAG_GROUP_COLUMNS = `
+  id, user_id, organization_id, name, hashtags, category, created_at
+`;
+
+const SM_QUEUE_SETTINGS_COLUMNS = `
+  id, organization_id, enabled, posts_per_day, preferred_times, weekend_posting, content_mix, created_at, updated_at
+`;
+
+const SM_AUTOPILOT_COLUMNS = `
+  id, organization_id, enabled, posts_per_week, content_themes, target_audience, brand_voice,
+  approval_mode, platforms, content_mix, last_generated, created_at, updated_at
+`;
+
+const SM_COMPETITOR_COLUMNS = `
+  id, organization_id, name, profiles, notes, last_analyzed, analysis_data, created_at
+`;
+
+const SM_ENGAGEMENT_SETTINGS_COLUMNS = `
+  id, organization_id, enabled, platforms, target_keywords, target_accounts,
+  response_style, daily_limit, exclude_keywords, created_at, updated_at
+`;
+
+const SM_ENGAGEMENT_HISTORY_COLUMNS = `
+  id, organization_id, platform, post_url, author_name, original_content,
+  response_content, response_type, created_at
+`;
+
+const SM_STORY_COLUMNS = `
+  id, organization_id, user_id, title, content_type, media_urls, text_overlays,
+  background_color, background_gradient, music_suggestion, stickers, link_url, link_text,
+  poll_question, poll_options, scheduled_at, platforms, status, duration_seconds,
+  ai_generated, ai_prompt, template_id, engagement_data, expires_at, published_at, created_at, updated_at
+`;
+
+const SM_GENERATED_IMAGE_COLUMNS = `
+  id, organization_id, user_id, prompt, revised_prompt, provider, model,
+  image_url, image_data, aspect_ratio, style, size, cost_cents,
+  used_in_story_id, used_in_post_id, created_at
+`;
+
+const SM_STORY_TEMPLATE_COLUMNS = `
+  id, organization_id, user_id, name, description, category, content_type,
+  layout, text_styles, color_scheme, is_system, preview_url, usage_count, created_at
+`;
+
+// ============================================
 // Posts Routes
 // ============================================
 
@@ -102,7 +161,10 @@ router.get('/posts', authenticateToken, attachOrganization, async (req: AuthRequ
     const { status, customerId, startDate, endDate } = req.query;
 
     let query = `
-      SELECT p.*, c.name as customer_name
+      SELECT p.id, p.user_id, p.organization_id, p.customer_id, p.title, p.content, p.media_urls, p.hashtags,
+             p.status, p.scheduled_at, p.published_at, p.ai_generated, p.ai_prompt, p.content_category,
+             p.evergreen, p.recycle_count, p.last_recycled_at, p.created_at, p.updated_at,
+             c.name as customer_name
       FROM social_media_posts p
       LEFT JOIN customers c ON p.customer_id = c.id
       WHERE p.organization_id = $1
@@ -148,7 +210,10 @@ router.get('/posts/:id', authenticateToken, attachOrganization, async (req: Auth
     const { id } = req.params;
 
     const postResult = await pool.query(
-      `SELECT p.*, c.name as customer_name
+      `SELECT p.id, p.user_id, p.organization_id, p.customer_id, p.title, p.content, p.media_urls, p.hashtags,
+              p.status, p.scheduled_at, p.published_at, p.ai_generated, p.ai_prompt, p.content_category,
+              p.evergreen, p.recycle_count, p.last_recycled_at, p.created_at, p.updated_at,
+              c.name as customer_name
        FROM social_media_posts p
        LEFT JOIN customers c ON p.customer_id = c.id
        WHERE p.id = $1 AND p.organization_id = $2`,
@@ -212,7 +277,7 @@ router.post('/posts', authenticateToken, attachOrganization, requireOrgRole('mem
       }
     }
 
-    const result = await pool.query('SELECT * FROM social_media_posts WHERE id = $1', [id]);
+    const result = await pool.query(`SELECT ${SM_POST_COLUMNS} FROM social_media_posts WHERE id = $1`, [id]);
     res.status(201).json(transformRow(result.rows[0]));
   } catch (error) {
     console.error('Create post error:', error);
@@ -286,7 +351,7 @@ router.put('/posts/:id', authenticateToken, attachOrganization, requireOrgRole('
       values
     );
 
-    const result = await pool.query('SELECT * FROM social_media_posts WHERE id = $1', [id]);
+    const result = await pool.query(`SELECT ${SM_POST_COLUMNS} FROM social_media_posts WHERE id = $1`, [id]);
     res.json(transformRow(result.rows[0]));
   } catch (error) {
     console.error('Update post error:', error);
@@ -328,7 +393,7 @@ router.get('/templates', authenticateToken, attachOrganization, async (req: Auth
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      'SELECT * FROM social_media_templates WHERE organization_id = $1 AND is_active = true ORDER BY name',
+      `SELECT ${SM_TEMPLATE_COLUMNS} FROM social_media_templates WHERE organization_id = $1 AND is_active = true ORDER BY name`,
       [organizationId]
     );
 
@@ -355,7 +420,7 @@ router.post('/templates', authenticateToken, attachOrganization, requireOrgRole(
       [id, userId, organizationId, name, content, platform || 'all', category || null, hashtags || []]
     );
 
-    const result = await pool.query('SELECT * FROM social_media_templates WHERE id = $1', [id]);
+    const result = await pool.query(`SELECT ${SM_TEMPLATE_COLUMNS} FROM social_media_templates WHERE id = $1`, [id]);
     res.status(201).json(transformRow(result.rows[0]));
   } catch (error) {
     console.error('Create template error:', error);
@@ -393,7 +458,7 @@ router.get('/hashtags', authenticateToken, attachOrganization, async (req: AuthR
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      'SELECT * FROM social_media_hashtag_groups WHERE organization_id = $1 ORDER BY name',
+      `SELECT ${SM_HASHTAG_GROUP_COLUMNS} FROM social_media_hashtag_groups WHERE organization_id = $1 ORDER BY name`,
       [organizationId]
     );
 
@@ -420,7 +485,7 @@ router.post('/hashtags', authenticateToken, attachOrganization, requireOrgRole('
       [id, userId, organizationId, name, hashtags, category || null]
     );
 
-    const result = await pool.query('SELECT * FROM social_media_hashtag_groups WHERE id = $1', [id]);
+    const result = await pool.query(`SELECT ${SM_HASHTAG_GROUP_COLUMNS} FROM social_media_hashtag_groups WHERE id = $1`, [id]);
     res.status(201).json(transformRow(result.rows[0]));
   } catch (error) {
     console.error('Create hashtag group error:', error);
@@ -690,7 +755,10 @@ router.get('/queue', authenticateToken, attachOrganization, async (req: AuthRequ
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT p.*, c.name as customer_name
+      `SELECT p.id, p.user_id, p.organization_id, p.customer_id, p.title, p.content, p.media_urls, p.hashtags,
+              p.status, p.scheduled_at, p.published_at, p.ai_generated, p.ai_prompt, p.content_category,
+              p.evergreen, p.recycle_count, p.last_recycled_at, p.created_at, p.updated_at,
+              c.name as customer_name
        FROM social_media_posts p
        LEFT JOIN customers c ON p.customer_id = c.id
        WHERE p.organization_id = $1 AND p.status = 'scheduled' AND p.scheduled_at > NOW()
@@ -723,7 +791,7 @@ router.post('/queue/add', authenticateToken, attachOrganization, requireOrgRole(
 
     // Get queue settings or use defaults
     const settingsResult = await pool.query(
-      `SELECT * FROM social_media_queue_settings WHERE organization_id = $1`,
+      `SELECT ${SM_QUEUE_SETTINGS_COLUMNS} FROM social_media_queue_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -779,7 +847,7 @@ router.post('/queue/add', authenticateToken, attachOrganization, requireOrgRole(
     );
 
     const newPost = await pool.query(
-      `SELECT * FROM social_media_posts WHERE id = $1`,
+      `SELECT ${SM_POST_COLUMNS} FROM social_media_posts WHERE id = $1`,
       [id]
     );
 
@@ -801,7 +869,7 @@ router.get('/queue/settings', authenticateToken, attachOrganization, async (req:
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_queue_settings WHERE organization_id = $1`,
+      `SELECT ${SM_QUEUE_SETTINGS_COLUMNS} FROM social_media_queue_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -1219,7 +1287,10 @@ router.get('/evergreen', authenticateToken, attachOrganization, async (req: Auth
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT p.*, c.name as customer_name,
+      `SELECT p.id, p.user_id, p.organization_id, p.customer_id, p.title, p.content, p.media_urls, p.hashtags,
+              p.status, p.scheduled_at, p.published_at, p.ai_generated, p.ai_prompt, p.content_category,
+              p.evergreen, p.recycle_count, p.last_recycled_at, p.created_at, p.updated_at,
+              c.name as customer_name,
               COALESCE(
                 (SELECT SUM(engagement_likes + engagement_comments + engagement_shares)
                  FROM social_media_post_platforms WHERE post_id = p.id), 0
@@ -1268,7 +1339,7 @@ router.post('/evergreen/recycle', authenticateToken, attachOrganization, require
 
     // Get the original post
     const original = await pool.query(
-      `SELECT * FROM social_media_posts WHERE id = $1 AND organization_id = $2`,
+      `SELECT ${SM_POST_COLUMNS} FROM social_media_posts WHERE id = $1 AND organization_id = $2`,
       [postId, organizationId]
     );
 
@@ -1529,7 +1600,7 @@ router.get('/autopilot/settings', authenticateToken, attachOrganization, async (
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_autopilot_settings WHERE organization_id = $1`,
+      `SELECT ${SM_AUTOPILOT_COLUMNS} FROM social_media_autopilot_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -1592,7 +1663,7 @@ router.post('/autopilot/generate', authenticateToken, attachOrganization, requir
 
     // Get autopilot settings
     const settingsResult = await pool.query(
-      `SELECT * FROM social_media_autopilot_settings WHERE organization_id = $1`,
+      `SELECT ${SM_AUTOPILOT_COLUMNS} FROM social_media_autopilot_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -1720,7 +1791,7 @@ router.get('/autopilot/pending', authenticateToken, attachOrganization, async (r
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_posts
+      `SELECT ${SM_POST_COLUMNS} FROM social_media_posts
        WHERE organization_id = $1 AND status = 'draft' AND ai_generated = true AND ai_prompt LIKE 'Autopilot:%'
        ORDER BY scheduled_at`,
       [organizationId]
@@ -1921,7 +1992,7 @@ router.get('/competitors', authenticateToken, attachOrganization, async (req: Au
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_competitors WHERE organization_id = $1 ORDER BY created_at DESC`,
+      `SELECT ${SM_COMPETITOR_COLUMNS} FROM social_media_competitors WHERE organization_id = $1 ORDER BY created_at DESC`,
       [organizationId]
     );
 
@@ -1982,7 +2053,7 @@ router.post('/competitors/:id/analyze', authenticateToken, attachOrganization, r
 
     // Get competitor info
     const competitorResult = await pool.query(
-      `SELECT * FROM social_media_competitors WHERE id = $1 AND organization_id = $2`,
+      `SELECT ${SM_COMPETITOR_COLUMNS} FROM social_media_competitors WHERE id = $1 AND organization_id = $2`,
       [id, organizationId]
     );
 
@@ -2046,7 +2117,7 @@ router.get('/engagement/settings', authenticateToken, attachOrganization, async 
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_engagement_settings WHERE organization_id = $1`,
+      `SELECT ${SM_ENGAGEMENT_SETTINGS_COLUMNS} FROM social_media_engagement_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -2106,7 +2177,7 @@ router.post('/engagement/generate', authenticateToken, attachOrganization, requi
 
     // Get engagement settings
     const settingsResult = await pool.query(
-      `SELECT * FROM social_media_engagement_settings WHERE organization_id = $1`,
+      `SELECT ${SM_ENGAGEMENT_SETTINGS_COLUMNS} FROM social_media_engagement_settings WHERE organization_id = $1`,
       [organizationId]
     );
 
@@ -2145,7 +2216,7 @@ router.get('/engagement/history', authenticateToken, attachOrganization, async (
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_engagement_history
+      `SELECT ${SM_ENGAGEMENT_HISTORY_COLUMNS} FROM social_media_engagement_history
        WHERE organization_id = $1
        ORDER BY created_at DESC LIMIT 100`,
       [organizationId]
@@ -2409,7 +2480,7 @@ router.get('/stories', authenticateToken, attachOrganization, async (req: AuthRe
     const organizationId = orgReq.organization.id;
     const { status, platform } = req.query;
 
-    let queryText = `SELECT * FROM social_media_stories WHERE organization_id = $1`;
+    let queryText = `SELECT ${SM_STORY_COLUMNS} FROM social_media_stories WHERE organization_id = $1`;
     const params: any[] = [organizationId];
     let paramIndex = 2;
 
@@ -2645,7 +2716,7 @@ router.get('/images/history', authenticateToken, attachOrganization, async (req:
     const { limit = 50 } = req.query;
 
     const result = await pool.query(
-      `SELECT * FROM social_media_generated_images
+      `SELECT ${SM_GENERATED_IMAGE_COLUMNS} FROM social_media_generated_images
        WHERE organization_id = $1
        ORDER BY created_at DESC
        LIMIT $2`,
@@ -2670,7 +2741,7 @@ router.get('/story-templates', authenticateToken, attachOrganization, async (req
     const organizationId = orgReq.organization.id;
     const { category, contentType } = req.query;
 
-    let queryText = `SELECT * FROM social_media_story_templates
+    let queryText = `SELECT ${SM_STORY_TEMPLATE_COLUMNS} FROM social_media_story_templates
                      WHERE (organization_id = $1 OR is_system = true)`;
     const params: any[] = [organizationId];
     let paramIndex = 2;

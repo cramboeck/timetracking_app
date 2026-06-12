@@ -363,7 +363,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
 | ✅ | **Tickets-Paginierung** im Main-Endpoint | `server/src/routes/tickets.ts` | 3-4h | Commit 1d46536. `?page=&limit=50` (max 200), `?all=true` Legacy, `?searchText=` Filter, SELECT * eliminiert. |
-| ⬜ | **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h | Explizite Spaltenlisten. Verbleibend: social-media.ts (21×), customers.ts (20×), entries.ts (12×), tickets.ts (10×), user.ts (8×). |
+| ✅ | **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h | Alle direkten Tabellen-SELECT * durch explizite Spaltenlisten ersetzt (Commits 238a621, 8d76960, 2ff11a9, 29e5abe). Verbleibend nur: `SELECT * FROM (subquery)` Patterns (OK). |
 | ⬜ | **Multi-Tenancy**: `organization_id` für ~30 Tabellen nachrüsten | `server/src/config/database.ts` | 4-6h | Migration mit `IF NOT EXISTS` + Backfill aus `user_id`. Betroffene Tabellen: `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams`, `trusted_devices`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_*`, `customer_portal_*`, `ai_config`, `sevdesk_*`, `invoice_exports`, `clockodo_config`. |
 | ⬜ | **Fehlende DB-Indexes** auf `organization_id` | `server/src/config/database.ts` | 1-2h | `CREATE INDEX IF NOT EXISTS` für: `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_*`, `ticket_email_attachments`. |
 
@@ -571,3 +571,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 ---
 
 *Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3 begonnen. Neue Anforderungen ergänzt: Sprints A–F (Interne Arbeitszeit + Kundenportal-Überarbeitung). Architekturentscheidungen getroffen und dokumentiert.*
+*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3: Tickets-Paginierung ✅ (Commit 1d46536), SELECT * Elimination ✅ (alle 31 Dateien). Verbleibend in Sprint 3: Multi-Tenancy + DB-Indexes.*

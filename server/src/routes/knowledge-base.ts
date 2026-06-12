@@ -8,6 +8,12 @@ import { validate } from '../middleware/validation';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const PORTAL_SETTINGS_COLUMNS = `
+  id, user_id, company_name, welcome_message, logo_url, primary_color,
+  show_knowledge_base, require_login_for_kb, teamviewer_link, created_at, updated_at
+`;
+
 // Zod schemas
 const createCategorySchema = z.object({
   name: z.string().min(1).max(200),
@@ -544,7 +550,7 @@ router.get('/portal-settings', authenticateToken, async (req: AuthRequest, res: 
     const userId = req.userId!;
 
     const result = await pool.query(
-      'SELECT * FROM portal_settings WHERE user_id = $1',
+      `SELECT ${PORTAL_SETTINGS_COLUMNS} FROM portal_settings WHERE user_id = $1`,
       [userId]
     );
 

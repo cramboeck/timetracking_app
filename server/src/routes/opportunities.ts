@@ -15,6 +15,14 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// ============================================
+// Explicit column lists (no SELECT *)
+// ============================================
+
+const PIPELINE_STAGE_COLUMNS = `
+  id, organization_id, name, description, color, probability, sort_order, is_won, is_lost, created_at
+`;
+
 // All routes require authentication
 router.use(authenticateToken);
 
@@ -118,7 +126,7 @@ router.get('/stages', async (req: Request, res: Response) => {
     }
 
     const result = await query(`
-      SELECT * FROM pipeline_stages
+      SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
       WHERE organization_id = $1
       ORDER BY sort_order ASC
     `, [organizationId]);
@@ -144,7 +152,7 @@ router.get('/stages', async (req: Request, res: Response) => {
 
       // Fetch again
       const newResult = await query(`
-        SELECT * FROM pipeline_stages
+        SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
         WHERE organization_id = $1
         ORDER BY sort_order ASC
       `, [organizationId]);
@@ -243,7 +251,7 @@ router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request
     }
 
     const result = await query(`
-      SELECT * FROM pipeline_stages
+      SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
       WHERE organization_id = $1
       ORDER BY sort_order ASC
     `, [organizationId]);
@@ -405,7 +413,7 @@ router.get('/pipeline', async (req: Request, res: Response) => {
 
     // Get stages
     const stages = await query(`
-      SELECT * FROM pipeline_stages
+      SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
       WHERE organization_id = $1
       ORDER BY sort_order ASC
     `, [organizationId]);
@@ -764,7 +772,7 @@ router.post('/:id/move', validate(moveOpportunitySchema), async (req: Request, r
     // Get current and new stage
     const [current, newStage] = await Promise.all([
       query('SELECT stage_id FROM opportunities WHERE id = $1 AND organization_id = $2', [id, organizationId]),
-      query('SELECT * FROM pipeline_stages WHERE id = $1 AND organization_id = $2', [stage_id, organizationId])
+      query('SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages WHERE id = $1 AND organization_id = $2', [stage_id, organizationId])
     ]);
 
     if (current.rows.length === 0) {

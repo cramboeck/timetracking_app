@@ -7,6 +7,12 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 
 const router = Router();
 
+// Explicit column lists (no SELECT *)
+const TEAM_COLUMNS = `id, name, owner_id, created_at`;
+const TEAM_INVITATION_COLUMNS = `
+  id, team_id, invitation_code, role, created_by, expires_at, used_by, used_at, created_at
+`;
+
 // Validation schemas
 const createTeamSchema = z.object({
   name: z.string().min(1)
@@ -36,7 +42,7 @@ router.get('/my-team', authenticateToken, async (req: AuthRequest, res) => {
 
     // Get team details
     const teamResult = await pool.query(
-      'SELECT * FROM teams WHERE id = $1',
+      `SELECT ${TEAM_COLUMNS} FROM teams WHERE id = $1`,
       [teamId]
     );
 
@@ -98,7 +104,7 @@ router.post('/', authenticateToken, validate(createTeamSchema), async (req: Auth
     );
 
     // Fetch the created team
-    const result = await pool.query('SELECT * FROM teams WHERE id = $1', [teamId]);
+    const result = await pool.query(`SELECT ${TEAM_COLUMNS} FROM teams WHERE id = $1`, [teamId]);
     const team = transformRow(result.rows[0]);
 
     res.json(team);
@@ -317,7 +323,7 @@ router.post('/join/:invitationCode', authenticateToken, async (req: AuthRequest,
 
     // Get invitation
     const invitationResult = await pool.query(
-      `SELECT * FROM team_invitations
+      `SELECT ${TEAM_INVITATION_COLUMNS} FROM team_invitations
        WHERE invitation_code = $1 AND used_by IS NULL AND expires_at > NOW()`,
       [invitationCode]
     );
@@ -341,7 +347,7 @@ router.post('/join/:invitationCode', authenticateToken, async (req: AuthRequest,
     );
 
     // Get team details
-    const teamResult = await pool.query('SELECT * FROM teams WHERE id = $1', [invitation.team_id]);
+    const teamResult = await pool.query(`SELECT ${TEAM_COLUMNS} FROM teams WHERE id = $1`, [invitation.team_id]);
     const team = transformRow(teamResult.rows[0]);
 
     res.json(team);
