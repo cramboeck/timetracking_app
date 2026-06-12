@@ -344,6 +344,9 @@ Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben 
 | ✅ | **Zod-Schemas für sevdesk.ts** — alle ~15 Endpoints validieren | `server/src/routes/sevdesk.ts` | 4-6h | 14 Endpoints + 20 Schemas. Commit 96c2aa3. |
 | ✅ | **Zod für Belege-Routen** — Phase-1-3-Endpoints nachrüsten | `server/src/routes/sevdesk.ts` | 2-3h | Mit obigem Commit erledigt (vouchers/upload, vouchers/create). |
 | ✅ | **Bounds-Checks** für page/limit in admin.ts | `server/src/routes/admin.ts` | 1h | 3 Endpoints (users, audit-logs, maintenance). Commit 96c2aa3. |
+| ✅ | **Zod für alle Backend-Module** — komplette Validierung | 10 weitere Dateien | 4-6h | Commit 3a42d62 + 3e66805: microsoft365.ts (11), admin.ts (10), ninjarmm.ts (5), mfa.ts (4), features.ts (1), organizations.ts (4), push.ts (3), import.ts (6), knowledge-base.ts (6). Alle Routes mit POST/PUT/PATCH haben jetzt Zod. |
+
+**Hinweis:** `customer-portal.ts` und `customer-metrics.ts` verwenden `safeParse()`-Muster statt `validate()`-Middleware — funktional äquivalent, nur anderes Pattern.
 
 ### 🟠 Sprint 2 — Farb-Cleanup & Toter Code
 
@@ -474,4 +477,4 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Roadmap vollständig neu strukturiert in 5 Sprints mit Checkboxen und Implementierungshinweisen für Claude Code. Neu dokumentiert: Purple-Cleanup (194 Vorkommen, 47 Dateien), toter Code (4 Komponenten), text-gray-Cleanup (495 Stellen). Sprint 1 (Sicherheit) hat höchste Priorität: sevdesk.ts ohne Zod-Validierung, SELECT * in 31 Dateien, parseInt ohne Bounds in admin.ts.*
+*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 (Sicherheit) ✅ abgeschlossen: Zod-Validierung für alle Backend-Module (microsoft365, admin, ninjarmm, mfa, features, organizations, push, import, knowledge-base), Bounds-Checks in admin.ts. Nächster Schritt: Sprint 2 (Purple-Cleanup, toter Code, text-gray-Cleanup).*
