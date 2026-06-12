@@ -14,6 +14,7 @@ import { Card } from './ui/Card';
 // Internal time categories
 const INTERNAL_CATEGORIES = [
   { value: 'admin', label: 'Administration' },
+  { value: 'accounting', label: 'Buchhaltung' },
   { value: 'sales', label: 'Vertrieb' },
   { value: 'marketing', label: 'Marketing' },
   { value: 'training', label: 'Weiterbildung' },

@@ -13,6 +13,7 @@ interface InternalTimeReportProps {
 // Category labels
 const INTERNAL_CATEGORY_LABELS: Record<string, string> = {
   admin: 'Administration',
+  accounting: 'Buchhaltung',
   sales: 'Vertrieb',
   marketing: 'Marketing',
   training: 'Weiterbildung',
@@ -30,6 +31,7 @@ const ABSENCE_CATEGORY_LABELS: Record<string, string> = {
 // Category colors for visual distinction
 const INTERNAL_CATEGORY_COLORS: Record<string, string> = {
   admin: 'bg-blue-500',
+  accounting: 'bg-emerald-500',
   sales: 'bg-green-500',
   marketing: 'bg-purple-500',
   training: 'bg-yellow-500',

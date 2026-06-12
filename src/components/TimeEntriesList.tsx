@@ -15,6 +15,7 @@ import { useToast } from '../contexts/UIContext';
 // Entry scope category labels
 const INTERNAL_CATEGORY_LABELS: Record<string, string> = {
   admin: 'Administration',
+  accounting: 'Buchhaltung',
   sales: 'Vertrieb',
   marketing: 'Marketing',
   training: 'Weiterbildung',
