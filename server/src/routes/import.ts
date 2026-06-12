@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
+import { validate } from '../middleware/validation';
 import { auditLog } from '../services/auditLog';
 import { transformRows } from '../utils/dbTransform';
 import * as clockodoService from '../services/clockodoService';
@@ -9,6 +11,42 @@ import fs from 'fs';
 import path from 'path';
 
 const router = Router();
+
+// Zod schemas
+const csvPreviewSchema = z.object({
+  csvContent: z.string().min(1).max(10000000),
+});
+
+const csvImportSchema = z.object({
+  csvContent: z.string().min(1).max(10000000),
+  customerMapping: z.record(z.string().uuid()).optional(),
+  projectMapping: z.record(z.string().uuid()).optional(),
+  defaultProjectId: z.string().uuid().optional().nullable(),
+  createMissingProjects: z.boolean().optional(),
+  skipDuplicates: z.boolean().optional(),
+});
+
+const clockodoCredentialsSchema = z.object({
+  apiEmail: z.string().email().max(200),
+  apiKey: z.string().min(1).max(200),
+});
+
+const clockodoImportSchema = z.object({
+  apiEmail: z.string().email().max(200),
+  apiKey: z.string().min(1).max(200),
+  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const clockodoExecuteSchema = z.object({
+  apiEmail: z.string().email().max(200),
+  apiKey: z.string().min(1).max(200),
+  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  customerMapping: z.record(z.string().uuid()).optional(),
+  projectMapping: z.record(z.string().uuid()).optional(),
+  importType: z.enum(['all', 'time_entries', 'customers', 'projects']).optional(),
+});
 
 // Import log file path
 const IMPORT_LOG_PATH = process.env.IMPORT_LOG_PATH || path.join(__dirname, '../../logs/import.log');
@@ -204,15 +242,12 @@ function parseCSVLine(line: string): string[] {
 }
 
 // POST /api/import/clockodo/preview - Preview import data
-router.post('/clockodo/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+router.post('/clockodo/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(csvPreviewSchema), async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { csvContent } = req.body;
-
-    if (!csvContent) {
-      return res.status(400).json({ error: 'CSV content is required' });
-    }
+    // Validation handled by Zod
 
     // Parse CSV
     const { rows, skippedRows } = parseClockodoCsv(csvContent);

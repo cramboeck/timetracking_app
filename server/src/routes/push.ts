@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { z } from 'zod';
 import {
   getVapidPublicKey,
   isPushConfigured,
@@ -11,8 +12,36 @@ import {
   generateVapidKeys,
 } from '../services/pushNotifications';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validation';
 
 const router = express.Router();
+
+// Zod schemas
+const subscriptionKeysSchema = z.object({
+  p256dh: z.string().min(1),
+  auth: z.string().min(1),
+});
+
+const subscribeSchema = z.object({
+  subscription: z.object({
+    endpoint: z.string().url().max(2000),
+    keys: subscriptionKeysSchema,
+    expirationTime: z.number().optional().nullable(),
+  }),
+  deviceName: z.string().max(200).optional(),
+});
+
+const unsubscribeSchema = z.object({
+  endpoint: z.string().url().max(2000),
+});
+
+const preferencesSchema = z.object({
+  ticketCreated: z.boolean().optional(),
+  ticketUpdated: z.boolean().optional(),
+  ticketCommented: z.boolean().optional(),
+  alertTriggered: z.boolean().optional(),
+  timerReminder: z.boolean().optional(),
+});
 
 // GET /api/push/vapid-public-key - Get VAPID public key for client subscription
 router.get('/vapid-public-key', (_req: Request, res: Response) => {
@@ -27,17 +56,11 @@ router.get('/vapid-public-key', (_req: Request, res: Response) => {
 });
 
 // POST /api/push/subscribe - Subscribe a device for push notifications
-router.post('/subscribe', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/subscribe', authenticateToken, validate(subscribeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { subscription, deviceName } = req.body;
     const userId = req.user!.id;
-
-    if (!subscription || !subscription.endpoint || !subscription.keys) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid subscription data',
-      });
-    }
+    // Validation handled by Zod
 
     const result = await subscribeDevice(userId, subscription, deviceName);
 
@@ -63,16 +86,10 @@ router.post('/subscribe', authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 // POST /api/push/unsubscribe - Unsubscribe a device
-router.post('/unsubscribe', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/unsubscribe', authenticateToken, validate(unsubscribeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { endpoint } = req.body;
-
-    if (!endpoint) {
-      return res.status(400).json({
-        success: false,
-        error: 'Endpoint is required',
-      });
-    }
+    // Validation handled by Zod
 
     const result = await unsubscribeDevice(endpoint);
 
@@ -192,7 +209,7 @@ router.get('/preferences', authenticateToken, async (req: AuthRequest, res: Resp
 });
 
 // PUT /api/push/preferences - Update notification preferences
-router.put('/preferences', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.put('/preferences', authenticateToken, validate(preferencesSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const preferences = req.body;

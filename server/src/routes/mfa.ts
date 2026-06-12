@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
 import { pool } from '../config/database';
@@ -6,10 +7,27 @@ import jwt from 'jsonwebtoken';
 import { refreshTokenService } from '../services/refreshTokenService';
 import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
+import { validate } from '../middleware/validation';
 import bcrypt from 'bcryptjs';
 import { UAParser } from 'ua-parser-js';
 
 const router = Router();
+
+// Zod schemas
+const codeSchema = z.object({
+  code: z.string().min(6).max(6).regex(/^\d+$/, 'Code must be 6 digits'),
+});
+
+const passwordCodeSchema = z.object({
+  password: z.string().min(1).max(200),
+  code: z.string().min(6).max(6).regex(/^\d+$/, 'Code must be 6 digits'),
+});
+
+const verifyMfaSchema = z.object({
+  mfaToken: z.string().min(1).max(1000),
+  code: z.string().min(6).max(6).regex(/^\d+$/, 'Code must be 6 digits'),
+  trustDevice: z.boolean().optional(),
+});
 
 // Trusted device settings
 const TRUST_DURATION_DAYS = 30;
@@ -276,7 +294,7 @@ router.post('/setup', async (req, res) => {
  * POST /api/mfa/verify-setup
  * Verify the TOTP code and enable MFA
  */
-router.post('/verify-setup', async (req, res) => {
+router.post('/verify-setup', validate(codeSchema), async (req, res) => {
   try {
     const { code } = req.body;
     const user = await getUserFromToken(req);
@@ -332,7 +350,7 @@ router.post('/verify-setup', async (req, res) => {
  * POST /api/mfa/disable
  * Disable MFA (requires password confirmation)
  */
-router.post('/disable', async (req, res) => {
+router.post('/disable', validate(passwordCodeSchema), async (req, res) => {
   try {
     const { password, code } = req.body;
     const user = await getUserFromToken(req);
@@ -390,15 +408,12 @@ router.post('/disable', async (req, res) => {
  * POST /api/mfa/verify
  * Verify TOTP code during login (called after password verification)
  */
-router.post('/verify', async (req, res) => {
+router.post('/verify', validate(verifyMfaSchema), async (req, res) => {
   try {
     const { mfaToken, code, trustDevice } = req.body;
     const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
-
-    if (!mfaToken || !code) {
-      return res.status(400).json({ error: 'Missing MFA token or code' });
-    }
+    // Validation handled by Zod
 
     // Verify the temporary MFA token
     let decoded: any;
@@ -592,7 +607,7 @@ router.get('/recovery-codes', async (req, res) => {
  * POST /api/mfa/regenerate-recovery-codes
  * Generate new recovery codes (requires password and TOTP)
  */
-router.post('/regenerate-recovery-codes', async (req, res) => {
+router.post('/regenerate-recovery-codes', validate(passwordCodeSchema), async (req, res) => {
   try {
     const { password, code } = req.body;
     const user = await getUserFromToken(req);

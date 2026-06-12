@@ -2,14 +2,105 @@ import { Router, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { z } from 'zod';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, requireOrgRole } from '../middleware/organization';
+import { validate } from '../middleware/validation';
 import * as microsoft365Service from '../services/microsoft365ConfigService';
 import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import multer from 'multer';
+
+// ============================================================================
+// Zod validation schemas
+// ============================================================================
+
+const featuresEnabledSchema = z.object({
+  email: z.boolean().optional(),
+  inboxMonitoring: z.boolean().optional(),
+  calendar: z.boolean().optional(),
+}).optional();
+
+const configSchema = z.object({
+  tenantId: z.string().max(100).optional(),
+  clientId: z.string().max(100).optional(),
+  clientSecret: z.string().max(500).optional(),
+  mailFrom: z.string().email().max(200).optional().or(z.literal('')),
+  supportMailbox: z.string().email().max(200).optional().or(z.literal('')),
+  invoiceMailbox: z.string().email().max(200).optional().or(z.literal('')),
+  featuresEnabled: featuresEnabledSchema,
+});
+
+const testConnectionSchema = z.object({
+  tenantId: z.string().min(1).max(100).optional(),
+  clientId: z.string().min(1).max(100).optional(),
+  clientSecret: z.string().min(1).max(500).optional(),
+  mailFrom: z.string().email().max(200).optional(),
+});
+
+const mailboxTypeSchema = z.enum(['support', 'invoice']);
+
+const startInboxSchema = z.object({
+  mailbox: z.string().email().max(200),
+  mailboxType: mailboxTypeSchema,
+});
+
+const stopInboxSchema = z.object({
+  mailboxType: mailboxTypeSchema,
+});
+
+const replyMessageSchema = z.object({
+  content: z.string().min(1).max(100000),
+  replyAll: z.boolean().optional(),
+  mailboxType: mailboxTypeSchema.optional(),
+});
+
+const prioritySchema = z.enum(['low', 'normal', 'high', 'critical']);
+
+const createTicketSchema = z.object({
+  priority: prioritySchema.optional(),
+  customerId: z.string().uuid().optional(),
+});
+
+const linkTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+});
+
+const markProcessedSchema = z.object({
+  includeRead: z.boolean().optional(),
+});
+
+const extractedDataSchema = z.object({
+  vendorName: z.string().max(500).optional(),
+  invoiceNumber: z.string().max(100).optional(),
+  invoiceDate: z.string().max(20).optional(),
+  dueDate: z.string().max(20).optional(),
+  totalGross: z.number().min(0).max(10000000).optional(),
+  totalNet: z.number().min(0).max(10000000).optional(),
+  taxAmount: z.number().min(0).max(10000000).optional(),
+  taxRate: z.number().min(0).max(100).optional(),
+  currency: z.string().max(10).optional(),
+  iban: z.string().max(50).optional(),
+  paymentReference: z.string().max(200).optional(),
+}).optional();
+
+const finalizeVoucherSchema = z.object({
+  extractedData: extractedDataSchema,
+});
+
+const createReceiptSchema = z.object({
+  customerId: z.string().uuid().optional(),
+});
+
+const manualReceiptSchema = z.object({
+  customerId: z.string().uuid().optional(),
+});
+
+const optionalMailboxTypeSchema = z.object({
+  mailboxType: mailboxTypeSchema.optional(),
+});
 
 // In-memory multer fuer Manual-Receipt-Upload. Wir schreiben die Datei
 // selbst in den org-spezifischen Storage (analog zum Email-Pfad), deshalb
@@ -85,7 +176,7 @@ router.get('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Res
 });
 
 // POST /api/microsoft365/config - Save Microsoft 365 config
-router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/config', requireOrgRole('admin'), validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -121,7 +212,7 @@ router.post('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Re
 });
 
 // POST /api/microsoft365/test - Test Microsoft 365 connection
-router.post('/test', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/test', requireOrgRole('admin'), validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -211,7 +302,7 @@ router.delete('/config', requireOrgRole('admin'), async (req: AuthRequest, res: 
 // ========================================
 
 // POST /api/microsoft365/mailbox/test - Test mailbox access
-router.post('/mailbox/test', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/test', requireOrgRole('admin'), validate(startInboxSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -326,7 +417,7 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (r
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/read - Mark email as read
-router.post('/mailbox/emails/:id/read', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/read', requireOrgRole('member'), validate(optionalMailboxTypeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -353,19 +444,13 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('member'), async (req: Au
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/reply - Reply to email
-router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), validate(replyMessageSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
     const { content, replyAll, mailboxType } = req.body;
-
-    if (!content) {
-      return res.status(400).json({
-        success: false,
-        error: 'Antwort-Inhalt erforderlich',
-      });
-    }
+    // Validation handled by Zod
 
     const success = await mailboxMonitorService.replyToEmail(
       organizationId,
@@ -602,7 +687,7 @@ router.get('/support/emails/:id/customer-lookup', requireOrgRole('member'), asyn
 });
 
 // POST /api/microsoft365/support/emails/:id/create-ticket - Create ticket from email
-router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), validate(createTicketSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -810,19 +895,13 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
 });
 
 // POST /api/microsoft365/support/emails/:id/link-ticket - Link email to existing ticket
-router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), validate(linkTicketSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const messageId = req.params.id;
     const { ticketId } = req.body;
-
-    if (!ticketId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Ticket ID erforderlich',
-      });
-    }
+    // Validation handled by Zod
 
     // Verify ticket exists and belongs to organization
     const ticketResult = await query(`
@@ -994,7 +1073,7 @@ router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequ
 
 // POST /api/microsoft365/invoices/process - Process invoice mailbox
 // Set includeRead=true to also process already read emails (for re-processing after clear all)
-router.post('/invoices/process', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/invoices/process', requireOrgRole('admin'), validate(markProcessedSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1327,7 +1406,7 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
 });
 
 // POST /api/microsoft365/invoices/:id/approve - Approve a draft invoice
-router.post('/invoices/:id/approve', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+router.post('/invoices/:id/approve', requireOrgRole('admin'), validate(finalizeVoucherSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1412,7 +1491,7 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
 });
 
 // POST /api/microsoft365/support/emails/:id/save-as-interaction - Save email as customer interaction
-router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'), validate(createReceiptSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1612,7 +1691,7 @@ router.get('/personal/emails', requireOrgRole('member'), async (req: AuthRequest
 });
 
 // POST /api/microsoft365/personal/emails/:id/save-as-interaction - Save personal email as interaction
-router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member'), validate(createReceiptSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
