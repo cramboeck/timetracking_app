@@ -3,9 +3,11 @@ import { FileText, PieChart, TrendingUp, Calendar, Users, Coffee, Briefcase } fr
 import { Button } from './ui';
 import { ReportAssistant } from './ReportAssistant';
 import { InternalTimeReport } from './InternalTimeReport';
+import { AdminTeamTimeView } from './AdminTeamTimeView';
 import { TimeEntry, Project, Customer, Activity } from '../types';
+import { useTeam } from '../contexts/TeamContext';
 
-type ReportTab = 'customer' | 'internal';
+type ReportTab = 'customer' | 'internal' | 'team';
 
 interface ReportsPageProps {
   entries: TimeEntry[];
@@ -22,6 +24,11 @@ export const ReportsPage = ({
 }: ReportsPageProps) => {
   const [reportAssistantOpen, setReportAssistantOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReportTab>('customer');
+  const { currentOrganization } = useTeam();
+
+  // Check if user is admin or owner
+  const userRole = currentOrganization?.user_role;
+  const isAdmin = userRole === 'admin' || userRole === 'owner';
 
   // Calculate some quick stats
   const thisMonth = new Date();
@@ -29,7 +36,7 @@ export const ReportsPage = ({
   thisMonth.setHours(0, 0, 0, 0);
 
   const thisMonthEntries = entries.filter(e => {
-    const date = new Date(e.startTime || e.date);
+    const date = new Date(e.startTime);
     return date >= thisMonth;
   });
 
@@ -87,6 +94,19 @@ export const ReportsPage = ({
               <Coffee size={18} />
               Interne Auswertung
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === 'team'
+                    ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Users size={18} />
+                Team-Zeiten
+              </button>
+            )}
           </div>
 
           {activeTab === 'customer' && (
@@ -186,6 +206,11 @@ export const ReportsPage = ({
         {/* Internal Time Report Tab Content */}
         {activeTab === 'internal' && (
           <InternalTimeReport entries={entries} />
+        )}
+
+        {/* Team Time Report Tab Content (Admin only) */}
+        {activeTab === 'team' && isAdmin && (
+          <AdminTeamTimeView />
         )}
       </div>
 

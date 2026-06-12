@@ -302,6 +302,252 @@ router.get('/timeframes', authenticateToken, attachOrganization, async (req: Aut
   }
 });
 
+// Zod schema for team entries query params
+const teamEntriesQuerySchema = z.object({
+  userId: z.string().uuid().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  entryScope: entryScopeSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(500).default(100)
+});
+
+// GET /api/entries/team - Get all team members' time entries (admin/manager only)
+// Supports filters: ?userId=UUID, ?startDate=ISO, ?endDate=ISO, ?entryScope=customer_project|internal|absence
+// Pagination: ?page=1&limit=100
+router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    // Validate query params
+    const parseResult = teamEntriesQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Invalid query parameters',
+        details: parseResult.error.issues
+      });
+    }
+
+    const { userId, startDate, endDate, entryScope, page, limit } = parseResult.data;
+    const offset = (page - 1) * limit;
+
+    // Build WHERE clause
+    const params: unknown[] = [organizationId];
+    let whereClause = 'WHERE te.organization_id = $1';
+
+    if (userId) {
+      params.push(userId);
+      whereClause += ` AND te.user_id = $${params.length}`;
+    }
+    if (startDate) {
+      params.push(startDate);
+      whereClause += ` AND te.start_time >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereClause += ` AND te.start_time <= $${params.length}`;
+    }
+    if (entryScope) {
+      params.push(entryScope);
+      whereClause += ` AND te.entry_scope = $${params.length}`;
+    }
+
+    // Get team members for this organization
+    const membersResult = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.email, om.role
+       FROM users u
+       JOIN organization_members om ON u.id = om.user_id
+       WHERE om.organization_id = $1
+       ORDER BY u.display_name NULLS LAST, u.username`,
+      [organizationId]
+    );
+
+    // Count total entries
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM time_entries te ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Fetch entries with user info and project/activity names
+    params.push(limit, offset);
+    const entriesResult = await pool.query(
+      `SELECT
+         te.id, te.organization_id, te.user_id, te.project_id, te.activity_id, te.ticket_id,
+         te.start_time, te.end_time, te.duration, te.description, te.is_running, te.is_billable,
+         te.created_at, te.entry_scope, te.internal_category, te.customer_visibility,
+         u.username AS user_username,
+         u.display_name AS user_display_name,
+         p.name AS project_name,
+         c.name AS customer_name,
+         a.name AS activity_name
+       FROM time_entries te
+       LEFT JOIN users u ON te.user_id = u.id
+       LEFT JOIN projects p ON te.project_id = p.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN activities a ON te.activity_id = a.id
+       ${whereClause}
+       ORDER BY te.start_time DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    // Calculate summary stats
+    const statsParams: unknown[] = [organizationId];
+    let statsWhere = 'WHERE te.organization_id = $1';
+    if (userId) {
+      statsParams.push(userId);
+      statsWhere += ` AND te.user_id = $${statsParams.length}`;
+    }
+    if (startDate) {
+      statsParams.push(startDate);
+      statsWhere += ` AND te.start_time >= $${statsParams.length}`;
+    }
+    if (endDate) {
+      statsParams.push(endDate);
+      statsWhere += ` AND te.start_time <= $${statsParams.length}`;
+    }
+
+    const statsResult = await pool.query(
+      `SELECT
+         COALESCE(SUM(te.duration), 0) AS total_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'customer_project' THEN te.duration ELSE 0 END), 0) AS project_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'internal' THEN te.duration ELSE 0 END), 0) AS internal_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'absence' THEN te.duration ELSE 0 END), 0) AS absence_duration,
+         COALESCE(SUM(CASE WHEN te.is_billable THEN te.duration ELSE 0 END), 0) AS billable_duration,
+         COUNT(*)::int AS entry_count
+       FROM time_entries te
+       ${statsWhere}`,
+      statsParams
+    );
+
+    res.json({
+      success: true,
+      data: {
+        entries: transformRows(entriesResult.rows),
+        members: membersResult.rows.map(m => ({
+          id: m.id,
+          username: m.username,
+          displayName: m.display_name,
+          email: m.email,
+          role: m.role
+        })),
+        stats: {
+          totalDuration: parseInt(statsResult.rows[0].total_duration, 10),
+          projectDuration: parseInt(statsResult.rows[0].project_duration, 10),
+          internalDuration: parseInt(statsResult.rows[0].internal_duration, 10),
+          absenceDuration: parseInt(statsResult.rows[0].absence_duration, 10),
+          billableDuration: parseInt(statsResult.rows[0].billable_duration, 10),
+          entryCount: statsResult.rows[0].entry_count
+        }
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    });
+  } catch (error) {
+    logger.error('Get team entries error', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/entries/team/export - Export all team entries as CSV (admin/manager only)
+router.get('/team/export', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const parseResult = teamEntriesQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Invalid query parameters',
+        details: parseResult.error.issues
+      });
+    }
+
+    const { userId, startDate, endDate, entryScope } = parseResult.data;
+
+    const params: unknown[] = [organizationId];
+    let whereClause = 'WHERE te.organization_id = $1';
+
+    if (userId) {
+      params.push(userId);
+      whereClause += ` AND te.user_id = $${params.length}`;
+    }
+    if (startDate) {
+      params.push(startDate);
+      whereClause += ` AND te.start_time >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereClause += ` AND te.start_time <= $${params.length}`;
+    }
+    if (entryScope) {
+      params.push(entryScope);
+      whereClause += ` AND te.entry_scope = $${params.length}`;
+    }
+
+    const result = await pool.query(
+      `SELECT
+         te.start_time, te.end_time, te.duration, te.description, te.is_billable,
+         te.entry_scope, te.internal_category,
+         COALESCE(u.display_name, u.username) AS employee_name,
+         p.name AS project_name,
+         c.name AS customer_name,
+         a.name AS activity_name
+       FROM time_entries te
+       LEFT JOIN users u ON te.user_id = u.id
+       LEFT JOIN projects p ON te.project_id = p.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN activities a ON te.activity_id = a.id
+       ${whereClause}
+       ORDER BY te.start_time DESC`,
+      params
+    );
+
+    // Build CSV
+    const headers = ['Datum', 'Mitarbeiter', 'Buchungsart', 'Kategorie', 'Kunde', 'Projekt', 'Tätigkeit', 'Beschreibung', 'Dauer (Std)', 'Verrechenbar'];
+    const rows = result.rows.map(row => {
+      const date = new Date(row.start_time).toLocaleDateString('de-DE');
+      const scopeLabels: Record<string, string> = {
+        customer_project: 'Projektzeit',
+        internal: 'Interne Zeit',
+        absence: 'Abwesenheit'
+      };
+      const durationHours = (row.duration / 3600).toFixed(2);
+      return [
+        date,
+        row.employee_name || '',
+        scopeLabels[row.entry_scope] || row.entry_scope,
+        row.internal_category || '',
+        row.customer_name || '',
+        row.project_name || '',
+        row.activity_name || '',
+        (row.description || '').replace(/"/g, '""'),
+        durationHours,
+        row.is_billable ? 'Ja' : 'Nein'
+      ];
+    });
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="team-zeiterfassung-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send('﻿' + csvContent); // BOM for Excel UTF-8
+  } catch (error) {
+    logger.error('Export team entries error', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/entries/:id - Get single entry
 router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
