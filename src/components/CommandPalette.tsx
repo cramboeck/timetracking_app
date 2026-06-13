@@ -3,9 +3,13 @@ import {
   Search, Timer, PenLine, List, Calendar, LayoutDashboard,
   Ticket, Monitor, Bell, Wrench, Mail, BarChart2,
   Handshake, Share2, Settings, X, ArrowRight, Clock,
-  CheckSquare, FileInput
+  CheckSquare, FileInput, History
 } from 'lucide-react';
 import { SubView } from './AreaNavigation';
+
+// LocalStorage key for command history
+const COMMAND_HISTORY_KEY = 'command_palette_history';
+const MAX_HISTORY_ITEMS = 5;
 
 interface CommandItem {
   id: string;
@@ -163,15 +167,52 @@ interface CommandPaletteProps {
   onNavigate: (subView: SubView) => void;
 }
 
+// Load command history from localStorage
+const loadHistory = (): string[] => {
+  try {
+    const stored = localStorage.getItem(COMMAND_HISTORY_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+// Save command to history
+const saveToHistory = (commandId: string) => {
+  try {
+    const history = loadHistory();
+    // Remove if already exists (to move to front)
+    const filtered = history.filter(id => id !== commandId);
+    // Add to front and limit
+    const newHistory = [commandId, ...filtered].slice(0, MAX_HISTORY_ITEMS);
+    localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(newHistory));
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [history, setHistory] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
+  // Load history when palette opens
+  useEffect(() => {
+    if (isOpen) {
+      setHistory(loadHistory());
+    }
+  }, [isOpen]);
+
+  // Get recent commands from history
+  const recentCommands = history
+    .map(id => COMMANDS.find(cmd => cmd.id === id))
+    .filter((cmd): cmd is CommandItem => cmd !== undefined);
+
   // Filter commands based on query
-  const filtered = query.trim() === ''
+  const filteredCommands = query.trim() === ''
     ? COMMANDS
     : COMMANDS.filter((cmd) => {
         const q = query.toLowerCase();
@@ -181,6 +222,10 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
           cmd.keywords?.some((k) => k.includes(q))
         );
       });
+
+  // Combined list: show recent section when no query, otherwise just filtered
+  const showRecent = query.trim() === '' && recentCommands.length > 0;
+  const filtered = filteredCommands;
 
   // Open / close
   const open = useCallback(() => {
@@ -195,6 +240,7 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
   }, []);
 
   const execute = useCallback((cmd: CommandItem) => {
+    saveToHistory(cmd.id);
     onNavigate(cmd.subView);
     close();
   }, [onNavigate, close]);
@@ -226,17 +272,32 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
     setSelectedIndex(0);
   }, [query]);
 
+  // Total items for keyboard navigation (recent + all when showing recent)
+  const totalItems = showRecent ? recentCommands.length + filtered.length : filtered.length;
+
+  // Get command at index (accounting for recent section)
+  const getCommandAtIndex = (index: number): CommandItem | undefined => {
+    if (showRecent) {
+      if (index < recentCommands.length) {
+        return recentCommands[index];
+      }
+      return filtered[index - recentCommands.length];
+    }
+    return filtered[index];
+  };
+
   // Keyboard navigation within list
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setSelectedIndex((i) => Math.min(i + 1, totalItems - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filtered[selectedIndex]) execute(filtered[selectedIndex]);
+      const cmd = getCommandAtIndex(selectedIndex);
+      if (cmd) execute(cmd);
     }
   };
 
@@ -291,31 +352,74 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
               Keine Ergebnisse für „{query}"
             </li>
           )}
-          {filtered.map((cmd, idx) => (
-            <li key={cmd.id}>
-              <button
-                onClick={() => execute(cmd)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  idx === selectedIndex
-                    ? 'bg-accent-primary text-white'
-                    : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
-                }`}
-              >
-                <span className={idx === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
-                  {cmd.icon}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium truncate">{cmd.label}</span>
-                  {cmd.description && (
-                    <span className={`block text-xs truncate ${idx === selectedIndex ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
-                      {cmd.description}
+
+          {/* Recent commands section */}
+          {showRecent && (
+            <>
+              <li className="px-4 py-1.5 text-xs font-medium text-gray-400 dark:text-dark-400 flex items-center gap-2">
+                <History size={12} />
+                Zuletzt verwendet
+              </li>
+              {recentCommands.map((cmd, idx) => (
+                <li key={`recent-${cmd.id}`}>
+                  <button
+                    onClick={() => execute(cmd)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      idx === selectedIndex
+                        ? 'bg-accent-primary text-white'
+                        : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
+                    }`}
+                  >
+                    <span className={idx === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
+                      {cmd.icon}
                     </span>
-                  )}
-                </span>
-                <ArrowRight size={14} className={idx === selectedIndex ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
-              </button>
-            </li>
-          ))}
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-medium truncate">{cmd.label}</span>
+                      {cmd.description && (
+                        <span className={`block text-xs truncate ${idx === selectedIndex ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
+                          {cmd.description}
+                        </span>
+                      )}
+                    </span>
+                    <ArrowRight size={14} className={idx === selectedIndex ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
+                  </button>
+                </li>
+              ))}
+              <li className="px-4 py-1.5 mt-2 text-xs font-medium text-gray-400 dark:text-dark-400 border-t border-gray-100 dark:border-dark-200">
+                Alle Befehle
+              </li>
+            </>
+          )}
+
+          {/* All commands */}
+          {filtered.map((cmd, idx) => {
+            const actualIndex = showRecent ? idx + recentCommands.length : idx;
+            return (
+              <li key={cmd.id}>
+                <button
+                  onClick={() => execute(cmd)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                    actualIndex === selectedIndex
+                      ? 'bg-accent-primary text-white'
+                      : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
+                  }`}
+                >
+                  <span className={actualIndex === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
+                    {cmd.icon}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium truncate">{cmd.label}</span>
+                    {cmd.description && (
+                      <span className={`block text-xs truncate ${actualIndex === selectedIndex ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
+                        {cmd.description}
+                      </span>
+                    )}
+                  </span>
+                  <ArrowRight size={14} className={actualIndex === selectedIndex ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         {/* Footer hint */}
