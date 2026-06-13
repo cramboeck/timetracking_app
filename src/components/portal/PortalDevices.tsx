@@ -245,7 +245,7 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
   };
 
   const filteredDevices = useMemo(() => {
-    return devices.filter(device => {
+    const filtered = devices.filter(device => {
       // Search filter
       const matchesSearch = !searchTerm ||
         device.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -266,6 +266,18 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
         (problemFilter === 'healthy' && device.openAlerts === 0 && !device.offline);
 
       return matchesSearch && matchesOffline && matchesDeviceType && matchesProblem;
+    });
+
+    // Sort: devices with alerts first, then by name
+    return filtered.sort((a, b) => {
+      // Devices with alerts first
+      if (a.openAlerts > 0 && b.openAlerts === 0) return -1;
+      if (b.openAlerts > 0 && a.openAlerts === 0) return 1;
+      // Then offline devices
+      if (a.offline && !b.offline) return -1;
+      if (b.offline && !a.offline) return 1;
+      // Then by name
+      return (a.displayName || a.systemName).localeCompare(b.displayName || b.systemName);
     });
   }, [devices, searchTerm, showOffline, deviceTypeFilter, problemFilter]);
 
@@ -500,6 +512,35 @@ export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) =
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-400">
           {error}
+        </div>
+      )}
+
+      {/* Warning Summary Card */}
+      {deviceStats.withProblems > 0 && !searchTerm && problemFilter !== 'healthy' && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <AlertTriangle size={24} className="text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-red-800 dark:text-red-300">
+                  {deviceStats.withProblems} {deviceStats.withProblems === 1 ? 'Gerät' : 'Geräte'} mit Meldungen
+                </h3>
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  Diese Geräte benötigen Aufmerksamkeit
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setProblemFilter('problems')}
+              variant="secondary"
+              size="sm"
+              className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              Anzeigen
+            </Button>
+          </div>
         </div>
       )}
 

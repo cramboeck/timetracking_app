@@ -373,10 +373,16 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
     }
 
     let query = `
-      SELECT t.*, c.name as customer_name, p.name as project_name
+      SELECT t.id, t.ticket_number, t.title, t.description, t.status, t.priority,
+             t.created_at, t.updated_at, t.resolved_at, t.closed_at,
+             t.sla_first_response_due, t.sla_resolution_due,
+             t.first_response_at, t.sla_breached,
+             c.name as customer_name, p.name as project_name,
+             SPLIT_PART(u.username, '@', 1) as assigned_to_name
       FROM tickets t
       JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users u ON t.assigned_to_user_id = u.id
       WHERE t.customer_id = $1 AND t.user_id = $2
     `;
     const params: any[] = [req.customerId, userId];
@@ -393,20 +399,39 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
 
     const ticketsResult = await pool.query(query, params);
 
-    const tickets = ticketsResult.rows.map(ticket => ({
-      id: ticket.id,
-      ticketNumber: ticket.ticket_number,
-      title: ticket.title,
-      description: ticket.description,
-      status: ticket.status,
-      priority: ticket.priority,
-      customerName: ticket.customer_name,
-      projectName: ticket.project_name,
-      createdAt: ticket.created_at,
-      updatedAt: ticket.updated_at,
-      resolvedAt: ticket.resolved_at,
-      closedAt: ticket.closed_at,
-    }));
+    const tickets = ticketsResult.rows.map(ticket => {
+      // Calculate SLA status
+      let slaStatus: 'ok' | 'warning' | 'breached' = 'ok';
+      if (ticket.sla_breached) {
+        slaStatus = 'breached';
+      } else if (ticket.sla_resolution_due) {
+        const dueDate = new Date(ticket.sla_resolution_due);
+        const now = new Date();
+        const hoursUntilDue = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        if (hoursUntilDue < 0) {
+          slaStatus = 'breached';
+        } else if (hoursUntilDue < 4) {
+          slaStatus = 'warning';
+        }
+      }
+
+      return {
+        id: ticket.id,
+        ticketNumber: ticket.ticket_number,
+        title: ticket.title,
+        description: ticket.description,
+        status: ticket.status,
+        priority: ticket.priority,
+        customerName: ticket.customer_name,
+        projectName: ticket.project_name,
+        assignedToName: ticket.assigned_to_name || null,
+        slaStatus,
+        createdAt: ticket.created_at,
+        updatedAt: ticket.updated_at,
+        resolvedAt: ticket.resolved_at,
+        closedAt: ticket.closed_at,
+      };
+    });
 
     res.json(tickets);
   } catch (error) {

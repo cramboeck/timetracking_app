@@ -13,8 +13,9 @@ import { PortalInvoices } from './PortalInvoices';
 import { PortalTimeReport } from './PortalTimeReport';
 import { PortalContract } from './PortalContract';
 import { PortalWelcomeGuide } from './PortalWelcomeGuide';
+import { PortalDashboard } from './PortalDashboard';
 
-type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract';
+type PortalView = 'dashboard' | 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract';
 
 // LocalStorage key for welcome guide preference
 const WELCOME_GUIDE_KEY = 'portal_welcome_guide_seen';
@@ -24,7 +25,7 @@ export const CustomerPortal = () => {
   const [loading, setLoading] = useState(true);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [currentView, setCurrentView] = useState<PortalView>('tickets');
+  const [currentView, setCurrentView] = useState<PortalView>('dashboard');
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
@@ -152,7 +153,21 @@ export const CustomerPortal = () => {
   const handleLogout = () => {
     setContact(null);
     setSelectedTicketId(null);
-    setCurrentView('tickets');
+    setCurrentView('dashboard');
+  };
+
+  const handleShowDashboard = () => {
+    setCurrentView('dashboard');
+    setSelectedTicketId(null);
+  };
+
+  const handleDashboardNavigate = (view: string) => {
+    if (view === 'create-ticket') {
+      setShowCreateDialog(true);
+    } else {
+      setCurrentView(view as PortalView);
+      setSelectedTicketId(null);
+    }
   };
 
   const handleTicketSelect = (ticket: PortalTicket) => {
@@ -246,6 +261,7 @@ export const CustomerPortal = () => {
       onShowKnowledgeBase={portalSettings?.showKnowledgeBase !== false ? handleShowKnowledgeBase : undefined}
       onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
       onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
+      onShowDashboard={handleShowDashboard}
       onShowTimeReport={contact.canViewTimeReport && portalSettings?.showTimeReport ? handleShowTimeReport : undefined}
       onShowContract={contact.canViewContract && portalSettings?.showContractInfo ? handleShowContract : undefined}
       onShowTickets={handleShowTickets}
@@ -253,7 +269,13 @@ export const CustomerPortal = () => {
       currentView={currentView}
       portalSettings={portalSettings}
     >
-      {currentView === 'kb' ? (
+      {currentView === 'dashboard' ? (
+        <PortalDashboard
+          contact={contact}
+          portalSettings={portalSettings}
+          onNavigate={handleDashboardNavigate}
+        />
+      ) : currentView === 'kb' ? (
         <PortalKnowledgeBase userId={contact.userId} onBack={handleBack} />
       ) : currentView === 'profile' ? (
         <PortalProfile contact={contact} onBack={handleBack} />
@@ -270,11 +292,17 @@ export const CustomerPortal = () => {
           ticketId={selectedTicketId}
           onBack={handleBack}
         />
-      ) : (
+      ) : currentView === 'tickets' ? (
         <PortalTicketList
           contact={contact}
           onTicketSelect={handleTicketSelect}
           onCreateTicket={() => setShowCreateDialog(true)}
+        />
+      ) : (
+        <PortalDashboard
+          contact={contact}
+          portalSettings={portalSettings}
+          onNavigate={handleDashboardNavigate}
         />
       )}
 

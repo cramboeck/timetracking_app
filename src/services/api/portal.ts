@@ -101,6 +101,8 @@ export interface PortalTicket {
   priority: string;
   customerName: string;
   projectName?: string;
+  assignedToName?: string | null;
+  slaStatus?: 'ok' | 'warning' | 'breached';
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
