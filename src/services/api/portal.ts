@@ -88,6 +88,8 @@ export interface PortalContact {
   canViewDevices: boolean;
   canViewInvoices: boolean;
   canViewQuotes: boolean;
+  canViewTimeReport: boolean;
+  canViewContract: boolean;
 }
 
 export interface PortalTicket {
@@ -508,6 +510,52 @@ export const customerPortalApi = {
         method: 'POST',
       });
     },
+  },
+
+  // Time Report (Sprint D)
+  getTimeReportMonths: async (): Promise<{ success: boolean; data: { year: number; month: number; label: string }[] }> => {
+    return portalAuthFetch('/customer-portal/time-report/months');
+  },
+
+  getTimeReport: async (month: string): Promise<{ success: boolean; data: {
+    month: string;
+    totalHours: number;
+    billableHours: number;
+    byProject: {
+      projectId: string;
+      projectName: string;
+      hours: number;
+      billableHours: number;
+      entries: number;
+    }[];
+    detailedEntries?: {
+      id: string;
+      date: string;
+      hours: number;
+      projectName: string;
+      activityName: string | null;
+      description: string | null;
+      isBillable: boolean;
+    }[];
+    entryCount: number;
+  } }> => {
+    return portalAuthFetch(`/customer-portal/time-report?month=${month}`);
+  },
+
+  // Contract Info (Sprint D)
+  getContract: async (): Promise<{ success: boolean; data: {
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string | null;
+    monthlyHours: number | null;
+    usedHoursThisMonth: number;
+    slaResponseMinutes: number | null;
+    status: string;
+    contactPerson: string | null;
+    notes: string | null;
+  } | null }> => {
+    return portalAuthFetch('/customer-portal/contract');
   },
 };
 

@@ -10,9 +10,11 @@ import { PortalProfile } from './PortalProfile';
 import { PortalKnowledgeBase } from './PortalKnowledgeBase';
 import { PortalDevices } from './PortalDevices';
 import { PortalInvoices } from './PortalInvoices';
+import { PortalTimeReport } from './PortalTimeReport';
+import { PortalContract } from './PortalContract';
 import { PortalWelcomeGuide } from './PortalWelcomeGuide';
 
-type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices';
+type PortalView = 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract';
 
 // LocalStorage key for welcome guide preference
 const WELCOME_GUIDE_KEY = 'portal_welcome_guide_seen';
@@ -183,6 +185,16 @@ export const CustomerPortal = () => {
     setSelectedTicketId(null);
   };
 
+  const handleShowTimeReport = () => {
+    setCurrentView('time-report');
+    setSelectedTicketId(null);
+  };
+
+  const handleShowContract = () => {
+    setCurrentView('contract');
+    setSelectedTicketId(null);
+  };
+
   const handleShowTickets = () => {
     setCurrentView('tickets');
     setSelectedTicketId(null);
@@ -234,6 +246,8 @@ export const CustomerPortal = () => {
       onShowKnowledgeBase={portalSettings?.showKnowledgeBase !== false ? handleShowKnowledgeBase : undefined}
       onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
       onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
+      onShowTimeReport={contact.canViewTimeReport && portalSettings?.showTimeReport ? handleShowTimeReport : undefined}
+      onShowContract={contact.canViewContract && portalSettings?.showContractInfo ? handleShowContract : undefined}
       onShowTickets={handleShowTickets}
       onShowHelp={handleShowWelcomeGuide}
       currentView={currentView}
@@ -247,6 +261,10 @@ export const CustomerPortal = () => {
         <PortalDevices contact={contact} teamviewerLink={portalSettings?.teamviewerLink || undefined} />
       ) : currentView === 'invoices' ? (
         <PortalInvoices contact={contact} />
+      ) : currentView === 'time-report' ? (
+        <PortalTimeReport />
+      ) : currentView === 'contract' ? (
+        <PortalContract />
       ) : currentView === 'ticket-detail' && selectedTicketId ? (
         <PortalTicketDetail
           ticketId={selectedTicketId}

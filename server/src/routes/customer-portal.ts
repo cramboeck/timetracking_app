@@ -269,6 +269,9 @@ router.post('/login', authLimiter, async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // Get permissions from customer_portal_users (single source of truth)
+    const permissions = await getContactPermissions(contact.id);
+
     res.json({
       success: true,
       token,
@@ -279,11 +282,13 @@ router.post('/login', authLimiter, async (req, res) => {
         userId: contact.user_id, // Service provider's user ID
         name: contact.name,
         email: contact.email,
-        canCreateTickets: contact.can_create_tickets,
-        canViewAllTickets: contact.can_view_all_tickets,
-        canViewDevices: contact.can_view_devices ?? false,
-        canViewInvoices: contact.can_view_invoices ?? false,
-        canViewQuotes: contact.can_view_quotes ?? false,
+        canCreateTickets: permissions?.can_create_tickets ?? contact.can_create_tickets,
+        canViewAllTickets: permissions?.can_view_all_tickets ?? contact.can_view_all_tickets,
+        canViewDevices: permissions?.can_view_devices ?? contact.can_view_devices ?? false,
+        canViewInvoices: permissions?.can_view_invoices ?? contact.can_view_invoices ?? false,
+        canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
+        canViewTimeReport: permissions?.can_view_time_report ?? false,
+        canViewContract: permissions?.can_view_contract ?? false,
       },
     });
   } catch (error) {
@@ -327,6 +332,9 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       return res.status(404).json({ error: 'Contact not found' });
     }
 
+    // Get permissions from customer_portal_users (single source of truth)
+    const permissions = await getContactPermissions(req.contactId!);
+
     res.json({
       id: contact.id,
       customerId: contact.customer_id,
@@ -334,11 +342,13 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       userId: contact.user_id, // Service provider's user ID
       name: contact.name,
       email: contact.email,
-      canCreateTickets: contact.can_create_tickets ?? true,
-      canViewAllTickets: contact.can_view_all_tickets ?? false,
-      canViewDevices: contact.can_view_devices ?? false,
-      canViewInvoices: contact.can_view_invoices ?? false,
-      canViewQuotes: contact.can_view_quotes ?? false,
+      canCreateTickets: permissions?.can_create_tickets ?? contact.can_create_tickets ?? true,
+      canViewAllTickets: permissions?.can_view_all_tickets ?? contact.can_view_all_tickets ?? false,
+      canViewDevices: permissions?.can_view_devices ?? contact.can_view_devices ?? false,
+      canViewInvoices: permissions?.can_view_invoices ?? contact.can_view_invoices ?? false,
+      canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
+      canViewTimeReport: permissions?.can_view_time_report ?? false,
+      canViewContract: permissions?.can_view_contract ?? false,
     });
   } catch (error) {
     logger.error('Get contact error:', error);
@@ -2667,6 +2677,251 @@ router.get('/debug/contact-status', async (req, res) => {
     });
   } catch (error) {
     logger.error('Debug contact status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// TIME REPORT (Sprint D - Stundentransparenz)
+// ========================================================================
+
+// Validation schema for time report query
+const timeReportQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, 'Format must be YYYY-MM').optional(),
+});
+
+// Get time report for customer (hours worked by month)
+router.get('/time-report', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    // Check permission
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_time_report) {
+      return res.status(403).json({ error: 'No permission to view time report' });
+    }
+
+    const validation = timeReportQuerySchema.safeParse(req.query);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Invalid query parameters', details: validation.error.errors });
+    }
+
+    // Default to current month
+    const now = new Date();
+    const month = validation.data.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    const customerId = req.customerId;
+
+    // Get time entries for this customer's projects
+    // Only show entries with customer_visibility IN ('summary', 'detailed')
+    // and entry_scope = 'customer_project'
+    const result = await pool.query(
+      `SELECT
+         te.id,
+         te.project_id,
+         te.start_time,
+         te.end_time,
+         te.duration,
+         te.description,
+         te.is_billable,
+         te.customer_visibility,
+         p.name AS project_name,
+         a.name AS activity_name
+       FROM time_entries te
+       JOIN projects p ON te.project_id = p.id
+       LEFT JOIN activities a ON te.activity_id = a.id
+       WHERE p.customer_id = $1
+         AND te.entry_scope = 'customer_project'
+         AND te.customer_visibility IN ('summary', 'detailed')
+         AND te.start_time >= $2
+         AND te.start_time <= $3
+       ORDER BY te.start_time DESC`,
+      [customerId, startDate.toISOString(), endDate.toISOString()]
+    );
+
+    // Calculate totals
+    let totalSeconds = 0;
+    let billableSeconds = 0;
+    const byProject: Record<string, { projectId: string; projectName: string; hours: number; billableHours: number; entries: number }> = {};
+
+    result.rows.forEach(row => {
+      const duration = row.duration || 0;
+      totalSeconds += duration;
+      if (row.is_billable) {
+        billableSeconds += duration;
+      }
+
+      const projectId = row.project_id;
+      if (!byProject[projectId]) {
+        byProject[projectId] = {
+          projectId,
+          projectName: row.project_name,
+          hours: 0,
+          billableHours: 0,
+          entries: 0,
+        };
+      }
+      byProject[projectId].hours += duration / 3600;
+      if (row.is_billable) {
+        byProject[projectId].billableHours += duration / 3600;
+      }
+      byProject[projectId].entries += 1;
+    });
+
+    // Build detailed entries list (only if customer_visibility = 'detailed')
+    const detailedEntries = result.rows
+      .filter(row => row.customer_visibility === 'detailed')
+      .map(row => ({
+        id: row.id,
+        date: new Date(row.start_time).toISOString().split('T')[0],
+        startTime: row.start_time,
+        endTime: row.end_time,
+        duration: row.duration,
+        hours: (row.duration || 0) / 3600,
+        projectName: row.project_name,
+        activityName: row.activity_name,
+        description: row.description,
+        isBillable: row.is_billable,
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        month,
+        totalHours: totalSeconds / 3600,
+        billableHours: billableSeconds / 3600,
+        byProject: Object.values(byProject).sort((a, b) => b.hours - a.hours),
+        detailedEntries: detailedEntries.length > 0 ? detailedEntries : undefined,
+        entryCount: result.rows.length,
+      },
+    });
+  } catch (error) {
+    logger.error('Get portal time report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get available months for time report
+router.get('/time-report/months', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_time_report) {
+      return res.status(403).json({ error: 'No permission to view time report' });
+    }
+
+    const customerId = req.customerId;
+
+    // Get distinct year-month combinations
+    const result = await pool.query(
+      `SELECT DISTINCT
+         EXTRACT(YEAR FROM te.start_time)::int AS year,
+         EXTRACT(MONTH FROM te.start_time)::int AS month
+       FROM time_entries te
+       JOIN projects p ON te.project_id = p.id
+       WHERE p.customer_id = $1
+         AND te.entry_scope = 'customer_project'
+         AND te.customer_visibility IN ('summary', 'detailed')
+       ORDER BY year DESC, month DESC
+       LIMIT 24`,
+      [customerId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        year: row.year,
+        month: row.month,
+        label: `${row.year}-${String(row.month).padStart(2, '0')}`,
+      })),
+    });
+  } catch (error) {
+    logger.error('Get portal time report months error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// CONTRACT (Sprint D - Vertragsansicht)
+// ========================================================================
+
+// Get active contract for customer
+router.get('/contract', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_contract) {
+      return res.status(403).json({ error: 'No permission to view contract' });
+    }
+
+    const customerId = req.customerId;
+
+    // Get active contract for this customer
+    const contractResult = await pool.query(
+      `SELECT
+         c.id,
+         c.name,
+         c.start_date,
+         c.end_date,
+         c.monthly_hours,
+         c.hourly_rate,
+         c.status,
+         c.sla_response_time_hours,
+         c.notes
+       FROM contracts c
+       WHERE c.customer_id = $1
+         AND c.status = 'active'
+         AND (c.end_date IS NULL OR c.end_date >= NOW())
+       ORDER BY c.created_at DESC
+       LIMIT 1`,
+      [customerId]
+    );
+
+    if (contractResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: null,
+        message: 'No active contract found',
+      });
+    }
+
+    const contract = contractResult.rows[0];
+
+    // Calculate hours used this month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const hoursResult = await pool.query(
+      `SELECT COALESCE(SUM(te.duration), 0) AS total_seconds
+       FROM time_entries te
+       JOIN projects p ON te.project_id = p.id
+       WHERE p.customer_id = $1
+         AND te.entry_scope = 'customer_project'
+         AND te.is_billable = true
+         AND te.start_time >= $2
+         AND te.start_time <= $3`,
+      [customerId, monthStart.toISOString(), monthEnd.toISOString()]
+    );
+
+    const usedHoursThisMonth = parseInt(hoursResult.rows[0].total_seconds, 10) / 3600;
+
+    res.json({
+      success: true,
+      data: {
+        id: contract.id,
+        name: contract.name,
+        startDate: contract.start_date,
+        endDate: contract.end_date,
+        monthlyHours: contract.monthly_hours,
+        usedHoursThisMonth: Math.round(usedHoursThisMonth * 100) / 100,
+        remainingHours: contract.monthly_hours ? Math.max(0, contract.monthly_hours - usedHoursThisMonth) : null,
+        hourlyRate: contract.hourly_rate,
+        status: contract.status,
+        slaResponseTimeHours: contract.sla_response_time_hours,
+      },
+    });
+  } catch (error) {
+    logger.error('Get portal contract error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

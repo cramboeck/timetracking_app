@@ -71,67 +71,72 @@ export const ReportsPage = ({
             </div>
           </div>
 
-          {/* Tab Switcher */}
-          <div className="flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1 gap-1 mb-4">
-            <button
-              onClick={() => setActiveTab('customer')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'customer'
-                  ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
-                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <Briefcase size={18} />
-              Kundenberichte
-            </button>
-            <button
-              onClick={() => setActiveTab('internal')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'internal'
-                  ? 'bg-white dark:bg-dark-100 text-gray-700 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <Coffee size={18} />
-              Intern
-            </button>
-            <button
-              onClick={() => setActiveTab('absences')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'absences'
-                  ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
-                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <Calendar size={18} />
-              Abwesenheit
-            </button>
-            {isAdmin && (
-              <>
-                <button
-                  onClick={() => setActiveTab('team')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === 'team'
-                      ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
-                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Users size={18} />
-                  Team
-                </button>
-                <button
-                  onClick={() => setActiveTab('team-absences')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    activeTab === 'team-absences'
-                      ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
-                      : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Calendar size={18} />
-                  Team-Urlaub
-                </button>
-              </>
-            )}
+          {/* Tab Switcher - horizontal scrollable on mobile */}
+          <div className="overflow-x-auto -mx-2 px-2 mb-4">
+            <div className="flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1 gap-1 min-w-max">
+              <button
+                onClick={() => setActiveTab('customer')}
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  activeTab === 'customer'
+                    ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Briefcase size={18} />
+                <span className="hidden sm:inline">Kundenberichte</span>
+                <span className="sm:hidden">Kunden</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('internal')}
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  activeTab === 'internal'
+                    ? 'bg-white dark:bg-dark-100 text-gray-700 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Coffee size={18} />
+                Intern
+              </button>
+              <button
+                onClick={() => setActiveTab('absences')}
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  activeTab === 'absences'
+                    ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Calendar size={18} />
+                <span className="hidden sm:inline">Abwesenheit</span>
+                <span className="sm:hidden">Abwes.</span>
+              </button>
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('team')}
+                    className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      activeTab === 'team'
+                        ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                        : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Users size={18} />
+                    Team
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('team-absences')}
+                    className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      activeTab === 'team-absences'
+                        ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                        : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Calendar size={18} />
+                    <span className="hidden sm:inline">Team-Urlaub</span>
+                    <span className="sm:hidden">Urlaub</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {activeTab === 'customer' && (

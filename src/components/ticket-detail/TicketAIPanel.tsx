@@ -35,8 +35,8 @@ export const TicketAIPanel = ({
   return (
     <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="text-purple-600 dark:text-purple-400" size={18} />
-        <h3 className="text-sm font-medium text-purple-800 dark:text-purple-300">
+        <Sparkles className="text-purple-600 dark:text-purple-300" size={18} />
+        <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-100">
           KI-Assistent
         </h3>
       </div>
@@ -83,9 +83,9 @@ export const TicketAIPanel = ({
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-4 text-purple-600 dark:text-purple-400">
+        <div className="flex items-center justify-center gap-2 py-4 text-purple-700 dark:text-purple-200">
           <Loader2 size={18} className="animate-spin" />
-          <span className="text-sm">KI analysiert das Ticket...</span>
+          <span className="text-sm font-medium">KI analysiert das Ticket...</span>
         </div>
       )}
 
@@ -96,7 +96,7 @@ export const TicketAIPanel = ({
       )}
 
       {suggestions.length === 0 && !loading && (
-        <p className="text-sm text-purple-600 dark:text-purple-400 italic">
+        <p className="text-sm text-purple-700 dark:text-purple-200 italic">
           Wahle eine der Optionen oben, um KI-basierte Vorschlage zu erhalten.
         </p>
       )}
@@ -122,7 +122,7 @@ export const TicketAIPanel = ({
                   </span>
                 )}
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+              <div className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
                 {suggestion.content}
               </div>
 
