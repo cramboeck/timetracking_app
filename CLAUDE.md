@@ -531,15 +531,15 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### 🟡 Sprint C — Portal-Fundament bereinigen
+### ✅ Sprint C — Portal-Fundament bereinigen
 
-**Abhängigkeit:** keiner | **Kann parallel zu:** Sprint A, B
+**Abhängigkeit:** keiner | **Status:** Komplett (Commit 465bb53)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Einheitliches Berechtigungsmodell** | `server/src/routes/customer-portal.ts`, `server/src/config/database.ts` | 2h | `getContactPermissions()` liest ausschließlich aus `customer_portal_users`. Felder aus `customer_contacts` nur als Vorschlagswerte beim Einladen. Migration: `ALTER TABLE customer_portal_users ADD COLUMN IF NOT EXISTS can_view_time_report BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS can_view_contract BOOLEAN NOT NULL DEFAULT false;` |
-| ⬜ | **Einladungsfluss reparieren** | `src/components/CustomerHub.tsx`, `server/src/routes/contacts.ts` | 3h | Button „Portal-Zugang aktivieren" ist Placeholder → vollständiger Fluss: POST `/api/contacts/:id/portal-invite` → Aktivierungstoken + E-Mail-Versand (wenn SMTP konfiguriert) + Clipboard-Fallback. Aktivierungsseite `/portal/activate?token=...`. Statusanzeige: Eingeladen / Aktiv / Deaktiviert. Button „Einladung erneut senden". |
-| ⬜ | **PortalSettings konsolidieren** | `src/services/api/portal.ts`, `src/services/api/tickets.ts`, `src/components/KnowledgeBaseSettings.tsx` | 1h | Zwei `PortalSettings`-Interfaces zusammenführen → kanonisches Interface in `portal.ts`. Interface in `tickets.ts` entfernen. Neue Felder: `showTimeReport: boolean`, `showContractInfo: boolean`, `welcomeMessage: string \| null`, `companyName: string \| null`. |
+| ✅ | **Einheitliches Berechtigungsmodell** | `customer-portal.ts`, `database.ts` | 2h | `getContactPermissions()` liest nun ausschließlich aus `customer_portal_users`. Neue Spalten `can_view_time_report`, `can_view_contract` mit Migration. |
+| ✅ | **Einladungsfluss reparieren** | `CustomerHub.tsx` | 3h | `handleEnablePortalAccess` implementiert. Ruft `/api/contacts/:id/portal-access`, kopiert Einladungslink in Zwischenablage, zeigt Toast. |
+| ✅ | **PortalSettings konsolidieren** | `portal.ts`, `tickets.ts`, `index.ts` | 1h | Kanonisches Interface in `portal.ts` mit allen Feldern inkl. `showTimeReport`, `showContractInfo`. Duplikat aus `tickets.ts` entfernt. |
 
 ---
 
@@ -581,4 +581,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprints 1–3 + Sprint A + Sprint B + Sprint F ✅ komplett. Interne Zeiterfassung mit Buchungsarten, Abwesenheitskalender, Team-Zeitübersicht, Team-Urlaubsübersicht. Verbleibend: Sprint C-E (Portal-Features).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A + Sprint B + Sprint C + Sprint F ✅ komplett. Portal-Fundament bereinigt (einheitliches Berechtigungsmodell, Einladungsfluss, PortalSettings konsolidiert). Verbleibend: Sprint D-E (Portal-Stundentransparenz, Vertragsansicht, Qualitätsverbesserungen).*
