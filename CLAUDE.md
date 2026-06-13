@@ -384,7 +384,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ⬜ | **TS-Fehler auf 0** (~16 verbleibend) | `PostsTab.tsx`, `TemplatesTab.tsx`, `CRMDashboard.tsx`, `CalendarView.tsx` | 2-3h | Hauptsächlich Platform-Type-Mismatch im Social-Media-Modul. |
 | ⬜ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | Analog Epic 5 Pass 3. `useEffect`+`loadData` → `useQuery`, Mutations via `useMutation`. |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
-| ⬜ | **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag | Fokus: `src/utils/`, `src/hooks/`, Backend-Middleware. |
+| ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
 | ✅ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | Migration: `subscription_type` + `contact_id` Spalten, Daten-Migration, Routes aktualisiert. |
 
