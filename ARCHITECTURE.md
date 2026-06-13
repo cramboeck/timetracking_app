@@ -368,7 +368,7 @@ auditLog                 // Aktivitätsprotokollierung
 │ customer_portal_sessions │ Sessions                            │
 │ customer_portal_activity_log │ Aktivitätslog                   │
 │ portal_trusted_devices     │ Vertrauenswürdige Geräte          │
-│ portal_push_subscriptions  │ Push-Abonnements                  │
+│ (push_subscriptions)       │ Push-Abonnements (unified table)  │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐

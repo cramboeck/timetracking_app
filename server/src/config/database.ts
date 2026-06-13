@@ -1879,6 +1879,62 @@ export async function initializeDatabase() {
     logger.info('✅ Internal user push subscriptions and notification preferences tables created');
 
     // ============================================
+    // Push Subscriptions Unification Migration
+    // Merge portal_push_subscriptions into push_subscriptions
+    // ============================================
+
+    // Add subscription_type column to push_subscriptions
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'push_subscriptions' AND column_name = 'subscription_type'
+        ) THEN
+          ALTER TABLE push_subscriptions ADD COLUMN subscription_type TEXT DEFAULT 'user' CHECK(subscription_type IN ('user', 'contact'));
+        END IF;
+      END $$;
+    `);
+
+    // Add contact_id column to push_subscriptions
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'push_subscriptions' AND column_name = 'contact_id'
+        ) THEN
+          ALTER TABLE push_subscriptions ADD COLUMN contact_id TEXT REFERENCES customer_contacts(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // Make user_id nullable (for contact subscriptions)
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE push_subscriptions ALTER COLUMN user_id DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
+    // Create index on contact_id
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_contact ON push_subscriptions(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_type ON push_subscriptions(subscription_type)');
+
+    // Migrate data from portal_push_subscriptions to push_subscriptions
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'portal_push_subscriptions') THEN
+          INSERT INTO push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name, created_at, last_used_at, subscription_type)
+          SELECT id, contact_id, endpoint, p256dh, auth, device_name, created_at, last_used_at, 'contact'
+          FROM portal_push_subscriptions
+          ON CONFLICT (endpoint) DO NOTHING;
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Push subscriptions unified (user + portal contact in one table)');
+
+    // ============================================
     // Security Alerts Table
     // ============================================
 

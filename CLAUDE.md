@@ -386,7 +386,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
 | ⬜ | **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag | Fokus: `src/utils/`, `src/hooks/`, Backend-Middleware. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
-| ⬜ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | `push_subscriptions` + `portal_push_subscriptions` in eine Tabelle mit `type`-Spalte. |
+| ✅ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | Migration: `subscription_type` + `contact_id` Spalten, Daten-Migration, Routes aktualisiert. |
 
 ---
 
@@ -424,7 +424,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ~~CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen~~ | ✅ Erledigt (Commit 7fb86c7) |
 | Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
 | Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
-| Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen | Offen |
+| ~~Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen~~ | ✅ Erledigt |
 
 ### Langfristig — Architektur
 

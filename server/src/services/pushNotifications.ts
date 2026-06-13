@@ -367,9 +367,10 @@ export async function sendPushToPortalContact(
     }
   }
 
-  // Get all contact subscriptions
+  // Get all contact subscriptions from unified table
   const result = await query(
-    'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions
+     WHERE contact_id = $1 AND subscription_type = 'contact'`,
     [contactId]
   );
 
@@ -390,13 +391,13 @@ export async function sendPushToPortalContact(
       sent++;
       // Update last_used_at
       await query(
-        'UPDATE portal_push_subscriptions SET last_used_at = NOW() WHERE endpoint = $1',
+        'UPDATE push_subscriptions SET last_used_at = NOW() WHERE endpoint = $1',
         [row.endpoint]
       );
     } catch (error: any) {
       // If subscription is no longer valid, remove it
       if (error.statusCode === 404 || error.statusCode === 410) {
-        await query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+        await query('DELETE FROM push_subscriptions WHERE endpoint = $1', [row.endpoint]);
       }
       failed++;
     }

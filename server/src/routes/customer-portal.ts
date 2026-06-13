@@ -2419,15 +2419,15 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
 
     // Check if subscription already exists
     const existing = await pool.query(
-      'SELECT id FROM portal_push_subscriptions WHERE endpoint = $1',
+      'SELECT id FROM push_subscriptions WHERE endpoint = $1',
       [subscription.endpoint]
     );
 
     if (existing.rows.length > 0) {
       // Update existing subscription
       await pool.query(
-        `UPDATE portal_push_subscriptions
-         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW()
+        `UPDATE push_subscriptions
+         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW(), subscription_type = 'contact'
          WHERE endpoint = $5`,
         [contactId, subscription.keys.p256dh, subscription.keys.auth, deviceName, subscription.endpoint]
       );
@@ -2437,8 +2437,8 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
     // Create new subscription
     const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO portal_push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name, subscription_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'contact')`,
       [id, contactId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, deviceName]
     );
 
@@ -2464,7 +2464,10 @@ router.post('/push/unsubscribe', authenticateCustomerToken, async (req: Customer
       return res.status(400).json({ error: 'Endpoint is required' });
     }
 
-    await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [endpoint]);
+    await pool.query(
+      `DELETE FROM push_subscriptions WHERE endpoint = $1 AND subscription_type = 'contact'`,
+      [endpoint]
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -2478,7 +2481,8 @@ router.get('/push/subscriptions', authenticateCustomerToken, async (req: Custome
   try {
     const result = await pool.query(
       `SELECT id, endpoint, device_name, created_at, last_used_at
-       FROM portal_push_subscriptions WHERE contact_id = $1
+       FROM push_subscriptions
+       WHERE contact_id = $1 AND subscription_type = 'contact'
        ORDER BY last_used_at DESC NULLS LAST`,
       [req.contactId]
     );
@@ -2497,7 +2501,8 @@ router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: 
 
     // Verify subscription belongs to this contact
     const result = await pool.query(
-      'DELETE FROM portal_push_subscriptions WHERE id = $1 AND contact_id = $2',
+      `DELETE FROM push_subscriptions
+       WHERE id = $1 AND contact_id = $2 AND subscription_type = 'contact'`,
       [id, req.contactId]
     );
 
@@ -2576,7 +2581,8 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
     const result = await pool.query(
-      'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+      `SELECT endpoint, p256dh, auth FROM push_subscriptions
+       WHERE contact_id = $1 AND subscription_type = 'contact'`,
       [req.contactId]
     );
 
@@ -2601,7 +2607,10 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
       } catch (error: any) {
         if (error.statusCode === 404 || error.statusCode === 410) {
           // Remove expired subscription
-          await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+          await pool.query(
+            `DELETE FROM push_subscriptions WHERE endpoint = $1 AND subscription_type = 'contact'`,
+            [row.endpoint]
+          );
         }
         failed++;
       }
