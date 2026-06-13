@@ -109,7 +109,7 @@ export function useSSE(options: UseSSEOptions = {}) {
 
     cleanup();
 
-    const url = `${API_BASE}/api/sse/events?token=${encodeURIComponent(token)}`;
+    const url = `${API_BASE}/sse/events?token=${encodeURIComponent(token)}`;
 
     try {
       const eventSource = new EventSource(url);
