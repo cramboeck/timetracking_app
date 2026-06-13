@@ -463,11 +463,11 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
-### Tickets — Offene Bugs & Verbesserungen (Stand 12.6.2026)
+### Tickets — Offene Bugs & Verbesserungen (Stand 13.6.2026)
 
 | Priorität | Problem | Beschreibung |
 |---|---|---|
-| 🔴 Hoch | **KI-generierter Text nicht lesbar** | Text bei KI-Antworten in Tickets hat Kontrastprobleme (vermutlich Dark-Mode-Token fehlen) |
+| ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
 | 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
 | 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
 | 🟡 Normal | **Ticket-Darstellung optimieren** | Allgemeine UI/UX-Verbesserungen für Ticket-Ansicht und -Handling |
@@ -543,16 +543,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### 🟢 Sprint D — Kundenportal: Stundentransparenz und Vertragsansicht
+### ✅ Sprint D — Kundenportal: Stundentransparenz und Vertragsansicht
 
-**Abhängigkeit:** Sprint A + Sprint C vollständig
+**Abhängigkeit:** Sprint A + Sprint C vollständig | **Status:** Komplett (Commit 8a08304)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Backend: Portal-Zeitreport-Route** | `server/src/routes/customer-portal.ts` | 2h | `GET /api/portal/time-report?month=YYYY-MM`. Prüft `can_view_time_report`. Filtert `time_entries` nach `customer_id`, `customer_visibility IN ('summary','detailed')`, `entry_scope = 'customer_project'`. Response: `{ month, totalHours, billableHours, byProject: [{projectId, projectName, hours, billableHours}], byCategory? }`. Keine Mitarbeiternamen in der Response (Datenschutz). |
-| ⬜ | **Frontend: PortalTimeReport-Komponente** | `src/components/portal/PortalTimeReport.tsx` (neu) | 3h | Monatsauswahl, Übersichtskarte (Gesamtstunden, verrechenbar, Restkontingent wenn Vertrag), Tabelle pro Projekt, aufklappbare Detailansicht bei `customer_visibility = 'detailed'`. In `CustomerPortal.tsx` als View `'time-report'` einbinden. In `PortalLayout.tsx` Navigationspunkt „Stunden" (nur wenn `contact.canViewTimeReport`). |
-| ⬜ | **Backend: Portal-Vertragsroute** | `server/src/routes/customer-portal.ts` | 1h | `GET /api/portal/contract`. Prüft `can_view_contract`. Gibt aktiven Vertrag zurück: Name, Laufzeit, enthaltene Stunden/Monat, verbrauchte Stunden aktueller Monat, SLA-Reaktionszeit, Status. |
-| ⬜ | **Frontend: PortalContract-Komponente** | `src/components/portal/PortalContract.tsx` (neu) | 2h | Kontingent-Fortschrittsbalken, SLA-Reaktionszeiten, Vertragslaufzeit, Ansprechpartner. In `CustomerPortal.tsx` als View `'contract'` einbinden. |
+| ✅ | **Backend: Portal-Zeitreport-Route** | `server/src/routes/customer-portal.ts` | 2h | `GET /api/customer-portal/time-report?month=YYYY-MM` + `GET /api/customer-portal/time-report/months`. Prüft `can_view_time_report`. Filtert `time_entries` nach `customer_id`, `customer_visibility IN ('summary','detailed')`, `entry_scope = 'customer_project'`. Response: `{ month, totalHours, billableHours, byProject, detailedEntries?, entryCount }`. |
+| ✅ | **Frontend: PortalTimeReport-Komponente** | `src/components/portal/PortalTimeReport.tsx` | 3h | Monatsauswahl (Dropdown), 4 Summary-Cards (Gesamt, Verrechenbar, Projekte, Einträge), Projekttabelle mit aufklappbaren Details. In `CustomerPortal.tsx` als View `'time-report'`, Tab „Stunden" in `PortalLayout.tsx`. |
+| ✅ | **Backend: Portal-Vertragsroute** | `server/src/routes/customer-portal.ts` | 1h | `GET /api/customer-portal/contract`. Prüft `can_view_contract`. Gibt aktiven Vertrag zurück: Name, Laufzeit, enthaltene Stunden/Monat, verbrauchte Stunden aktueller Monat, SLA-Reaktionszeit, Status, Ansprechpartner, Hinweise. |
+| ✅ | **Frontend: PortalContract-Komponente** | `src/components/portal/PortalContract.tsx` | 2h | Kontingent-Fortschrittsbalken, SLA-Reaktionszeiten, Vertragslaufzeit, Ansprechpartner. Status-Badge (Aktiv/Ausstehend/Abgelaufen). Tab „Vertrag" in PortalLayout. |
 
 ---
 
@@ -581,4 +581,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A + Sprint B + Sprint C + Sprint F ✅ komplett. Portal-Fundament bereinigt (einheitliches Berechtigungsmodell, Einladungsfluss, PortalSettings konsolidiert). Verbleibend: Sprint D-E (Portal-Stundentransparenz, Vertragsansicht, Qualitätsverbesserungen).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–D + Sprint F ✅ komplett. Portal-Stundentransparenz und Vertragsansicht live (PortalTimeReport, PortalContract). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert. Verbleibend: Sprint E (Portal-Qualitätsverbesserungen).*
