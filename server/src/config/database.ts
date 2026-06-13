@@ -1196,6 +1196,115 @@ export async function initializeDatabase() {
         WHEN others THEN NULL;
       END $$;
     `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN assigned_to TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: Add SLA and project columns to tickets for Sprint 3 SELECT * elimination
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN project_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN first_response_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_policy_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_response_due TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_resolution_due TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_response_breached BOOLEAN DEFAULT false;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN sla_resolution_breached BOOLEAN DEFAULT false;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN created_by_contact_id TEXT;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN due_date TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN resolved_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets ADD COLUMN closed_at TIMESTAMP;
+      EXCEPTION
+        WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
 
     // Migration: Add portal_user_id to ticket_comments if not exists
     await client.query(`
@@ -2048,6 +2157,22 @@ export async function initializeDatabase() {
           WHERE table_name = 'customer_portal_users' AND column_name = 'notify_ticket_reply'
         ) THEN
           ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
+        END IF;
+
+        -- Add can_view_time_report to customer_portal_users (Sprint C)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_time_report'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_time_report BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+
+        -- Add can_view_contract to customer_portal_users (Sprint C)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_contract'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_contract BOOLEAN NOT NULL DEFAULT false;
         END IF;
 
         -- Add organization_id to feature_packages
@@ -3323,6 +3448,65 @@ export async function initializeDatabase() {
     `);
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_external ON time_entries(organization_id, external_source, external_id)');
 
+    // ============================================
+    // Sprint A: Internal Time Tracking & Customer Visibility
+    // ============================================
+    // entry_scope: 'customer_project' (default), 'internal', 'absence'
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'entry_scope'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN entry_scope TEXT NOT NULL DEFAULT 'customer_project';
+          ALTER TABLE time_entries ADD CONSTRAINT chk_entry_scope CHECK (entry_scope IN ('customer_project', 'internal', 'absence'));
+        END IF;
+      END $$;
+    `);
+
+    // internal_category: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise
+    // For absence: Urlaub, Krankheit, Sonderurlaub
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'internal_category'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN internal_category TEXT;
+        END IF;
+      END $$;
+    `);
+
+    // customer_visibility: 'hidden' (default), 'summary', 'detailed'
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'time_entries' AND column_name = 'customer_visibility'
+        ) THEN
+          ALTER TABLE time_entries ADD COLUMN customer_visibility TEXT NOT NULL DEFAULT 'hidden';
+          ALTER TABLE time_entries ADD CONSTRAINT chk_customer_visibility CHECK (customer_visibility IN ('hidden', 'summary', 'detailed'));
+        END IF;
+      END $$;
+    `);
+
+    // Drop NOT NULL constraint from project_id (internal/absence entries don't have a project)
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE time_entries ALTER COLUMN project_id DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL; -- Constraint might already be dropped or column might not exist
+      END $$;
+    `);
+
+    // Indexes for Sprint A queries
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_scope ON time_entries(user_id, entry_scope, start_time)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_visibility ON time_entries(project_id, customer_visibility)');
+
     // Migration: Add default_project_id to customers (fallback for imports)
     await client.query(`
       DO $$
@@ -4391,6 +4575,215 @@ export async function initializeDatabase() {
         ON refresh_tokens(token_hash) WHERE revoked_at IS NULL;
     `);
     logger.info('✅ refresh_tokens table ready');
+
+    // ============================================
+    // Multi-Tenancy Migration: Add organization_id to remaining tables
+    // ============================================
+    // Tables that need organization_id for proper multi-tenant isolation
+    const tablesNeedingOrgId = [
+      'teams',
+      'trusted_devices',
+      'email_notifications',
+      'password_reset_tokens',
+      'audit_logs',
+      'notification_settings',
+      'ninjarmm_alerts',
+      'ninjarmm_webhook_events',
+      'ninjarmm_alert_exclusions',
+      'ticket_comments',
+      'ai_config',
+      'ticket_ai_suggestions',
+      'lead_activities',
+      'task_checklist_items',
+      'task_comments',
+      'task_activity_log',
+      'contracts',
+      'contract_activity_log',
+      'sevdesk_config',
+      'invoice_exports',
+      'clockodo_config'
+    ];
+
+    for (const tableName of tablesNeedingOrgId) {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'organization_id'
+          ) THEN
+            ALTER TABLE ${tableName} ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE;
+          END IF;
+        END $$;
+      `);
+    }
+    logger.info('✅ Multi-tenancy: organization_id columns added to all tables');
+
+    // Backfill organization_id from user_id via organization_members
+    // Only for tables that have user_id column
+    const tablesToBackfill = [
+      'trusted_devices',
+      'email_notifications',
+      'password_reset_tokens',
+      'audit_logs',
+      'notification_settings',
+      'ninjarmm_alerts',
+      'ninjarmm_webhook_events',
+      'ninjarmm_alert_exclusions',
+      'ai_config',
+      'ticket_ai_suggestions',
+      'task_comments',
+      'task_activity_log',
+      'contracts',
+      'contract_activity_log',
+      'sevdesk_config',
+      'invoice_exports',
+      'clockodo_config'
+    ];
+
+    for (const tableName of tablesToBackfill) {
+      // Only backfill if the column exists (safe check)
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'organization_id'
+          ) AND EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${tableName}' AND column_name = 'user_id'
+          ) THEN
+            UPDATE ${tableName} t
+            SET organization_id = om.organization_id
+            FROM organization_members om
+            WHERE t.user_id = om.user_id
+              AND t.organization_id IS NULL
+              AND om.organization_id IS NOT NULL;
+          END IF;
+        END $$;
+      `);
+    }
+
+    // Special backfill for teams (uses owner_id instead of user_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'teams' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE teams t
+          SET organization_id = om.organization_id
+          FROM organization_members om
+          WHERE t.owner_id = om.user_id
+            AND t.organization_id IS NULL
+            AND om.organization_id IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Special backfill for ticket_comments (uses ticket's organization_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE ticket_comments tc
+          SET organization_id = t.organization_id
+          FROM tickets t
+          WHERE tc.ticket_id = t.id
+            AND tc.organization_id IS NULL
+            AND t.organization_id IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Special backfill for lead_activities (uses lead's organization_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'lead_activities' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE lead_activities la
+          SET organization_id = l.organization_id
+          FROM leads l
+          WHERE la.lead_id = l.id
+            AND la.organization_id IS NULL
+            AND l.organization_id IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Special backfill for task_checklist_items (uses task's organization_id)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'task_checklist_items' AND column_name = 'organization_id'
+        ) THEN
+          UPDATE task_checklist_items tci
+          SET organization_id = t.organization_id
+          FROM tasks t
+          WHERE tci.task_id = t.id
+            AND tci.organization_id IS NULL
+            AND t.organization_id IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Multi-tenancy: organization_id backfilled from user relationships');
+
+    // Create indexes on organization_id for the newly added columns
+    // Wrapped in DO $$ to skip if column doesn't exist (safe for partial migrations)
+    const indexesToCreate = [
+      { table: 'teams', index: 'idx_teams_org' },
+      { table: 'trusted_devices', index: 'idx_trusted_devices_org' },
+      { table: 'email_notifications', index: 'idx_email_notifications_org' },
+      { table: 'password_reset_tokens', index: 'idx_password_reset_tokens_org' },
+      { table: 'audit_logs', index: 'idx_audit_logs_org' },
+      { table: 'notification_settings', index: 'idx_notification_settings_org' },
+      { table: 'ninjarmm_alerts', index: 'idx_ninjarmm_alerts_org' },
+      { table: 'ninjarmm_webhook_events', index: 'idx_ninjarmm_webhook_events_org' },
+      { table: 'ninjarmm_alert_exclusions', index: 'idx_ninjarmm_alert_exclusions_org' },
+      { table: 'ticket_comments', index: 'idx_ticket_comments_org' },
+      { table: 'ai_config', index: 'idx_ai_config_org' },
+      { table: 'ticket_ai_suggestions', index: 'idx_ticket_ai_suggestions_org' },
+      { table: 'lead_activities', index: 'idx_lead_activities_org' },
+      { table: 'task_checklist_items', index: 'idx_task_checklist_items_org' },
+      { table: 'task_comments', index: 'idx_task_comments_org' },
+      { table: 'task_activity_log', index: 'idx_task_activity_log_org' },
+      { table: 'contracts', index: 'idx_contracts_org' },
+      { table: 'contract_activity_log', index: 'idx_contract_activity_log_org' },
+      { table: 'sevdesk_config', index: 'idx_sevdesk_config_org' },
+      { table: 'invoice_exports', index: 'idx_invoice_exports_org' },
+      { table: 'clockodo_config', index: 'idx_clockodo_config_org' },
+      // These tables already have organization_id from earlier schema definitions
+      { table: 'ticket_tag_assignments', index: 'idx_ticket_tag_assignments_org' },
+      { table: 'ticket_sequences_new', index: 'idx_ticket_sequences_new_org' },
+      { table: 'ticket_email_attachments', index: 'idx_ticket_email_attachments_org' }
+    ];
+
+    for (const { table, index } of indexesToCreate) {
+      await client.query(`
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = '${table}' AND column_name = 'organization_id'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE indexname = '${index}'
+          ) THEN
+            CREATE INDEX ${index} ON ${table}(organization_id);
+          END IF;
+        END $$;
+      `);
+    }
+    logger.info('✅ Multi-tenancy: indexes created on organization_id columns');
 
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');

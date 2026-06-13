@@ -772,7 +772,7 @@ router.post('/:id/move', validate(moveOpportunitySchema), async (req: Request, r
     // Get current and new stage
     const [current, newStage] = await Promise.all([
       query('SELECT stage_id FROM opportunities WHERE id = $1 AND organization_id = $2', [id, organizationId]),
-      query('SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages WHERE id = $1 AND organization_id = $2', [stage_id, organizationId])
+      query(`SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages WHERE id = $1 AND organization_id = $2`, [stage_id, organizationId])
     ]);
 
     if (current.rows.length === 0) {

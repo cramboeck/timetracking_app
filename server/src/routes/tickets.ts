@@ -188,7 +188,7 @@ function transformTicket(row: any) {
     description: row.description,
     status: row.status,
     priority: row.priority,
-    assignedToUserId: row.assigned_to_user_id,
+    assignedToUserId: row.assigned_to,
     createdAt: row.created_at?.toISOString(),
     updatedAt: row.updated_at?.toISOString(),
     resolvedAt: row.resolved_at?.toISOString(),
@@ -568,7 +568,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users creator ON t.user_id = creator.id
-      LEFT JOIN users assignee ON t.assigned_to_user_id = assignee.id
+      LEFT JOIN users assignee ON t.assigned_to = assignee.id
       WHERE t.id = $1 AND t.organization_id = $2
     `, [id, organizationId]);
 
@@ -720,7 +720,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
-      'SELECT status, priority, title, description, assigned_to_user_id FROM tickets WHERE id = $1 AND organization_id = $2',
+      'SELECT status, priority, title, description, assigned_to FROM tickets WHERE id = $1 AND organization_id = $2',
       [id, organizationId]
     );
 
@@ -794,7 +794,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       paramIndex++;
     }
     if (assignedToUserId !== undefined) {
-      updates.push(`assigned_to_user_id = $${paramIndex}`);
+      updates.push(`assigned_to = $${paramIndex}`);
       params.push(assignedToUserId || null);
       paramIndex++;
     }
@@ -885,9 +885,9 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (description !== undefined && description !== oldValues.description) {
       await logTicketActivity(id, userId, null, 'description_changed', null, null);
     }
-    if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to_user_id) {
+    if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to) {
       if (assignedToUserId) {
-        await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to_user_id, assignedToUserId);
+        await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to, assignedToUserId);
 
         // Send notification to the newly assigned user (async, don't block response)
         (async () => {
@@ -960,12 +960,12 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
           }
         })();
       } else {
-        await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to_user_id, null);
+        await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to, null);
       }
       await auditLog.log({
         userId,
         action: 'ticket.assign',
-        details: JSON.stringify({ ticketId: id, oldAssignee: oldValues.assigned_to_user_id, newAssignee: assignedToUserId }),
+        details: JSON.stringify({ ticketId: id, oldAssignee: oldValues.assigned_to, newAssignee: assignedToUserId }),
       });
     }
 
@@ -1371,11 +1371,11 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       try {
         // Get ticket with assignee info
         const ticketWithAssignee = await query(`
-          SELECT t.ticket_number, t.title, t.assigned_to_user_id, t.customer_id,
+          SELECT t.ticket_number, t.title, t.assigned_to, t.customer_id,
                  c.name as customer_name, u.email as assignee_email, u.username as assignee_name
           FROM tickets t
           LEFT JOIN customers c ON t.customer_id = c.id
-          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          LEFT JOIN users u ON t.assigned_to = u.id
           WHERE t.id = $1
         `, [ticketId]);
 
@@ -1383,7 +1383,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
         const ticket = ticketWithAssignee.rows[0];
 
         // Only notify if there's an assignee and it's not the commenter
-        if (!ticket.assigned_to_user_id || ticket.assigned_to_user_id === userId) return;
+        if (!ticket.assigned_to || ticket.assigned_to === userId) return;
 
         // Get commenter name
         const commenterResult = await query(
@@ -1395,7 +1395,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
         // Check notification preferences for assignee
         const prefsResult = await query(
           `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
-          [ticket.assigned_to_user_id]
+          [ticket.assigned_to]
         );
         const prefs = prefsResult.rows[0] || {
           push_enabled: true,
@@ -1407,7 +1407,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
         // Send push notification
         if (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false) {
           sendTicketNotification(
-            ticket.assigned_to_user_id,
+            ticket.assigned_to,
             { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
             'push_on_ticket_comment',
             `${commenterName}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`

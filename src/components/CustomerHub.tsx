@@ -75,6 +75,7 @@ import { InteractionsTimeline } from './InteractionsTimeline';
 import { Modal } from './Modal';
 import { CustomerContacts } from './CustomerContacts';
 import { CreateTicketDialog } from './CreateTicketDialog';
+import { useToast } from '../contexts/UIContext';
 import TaskModal from './TaskModal';
 
 // ============================================
@@ -1252,6 +1253,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   initialCustomerId,
   isInitialDataLoading = false,
 }) => {
+  const showToast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId || null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
@@ -1464,6 +1466,34 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
   const handleCreateTask = () => {
     setShowTaskModal(true);
+  };
+
+  const handleEnablePortalAccess = async (contact: CRMContact) => {
+    try {
+      const result = await contactsApi.enablePortalAccess(contact.id, true);
+      if (result.success) {
+        // Copy invitation link to clipboard as fallback
+        if (result.invitation_token) {
+          const invitationUrl = `${window.location.origin}/portal/activate?token=${result.invitation_token}`;
+          await navigator.clipboard.writeText(invitationUrl);
+          showToast('Portal-Zugang aktiviert. Einladungslink in Zwischenablage kopiert.', 'success');
+        } else {
+          showToast('Portal-Zugang aktiviert', 'success');
+        }
+        // Refresh contacts to show updated status
+        if (selectedCustomerId) {
+          const updatedContacts = await contactsApi.getByCustomer(selectedCustomerId);
+          if (Array.isArray(updatedContacts)) {
+            setContacts(updatedContacts);
+          }
+        }
+      } else {
+        showToast('Fehler beim Aktivieren des Portal-Zugangs', 'error');
+      }
+    } catch (error) {
+      console.error('Error enabling portal access:', error);
+      showToast('Fehler beim Aktivieren des Portal-Zugangs', 'error');
+    }
   };
 
   const handleStartTimer = () => {
@@ -1714,7 +1744,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     contacts={contacts}
                     onAddContact={handleAddContact}
                     onEditContact={(contact) => console.log('Edit contact:', contact.id)}
-                    onEnablePortalAccess={(contact) => console.log('Enable portal:', contact.id)}
+                    onEnablePortalAccess={handleEnablePortalAccess}
                   />
                 )}
                 {activeTab === 'interactions' && selectedCustomer && (

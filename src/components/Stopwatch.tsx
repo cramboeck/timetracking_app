@@ -1,13 +1,32 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Pause, Square, Plus, Sparkles, Check } from 'lucide-react';
+import { Play, Pause, Square, Plus, Sparkles, Check, Briefcase, Coffee, Calendar } from 'lucide-react';
 import { formatDuration } from '../utils/time';
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
 import { Button } from './ui';
 import { useToast } from '../contexts/UIContext';
+
+// Internal time categories
+const INTERNAL_CATEGORIES = [
+  { value: 'admin', label: 'Administration' },
+  { value: 'accounting', label: 'Buchhaltung' },
+  { value: 'sales', label: 'Vertrieb' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'training', label: 'Weiterbildung' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'internal_support', label: 'Interner Support' },
+  { value: 'travel', label: 'Reise' },
+] as const;
+
+// Absence categories
+const ABSENCE_CATEGORIES = [
+  { value: 'vacation', label: 'Urlaub' },
+  { value: 'sick', label: 'Krankheit' },
+  { value: 'special_leave', label: 'Sonderurlaub' },
+] as const;
 
 interface StopwatchProps {
   onSave: (entry: TimeEntry) => Promise<boolean> | void;
@@ -39,6 +58,8 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const showToast = useToast();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [entryScope, setEntryScope] = useState<EntryScope>('customer_project');
+  const [internalCategory, setInternalCategory] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
@@ -236,9 +257,17 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   }, [isRunning]);
 
   const handleStart = () => {
-    if (!projectId) {
-      showToast('Bitte wähle ein Projekt aus', 'warning');
-      return;
+    // Validate based on entry scope
+    if (entryScope === 'customer_project') {
+      if (!projectId) {
+        showToast('Bitte wähle ein Projekt aus', 'warning');
+        return;
+      }
+    } else {
+      if (!internalCategory) {
+        showToast('Bitte wähle eine Kategorie aus', 'warning');
+        return;
+      }
     }
 
     // Reset stopped flag
@@ -254,12 +283,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       userId: currentUser!.id,
       startTime: now,
       duration: 0,
-      projectId,
-      activityId: activityId || undefined,
-      ticketId: ticketId || undefined,
+      projectId: entryScope === 'customer_project' ? projectId : undefined,
+      activityId: entryScope === 'customer_project' && activityId ? activityId : undefined,
+      ticketId: entryScope === 'customer_project' && ticketId ? ticketId : undefined,
       description: description || '',
       isRunning: true,
+      isBillable: entryScope !== 'absence',
       createdAt: now,
+      entryScope,
+      internalCategory: entryScope !== 'customer_project' ? internalCategory : undefined,
+      customerVisibility: 'hidden',
     };
 
     onUpdateRunning(entry);
@@ -301,12 +334,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       startTime: startTimeRef.current,
       endTime,
       duration: finalDuration, // Exact duration - rounding happens in reports
-      projectId,
-      activityId: activityId || undefined,
-      ticketId: ticketId || runningEntry?.ticketId || undefined,
+      projectId: entryScope === 'customer_project' ? projectId : undefined,
+      activityId: entryScope === 'customer_project' && activityId ? activityId : undefined,
+      ticketId: entryScope === 'customer_project' && (ticketId || runningEntry?.ticketId) ? (ticketId || runningEntry?.ticketId) : undefined,
       description: description || '',
       isRunning: false,
+      isBillable: entryScope !== 'absence',
       createdAt: runningEntry?.createdAt || startTimeRef.current,
+      entryScope,
+      internalCategory: entryScope !== 'customer_project' ? internalCategory : undefined,
+      customerVisibility: runningEntry?.customerVisibility || 'hidden',
     };
 
     try {
@@ -418,15 +455,37 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
               {formatDuration(elapsedSeconds)}
             </div>
 
-            {/* Active Project Info */}
-            {isRunning && selectedProject && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-accent-light dark:bg-accent-primary/30 rounded-full border border-accent-primary/30 dark:border-accent-primary/40 max-w-full">
+            {/* Active Entry Info */}
+            {isRunning && (
+              <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border max-w-full ${
+                entryScope === 'customer_project'
+                  ? 'bg-accent-light dark:bg-accent-primary/30 border-accent-primary/30 dark:border-accent-primary/40'
+                  : entryScope === 'internal'
+                  ? 'bg-gray-100 dark:bg-dark-200 border-gray-300 dark:border-dark-border'
+                  : 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700'
+              }`}>
                 <div
                   className="w-3 h-3 rounded-full animate-pulse flex-shrink-0"
-                  style={{ backgroundColor: selectedCustomer?.color || '#3B82F6' }}
+                  style={{
+                    backgroundColor: entryScope === 'customer_project'
+                      ? (selectedCustomer?.color || '#3B82F6')
+                      : entryScope === 'internal'
+                      ? '#6B7280'
+                      : '#F97316'
+                  }}
                 />
-                <span className="text-xs sm:text-sm font-medium text-accent-dark dark:text-accent-primary truncate">
-                  {selectedCustomer?.name} - {selectedProject.name}
+                <span className={`text-xs sm:text-sm font-medium truncate ${
+                  entryScope === 'customer_project'
+                    ? 'text-accent-dark dark:text-accent-primary'
+                    : entryScope === 'internal'
+                    ? 'text-gray-700 dark:text-gray-300'
+                    : 'text-orange-700 dark:text-orange-400'
+                }`}>
+                  {entryScope === 'customer_project' && selectedProject
+                    ? `${selectedCustomer?.name} - ${selectedProject.name}`
+                    : entryScope === 'internal'
+                    ? INTERNAL_CATEGORIES.find(c => c.value === internalCategory)?.label || 'Interne Zeit'
+                    : ABSENCE_CATEGORIES.find(c => c.value === internalCategory)?.label || 'Abwesenheit'}
                 </span>
               </div>
             )}
@@ -434,63 +493,146 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
 
           {/* Form */}
           <div className="space-y-4 mb-8">
-            {/* Customer Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Kunde
-              </label>
-              <SearchableSelect
-                options={customerOptions}
-                value={customerId}
-                onChange={(value) => {
-                  setCustomerId(value);
-                  setProjectId(''); // Reset project when customer changes
+            {/* Entry Scope Selector */}
+            <div className="flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryScope('customer_project');
+                  setInternalCategory('');
                 }}
-                placeholder={customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde suchen...'}
-                emptyMessage="Keine Kunden gefunden"
-                disabled={isRunning || customersWithProjects.length === 0}
-              />
-              {customersWithProjects.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
-                  Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
-                </p>
-              )}
-            </div>
-
-            {/* Project Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Projekt
-              </label>
-              <SearchableSelect
-                options={projectOptions}
-                value={projectId}
-                onChange={(value) => setProjectId(value)}
-                placeholder={!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt suchen...'}
-                emptyMessage="Keine Projekte gefunden"
-                disabled={isRunning || !customerId || projectsForCustomer.length === 0}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Tätigkeit (optional)
-              </label>
-              <SearchableSelect
-                options={activityOptions}
-                value={activityId}
-                onChange={(value) => setActivityId(value)}
-                placeholder="Tätigkeit suchen..."
-                emptyMessage="Keine Tätigkeiten gefunden"
                 disabled={isRunning}
-                allowClear={true}
-              />
-              {activityId && activities.find(a => a.id === activityId)?.description && (
-                <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
-                  {activities.find(a => a.id === activityId)?.description}
-                </p>
-              )}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  entryScope === 'customer_project'
+                    ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Briefcase size={18} />
+                <span className="hidden sm:inline">Projekt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryScope('internal');
+                  setInternalCategory('');
+                  setCustomerId('');
+                  setProjectId('');
+                }}
+                disabled={isRunning}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  entryScope === 'internal'
+                    ? 'bg-white dark:bg-dark-100 text-gray-700 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Coffee size={18} />
+                <span className="hidden sm:inline">Intern</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntryScope('absence');
+                  setInternalCategory('');
+                  setCustomerId('');
+                  setProjectId('');
+                }}
+                disabled={isRunning}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  entryScope === 'absence'
+                    ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                } ${isRunning ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Calendar size={18} />
+                <span className="hidden sm:inline">Abwesend</span>
+              </button>
             </div>
+
+            {/* Customer/Project Selection (for customer_project scope) */}
+            {entryScope === 'customer_project' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    Kunde
+                  </label>
+                  <SearchableSelect
+                    options={customerOptions}
+                    value={customerId}
+                    onChange={(value) => {
+                      setCustomerId(value);
+                      setProjectId(''); // Reset project when customer changes
+                    }}
+                    placeholder={customersWithProjects.length === 0 ? 'Keine Kunden vorhanden' : 'Kunde suchen...'}
+                    emptyMessage="Keine Kunden gefunden"
+                    disabled={isRunning || customersWithProjects.length === 0}
+                  />
+                  {customersWithProjects.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
+                      Bitte füge erst Kunden und Projekte in den Einstellungen hinzu
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  {entryScope === 'internal' ? 'Kategorie' : 'Abwesenheitsgrund'}
+                </label>
+                <select
+                  value={internalCategory}
+                  onChange={(e) => setInternalCategory(e.target.value)}
+                  disabled={isRunning}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Bitte wählen...</option>
+                  {(entryScope === 'internal' ? INTERNAL_CATEGORIES : ABSENCE_CATEGORIES).map(cat => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Project Selection (only for customer_project scope) */}
+            {entryScope === 'customer_project' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    Projekt
+                  </label>
+                  <SearchableSelect
+                    options={projectOptions}
+                    value={projectId}
+                    onChange={(value) => setProjectId(value)}
+                    placeholder={!customerId ? 'Erst Kunde wählen...' : projectsForCustomer.length === 0 ? 'Keine Projekte vorhanden' : 'Projekt suchen...'}
+                    emptyMessage="Keine Projekte gefunden"
+                    disabled={isRunning || !customerId || projectsForCustomer.length === 0}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    Tätigkeit (optional)
+                  </label>
+                  <SearchableSelect
+                    options={activityOptions}
+                    value={activityId}
+                    onChange={(value) => setActivityId(value)}
+                    placeholder="Tätigkeit suchen..."
+                    emptyMessage="Keine Tätigkeiten gefunden"
+                    disabled={isRunning}
+                    allowClear={true}
+                  />
+                  {activityId && activities.find(a => a.id === activityId)?.description && (
+                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-2">
+                      {activities.find(a => a.id === activityId)?.description}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -502,7 +644,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                     </span>
                   )}
                 </label>
-                {aiConfigured && (projectId || activityId) && (
+                {aiConfigured && entryScope === 'customer_project' && (projectId || activityId) && (
                   <Button
                     type="button"
                     onClick={(e) => {
@@ -521,7 +663,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 )}
               </div>
               <textarea
-                placeholder="Was wurde gemacht?"
+                placeholder={entryScope === 'customer_project' ? 'Was wurde gemacht?' : entryScope === 'internal' ? 'Details zur internen Tätigkeit...' : 'Anmerkungen (optional)...'}
                 value={description}
                 onChange={(e) => {
                   const newDescription = e.target.value;
@@ -576,7 +718,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 variant="primary"
                 size="lg"
                 icon={<Play size={20} className="sm:w-6 sm:h-6" />}
-                disabled={!projectId}
+                disabled={entryScope === 'customer_project' ? !projectId : !internalCategory}
                 className="rounded-full px-6 sm:px-8 py-3 sm:py-4 shadow-lg hover:shadow-xl active:scale-95 touch-manipulation"
               >
                 Start

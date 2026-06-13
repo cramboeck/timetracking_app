@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Save, Clock, ArrowRight, Zap } from 'lucide-react';
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { Save, Clock, ArrowRight, Zap, Briefcase, Coffee, Calendar } from 'lucide-react';
+import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { calculateDuration, toLocalDateString } from '../utils/time';
 import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
@@ -10,6 +10,25 @@ import { SearchableSelect } from './SearchableSelect';
 import { useToast } from '../contexts/UIContext';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+
+// Internal time categories
+const INTERNAL_CATEGORIES = [
+  { value: 'admin', label: 'Administration' },
+  { value: 'accounting', label: 'Buchhaltung' },
+  { value: 'sales', label: 'Vertrieb' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'training', label: 'Weiterbildung' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'internal_support', label: 'Interner Support' },
+  { value: 'travel', label: 'Reise' },
+] as const;
+
+// Absence categories
+const ABSENCE_CATEGORIES = [
+  { value: 'vacation', label: 'Urlaub' },
+  { value: 'sick', label: 'Krankheit' },
+  { value: 'special_leave', label: 'Sonderurlaub' },
+] as const;
 
 interface ManualEntryModernProps {
   onSave: (entry: TimeEntry) => void;
@@ -67,6 +86,8 @@ export const ManualEntryModern = ({
   const startDefault = oneHourAgo.getHours() < 8 ? '08:00' : oneHourAgo.toTimeString().slice(0, 5);
 
   // Form state
+  const [entryScope, setEntryScope] = useState<EntryScope>('customer_project');
+  const [internalCategory, setInternalCategory] = useState('');
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState(startDefault);
   const [endTime, setEndTime] = useState(currentTime);
@@ -74,6 +95,15 @@ export const ManualEntryModern = ({
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
+
+  // Reset category when scope changes
+  useEffect(() => {
+    setInternalCategory('');
+    if (entryScope !== 'customer_project') {
+      setSelectedCustomerId('');
+      setProjectId('');
+    }
+  }, [entryScope]);
 
   // Calculate duration in seconds
   const calculatedDuration = useMemo(() => {
@@ -188,9 +218,17 @@ export const ManualEntryModern = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!projectId || !currentUser) {
-      showToast('Bitte wähle ein Projekt aus', 'error');
-      return;
+    // Validate based on entry scope
+    if (entryScope === 'customer_project') {
+      if (!projectId || !currentUser) {
+        showToast('Bitte wähle ein Projekt aus', 'error');
+        return;
+      }
+    } else {
+      if (!internalCategory || !currentUser) {
+        showToast('Bitte wähle eine Kategorie aus', 'error');
+        return;
+      }
     }
 
     const startDateTime = new Date(`${date}T${startTime}`).toISOString();
@@ -208,15 +246,20 @@ export const ManualEntryModern = ({
       startTime: startDateTime,
       endTime: endDateTime,
       duration: duration,
-      projectId,
-      activityId: activityId || undefined,
+      projectId: entryScope === 'customer_project' ? projectId : undefined,
+      activityId: entryScope === 'customer_project' && activityId ? activityId : undefined,
       description: description || '',
       isRunning: false,
+      isBillable: entryScope !== 'absence',
       createdAt: new Date().toISOString(),
+      entryScope,
+      internalCategory: entryScope !== 'customer_project' ? internalCategory : undefined,
+      customerVisibility: 'hidden',
     };
 
     onSave(entry);
-    showToast('Zeiteintrag gespeichert', 'success');
+    const scopeLabels = { customer_project: 'Projektzeit', internal: 'Interne Zeit', absence: 'Abwesenheit' };
+    showToast(`${scopeLabels[entryScope]} gespeichert`, 'success');
 
     // Reset form
     const resetNow = new Date();
@@ -229,10 +272,15 @@ export const ManualEntryModern = ({
     setSelectedCustomerId('');
     setProjectId('');
     setActivityId('');
+    setInternalCategory('');
     setDescription('');
     setStartTime(resetStartTime);
     setEndTime(resetCurrentTime);
+    // Keep entryScope - user likely wants to continue with same type
   };
+
+  // Get current categories based on scope
+  const currentCategories = entryScope === 'internal' ? INTERNAL_CATEGORIES : ABSENCE_CATEGORIES;
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
@@ -242,6 +290,46 @@ export const ManualEntryModern = ({
       </h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Entry Scope Selector */}
+        <div className="flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1 gap-1">
+          <button
+            type="button"
+            onClick={() => setEntryScope('customer_project')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              entryScope === 'customer_project'
+                ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Briefcase size={18} />
+            <span className="hidden sm:inline">Projektzeit</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setEntryScope('internal')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              entryScope === 'internal'
+                ? 'bg-white dark:bg-dark-100 text-gray-700 dark:text-white shadow-sm'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Coffee size={18} />
+            <span className="hidden sm:inline">Intern</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setEntryScope('absence')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              entryScope === 'absence'
+                ? 'bg-white dark:bg-dark-100 text-orange-600 dark:text-orange-400 shadow-sm'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <Calendar size={18} />
+            <span className="hidden sm:inline">Abwesenheit</span>
+          </button>
+        </div>
+
         {/* Date Selection */}
         <ModernDatePicker
           value={date}
@@ -337,55 +425,81 @@ export const ManualEntryModern = ({
           </div>
         </Card>
 
-        {/* Project Selection */}
+        {/* Project Selection (for customer_project) or Category (for internal/absence) */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Kunde
-            </label>
-            <SearchableSelect
-              options={customerOptions}
-              value={selectedCustomerId}
-              onChange={handleCustomerChange}
-              placeholder="Kunde auswählen oder suchen..."
-              emptyMessage="Keine Kunden gefunden"
-              allowClear={true}
-            />
-          </div>
+          {entryScope === 'customer_project' ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  Kunde
+                </label>
+                <SearchableSelect
+                  options={customerOptions}
+                  value={selectedCustomerId}
+                  onChange={handleCustomerChange}
+                  placeholder="Kunde auswählen oder suchen..."
+                  emptyMessage="Keine Kunden gefunden"
+                  allowClear={true}
+                />
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Projekt *
-            </label>
-            <SearchableSelect
-              options={projectOptions}
-              value={projectId}
-              onChange={setProjectId}
-              placeholder={selectedCustomerId ? 'Projekt auswählen...' : 'Erst Kunde wählen oder alle Projekte durchsuchen...'}
-              emptyMessage="Keine Projekte gefunden"
-              disabled={filteredProjects.length === 0}
-              required={true}
-              allowClear={false}
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  Projekt *
+                </label>
+                <SearchableSelect
+                  options={projectOptions}
+                  value={projectId}
+                  onChange={setProjectId}
+                  placeholder={selectedCustomerId ? 'Projekt auswählen...' : 'Erst Kunde wählen oder alle Projekte durchsuchen...'}
+                  emptyMessage="Keine Projekte gefunden"
+                  disabled={filteredProjects.length === 0}
+                  required={true}
+                  allowClear={false}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                {entryScope === 'internal' ? 'Kategorie *' : 'Abwesenheitsgrund *'}
+              </label>
+              <select
+                value={internalCategory}
+                onChange={(e) => setInternalCategory(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
+              >
+                <option value="">Bitte wählen...</option>
+                {currentCategories.map(cat => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Tätigkeit
-            </label>
-            <select
-              value={activityId}
-              onChange={(e) => setActivityId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
-            >
-              <option value="">Keine Tätigkeit</option>
-              {activities.map(activity => (
-                <option key={activity.id} value={activity.id}>
-                  {activity.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Activity selector only for project time */}
+          {entryScope === 'customer_project' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                Tätigkeit
+              </label>
+              <select
+                value={activityId}
+                onChange={(e) => setActivityId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
+              >
+                <option value="">Keine Tätigkeit</option>
+                {activities.map(activity => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
@@ -394,7 +508,7 @@ export const ManualEntryModern = ({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Was wurde gemacht?"
+              placeholder={entryScope === 'customer_project' ? 'Was wurde gemacht?' : entryScope === 'internal' ? 'Details zur internen Tätigkeit...' : 'Anmerkungen (optional)...'}
               rows={3}
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 resize-none transition-all"
             />
@@ -404,11 +518,11 @@ export const ManualEntryModern = ({
         {/* Submit Button */}
         <Button
           type="submit"
-          disabled={!projectId || calculatedDuration <= 0}
+          disabled={(entryScope === 'customer_project' ? !projectId : !internalCategory) || calculatedDuration <= 0}
           fullWidth
           size="lg"
           icon={<Save size={22} />}
-          className={projectId && calculatedDuration > 0
+          className={(entryScope === 'customer_project' ? projectId : internalCategory) && calculatedDuration > 0
             ? 'py-4 text-lg shadow-lg shadow-accent-primary/30 hover:shadow-xl hover:shadow-accent-primary/40'
             : 'py-4 text-lg'
           }

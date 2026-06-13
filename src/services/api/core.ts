@@ -39,6 +39,49 @@ export interface EntryFilters {
   searchText?: string; // case-insensitive ILIKE on description
 }
 
+// Team entries filters (admin/manager only)
+export interface TeamEntryFilters {
+  userId?: string;
+  startDate?: string;
+  endDate?: string;
+  entryScope?: 'customer_project' | 'internal' | 'absence';
+  page?: number;
+  limit?: number;
+}
+
+export interface TeamMember {
+  id: string;
+  username: string;
+  displayName: string | null;
+  email: string;
+  role: string;
+}
+
+export interface TeamEntryStats {
+  totalDuration: number;
+  projectDuration: number;
+  internalDuration: number;
+  absenceDuration: number;
+  billableDuration: number;
+  entryCount: number;
+}
+
+export interface TeamEntriesResponse {
+  success: boolean;
+  data: {
+    entries: (TimeEntry & {
+      userUsername?: string;
+      userDisplayName?: string;
+      projectName?: string;
+      customerName?: string;
+      activityName?: string;
+    })[];
+    members: TeamMember[];
+    stats: TeamEntryStats;
+  };
+  pagination: PaginationMeta;
+}
+
 // Time Entries API
 export const entriesApi = {
   // Legacy: fetch ALL entries without pagination (used by Dashboard, Calendar, etc.)
@@ -109,6 +152,38 @@ export const entriesApi = {
       method: 'PUT',
       body: JSON.stringify({ entryIds, updates }),
     });
+  },
+
+  // Team entries (admin/manager only)
+  getTeam: async (filters: TeamEntryFilters = {}): Promise<TeamEntriesResponse> => {
+    const params = new URLSearchParams();
+    if (filters.userId)     params.set('userId',     filters.userId);
+    if (filters.startDate)  params.set('startDate',  filters.startDate);
+    if (filters.endDate)    params.set('endDate',    filters.endDate);
+    if (filters.entryScope) params.set('entryScope', filters.entryScope);
+    if (filters.page)       params.set('page',       String(filters.page));
+    if (filters.limit)      params.set('limit',      String(filters.limit));
+    const qs = params.toString();
+    return authFetch(`/entries/team${qs ? `?${qs}` : ''}`);
+  },
+
+  exportTeamCSV: async (filters: TeamEntryFilters = {}): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters.userId)     params.set('userId',     filters.userId);
+    if (filters.startDate)  params.set('startDate',  filters.startDate);
+    if (filters.endDate)    params.set('endDate',    filters.endDate);
+    if (filters.entryScope) params.set('entryScope', filters.entryScope);
+    const qs = params.toString();
+
+    const response = await fetch(`${(await import('./base')).getApiBaseUrl()}/entries/team/export${qs ? `?${qs}` : ''}`, {
+      headers: {
+        'Authorization': `Bearer ${(await import('./base')).getAuthToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Export failed');
+    }
+    return response.blob();
   },
 };
 

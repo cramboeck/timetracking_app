@@ -32,7 +32,7 @@ export type {
 
 // Core API (entries, projects, customers, activities, tasks)
 export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi };
-export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters } from './core';
+export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters, TeamEntryFilters, TeamMember, TeamEntryStats, TeamEntriesResponse } from './core';
 
 // Tickets API
 export { ticketsApi, knowledgeBaseApi, publicKbApi } from './tickets';
@@ -44,13 +44,12 @@ export type {
   TicketAttachment,
   KbCategory,
   KbArticle,
-  PortalSettings,
 } from './tickets';
 
 // Portal API
 export { portalSettingsApi, customerPortalApi, pushApi } from './portal';
 export type {
-  PortalSettings as PortalSettingsType,
+  PortalSettings,
   PortalContact,
   PortalTicket,
   PortalAttachment,

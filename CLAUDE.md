@@ -358,26 +358,26 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ✅ | **Toter Code entfernen** — 4 Komponenten ohne Imports | diverse | 1h | Commit 0d31ef5. `CustomerView.tsx`, `SevdeskDocuments.tsx`, `SwipeableRow.tsx`, `VendorHub.tsx` gelöscht. |
 | ⏸️ | **text-gray-* Cleanup** — `text-gray-*` ohne `dark:`-Pendant auf `text-dark-400/500` umstellen | ~495 Stellen | 4-6h | **Pausiert:** Viele "fehlende" dark: Varianten sind auf separaten Zeilen (z.B. Button.tsx). Automatische Ersetzung birgt hohes Regressionsrisiko. Manuelle Prüfung pro Datei erforderlich. Priorität: SocialMediaManager.tsx (118), Finanzen.tsx (29), MaintenanceView.tsx (26). |
 
-### 🟡 Sprint 3 — Performance & Konsistenz
+### ✅ Sprint 3 — Performance & Konsistenz
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
 | ✅ | **Tickets-Paginierung** im Main-Endpoint | `server/src/routes/tickets.ts` | 3-4h | Commit 1d46536. `?page=&limit=50` (max 200), `?all=true` Legacy, `?searchText=` Filter, SELECT * eliminiert. |
 | ✅ | **SELECT * eliminieren** — batch-weise in allen Routes | 31 Dateien | 6-8h | Alle direkten Tabellen-SELECT * durch explizite Spaltenlisten ersetzt (Commits 238a621, 8d76960, 2ff11a9, 29e5abe). Verbleibend nur: `SELECT * FROM (subquery)` Patterns (OK). |
-| ⬜ | **Multi-Tenancy**: `organization_id` für ~30 Tabellen nachrüsten | `server/src/config/database.ts` | 4-6h | Migration mit `IF NOT EXISTS` + Backfill aus `user_id`. Betroffene Tabellen: `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams`, `trusted_devices`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_*`, `customer_portal_*`, `ai_config`, `sevdesk_*`, `invoice_exports`, `clockodo_config`. |
-| ⬜ | **Fehlende DB-Indexes** auf `organization_id` | `server/src/config/database.ts` | 1-2h | `CREATE INDEX IF NOT EXISTS` für: `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_*`, `ticket_email_attachments`. |
+| ✅ | **Multi-Tenancy**: `organization_id` für ~30 Tabellen nachrüsten | `server/src/config/database.ts` | 4-6h | Commit d750b30. 21 Tabellen mit `organization_id` erweitert, Backfill via `user_id` → `organization_members` bzw. Parent-Tabellen. |
+| ✅ | **Fehlende DB-Indexes** auf `organization_id` | `server/src/config/database.ts` | 1-2h | Commit d750b30. 24 Indexes erstellt (21 neue Tabellen + `ticket_tag_assignments`, `ticket_sequences_new`, `ticket_email_attachments`). |
 
-### 🟢 Sprint 4 — Features
+### 🟢 Sprint 4 — Features (unabhängig, jederzeit einschiebbar)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
 | ⬜ | **Vertrags-Stunden-Cron** — automatische Stunden-Abrechnung aus Verträgen | neue Datei `server/src/jobs/contractHoursCron.ts` | 4-6h | Tabellen `contracts` + `contract_hours` existieren bereits. Job soll täglich prüfen ob gebuchte Stunden das Kontingent überschreiten und eine Warnung erstellen. |
-| ⬜ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Via `localStorage` persistieren. Beim Öffnen der Palette als erste Sektion „Zuletzt verwendet" anzeigen. |
+| ✅ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Commit e37a668. Letzte 5 Befehle in localStorage, „Zuletzt verwendet" Sektion beim Öffnen. |
 | ⬜ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Bei Lead-Status „Won" Button „Angebot erstellen" → öffnet `QuoteEditor` mit vorausgefülltem Kunden. |
 | ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
 | ⬜ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` + diverse | 3-4h | Kanban-Board auf `md:` breakpoint verstecken, stattdessen Card-Liste zeigen. |
 
-### 🔵 Sprint 5 — Tech-Debt & Architektur
+### 🔵 Sprint 5 — Tech-Debt & Architektur (unabhängig, jederzeit einschiebbar)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
@@ -411,17 +411,11 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ### Datenbank-Konsistenz & Multi-Tenancy
 
-#### Multi-Tenancy Lücken schließen
-**Teilweise gelöst:** `customers`, `projects`, `time_entries` haben jetzt `organization_id` + Index.
+#### ~~Multi-Tenancy Lücken schließen~~ ✅
+**Gelöst in Sprint 3 (Commit d750b30):** 21 Tabellen mit `organization_id` erweitert. Backfill via `user_id` → `organization_members` bzw. Parent-Tabellen (tickets → ticket_comments, leads → lead_activities, tasks → task_checklist_items).
 
-**Noch offen (~30 Tabellen):** `ninjarmm_alerts`, `ticket_comments`, `contracts`, `teams`, `trusted_devices`, `company_info`, `email_notifications`, `password_reset_tokens`, `audit_logs`, `notification_settings`, `report_approvals`, `ninjarmm_config`, `ninjarmm_organizations`, `ninjarmm_webhook_events`, `ninjarmm_alert_exclusions`, `customer_portal_*`, `ai_config`, `ticket_ai_suggestions`, `feature_packages`, `maintenance_*`, `lead_activities`, `task_comments`, `task_activity_log`, `contract_activity_log`, `sevdesk_*`, `invoice_exports`, `clockodo_config`
-
-**Task:** Migration schreiben, die `organization_id` zu diesen Tabellen hinzufügt und basierend auf `user_id` befüllt.
-
-#### Fehlende Indexes
-Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_webhook_events`, `ticket_comments`, `ticket_tag_assignments`, `ticket_sequences_new`, `lead_activities`, `task_checklist_items`, `contracts`, `sevdesk_config`, `clockodo_config`, `social_media_*` (mehrere), `ticket_email_attachments`.
-
-**Task:** `CREATE INDEX IF NOT EXISTS` Statements in `database.ts` ergänzen.
+#### ~~Fehlende Indexes~~ ✅
+**Gelöst in Sprint 3 (Commit d750b30):** 24 Indexes auf `organization_id` erstellt.
 
 ### Sonstige Aufgaben
 
@@ -452,7 +446,7 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 4. **Keine nativen Alerts:** `window.alert` und `window.confirm` sind verboten. Nutze `Toast` und `ConfirmDialog`.
 5. **Farben & Theme-Tokens:** Nutze die CSS-Variablen-Tokens (`bg-dark-50/100/200/300`, `border-dark-border`, `text-dark-400/500`, `bg-accent-primary`, `text-accent-dark` etc.), **niemals hartcodierte** Tailwind-Farben wie `dark:bg-gray-800` oder `dark:border-gray-700`. Die `dark-*` Tokens werden durch die `tone-*` Klasse (`tone-medium`/`tone-dark`/`tone-ramboeck`) per CSS-Variable umgesetzt — hardcodete `gray`-Klassen bleiben fix und ignorieren den Theme-Switch. Ausnahmen sind nur semantisch zwingende Stellen (Status-Color, Error-Badge = Rot, Info-Toast = Blau, Brand-Logos wie Facebook).
 6. **Zod-Validierung ist Pflicht** — jede neue Route muss Eingaben mit Zod + `validate()` middleware validieren.
-7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries.
+7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries. ⚠️ **Vor dem Ersetzen von `SELECT *` zwingend das tatsächliche Datenbankschema verifizieren:** `server/src/config/database.ts` für die betreffende Tabelle lesen (CREATE TABLE + alle ALTER TABLE). Spalten, die nur in einer Migration existieren aber nicht im CREATE TABLE stehen, können in der Praxis fehlen. Nicht-existierende Spalten in der Spaltenliste führen zu Laufzeitfehlern. Erfahrung aus Sprint 3 (12.6.2026): 5 aufeinanderfolgende Fix-Commits waren nötig, weil `is_active` und `deleted_at` in `activities` referenziert wurden, die dort nicht existieren.
 8. **Soft-Delete beachten** — Queries auf `customers`, `projects`, `activities`, `contracts` immer mit `WHERE deleted_at IS NULL` filtern. DELETE-Endpoints nutzen `UPDATE SET deleted_at = NOW()`, nicht `DELETE FROM`.
 9. **Paginierung bevorzugen** — neue Listenendpunkte immer mit `?page=&limit=` implementieren. Legacy-Clients via `?all=true` rückwärtskompatibel halten.
 10. **`password_hash` niemals zurückgeben** — in keiner API-Antwort.
@@ -469,11 +463,21 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
-### 🔴 Sicherheitslücken (kritisch, neu entdeckt)
+### Tickets — Offene Bugs & Verbesserungen (Stand 13.6.2026)
 
-- **`sevdesk.ts` (1266 Zeilen) hat KEINE Zod-Validierung** — alle `req.body` werden ungeprüft destructuriert (Z. 83, 111, 155, 203, File-Upload Z. 760). Verletzt Verhaltensregel 6. Betrifft auch die neuen Belege-Phase-1-3-Routen.
-- **`SELECT *` in 31 Dateien** — Verletzt Verhaltensregel 7. Betroffen: social-media.ts, tickets.ts, customers.ts, entries.ts, u.a.
-- **`parseInt` ohne Bounds in admin.ts** — `limit=999999` möglich (DoS-Vektor). Empfehlung: `Math.min(limit, 200)`.
+| Priorität | Problem | Beschreibung |
+|---|---|---|
+| ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
+| 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
+| 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
+| 🟡 Normal | **Ticket-Darstellung optimieren** | Allgemeine UI/UX-Verbesserungen für Ticket-Ansicht und -Handling |
+| 🟡 Normal | **Schnittstellen-Optimierung** | Integration mit externen Systemen (NinjaRMM, E-Mail) verbessern |
+
+### ✅ Sicherheitslücken — Alle behoben
+
+- ~~**`sevdesk.ts` hat KEINE Zod-Validierung**~~ ✅ Gelöst in Sprint 1 (Commit 96c2aa3). 14 Endpoints + 20 Schemas validiert.
+- ~~**`SELECT *` in 31 Dateien**~~ ✅ Gelöst in Sprint 3 (Commits 238a621, 8d76960, 2ff11a9, 29e5abe). Alle direkten Tabellen-SELECT * durch explizite Spaltenlisten ersetzt.
+- ~~**`parseInt` ohne Bounds in admin.ts**~~ ✅ Gelöst in Sprint 1 (Commit 96c2aa3). Bounds-Checks mit `Math.min(limit, 200)` eingeführt.
 
 ---
 
@@ -482,7 +486,13 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ## Neue Anforderungen — Interne Arbeitszeiterfassung & Kundenportal (Stand 12.6.2026)
 
-> **Für Claude Code:** Diese Sprints (A–F) sind nach den Sprints 1–5 umzusetzen. Sprints A und C können parallel gestartet werden. Alle Architekturentscheidungen sind bereits getroffen und verbindlich — keine Rückfragen nötig.
+> **Für Claude Code:** Sprints 1–3 sind abgeschlossen ✅. **Empfohlene Reihenfolge:**
+> 1. **Sprint A** (DB-Fundament) — Voraussetzung für B, D, F
+> 2. **Sprint C** (Portal-Fundament) — kann parallel zu A, Voraussetzung für D, E
+> 3. **Sprints B, D, E, F** — nach ihren Abhängigkeiten
+> 4. **Sprints 4 + 5** (Features + Tech-Debt) — unabhängig, können jederzeit eingeschoben werden
+>
+> Alle Architekturentscheidungen sind bereits getroffen und verbindlich — keine Rückfragen nötig.
 
 ### Architekturentscheidungen (verbindlich)
 
@@ -496,79 +506,79 @@ Indexes auf `organization_id` fehlen in: `teams`, `ninjarmm_alerts`, `ninjarmm_w
 
 ---
 
-### 🔴 Sprint A — Datenbankfundament: Buchungsarten und Kundensichtbarkeit
+### ✅ Sprint A — Datenbankfundament: Buchungsarten und Kundensichtbarkeit
 
 **Abhängigkeit:** keiner | **Kann parallel zu:** Sprint C
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Migration: `entry_scope` + `internal_category` + `customer_visibility`** | `server/src/config/database.ts` | 2h | `entry_scope` NOT NULL DEFAULT 'customer_project' CHECK IN ('customer_project','internal','absence'). `internal_category` nullable. `customer_visibility` NOT NULL DEFAULT 'hidden' CHECK IN ('hidden','summary','detailed'). `project_id` DROP NOT NULL. Indexes auf `(user_id, entry_scope, date)` und `(project_id, customer_visibility)`. Migration idempotent (IF NOT EXISTS). |
-| ⬜ | **Zod-Schema aktualisieren** | `server/src/routes/entries.ts` | 1h | `project_id` optional machen. `.refine()` Regel: project_id Pflicht wenn entry_scope = 'customer_project'. |
-| ⬜ | **TypeScript-Interface aktualisieren** | `src/types/index.ts` | 30min | `TimeEntry` um `entryScope`, `internalCategory?`, `customerVisibility` erweitern. |
+| ✅ | **Migration: `entry_scope` + `internal_category` + `customer_visibility`** | `server/src/config/database.ts` | 2h | Commit c23b069. Alle Spalten + project_id DROP NOT NULL + 2 Indexes. |
+| ✅ | **Zod-Schema aktualisieren** | `server/src/routes/entries.ts` | 1h | Commit c23b069. projectId optional, .refine() Regel, neue Felder in INSERT/UPDATE. |
+| ✅ | **TypeScript-Interface aktualisieren** | `src/types.ts` | 30min | Commit c23b069. EntryScope + CustomerVisibility Types, TimeEntry erweitert. |
 
 ---
 
-### 🟠 Sprint B — UI: Erfassungsmaske für interne Arbeitszeit
+### ✅ Sprint B — UI: Erfassungsmaske für interne Arbeitszeit
 
-**Abhängigkeit:** Sprint A vollständig
+**Abhängigkeit:** Sprint A vollständig | **Status:** Komplett
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntry.tsx` | 3h | Segmented Control oder Select: „Projektzeit" (Standard) / „Interne Zeit" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false + ausblenden. `customer_visibility` serverseitig immer 'hidden' — kein UI-Feld in diesem Sprint. |
-| ⬜ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntries.tsx` | 1h | Blau = Projektzeit, Grau = Interne Zeit (Kategorie als Tooltip), Orange = Abwesenheit. |
-| ⬜ | **Filter nach Buchungsart** | `src/components/TimeEntries.tsx` | 1h | Filter-Tab oder Checkbox: Alle / Nur Projektzeit / Nur interne Zeit / Nur Abwesenheiten. Bestehende Auswertungen zeigen weiterhin nur customer_project-Einträge. |
-| ⬜ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Unter „Berichte" → „Interne Zeit". Stunden pro Kategorie (Balkendiagramm, bestehende Chart-Komponente). Soll-Ist-Vergleich aus `weekly_goal_hours`. Abwesenheitsübersicht pro Mitarbeiter nur für Admin. |
+| ✅ | **Buchungsart-Auswahl in Stopwatch + ManualEntry** | `src/components/Stopwatch.tsx`, `src/components/ManualEntryModern.tsx` | 3h | Commit 21a8352. Segmented Control: „Projektzeit" / „Intern" / „Abwesenheit". Bei Intern/Abwesenheit: Projekt-Dropdown ausblenden, Kategorie-Dropdown einblenden. Interne Kategorien: Admin, Vertrieb, Marketing, Weiterbildung, Meeting, Interner Support, Reise. Abwesenheits-Kategorien: Urlaub, Krankheit, Sonderurlaub. `is_billable` bei Abwesenheit auto=false. |
+| ✅ | **Buchungsart-Badge in Zeitliste** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Grau + Coffee-Icon = Interne Zeit, Orange + Calendar-Icon = Abwesenheit. Badge zeigt Kategorie-Label. |
+| ✅ | **Filter nach Buchungsart** | `src/components/TimeEntriesList.tsx` | 1h | Commit 923cf62. Dropdown-Filter: Alle / Projektzeit / Interne Zeit / Abwesenheit. |
+| ✅ | **Neuer Tab: Interne Auswertung** | `src/components/InternalTimeReport.tsx` (neu) | 2h | Commit 64a682a. Unter „Berichte" → Tab „Interne Auswertung". Summary-Cards, Kategorie-Aufteilung mit Balken, Abwesenheitsübersicht, Detail-Tabelle. **Export:** CSV für Steuerberater/Lohnabrechnung, Kopieren, E-Mail-Versand. |
 
 ---
 
-### 🟡 Sprint C — Portal-Fundament bereinigen
+### ✅ Sprint C — Portal-Fundament bereinigen
 
-**Abhängigkeit:** keiner | **Kann parallel zu:** Sprint A, B
+**Abhängigkeit:** keiner | **Status:** Komplett (Commit 465bb53)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Einheitliches Berechtigungsmodell** | `server/src/routes/customer-portal.ts`, `server/src/config/database.ts` | 2h | `getContactPermissions()` liest ausschließlich aus `customer_portal_users`. Felder aus `customer_contacts` nur als Vorschlagswerte beim Einladen. Migration: `ALTER TABLE customer_portal_users ADD COLUMN IF NOT EXISTS can_view_time_report BOOLEAN NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS can_view_contract BOOLEAN NOT NULL DEFAULT false;` |
-| ⬜ | **Einladungsfluss reparieren** | `src/components/CustomerHub.tsx`, `server/src/routes/contacts.ts` | 3h | Button „Portal-Zugang aktivieren" ist Placeholder → vollständiger Fluss: POST `/api/contacts/:id/portal-invite` → Aktivierungstoken + E-Mail-Versand (wenn SMTP konfiguriert) + Clipboard-Fallback. Aktivierungsseite `/portal/activate?token=...`. Statusanzeige: Eingeladen / Aktiv / Deaktiviert. Button „Einladung erneut senden". |
-| ⬜ | **PortalSettings konsolidieren** | `src/services/api/portal.ts`, `src/services/api/tickets.ts`, `src/components/KnowledgeBaseSettings.tsx` | 1h | Zwei `PortalSettings`-Interfaces zusammenführen → kanonisches Interface in `portal.ts`. Interface in `tickets.ts` entfernen. Neue Felder: `showTimeReport: boolean`, `showContractInfo: boolean`, `welcomeMessage: string \| null`, `companyName: string \| null`. |
+| ✅ | **Einheitliches Berechtigungsmodell** | `customer-portal.ts`, `database.ts` | 2h | `getContactPermissions()` liest nun ausschließlich aus `customer_portal_users`. Neue Spalten `can_view_time_report`, `can_view_contract` mit Migration. |
+| ✅ | **Einladungsfluss reparieren** | `CustomerHub.tsx` | 3h | `handleEnablePortalAccess` implementiert. Ruft `/api/contacts/:id/portal-access`, kopiert Einladungslink in Zwischenablage, zeigt Toast. |
+| ✅ | **PortalSettings konsolidieren** | `portal.ts`, `tickets.ts`, `index.ts` | 1h | Kanonisches Interface in `portal.ts` mit allen Feldern inkl. `showTimeReport`, `showContractInfo`. Duplikat aus `tickets.ts` entfernt. |
 
 ---
 
-### 🟢 Sprint D — Kundenportal: Stundentransparenz und Vertragsansicht
+### ✅ Sprint D — Kundenportal: Stundentransparenz und Vertragsansicht
 
-**Abhängigkeit:** Sprint A + Sprint C vollständig
+**Abhängigkeit:** Sprint A + Sprint C vollständig | **Status:** Komplett (Commit 8a08304)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Backend: Portal-Zeitreport-Route** | `server/src/routes/customer-portal.ts` | 2h | `GET /api/portal/time-report?month=YYYY-MM`. Prüft `can_view_time_report`. Filtert `time_entries` nach `customer_id`, `customer_visibility IN ('summary','detailed')`, `entry_scope = 'customer_project'`. Response: `{ month, totalHours, billableHours, byProject: [{projectId, projectName, hours, billableHours}], byCategory? }`. Keine Mitarbeiternamen in der Response (Datenschutz). |
-| ⬜ | **Frontend: PortalTimeReport-Komponente** | `src/components/portal/PortalTimeReport.tsx` (neu) | 3h | Monatsauswahl, Übersichtskarte (Gesamtstunden, verrechenbar, Restkontingent wenn Vertrag), Tabelle pro Projekt, aufklappbare Detailansicht bei `customer_visibility = 'detailed'`. In `CustomerPortal.tsx` als View `'time-report'` einbinden. In `PortalLayout.tsx` Navigationspunkt „Stunden" (nur wenn `contact.canViewTimeReport`). |
-| ⬜ | **Backend: Portal-Vertragsroute** | `server/src/routes/customer-portal.ts` | 1h | `GET /api/portal/contract`. Prüft `can_view_contract`. Gibt aktiven Vertrag zurück: Name, Laufzeit, enthaltene Stunden/Monat, verbrauchte Stunden aktueller Monat, SLA-Reaktionszeit, Status. |
-| ⬜ | **Frontend: PortalContract-Komponente** | `src/components/portal/PortalContract.tsx` (neu) | 2h | Kontingent-Fortschrittsbalken, SLA-Reaktionszeiten, Vertragslaufzeit, Ansprechpartner. In `CustomerPortal.tsx` als View `'contract'` einbinden. |
+| ✅ | **Backend: Portal-Zeitreport-Route** | `server/src/routes/customer-portal.ts` | 2h | `GET /api/customer-portal/time-report?month=YYYY-MM` + `GET /api/customer-portal/time-report/months`. Prüft `can_view_time_report`. Filtert `time_entries` nach `customer_id`, `customer_visibility IN ('summary','detailed')`, `entry_scope = 'customer_project'`. Response: `{ month, totalHours, billableHours, byProject, detailedEntries?, entryCount }`. |
+| ✅ | **Frontend: PortalTimeReport-Komponente** | `src/components/portal/PortalTimeReport.tsx` | 3h | Monatsauswahl (Dropdown), 4 Summary-Cards (Gesamt, Verrechenbar, Projekte, Einträge), Projekttabelle mit aufklappbaren Details. In `CustomerPortal.tsx` als View `'time-report'`, Tab „Stunden" in `PortalLayout.tsx`. |
+| ✅ | **Backend: Portal-Vertragsroute** | `server/src/routes/customer-portal.ts` | 1h | `GET /api/customer-portal/contract`. Prüft `can_view_contract`. Gibt aktiven Vertrag zurück: Name, Laufzeit, enthaltene Stunden/Monat, verbrauchte Stunden aktueller Monat, SLA-Reaktionszeit, Status, Ansprechpartner, Hinweise. |
+| ✅ | **Frontend: PortalContract-Komponente** | `src/components/portal/PortalContract.tsx` | 2h | Kontingent-Fortschrittsbalken, SLA-Reaktionszeiten, Vertragslaufzeit, Ansprechpartner. Status-Badge (Aktiv/Ausstehend/Abgelaufen). Tab „Vertrag" in PortalLayout. |
 
 ---
 
-### 🔵 Sprint E — Kundenportal: Qualitätsverbesserungen
+### ✅ Sprint E — Kundenportal: Qualitätsverbesserungen
 
-**Abhängigkeit:** Sprint C vollständig | **Kann parallel zu:** Sprint D
+**Abhängigkeit:** Sprint C vollständig | **Status:** Komplett (Commits 5faba28, e392a55)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Ticket-Liste: Informationsdichte erhöhen** | `src/components/portal/PortalTicketList.tsx` | 2h | Pro Zeile: letztes Update (relativ), zuständiger Mitarbeiter (Vorname), SLA-Ampel (grün/gelb/rot), Prioritäts-Badge. Statusbezeichnungen kundenfreundlich: `in_progress` → „In Bearbeitung", `waiting_for_customer` → „Ihre Rückmeldung erforderlich". |
-| ⬜ | **Ticket-Erstellung: Formular verbessern** | `src/components/portal/PortalCreateTicket.tsx` | 2h | Neue Felder: Gerät (Dropdown aus Kundengeräten, optional), Dringlichkeit (Normal/Dringend/Kritisch), Anhänge (max. 3 Dateien, max. 10 MB). Bestätigungsseite mit Ticket-Nummer nach Absenden. |
-| ⬜ | **Geräte: Warnungen prominenter** | `src/components/portal/PortalDevices.tsx` | 1h | Geräte mit Warnungen oben (Sortierung nach Kritikalität). Zusammenfassungskarte: „X Geräte mit Warnungen". TeamViewer-Link als prominenter Button. |
-| ⬜ | **Portal-Dashboard als Startseite** | `src/components/portal/PortalDashboard.tsx` (neu) | 2h | Ersetzt leere Ticket-Ansicht als Einstieg. Zeigt: offene Tickets (Anzahl + letztes Update), Geräte mit Warnungen, Stunden diesen Monat (wenn `canViewTimeReport`), Restkontingent (wenn Vertrag). Ticket-Liste bleibt als eigener View erhalten. |
+| ✅ | **Ticket-Liste: Informationsdichte erhöhen** | `src/components/portal/PortalTicketList.tsx` | 2h | Commit 5faba28. Letztes Update (relativ), zuständiger Mitarbeiter, SLA-Ampel, Prioritäts-Badge. `waiting_for_customer` → „Ihre Rückmeldung". |
+| ✅ | **Ticket-Erstellung: Formular verbessern** | `src/components/portal/PortalCreateTicket.tsx` | 2h | Commit e392a55. Gerät aus Kundenliste wählbar. Anhänge: max 3 Dateien (Bilder/PDF/Word/Excel/Text), max 10 MB. Dringlichkeit war bereits vorhanden (low/normal/high/critical). |
+| ✅ | **Geräte: Warnungen prominenter** | `src/components/portal/PortalDevices.tsx` | 1h | Commit 5faba28. Sortierung nach Kritikalität (Warnungen oben). Zusammenfassungskarte „X Geräte mit Warnungen". |
+| ✅ | **Portal-Dashboard als Startseite** | `src/components/portal/PortalDashboard.tsx` (neu) | 2h | Commit 5faba28. Startseite mit Tickets-/Geräte-/Stunden-/Vertrags-Übersicht. Quick-Action für neues Ticket. |
 
 ---
 
-### ⚪ Sprint F — Abwesenheitskalender und Teamübersicht
+### ✅ Sprint F — Abwesenheitskalender und Teamübersicht
 
-**Abhängigkeit:** Sprint B vollständig | **Kann parallel zu:** Sprint D, E
+**Abhängigkeit:** Sprint B vollständig | **Status:** Komplett (Commit 95ba593)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Abwesenheitskalender (eigene Einträge)** | `src/components/AbsenceCalendar.tsx` (neu) | 3h | Monatskalender (shadcn/ui Calendar als Basis). Urlaub = Grün, Krankheit = Rot, Sonderurlaub = Gelb. Klick auf Tag → ManualEntry mit vorausgefüllter Buchungsart. Erreichbar unter „Berichte" → „Abwesenheiten". |
-| ⬜ | **Teamübersicht für Admin/Manager** | `src/components/TeamAbsenceOverview.tsx` (neu) | 3h | Nur für Rollen `admin` und `manager`. Horizontale Zeitleiste (Gantt-ähnlich) aller Teammitglieder. Daten aus `time_entries` WHERE `entry_scope = 'absence'`. Jahresverbrauch pro Mitarbeiter. Keine separate Urlaubskonto-Tabelle — Zählung direkt aus Buchungen. |
+| ✅ | **Abwesenheitskalender (eigene Einträge)** | `src/components/AbsenceCalendar.tsx` | 3h | Monatskalender mit farbcodierten Abwesenheiten (Urlaub=grün, Krankheit=rot, Sonderurlaub=gelb). Monats-/Jahresstatistik. Erreichbar unter „Berichte" → „Abwesenheit". |
+| ✅ | **Teamübersicht für Admin/Manager** | `src/components/TeamAbsenceOverview.tsx` | 3h | Gantt-artige Jahresübersicht aller Teammitglieder. Heute-Marker, Monatsheader, Jahresnavigation. Nutzt `GET /api/entries/team?entryScope=absence`. Erreichbar unter „Berichte" → „Team-Urlaub" (nur Admin/Owner). |
+| ✅ | **Admin-Zeitenübersicht (alle Teammitglieder)** | `src/components/AdminTeamTimeView.tsx`, `server/src/routes/entries.ts` | 3-4h | Dashboard mit Dropdown zur Mitarbeiterauswahl, Zeiten-Liste org-weit, Filter, CSV-Export. Erreichbar unter „Berichte" → „Team" (nur Admin/Owner). |
 
 ---
 
-*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3 begonnen. Neue Anforderungen ergänzt: Sprints A–F (Interne Arbeitszeit + Kundenportal-Überarbeitung). Architekturentscheidungen getroffen und dokumentiert.*
-*Zuletzt aktualisiert: 12.6.2026 — Sprint 1 ✅ + Sprint 2 ✅ + Sprint 3: Tickets-Paginierung ✅ (Commit 1d46536), SELECT * Elimination ✅ (alle 31 Dateien). Verbleibend in Sprint 3: Multi-Tenancy + DB-Indexes.*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅. Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert.*

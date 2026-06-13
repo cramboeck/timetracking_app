@@ -80,7 +80,7 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
 
-    const result = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name', [organizationId]);
+    const result = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name`, [organizationId]);
     const customers = transformRows(result.rows);
 
     res.json({
@@ -110,7 +110,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
     );
 
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const newCustomer = transformRow(customerResult.rows[0]);
 
     auditLog.log({
@@ -141,7 +141,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -252,7 +252,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const query = `UPDATE customers SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL', [id]);
+    const updatedResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const updatedCustomer = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -282,7 +282,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('adm
     const { id } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [id, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [id, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -355,7 +355,7 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
     const { customerId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -416,7 +416,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
     } = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -495,13 +495,13 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     const updates = req.body;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Verify portal user exists
-    const contactResult = await pool.query('SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
+    const contactResult = await pool.query(`SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`, [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -625,13 +625,13 @@ router.delete('/:customerId/contacts/:contactId', authenticateToken, attachOrgan
     const { customerId, contactId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Verify portal user exists
-    const contactResult = await pool.query('SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3', [contactId, customerId, organizationId]);
+    const contactResult = await pool.query(`SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`, [contactId, customerId, organizationId]);
     if (contactResult.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
     }
@@ -665,14 +665,14 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     const { customerId, contactId } = req.params;
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      `SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`,
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -753,14 +753,14 @@ router.post('/:customerId/contacts/:contactId/set-password', authenticateToken, 
     }
 
     // Verify customer belongs to organization
-    const customerResult = await pool.query('SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL', [customerId, organizationId]);
+    const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get portal user
     const contactResult = await pool.query(
-      'SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3',
+      `SELECT ${PORTAL_USER_COLUMNS} FROM customer_portal_users WHERE id = $1 AND customer_id = $2 AND organization_id = $3`,
       [contactId, customerId, organizationId]
     );
     if (contactResult.rows.length === 0) {
@@ -845,7 +845,7 @@ router.get('/:id/hub', authenticateToken, attachOrganization, async (req: AuthRe
 
     // Verify customer belongs to organization
     const customerResult = await pool.query(
-      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      `SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {
@@ -956,7 +956,7 @@ router.get('/:id/emails', authenticateToken, attachOrganization, async (req: Aut
 
     // Verify customer belongs to organization and get vendor domain
     const customerResult = await pool.query(
-      'SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      `SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
       [id, organizationId]
     );
     if (customerResult.rows.length === 0) {

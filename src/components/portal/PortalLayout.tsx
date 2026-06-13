@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from 'react';
-import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle } from 'lucide-react';
+import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle, Clock, LayoutDashboard } from 'lucide-react';
 import { PortalContact, customerPortalApi, PortalSettings } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
 
@@ -11,13 +11,16 @@ interface PortalLayoutProps {
   onShowDevices?: () => void;
   onShowInvoices?: () => void;
   onShowTickets?: () => void;
+  onShowDashboard?: () => void;
+  onShowTimeReport?: () => void;
+  onShowContract?: () => void;
   onShowHelp?: () => void;
   currentView?: string;
   portalSettings?: PortalSettings | null;
   children: ReactNode;
 }
 
-export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, onShowHelp, currentView, portalSettings, children }: PortalLayoutProps) => {
+export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, onShowDashboard, onShowTimeReport, onShowContract, onShowHelp, currentView, portalSettings, children }: PortalLayoutProps) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
@@ -110,10 +113,25 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       </header>
 
       {/* Navigation Tabs */}
-      {(onShowTickets || onShowDevices || onShowInvoices) && (
+      {(onShowDashboard || onShowTickets || onShowDevices || onShowInvoices || onShowTimeReport || onShowContract) && (
         <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
           <div className="max-w-6xl mx-auto px-4">
             <nav className="flex gap-1 overflow-x-auto">
+              {onShowDashboard && (
+                <Button
+                  onClick={onShowDashboard}
+                  variant="ghost"
+                  size="sm"
+                  icon={<LayoutDashboard size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
+                    currentView === 'dashboard'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
+                  }`}
+                >
+                  Übersicht
+                </Button>
+              )}
               {onShowTickets && (
                 <Button
                   onClick={onShowTickets}
@@ -142,6 +160,36 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   }`}
                 >
                   Geräte
+                </Button>
+              )}
+              {onShowTimeReport && (
+                <Button
+                  onClick={onShowTimeReport}
+                  variant="ghost"
+                  size="sm"
+                  icon={<Clock size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
+                    currentView === 'time-report'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
+                  }`}
+                >
+                  Stunden
+                </Button>
+              )}
+              {onShowContract && (
+                <Button
+                  onClick={onShowContract}
+                  variant="ghost"
+                  size="sm"
+                  icon={<FileText size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
+                    currentView === 'contract'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
+                  }`}
+                >
+                  Vertrag
                 </Button>
               )}
               {onShowInvoices && (

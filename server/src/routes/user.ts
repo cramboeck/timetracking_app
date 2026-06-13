@@ -196,7 +196,7 @@ router.get('/company', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const result = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
+    const result = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
     const company = result.rows.length > 0 ? transformRow(result.rows[0]) : null;
 
     res.json({
@@ -216,7 +216,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
     const { name, address, city, zipCode, country, email, phone, website, taxId, logo } = req.body;
 
     // Check if company info already exists
-    const existingResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
+    const existingResult = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
     const existing = existingResult.rows[0];
 
     if (existing) {
@@ -238,7 +238,7 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
       );
     }
 
-    const companyResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
+    const companyResult = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
     const company = transformRow(companyResult.rows[0]);
 
     auditLog.log({
@@ -286,7 +286,7 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const entriesResult = await pool.query(`SELECT id, user_id, organization_id, project_id, activity_id, start_time, end_time, duration, description, is_running, is_billable, created_at FROM time_entries WHERE user_id = $1`, [userId]);
     const entries = transformRows(entriesResult.rows);
 
-    const companyResult = await pool.query('SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1', [userId]);
+    const companyResult = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
     const company = companyResult.rows.length > 0 ? transformRow(companyResult.rows[0]) : null;
 
     const exportData = {

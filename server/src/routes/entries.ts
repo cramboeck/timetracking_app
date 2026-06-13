@@ -15,7 +15,8 @@ const router = Router();
 const TIME_ENTRY_COLUMNS = `
   id, organization_id, user_id, project_id, activity_id, ticket_id,
   start_time, end_time, duration, description, is_running, is_billable,
-  external_id, external_source, created_at
+  external_id, external_source, created_at,
+  entry_scope, internal_category, customer_visibility
 `;
 
 const PROJECT_COLUMNS = `
@@ -24,7 +25,7 @@ const PROJECT_COLUMNS = `
 `;
 
 const ACTIVITY_COLUMNS = `
-  id, organization_id, user_id, name, is_billable, is_active, created_at, deleted_at
+  id, organization_id, user_id, name, is_billable, created_at
 `;
 
 const TICKET_COLUMNS_BASIC = `
@@ -32,29 +33,41 @@ const TICKET_COLUMNS_BASIC = `
 `;
 
 // Validation schemas
+const entryScopeSchema = z.enum(['customer_project', 'internal', 'absence']);
+const customerVisibilitySchema = z.enum(['hidden', 'summary', 'detailed']);
+
 const createEntrySchema = z.object({
   clientId: z.string().uuid().optional(), // Client-generated ID for idempotency
   startTime: z.string().datetime(),
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0),
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid().optional().nullable(), // Optional for internal/absence entries
   activityId: z.string().uuid().optional(),
   ticketId: z.string().uuid().optional(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().default(false),
-  isBillable: z.boolean().default(true)
-});
+  isBillable: z.boolean().default(true),
+  entryScope: entryScopeSchema.default('customer_project'),
+  internalCategory: z.string().max(100).optional().nullable(),
+  customerVisibility: customerVisibilitySchema.default('hidden')
+}).refine(
+  (data) => data.entryScope !== 'customer_project' || data.projectId,
+  { message: 'projectId is required for customer_project entries', path: ['projectId'] }
+);
 
 const updateEntrySchema = z.object({
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
   duration: z.number().int().min(0).optional(),
-  projectId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional().nullable(),
   activityId: z.string().uuid().optional().nullable(),
   ticketId: z.string().uuid().optional().nullable(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().optional(),
-  isBillable: z.boolean().optional()
+  isBillable: z.boolean().optional(),
+  entryScope: entryScopeSchema.optional(),
+  internalCategory: z.string().max(100).optional().nullable(),
+  customerVisibility: customerVisibilitySchema.optional()
 });
 
 // GET /api/entries - Get entries for current organization
@@ -191,7 +204,7 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
     // If updating projectId, verify project belongs to organization
     if (updates.projectId) {
       const projectResult = await pool.query(
-        'SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2',
+        `SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`,
         [updates.projectId, organizationId]
       );
       if (projectResult.rows.length === 0) {
@@ -220,6 +233,18 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
       // Empty string means remove the activity
       fields.push(`activity_id = $${paramCount++}`);
       values.push(updates.activityId || null);
+    }
+    if (updates.entryScope !== undefined) {
+      fields.push(`entry_scope = $${paramCount++}`);
+      values.push(updates.entryScope);
+    }
+    if (updates.internalCategory !== undefined) {
+      fields.push(`internal_category = $${paramCount++}`);
+      values.push(updates.internalCategory);
+    }
+    if (updates.customerVisibility !== undefined) {
+      fields.push(`customer_visibility = $${paramCount++}`);
+      values.push(updates.customerVisibility);
     }
 
     if (fields.length === 0) {
@@ -277,6 +302,252 @@ router.get('/timeframes', authenticateToken, attachOrganization, async (req: Aut
   }
 });
 
+// Zod schema for team entries query params
+const teamEntriesQuerySchema = z.object({
+  userId: z.string().uuid().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  entryScope: entryScopeSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(500).default(100)
+});
+
+// GET /api/entries/team - Get all team members' time entries (admin/manager only)
+// Supports filters: ?userId=UUID, ?startDate=ISO, ?endDate=ISO, ?entryScope=customer_project|internal|absence
+// Pagination: ?page=1&limit=100
+router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    // Validate query params
+    const parseResult = teamEntriesQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Invalid query parameters',
+        details: parseResult.error.issues
+      });
+    }
+
+    const { userId, startDate, endDate, entryScope, page, limit } = parseResult.data;
+    const offset = (page - 1) * limit;
+
+    // Build WHERE clause
+    const params: unknown[] = [organizationId];
+    let whereClause = 'WHERE te.organization_id = $1';
+
+    if (userId) {
+      params.push(userId);
+      whereClause += ` AND te.user_id = $${params.length}`;
+    }
+    if (startDate) {
+      params.push(startDate);
+      whereClause += ` AND te.start_time >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereClause += ` AND te.start_time <= $${params.length}`;
+    }
+    if (entryScope) {
+      params.push(entryScope);
+      whereClause += ` AND te.entry_scope = $${params.length}`;
+    }
+
+    // Get team members for this organization
+    const membersResult = await pool.query(
+      `SELECT u.id, u.username, u.display_name, u.email, om.role
+       FROM users u
+       JOIN organization_members om ON u.id = om.user_id
+       WHERE om.organization_id = $1
+       ORDER BY u.display_name NULLS LAST, u.username`,
+      [organizationId]
+    );
+
+    // Count total entries
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM time_entries te ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Fetch entries with user info and project/activity names
+    params.push(limit, offset);
+    const entriesResult = await pool.query(
+      `SELECT
+         te.id, te.organization_id, te.user_id, te.project_id, te.activity_id, te.ticket_id,
+         te.start_time, te.end_time, te.duration, te.description, te.is_running, te.is_billable,
+         te.created_at, te.entry_scope, te.internal_category, te.customer_visibility,
+         u.username AS user_username,
+         u.display_name AS user_display_name,
+         p.name AS project_name,
+         c.name AS customer_name,
+         a.name AS activity_name
+       FROM time_entries te
+       LEFT JOIN users u ON te.user_id = u.id
+       LEFT JOIN projects p ON te.project_id = p.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN activities a ON te.activity_id = a.id
+       ${whereClause}
+       ORDER BY te.start_time DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    // Calculate summary stats
+    const statsParams: unknown[] = [organizationId];
+    let statsWhere = 'WHERE te.organization_id = $1';
+    if (userId) {
+      statsParams.push(userId);
+      statsWhere += ` AND te.user_id = $${statsParams.length}`;
+    }
+    if (startDate) {
+      statsParams.push(startDate);
+      statsWhere += ` AND te.start_time >= $${statsParams.length}`;
+    }
+    if (endDate) {
+      statsParams.push(endDate);
+      statsWhere += ` AND te.start_time <= $${statsParams.length}`;
+    }
+
+    const statsResult = await pool.query(
+      `SELECT
+         COALESCE(SUM(te.duration), 0) AS total_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'customer_project' THEN te.duration ELSE 0 END), 0) AS project_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'internal' THEN te.duration ELSE 0 END), 0) AS internal_duration,
+         COALESCE(SUM(CASE WHEN te.entry_scope = 'absence' THEN te.duration ELSE 0 END), 0) AS absence_duration,
+         COALESCE(SUM(CASE WHEN te.is_billable THEN te.duration ELSE 0 END), 0) AS billable_duration,
+         COUNT(*)::int AS entry_count
+       FROM time_entries te
+       ${statsWhere}`,
+      statsParams
+    );
+
+    res.json({
+      success: true,
+      data: {
+        entries: transformRows(entriesResult.rows),
+        members: membersResult.rows.map(m => ({
+          id: m.id,
+          username: m.username,
+          displayName: m.display_name,
+          email: m.email,
+          role: m.role
+        })),
+        stats: {
+          totalDuration: parseInt(statsResult.rows[0].total_duration, 10),
+          projectDuration: parseInt(statsResult.rows[0].project_duration, 10),
+          internalDuration: parseInt(statsResult.rows[0].internal_duration, 10),
+          absenceDuration: parseInt(statsResult.rows[0].absence_duration, 10),
+          billableDuration: parseInt(statsResult.rows[0].billable_duration, 10),
+          entryCount: statsResult.rows[0].entry_count
+        }
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    });
+  } catch (error) {
+    logger.error('Get team entries error', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/entries/team/export - Export all team entries as CSV (admin/manager only)
+router.get('/team/export', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const parseResult = teamEntriesQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Invalid query parameters',
+        details: parseResult.error.issues
+      });
+    }
+
+    const { userId, startDate, endDate, entryScope } = parseResult.data;
+
+    const params: unknown[] = [organizationId];
+    let whereClause = 'WHERE te.organization_id = $1';
+
+    if (userId) {
+      params.push(userId);
+      whereClause += ` AND te.user_id = $${params.length}`;
+    }
+    if (startDate) {
+      params.push(startDate);
+      whereClause += ` AND te.start_time >= $${params.length}`;
+    }
+    if (endDate) {
+      params.push(endDate);
+      whereClause += ` AND te.start_time <= $${params.length}`;
+    }
+    if (entryScope) {
+      params.push(entryScope);
+      whereClause += ` AND te.entry_scope = $${params.length}`;
+    }
+
+    const result = await pool.query(
+      `SELECT
+         te.start_time, te.end_time, te.duration, te.description, te.is_billable,
+         te.entry_scope, te.internal_category,
+         COALESCE(u.display_name, u.username) AS employee_name,
+         p.name AS project_name,
+         c.name AS customer_name,
+         a.name AS activity_name
+       FROM time_entries te
+       LEFT JOIN users u ON te.user_id = u.id
+       LEFT JOIN projects p ON te.project_id = p.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       LEFT JOIN activities a ON te.activity_id = a.id
+       ${whereClause}
+       ORDER BY te.start_time DESC`,
+      params
+    );
+
+    // Build CSV
+    const headers = ['Datum', 'Mitarbeiter', 'Buchungsart', 'Kategorie', 'Kunde', 'Projekt', 'Tätigkeit', 'Beschreibung', 'Dauer (Std)', 'Verrechenbar'];
+    const rows = result.rows.map(row => {
+      const date = new Date(row.start_time).toLocaleDateString('de-DE');
+      const scopeLabels: Record<string, string> = {
+        customer_project: 'Projektzeit',
+        internal: 'Interne Zeit',
+        absence: 'Abwesenheit'
+      };
+      const durationHours = (row.duration / 3600).toFixed(2);
+      return [
+        date,
+        row.employee_name || '',
+        scopeLabels[row.entry_scope] || row.entry_scope,
+        row.internal_category || '',
+        row.customer_name || '',
+        row.project_name || '',
+        row.activity_name || '',
+        (row.description || '').replace(/"/g, '""'),
+        durationHours,
+        row.is_billable ? 'Ja' : 'Nein'
+      ];
+    });
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="team-zeiterfassung-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send('﻿' + csvContent); // BOM for Excel UTF-8
+  } catch (error) {
+    logger.error('Export team entries error', { error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/entries/:id - Get single entry
 router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
@@ -284,7 +555,7 @@ router.get('/:id', authenticateToken, attachOrganization, async (req: AuthReques
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
 
-    const result = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const result = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
     const entry = transformRow(result.rows[0]);
 
     if (!entry) {
@@ -307,12 +578,16 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { clientId, startTime, endTime, duration, projectId, activityId, ticketId, description, isRunning, isBillable = true } = req.body;
+    const {
+      clientId, startTime, endTime, duration, projectId, activityId, ticketId,
+      description, isRunning, isBillable = true,
+      entryScope = 'customer_project', internalCategory = null, customerVisibility = 'hidden'
+    } = req.body;
 
     // Idempotency: If clientId is provided, check if entry already exists
     if (clientId) {
       const existingResult = await pool.query(
-        'SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2',
+        `SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`,
         [clientId, organizationId]
       );
       if (existingResult.rows.length > 0) {
@@ -326,14 +601,14 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     // Verify project belongs to organization
-    const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2', [projectId, organizationId]);
+    const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`, [projectId, organizationId]);
     if (projectResult.rows.length === 0) {
       return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
     }
 
     // Verify activity belongs to organization (if provided)
     if (activityId) {
-      const activityResult = await pool.query('SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2', [activityId, organizationId]);
+      const activityResult = await pool.query(`SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2`, [activityId, organizationId]);
       if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
@@ -341,7 +616,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 
     // Verify ticket belongs to organization (if provided)
     if (ticketId) {
-      const ticketResult = await pool.query('SELECT ${TICKET_COLUMNS_BASIC} FROM tickets WHERE id = $1 AND organization_id = $2', [ticketId, organizationId]);
+      const ticketResult = await pool.query(`SELECT ${TICKET_COLUMNS_BASIC} FROM tickets WHERE id = $1 AND organization_id = $2`, [ticketId, organizationId]);
       if (ticketResult.rows.length === 0) {
         return res.status(400).json({ error: 'Ticket not found or does not belong to your organization' });
       }
@@ -393,13 +668,13 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         id,
         userId,
         organizationId,
-        projectId,
+        projectId || null, // Can be null for internal/absence entries
         activityId || null,
         ticketId || null,
         startTime,
@@ -408,11 +683,14 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         description || '',
         isRunning, // PostgreSQL uses boolean, not 0/1
         isBillable,
-        createdAt
+        createdAt,
+        entryScope,
+        internalCategory,
+        customerVisibility
       ]
     );
 
-    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1', [id]);
+    const entryResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1`, [id]);
     const newEntry = transformRow(entryResult.rows[0]);
 
     auditLog.log({
@@ -464,14 +742,14 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updates = req.body;
 
     // Verify entry belongs to organization
-    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const entryResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
 
     // Verify project belongs to organization (if updating projectId)
     if (updates.projectId) {
-      const projectResult = await pool.query('SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2', [updates.projectId, organizationId]);
+      const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`, [updates.projectId, organizationId]);
       if (projectResult.rows.length === 0) {
         return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
       }
@@ -479,7 +757,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // Verify activity belongs to organization (if updating activityId)
     if (updates.activityId) {
-      const activityResult = await pool.query('SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2', [updates.activityId, organizationId]);
+      const activityResult = await pool.query(`SELECT ${ACTIVITY_COLUMNS} FROM activities WHERE id = $1 AND organization_id = $2`, [updates.activityId, organizationId]);
       if (activityResult.rows.length === 0) {
         return res.status(400).json({ error: 'Activity not found or does not belong to your organization' });
       }
@@ -526,6 +804,18 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       fields.push(`is_billable = $${paramCount++}`);
       values.push(updates.isBillable);
     }
+    if (updates.entryScope !== undefined) {
+      fields.push(`entry_scope = $${paramCount++}`);
+      values.push(updates.entryScope);
+    }
+    if (updates.internalCategory !== undefined) {
+      fields.push(`internal_category = $${paramCount++}`);
+      values.push(updates.internalCategory);
+    }
+    if (updates.customerVisibility !== undefined) {
+      fields.push(`customer_visibility = $${paramCount++}`);
+      values.push(updates.customerVisibility);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -535,7 +825,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const query = `UPDATE time_entries SET ${fields.join(', ')} WHERE id = $${paramCount}`;
     await pool.query(query, values);
 
-    const updatedResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1', [id]);
+    const updatedResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1`, [id]);
     const updatedEntry = transformRow(updatedResult.rows[0]);
 
     auditLog.log({
@@ -589,7 +879,7 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('mem
     const { id } = req.params;
 
     // Verify entry belongs to organization
-    const entryResult = await pool.query('SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    const entryResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
     }
