@@ -6,6 +6,7 @@ import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
 import { sendPushToUser } from '../services/pushNotifications';
+import { emitSSEEvent } from './sse';
 
 const router = express.Router();
 
@@ -1322,6 +1323,35 @@ async function handleNewAlert(
       console.error('Failed to send push notification for alert:', pushError);
     }
   }
+
+  // Emit SSE event for real-time update
+  if (isNew) {
+    try {
+      // Get organization ID for the user
+      const orgResult = await query(
+        `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgResult.rows[0]?.organization_id;
+
+      if (organizationId) {
+        emitSSEEvent({
+          type: 'ninja_alert',
+          data: {
+            alertId: finalAlertId,
+            severity,
+            message,
+            deviceName,
+            ticketId,
+            action: 'created',
+          },
+          organizationId,
+        });
+      }
+    } catch (sseError) {
+      console.error('Failed to emit SSE event for alert:', sseError);
+    }
+  }
 }
 
 // Helper function to handle alert reset from webhook
@@ -1370,6 +1400,31 @@ async function handleAlertReset(
      WHERE id = $4`,
     [alertResult.rows[0]?.id, ticketId, Date.now() - startTime, webhookEventId]
   );
+
+  // Emit SSE event for resolved alert
+  if (alertResult.rows.length > 0) {
+    try {
+      const orgResult = await query(
+        `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgResult.rows[0]?.organization_id;
+
+      if (organizationId) {
+        emitSSEEvent({
+          type: 'ninja_alert',
+          data: {
+            alertId: alertResult.rows[0].id,
+            ticketId,
+            action: 'resolved',
+          },
+          organizationId,
+        });
+      }
+    } catch (sseError) {
+      console.error('Failed to emit SSE event for resolved alert:', sseError);
+    }
+  }
 }
 
 // Helper function to create ticket from webhook alert

@@ -43,6 +43,7 @@ import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
 import slaPoliciesRoutes from './routes/sla-policies';
 import customerMetricsRoutes from './routes/customer-metrics';
+import sseRoutes from './routes/sse';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -125,6 +126,7 @@ app.use('/api/interactions', interactionsRoutes);
 app.use('/api/opportunities', opportunitiesRoutes);
 app.use('/api/sla-policies', slaPoliciesRoutes);
 app.use('/api/customer-metrics', customerMetricsRoutes);
+app.use('/api/sse', sseRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
