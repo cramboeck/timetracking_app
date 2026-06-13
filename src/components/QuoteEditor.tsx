@@ -39,6 +39,7 @@ interface QuoteEditorProps {
   onClose: () => void;
   onSuccess?: (quoteNumber: string) => void;
   quoteId?: string; // If provided, edit existing quote instead of creating new one
+  preselectedContactId?: string; // sevDesk contact ID to pre-select
 }
 
 // Text templates with variable support
@@ -96,7 +97,7 @@ const FOOT_TEXT_TEMPLATES = [
   },
 ];
 
-export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) => {
+export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId }: QuoteEditorProps) => {
   const isEditing = !!quoteId;
   const { currentUser } = useAuth();
 
@@ -352,6 +353,13 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
       const response = await sevdeskApi.getCustomers();
       if (response.success) {
         setContacts(response.data);
+        // Pre-select contact if preselectedContactId is provided
+        if (preselectedContactId && !selectedContact) {
+          const contact = response.data.find(c => c.id === preselectedContactId);
+          if (contact) {
+            setSelectedContact(contact);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load contacts:', err);
