@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle,
   Circle,
@@ -25,7 +26,7 @@ import {
   Inbox,
 } from 'lucide-react';
 import { tasksApi } from '../services/api';
-import type { Task, TaskDashboardData, TaskFilters, TaskPriority } from '../types';
+import type { Task, TaskPriority, TaskStatus } from '../types';
 import TaskModal from './TaskModal';
 import { Button, IconButton } from './ui';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -52,9 +53,8 @@ interface TaskHubProps {
 export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId, onOpenTicket, onOpenCustomer }: TaskHubProps) {
   const confirm = useConfirm();
   const showToast = useToast();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [dashboard, setDashboard] = useState<TaskDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
   const [view, setView] = useState<ViewKey>(() => {
     const stored = localStorage.getItem(VIEW_STORAGE_KEY);
     return isViewKey(stored) ? stored : 'inbox';
@@ -63,85 +63,76 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
     const stored = localStorage.getItem(GROUPBY_STORAGE_KEY);
     return isGroupBy(stored) ? stored : 'date';
   });
-  const [filters] = useState<TaskFilters>({});
   const [showCompleted, setShowCompleted] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ overdue: true, today: true, upcoming: true, no_date: true });
 
   // Quick-Add state
   const [quickAddTitle, setQuickAddTitle] = useState('');
-  const [quickAddSaving, setQuickAddSaving] = useState(false);
   const quickAddInputRef = useRef<HTMLInputElement>(null);
 
   // Modal state
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  // Persist view + groupBy
-  useEffect(() => { localStorage.setItem(VIEW_STORAGE_KEY, view); }, [view]);
-  useEffect(() => { localStorage.setItem(GROUPBY_STORAGE_KEY, groupBy); }, [groupBy]);
+  // Persist view + groupBy to localStorage
+  const handleViewChange = (newView: ViewKey) => {
+    setView(newView);
+    localStorage.setItem(VIEW_STORAGE_KEY, newView);
+  };
+  const handleGroupByChange = (newGroupBy: GroupBy) => {
+    setGroupBy(newGroupBy);
+    localStorage.setItem(GROUPBY_STORAGE_KEY, newGroupBy);
+  };
 
-  // Load dashboard data
-  const loadDashboard = useCallback(async () => {
-    try {
+  // TanStack Query: Dashboard data
+  const { data: dashboard } = useQuery({
+    queryKey: ['tasks', 'dashboard'],
+    queryFn: async () => {
       const response = await tasksApi.getDashboard();
-      if (response.success) {
-        setDashboard(response.data);
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
-    }
-  }, []);
+      if (response.success) return response.data;
+      throw new Error('Failed to load dashboard');
+    },
+    staleTime: 30_000,
+  });
 
-  // Load tasks. 'inbox' is a frontend-derived view: we fetch the user's
-  // tasks ('my' on backend) and client-side filter to overdue + today + no-date.
-  const loadTasks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const backendView = view === 'inbox' ? 'my' : view;
+  // TanStack Query: Tasks list
+  // 'inbox' is a frontend-derived view: we fetch 'my' from backend and filter client-side
+  const backendView = view === 'inbox' ? 'my' : view;
+  const { data: tasks = [], isLoading: loading } = useQuery({
+    queryKey: ['tasks', 'list', backendView, showCompleted],
+    queryFn: async () => {
       const response = await tasksApi.getAll({
-        ...filters,
         view: backendView,
         includeCompleted: showCompleted,
       });
-      if (response.success) {
-        setTasks(response.data || []);
-      } else {
-        console.error('📋 [TASKS] API returned success=false');
-      }
-    } catch (err) {
-      console.error('📋 [TASKS] Failed to load tasks:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, view, showCompleted]);
+      if (response.success) return response.data || [];
+      throw new Error('Failed to load tasks');
+    },
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+  // Mutation: Toggle task completion
+  const toggleCompleteMutation = useMutation({
+    mutationFn: async ({ task, newStatus }: { task: Task; newStatus: TaskStatus }) => {
+      const response = await tasksApi.update(task.id, { status: newStatus });
+      if (!response.success) throw new Error('Failed to update task');
+      return response.data;
+    },
+    onSuccess: (updatedTask) => {
+      queryClient.setQueryData(['tasks', 'list', backendView, showCompleted], (old: Task[] | undefined) =>
+        old?.map(t => t.id === updatedTask.id ? updatedTask : t)
+      );
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'dashboard'] });
+    },
+  });
 
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
-
-  // Toggle task completion. TicketTasks live in a different table — but we
-  // don't (yet) have a dedicated client API for that here, so we fall back
-  // to the regular tasksApi.update which the backend rejects for ticket
-  // sources. Inform the user instead of silently failing.
-  const toggleTaskComplete = async (task: Task) => {
+  const toggleTaskComplete = (task: Task) => {
     if (task.taskSource === 'ticket') {
       showToast('TicketTasks werden im jeweiligen Ticket abgehakt', 'info');
       return;
     }
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    try {
-      const response = await tasksApi.update(task.id, { status: newStatus });
-      if (response.success) {
-        setTasks(prev => prev.map(t => t.id === task.id ? response.data : t));
-        loadDashboard();
-      }
-    } catch (err) {
-      console.error('Failed to update task:', err);
-    }
+    const newStatus: TaskStatus = task.status === 'completed' ? 'pending' : 'completed';
+    toggleCompleteMutation.mutate({ task, newStatus });
   };
 
   // Edit handler that routes ticket-source tasks back to the originating ticket.
@@ -158,49 +149,63 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
     setShowTaskModal(true);
   };
 
-  // Quick-Add: just title + Enter, creates a standalone task instantly.
-  const handleQuickAdd = async () => {
-    const title = quickAddTitle.trim();
-    if (!title || quickAddSaving) return;
-    setQuickAddSaving(true);
-    try {
+  // Mutation: Quick-Add task
+  const quickAddMutation = useMutation({
+    mutationFn: async (title: string) => {
       const response = await tasksApi.create({ title });
-      if (response.success) {
-        setQuickAddTitle('');
-        loadTasks();
-        loadDashboard();
-        // Keep focus for serial entry
-        setTimeout(() => quickAddInputRef.current?.focus(), 0);
-      }
-    } catch (err) {
-      console.error('Failed to create task:', err);
+      if (!response.success) throw new Error('Failed to create task');
+      return response.data;
+    },
+    onSuccess: () => {
+      setQuickAddTitle('');
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setTimeout(() => quickAddInputRef.current?.focus(), 0);
+    },
+    onError: () => {
       showToast('Aufgabe konnte nicht erstellt werden', 'error');
-    } finally {
-      setQuickAddSaving(false);
-    }
+    },
+  });
+
+  const handleQuickAdd = () => {
+    const title = quickAddTitle.trim();
+    if (!title || quickAddMutation.isPending) return;
+    quickAddMutation.mutate(title);
   };
 
-  // Handle timer toggle
-  const handleTimerToggle = async (task: Task) => {
-    if (runningTimerTaskId === task.id) {
-      try {
+  // Mutation: Timer toggle
+  const timerMutation = useMutation({
+    mutationFn: async ({ task, action }: { task: Task; action: 'start' | 'stop' }) => {
+      if (action === 'stop') {
         await tasksApi.stopTimer(task.id);
         onTimerStop?.(task.id);
-      } catch (err) {
-        console.error('Failed to stop timer:', err);
-      }
-    } else {
-      try {
+      } else {
         await tasksApi.startTimer(task.id);
         onTimerStart?.(task.id);
-      } catch (err) {
-        console.error('Failed to start timer:', err);
       }
-    }
-    loadTasks();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'list'] });
+    },
+  });
+
+  const handleTimerToggle = (task: Task) => {
+    const action = runningTimerTaskId === task.id ? 'stop' : 'start';
+    timerMutation.mutate({ task, action });
   };
 
-  // Delete task. Ticket-sourced tasks must be deleted from the ticket itself.
+  // Mutation: Delete task
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      await tasksApi.delete(taskId);
+    },
+    onSuccess: (_, taskId) => {
+      queryClient.setQueryData(['tasks', 'list', backendView, showCompleted], (old: Task[] | undefined) =>
+        old?.filter(t => t.id !== taskId)
+      );
+      queryClient.invalidateQueries({ queryKey: ['tasks', 'dashboard'] });
+    },
+  });
+
   const handleDeleteTask = async (task: Task) => {
     if (task.taskSource === 'ticket') {
       if (task.ticketId && onOpenTicket) onOpenTicket(task.ticketId);
@@ -214,13 +219,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
       variant: 'danger',
     });
     if (!ok) return;
-    try {
-      await tasksApi.delete(task.id);
-      setTasks(prev => prev.filter(t => t.id !== task.id));
-      loadDashboard();
-    } catch (err) {
-      console.error('Failed to delete task:', err);
-    }
+    deleteMutation.mutate(task.id);
   };
 
   // Format duration
@@ -626,7 +625,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => setView(tab.key)}
+              onClick={() => handleViewChange(tab.key)}
               title={tab.hint}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                 view === tab.key
@@ -644,7 +643,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
               <label className="text-sm text-gray-600 dark:text-dark-400">Gruppieren:</label>
               <select
                 value={groupBy}
-                onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                onChange={(e) => handleGroupByChange(e.target.value as GroupBy)}
                 className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="date">Datum</option>
@@ -678,13 +677,13 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
             onChange={(e) => setQuickAddTitle(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleQuickAdd(); } }}
             placeholder="Was möchtest du heute nicht vergessen? Enter zum Anlegen."
-            disabled={quickAddSaving}
+            disabled={quickAddMutation.isPending}
             className="flex-1 bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none disabled:opacity-50"
           />
           {quickAddTitle.trim() && (
             <button
               onClick={() => void handleQuickAdd()}
-              disabled={quickAddSaving}
+              disabled={quickAddMutation.isPending}
               className="text-xs font-medium text-accent-primary hover:text-accent-dark transition-colors disabled:opacity-50"
             >
               Anlegen
@@ -726,8 +725,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
           onSave={() => {
             setShowTaskModal(false);
             setEditingTask(null);
-            loadTasks();
-            loadDashboard();
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
           }}
         />
       )}
