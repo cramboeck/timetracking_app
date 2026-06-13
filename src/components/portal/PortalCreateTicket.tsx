@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, ArrowLeft, CheckCircle, AlertTriangle, Loader2, Paperclip, MessageCircle, Image, Trash2 } from 'lucide-react';
-import { customerPortalApi, PortalTicket } from '../../services/api';
+import { X, Send, Loader2, Paperclip, MessageCircle } from 'lucide-react';
+import { customerPortalApi, PortalTicket, PortalDevice } from '../../services/api';
 
 interface PortalCreateTicketProps {
   isOpen: boolean;
@@ -66,6 +66,8 @@ function getContextualMessage(stepId: string, collectedData: Record<string, stri
     error_message_text: () => 'Das hilft uns sehr! Können Sie die Fehlermeldung hier einfügen oder abtippen? 📝\n\n💡 Tipp: Ein Screenshot ist auch super hilfreich!',
 
     hardware_device: () => 'Hardware-Problem – das schauen wir uns an! 🔧 Welches Gerät ist betroffen?',
+
+    device_selection: () => '🖥️ Möchten Sie ein Gerät aus Ihrer Liste auswählen? Das hilft uns bei der Fehlersuche.',
 
     network_details: () => 'Netzwerk-Probleme sind frustrierend, ich verstehe! 😤 Was genau funktioniert nicht?',
 
@@ -248,15 +250,32 @@ const conversationFlow: Record<string, ConversationStep> = {
       { id: 'printer', label: '🖨️ Drucker', value: 'printer' },
       { id: 'other', label: '💬 Etwas anderes', value: 'other' },
     ],
+    // nextStep is handled dynamically to check for device selection
     nextStep: (answer) => {
-      if (answer === 'software') return 'software_name';
-      if (answer === 'hardware') return 'hardware_device';
+      // device_selection will be injected if devices exist
+      if (answer === 'software') return 'device_selection_or_software';
+      if (answer === 'hardware') return 'device_selection_or_hardware';
       if (answer === 'network') return 'network_details';
       if (answer === 'email') return 'email_problem';
       if (answer === 'printer') return 'printer_problem';
       return 'problem_description';
     },
     collectAs: 'problemType',
+  },
+
+  // Dynamic device selection step - options are injected at runtime
+  device_selection: {
+    id: 'device_selection',
+    message: '',
+    // Options will be dynamically populated with customer devices
+    options: [
+      { id: 'skip', label: '⏭️ Überspringen', value: 'skip' },
+    ],
+    nextStep: (_answer) => {
+      // Will be overridden in handleOptionClick based on problemType
+      return 'problem_description';
+    },
+    collectAs: 'selectedDevice',
   },
 
   software_name: {
@@ -627,6 +646,11 @@ function generateTicketContent(data: Record<string, string>): { title: string; d
   // Generate description
   const sections: string[] = [];
 
+  // Add selected device at the top if present
+  if (data.selectedDevice && data.selectedDevice !== 'skip') {
+    sections.push(`**Betroffenes Gerät:** ${data.selectedDevice}`);
+  }
+
   if (data.description) sections.push(`**Beschreibung:**\n${data.description}`);
   if (data.question) sections.push(`**Frage:**\n${data.question}`);
   if (data.reason) sections.push(`**Begründung:**\n${data.reason}`);
@@ -655,18 +679,37 @@ function generateTicketContent(data: Record<string, string>): { title: string; d
   return { title, description, priority };
 }
 
+// Max file constraints
+const MAX_FILES = 3;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
 export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateTicketProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('start');
   const [inputValue, setInputValue] = useState('');
   const [collectedData, setCollectedData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [devices, setDevices] = useState<PortalDevice[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load customer devices on mount
+  useEffect(() => {
+    if (isOpen) {
+      loadDevices();
+    }
+  }, [isOpen]);
+
+  const loadDevices = async () => {
+    try {
+      const res = await customerPortalApi.getDevices();
+      setDevices(res.data || []);
+    } catch (err) {
+      console.error('Failed to load devices:', err);
+    }
+  };
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -715,26 +758,52 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     setMessages(prev => [...prev, newMessage]);
   };
 
+  // Check if file type is allowed
+  const isFileTypeAllowed = (file: File): boolean => {
+    if (file.type.startsWith('image/')) return true;
+    if (file.type === 'application/pdf') return true;
+    if (file.type.includes('word') || file.type.includes('document')) return true;
+    if (file.type.includes('excel') || file.type.includes('spreadsheet')) return true;
+    if (file.type === 'text/plain' || file.type === 'text/csv') return true;
+    return false;
+  };
+
+  // Get file icon based on type
+  const getFileIcon = (file: File): string => {
+    if (file.type.startsWith('image/')) return '🖼️';
+    if (file.type === 'application/pdf') return '📄';
+    if (file.type.includes('word') || file.type.includes('document')) return '📝';
+    if (file.type.includes('excel') || file.type.includes('spreadsheet')) return '📊';
+    return '📎';
+  };
+
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const newFiles: UploadedFile[] = [];
+    const remainingSlots = MAX_FILES - uploadedFiles.length;
+    let skippedCount = 0;
+    let tooLargeCount = 0;
+    let wrongTypeCount = 0;
 
-    Array.from(files).forEach(file => {
-      // Only allow images
-      if (!file.type.startsWith('image/')) {
+    Array.from(files).slice(0, remainingSlots).forEach(file => {
+      // Check file type
+      if (!isFileTypeAllowed(file)) {
+        wrongTypeCount++;
         return;
       }
 
       // Max 10MB per file
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_FILE_SIZE) {
+        tooLargeCount++;
         return;
       }
 
       const id = `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const preview = URL.createObjectURL(file);
+      // Only create preview for images
+      const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : '';
 
       newFiles.push({
         id,
@@ -744,31 +813,65 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
       });
     });
 
+    // Count skipped due to limit
+    if (Array.from(files).length > remainingSlots) {
+      skippedCount = Array.from(files).length - remainingSlots;
+    }
+
     if (newFiles.length > 0) {
       setUploadedFiles(prev => [...prev, ...newFiles]);
 
-      // Add a user message showing the uploaded images
-      const imageMessage: Message = {
-        id: `user-images-${Date.now()}`,
+      // Add a user message showing the uploaded files
+      const fileIcon = newFiles.length === 1 ? getFileIcon(newFiles[0].file) : '📎';
+      const fileMessage: Message = {
+        id: `user-files-${Date.now()}`,
         type: 'user',
-        content: newFiles.length === 1 ? '📷 Screenshot hochgeladen' : `📷 ${newFiles.length} Screenshots hochgeladen`,
+        content: newFiles.length === 1
+          ? `${fileIcon} ${newFiles[0].name}`
+          : `📎 ${newFiles.length} Dateien hochgeladen`,
         timestamp: new Date(),
-        images: newFiles,
+        images: newFiles.filter(f => f.preview), // Only show image previews
       };
-      setMessages(prev => [...prev, imageMessage]);
+      setMessages(prev => [...prev, fileMessage]);
 
       // Bot acknowledges
       setTimeout(() => {
+        let ackContent = newFiles.length === 1
+          ? '👍 Danke für die Datei! Das hilft uns bei der Analyse.'
+          : `👍 Danke für die ${newFiles.length} Dateien! Das hilft uns bei der Analyse.`;
+
+        // Add warnings if files were skipped
+        const warnings: string[] = [];
+        if (skippedCount > 0) warnings.push(`${skippedCount} übersprungen (max. ${MAX_FILES} Dateien)`);
+        if (tooLargeCount > 0) warnings.push(`${tooLargeCount} zu groß (max. 10 MB)`);
+        if (wrongTypeCount > 0) warnings.push(`${wrongTypeCount} nicht unterstützt`);
+
+        if (warnings.length > 0) {
+          ackContent += `\n\n⚠️ ${warnings.join(', ')}`;
+        }
+
         const ackMessage: Message = {
           id: `bot-ack-${Date.now()}`,
           type: 'bot',
-          content: newFiles.length === 1
-            ? '👍 Danke für den Screenshot! Das hilft uns bei der Analyse.'
-            : `👍 Danke für die ${newFiles.length} Screenshots! Das hilft uns bei der Analyse.`,
+          content: ackContent,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, ackMessage]);
       }, 500);
+    } else if (tooLargeCount > 0 || wrongTypeCount > 0 || skippedCount > 0) {
+      // Show error if no files were added
+      const errors: string[] = [];
+      if (uploadedFiles.length >= MAX_FILES) errors.push(`Maximum ${MAX_FILES} Dateien erreicht`);
+      if (tooLargeCount > 0) errors.push('Datei(en) zu groß (max. 10 MB)');
+      if (wrongTypeCount > 0) errors.push('Dateityp nicht unterstützt');
+
+      const errorMessage: Message = {
+        id: `bot-error-${Date.now()}`,
+        type: 'bot',
+        content: `⚠️ ${errors.join('. ')}\n\nErlaubt: Bilder, PDF, Word, Excel, Textdateien`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
 
     // Reset input
@@ -795,6 +898,40 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     };
   }, []);
 
+  // Determine actual next step, handling device selection routing
+  const resolveNextStep = (stepId: string, updatedData: Record<string, string>): string | null => {
+    // Handle device selection routing
+    if (stepId === 'device_selection_or_software') {
+      return devices.length > 0 ? 'device_selection' : 'software_name';
+    }
+    if (stepId === 'device_selection_or_hardware') {
+      return devices.length > 0 ? 'device_selection' : 'hardware_device';
+    }
+
+    // Handle post-device-selection routing
+    if (stepId === 'problem_description' && currentStep === 'device_selection') {
+      const problemType = updatedData.problemType;
+      if (problemType === 'software') return 'software_name';
+      if (problemType === 'hardware') return 'hardware_device';
+    }
+
+    return stepId;
+  };
+
+  // Get device options for device_selection step
+  const getDeviceOptions = (): Option[] => {
+    const options: Option[] = devices.slice(0, 6).map(device => ({
+      id: device.id,
+      label: `🖥️ ${device.displayName || device.systemName}`,
+      value: device.displayName || device.systemName,
+    }));
+
+    // Always add skip option
+    options.push({ id: 'skip', label: '⏭️ Überspringen', value: 'skip' });
+
+    return options;
+  };
+
   const handleOptionClick = async (option: Option) => {
     const step = conversationFlow[currentStep];
 
@@ -811,18 +948,36 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
       return;
     }
 
-    // Get next step
-    const nextStepId = step.nextStep?.(option.value);
-    if (nextStepId && conversationFlow[nextStepId]) {
-      // Calculate updated data for contextual message
-      const updatedData = step.collectAs
-        ? { ...collectedData, [step.collectAs]: option.value }
-        : collectedData;
+    // Calculate updated data
+    let updatedData = step.collectAs && option.value !== 'skip'
+      ? { ...collectedData, [step.collectAs]: option.value }
+      : collectedData;
 
+    // Special handling for device_selection - route to correct next step
+    let rawNextStepId: string | null = null;
+    if (currentStep === 'device_selection') {
+      const problemType = updatedData.problemType;
+      if (problemType === 'software') rawNextStepId = 'software_name';
+      else if (problemType === 'hardware') rawNextStepId = 'hardware_device';
+      else rawNextStepId = 'problem_description';
+    } else {
+      rawNextStepId = step.nextStep?.(option.value) || null;
+    }
+
+    // Resolve dynamic routing
+    const nextStepId = rawNextStepId ? resolveNextStep(rawNextStepId, updatedData) : null;
+
+    if (nextStepId && conversationFlow[nextStepId]) {
       setCurrentStep(nextStepId);
       setCollectedData(updatedData);
       setTimeout(() => {
-        addBotMessage(conversationFlow[nextStepId], updatedData);
+        // For device_selection, inject dynamic options
+        if (nextStepId === 'device_selection') {
+          const deviceStep = { ...conversationFlow.device_selection, options: getDeviceOptions() };
+          addBotMessage(deviceStep, updatedData);
+        } else {
+          addBotMessage(conversationFlow[nextStepId], updatedData);
+        }
       }, 500);
     }
   };
@@ -856,7 +1011,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
   const createTicket = async () => {
     setLoading(true);
-    setError(null);
 
     try {
       const { title, description, priority } = generateTicketContent(collectedData);
@@ -869,7 +1023,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
 
       // Upload attachments if any
       if (uploadedFiles.length > 0) {
-        setUploadingFiles(true);
         try {
           const formData = new FormData();
           uploadedFiles.forEach(f => {
@@ -880,7 +1033,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           console.error('Failed to upload attachments:', uploadErr);
           // Continue anyway, ticket was created
         }
-        setUploadingFiles(false);
       }
 
       // Show success message
@@ -903,7 +1055,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
       }, 2000);
     } catch (err) {
       console.error('Failed to create ticket:', err);
-      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen des Tickets');
 
       const errorMessage: Message = {
         id: `bot-error-${Date.now()}`,
@@ -928,7 +1079,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     setCurrentStep('start');
     setCollectedData({});
     setInputValue('');
-    setError(null);
     setTimeout(() => {
       addBotMessage(conversationFlow.start);
     }, 300);
@@ -942,7 +1092,6 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     setCurrentStep('start');
     setCollectedData({});
     setInputValue('');
-    setError(null);
     onClose();
   };
 
@@ -1050,7 +1199,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
           multiple
           onChange={handleFileSelect}
           className="hidden"
@@ -1061,16 +1210,25 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           <div className="px-4 py-2 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 dark:text-dark-400 flex-shrink-0">
-                📎 {uploadedFiles.length} Anhang/Anhänge
+                📎 {uploadedFiles.length}/{MAX_FILES}
               </span>
               <div className="flex gap-1 overflow-x-auto">
                 {uploadedFiles.map(f => (
                   <div key={f.id} className="relative group flex-shrink-0">
-                    <img
-                      src={f.preview}
-                      alt={f.name}
-                      className="h-10 w-10 rounded object-cover"
-                    />
+                    {f.preview ? (
+                      <img
+                        src={f.preview}
+                        alt={f.name}
+                        className="h-10 w-10 rounded object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="h-10 w-10 rounded bg-gray-200 dark:bg-dark-200 flex items-center justify-center text-xs"
+                        title={f.name}
+                      >
+                        {getFileIcon(f.file)}
+                      </div>
+                    )}
                     <button
                       onClick={() => removeFile(f.id)}
                       className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1088,13 +1246,14 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
         {showInput && (
           <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
             <div className="flex gap-2">
-              {/* Screenshot button */}
+              {/* Attachment button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-full transition-colors"
-                title="Screenshot hochladen"
+                disabled={uploadedFiles.length >= MAX_FILES}
+                className="p-2.5 text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={uploadedFiles.length >= MAX_FILES ? `Maximum ${MAX_FILES} Dateien` : 'Datei anhängen'}
               >
-                <Image size={18} />
+                <Paperclip size={18} />
               </button>
 
               {currentStepData.inputType === 'textarea' ? (
@@ -1138,15 +1297,15 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
           </div>
         )}
 
-        {/* Options with screenshot button */}
-        {showOptions && !showInput && (
+        {/* Options with attachment button */}
+        {showOptions && !showInput && uploadedFiles.length < MAX_FILES && (
           <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-500 hover:text-accent-primary hover:bg-accent-light dark:hover:bg-dark-200 rounded-lg transition-colors"
             >
-              <Image size={16} />
-              <span>Screenshot hinzufügen</span>
+              <Paperclip size={16} />
+              <span>Datei anhängen ({uploadedFiles.length}/{MAX_FILES})</span>
             </button>
           </div>
         )}
