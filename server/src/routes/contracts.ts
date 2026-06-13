@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import * as contractService from '../services/contractService';
+import { runContractHoursJobForOrganization, getContractHoursJobStatus } from '../jobs/contractHoursCron';
 
 const router = express.Router();
 
@@ -399,6 +400,50 @@ router.post('/update-statuses', authenticateToken, async (req: AuthRequest, res:
     res.json({ success: true, data: { updatedCount } });
   } catch (error: any) {
     console.error('Update contract statuses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Contract Hours Job Routes
+// ============================================
+
+// GET /api/contracts/hours-check/status - Get contract hours job status
+router.get('/hours-check/status', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const status = getContractHoursJobStatus();
+    res.json({ success: true, data: status });
+  } catch (error: any) {
+    console.error('Get contract hours job status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/contracts/hours-check/run - Manually trigger contract hours check
+router.post('/hours-check/run', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+
+    // Get user's organization
+    const { pool } = await import('../config/database');
+    const orgResult = await pool.query(
+      `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Keine Organisation gefunden'
+      });
+    }
+
+    const organizationId = orgResult.rows[0].organization_id;
+    const result = await runContractHoursJobForOrganization(organizationId);
+
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('Run contract hours job error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

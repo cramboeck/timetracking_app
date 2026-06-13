@@ -9,6 +9,7 @@ import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
+import { startContractHoursJob } from './jobs/contractHoursCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -203,6 +204,10 @@ startHealthScoreJobs();
 // in processed_invoices, damit Belege aus dem sevDesk-WebUI auch in der
 // RamboFlow-Inbox/Suche erscheinen.
 startSevdeskVoucherSyncJob();
+
+// Start Contract Hours Check job (daily at 6:00 AM)
+// Warns when customers approach/exceed their included monthly hours
+startContractHoursJob();
 
 // Start server
 app.listen(PORT, () => {
