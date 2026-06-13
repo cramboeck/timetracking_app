@@ -1921,12 +1921,14 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_type ON push_subscriptions(subscription_type)');
 
     // Migrate data from portal_push_subscriptions to push_subscriptions
+    // Only copy records where contact_id still exists (skip orphaned records)
     await client.query(`
       DO $$ BEGIN
         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'portal_push_subscriptions') THEN
           INSERT INTO push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name, created_at, last_used_at, subscription_type)
-          SELECT id, contact_id, endpoint, p256dh, auth, device_name, created_at, last_used_at, 'contact'
-          FROM portal_push_subscriptions
+          SELECT pps.id, pps.contact_id, pps.endpoint, pps.p256dh, pps.auth, pps.device_name, pps.created_at, pps.last_used_at, 'contact'
+          FROM portal_push_subscriptions pps
+          WHERE EXISTS (SELECT 1 FROM customer_contacts cc WHERE cc.id = pps.contact_id)
           ON CONFLICT (endpoint) DO NOTHING;
         END IF;
       END $$;
