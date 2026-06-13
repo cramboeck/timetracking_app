@@ -375,7 +375,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ✅ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Commit e37a668. Letzte 5 Befehle in localStorage, „Zuletzt verwendet" Sektion beim Öffnen. |
 | ⬜ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Bei Lead-Status „Won" Button „Angebot erstellen" → öffnet `QuoteEditor` mit vorausgefülltem Kunden. |
 | ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
-| ⬜ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` + diverse | 3-4h | Kanban-Board auf `md:` breakpoint verstecken, stattdessen Card-Liste zeigen. |
+| ✅ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` | 3-4h | Commit 2b854c3. Mobile (<768px): collapsible card list per Status. Desktop: Kanban mit Drag-and-Drop. |
 
 ### 🔵 Sprint 5 — Tech-Debt & Architektur (unabhängig, jederzeit einschiebbar)
 
@@ -421,7 +421,6 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Task | Status |
 |---|---|
-| Mobile-Strategie: TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | Offen |
 | CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen | Offen |
 | Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
 | Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
@@ -581,4 +580,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅. Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert.*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅, Mobile-Strategie ✅ (TicketKanban → Card-Liste auf Mobile). Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB).*
