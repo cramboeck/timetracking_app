@@ -373,7 +373,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 |---|---|---|---|---|
 | ✅ | **Vertrags-Stunden-Cron** — automatische Stunden-Abrechnung aus Verträgen | `server/src/jobs/contractHoursCron.ts` | 4-6h | Commit e165343. Cron-Job läuft täglich um 6:00 Uhr, prüft Stundenverbrauch gegen Kontingent. Schwellen: 80% Warning, 90% Critical, 100%+ Exceeded. API-Endpoints: `GET /api/contracts/hours-check/status`, `POST /api/contracts/hours-check/run`. |
 | ✅ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Commit e37a668. Letzte 5 Befehle in localStorage, „Zuletzt verwendet" Sektion beim Öffnen. |
-| ⬜ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Bei Lead-Status „Won" Button „Angebot erstellen" → öffnet `QuoteEditor` mit vorausgefülltem Kunden. |
+| ✅ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Commit 7fb86c7. Bei Opportunity in „Won"-Stage → Dialog „Angebot erstellen" → öffnet QuoteEditor mit vorausgefülltem sevDesk-Kontakt. |
 | ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
 | ✅ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` | 3-4h | Commit 2b854c3. Mobile (<768px): collapsible card list per Status. Desktop: Kanban mit Drag-and-Drop. |
 
@@ -421,7 +421,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Task | Status |
 |---|---|
-| CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen | Offen |
+| ~~CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen~~ | ✅ Erledigt (Commit 7fb86c7) |
 | Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
 | Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
 | Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen | Offen |
@@ -580,4 +580,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅, Mobile-Strategie ✅, Vertrags-Stunden-Cron ✅ (täglich 6:00 Uhr, Schwellen 80/90/100%). Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅, Mobile-Strategie ✅, Vertrags-Stunden-Cron ✅ (täglich 6:00 Uhr, Schwellen 80/90/100%), CRM-Finanzen-Brücke ✅ (Won-Opportunity → Angebot-Dialog). Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB).*
