@@ -580,4 +580,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4 ✅ komplett: CommandPalette-Historie, Mobile-Strategie, Vertrags-Stunden-Cron, CRM-Finanzen-Brücke, SSE für Echtzeit-Updates. Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–4 + Sprint A–F ✅ komplett. Sprint 5 fortgeschritten: Vitest + 57 Tests, Push-Subscriptions-Tabellen vereinheitlicht, TaskHub auf TanStack Query migriert. Verbleibend: TS-Fehler (~16), TanStack Query für TimeEntriesList/Stopwatch, SocialMediaManager splitten, React Router v7.*
