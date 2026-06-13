@@ -44,13 +44,12 @@ export type {
   TicketAttachment,
   KbCategory,
   KbArticle,
-  PortalSettings,
 } from './tickets';
 
 // Portal API
 export { portalSettingsApi, customerPortalApi, pushApi } from './portal';
 export type {
-  PortalSettings as PortalSettingsType,
+  PortalSettings,
   PortalContact,
   PortalTicket,
   PortalAttachment,

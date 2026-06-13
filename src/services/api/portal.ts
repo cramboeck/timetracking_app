@@ -6,22 +6,34 @@
 import { API_BASE_URL, authFetch, handleResponse } from './base';
 import { TrustedDevice } from './auth';
 
-// Portal Settings
+// Portal Settings (canonical interface - single source of truth)
 export interface PortalSettings {
   id: string;
   userId: string;
+  // Branding
   brandName: string;
+  companyName: string | null;
   logoUrl: string | null;
   primaryColor: string;
   secondaryColor: string;
   welcomeMessage: string | null;
   footerText: string | null;
   customCss: string | null;
+  // Features
   enableTickets: boolean;
   enableKnowledgeBase: boolean;
   enableChat: boolean;
   requireEmailVerification: boolean;
   allowSelfRegistration: boolean;
+  // Knowledge Base specific
+  showKnowledgeBase?: boolean;
+  requireLoginForKb?: boolean;
+  // Time & Contract transparency (Sprint C)
+  showTimeReport: boolean;
+  showContractInfo: boolean;
+  // External links
+  teamviewerLink?: string | null;
+  // Timestamps
   createdAt: string;
   updatedAt: string;
 }

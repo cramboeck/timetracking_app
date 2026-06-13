@@ -88,25 +88,23 @@ const TICKET_ATTACHMENT_COLUMNS = `
   id, ticket_id, filename, file_url, file_size, mime_type, uploaded_by_user_id, uploaded_by_contact_id, created_at
 `;
 
-// Helper to get contact permissions from either customer_contacts or customer_portal_users
+// Helper to get contact permissions from customer_portal_users (single source of truth)
 async function getContactPermissions(contactId: string): Promise<{
   can_view_devices: boolean;
   can_view_invoices: boolean;
   can_view_quotes: boolean;
   can_create_tickets: boolean;
   can_view_all_tickets: boolean;
+  can_view_time_report: boolean;
+  can_view_contract: boolean;
 } | null> {
-  // Try customer_contacts first
-  let result = await pool.query(
-    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_contacts WHERE id = $1',
-    [contactId]
-  );
-  if (result.rows.length > 0) {
-    return result.rows[0];
-  }
-  // Try customer_portal_users
-  result = await pool.query(
-    'SELECT can_view_devices, can_view_invoices, can_view_quotes, can_create_tickets, can_view_all_tickets FROM customer_portal_users WHERE id = $1',
+  // customer_portal_users is the single source of truth for permissions
+  const result = await pool.query(
+    `SELECT can_view_devices, can_view_invoices, can_view_quotes,
+            can_create_tickets, can_view_all_tickets,
+            COALESCE(can_view_time_report, false) AS can_view_time_report,
+            COALESCE(can_view_contract, false) AS can_view_contract
+     FROM customer_portal_users WHERE id = $1`,
     [contactId]
   );
   return result.rows[0] || null;

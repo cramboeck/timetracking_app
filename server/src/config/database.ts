@@ -2159,6 +2159,22 @@ export async function initializeDatabase() {
           ALTER TABLE customer_portal_users ADD COLUMN notify_ticket_reply BOOLEAN DEFAULT true;
         END IF;
 
+        -- Add can_view_time_report to customer_portal_users (Sprint C)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_time_report'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_time_report BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+
+        -- Add can_view_contract to customer_portal_users (Sprint C)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_contract'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_contract BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+
         -- Add organization_id to feature_packages
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns

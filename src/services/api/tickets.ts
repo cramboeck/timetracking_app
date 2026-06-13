@@ -461,20 +461,7 @@ export const knowledgeBaseApi = {
   },
 };
 
-// Portal Settings type
-export interface PortalSettings {
-  id?: string;
-  userId?: string;
-  companyName: string | null;
-  welcomeMessage: string | null;
-  logoUrl: string | null;
-  primaryColor: string;
-  showKnowledgeBase: boolean;
-  requireLoginForKb?: boolean;
-  teamviewerLink?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
+// PortalSettings is now in portal.ts (canonical interface)
 
 // Public Knowledge Base API (portal)
 export const publicKbApi = {
