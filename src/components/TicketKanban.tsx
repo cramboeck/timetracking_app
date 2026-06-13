@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Clock, Building2, AlertCircle, RefreshCw, Filter, User, Layers, X, Calendar, ChevronDown } from 'lucide-react';
+import { Clock, Building2, AlertCircle, RefreshCw, Filter, User, Layers, X, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
 import { Button, IconButton } from './ui';
@@ -176,8 +176,23 @@ const TicketCard = memo(({
 
 TicketCard.displayName = 'TicketCard';
 
+// Hook to detect mobile viewport
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768); // md breakpoint
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+};
+
 export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanbanProps) => {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // Merge custom config with defaults
   const activeConfig = useMemo(() => ({
@@ -187,6 +202,9 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
 
   const [draggedTicket, setDraggedTicket] = useState<Ticket | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TicketStatus | null>(null);
+
+  // Mobile: collapsed sections state
+  const [expandedStatus, setExpandedStatus] = useState<TicketStatus | null>('open');
 
   // Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -593,29 +611,75 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
         )}
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-6">
-        <div className="flex gap-4 h-full min-w-max">
+      {/* Mobile Card List */}
+      {isMobile ? (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {statusColumns.map((column) => {
-            const isDropTarget = dragOverColumn === column.status;
+            const columnTickets = getColumnTickets(column.status);
+            const isExpanded = expandedStatus === column.status;
+            const ticketCount = columnTickets.length;
 
             return (
-              <div
-                key={column.status}
-                className="flex flex-col w-72 flex-shrink-0"
-                onDragOver={(e) => handleDragOver(e, column.status)}
-                onDragLeave={handleDragLeave}
-                onDrop={() => handleDrop(column.status)}
-              >
-                {/* Column Header */}
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg border-t-4 ${column.color} ${column.bgColor}`}>
-                  <span className="font-medium text-gray-900 dark:text-white">
-                    {column.label}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white dark:bg-dark-100 text-gray-600 dark:text-dark-400">
-                    {getColumnTickets(column.status).length}
-                  </span>
-                </div>
+              <div key={column.status} className="rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+                {/* Section Header - Clickable */}
+                <button
+                  onClick={() => setExpandedStatus(isExpanded ? null : column.status)}
+                  className={`w-full flex items-center justify-between px-4 py-3 border-l-4 ${column.color} ${column.bgColor}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {column.label}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white dark:bg-dark-100 text-gray-600 dark:text-dark-400">
+                      {ticketCount}
+                    </span>
+                  </div>
+                  <ChevronRight
+                    size={18}
+                    className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                  />
+                </button>
+
+                {/* Expanded Tickets */}
+                {isExpanded && (
+                  <div className="p-3 space-y-2 bg-gray-50 dark:bg-dark-100/50">
+                    {ticketCount === 0 ? (
+                      <div className="text-center py-4 text-gray-400 dark:text-dark-400 text-sm">
+                        Keine Tickets
+                      </div>
+                    ) : (
+                      columnTickets.map(renderTicketCard)
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Desktop Kanban Board */
+        <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 sm:p-6">
+          <div className="flex gap-4 h-full min-w-max">
+            {statusColumns.map((column) => {
+              const isDropTarget = dragOverColumn === column.status;
+
+              return (
+                <div
+                  key={column.status}
+                  className="flex flex-col w-72 flex-shrink-0"
+                  onDragOver={(e) => handleDragOver(e, column.status)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={() => handleDrop(column.status)}
+                >
+                  {/* Column Header */}
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-t-lg border-t-4 ${column.color} ${column.bgColor}`}>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {column.label}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white dark:bg-dark-100 text-gray-600 dark:text-dark-400">
+                      {getColumnTickets(column.status).length}
+                    </span>
+                  </div>
 
                 {/* Column Content */}
                 <div
@@ -723,8 +787,9 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
               </div>
             );
           })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
