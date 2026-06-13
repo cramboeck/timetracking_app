@@ -556,16 +556,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-### 🔵 Sprint E — Kundenportal: Qualitätsverbesserungen
+### 🟡 Sprint E — Kundenportal: Qualitätsverbesserungen
 
-**Abhängigkeit:** Sprint C vollständig | **Kann parallel zu:** Sprint D
+**Abhängigkeit:** Sprint C vollständig | **Status:** 3/4 Tasks abgeschlossen (Commit 5faba28)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Ticket-Liste: Informationsdichte erhöhen** | `src/components/portal/PortalTicketList.tsx` | 2h | Pro Zeile: letztes Update (relativ), zuständiger Mitarbeiter (Vorname), SLA-Ampel (grün/gelb/rot), Prioritäts-Badge. Statusbezeichnungen kundenfreundlich: `in_progress` → „In Bearbeitung", `waiting_for_customer` → „Ihre Rückmeldung erforderlich". |
+| ✅ | **Ticket-Liste: Informationsdichte erhöhen** | `src/components/portal/PortalTicketList.tsx` | 2h | Commit 5faba28. Letztes Update (relativ), zuständiger Mitarbeiter, SLA-Ampel, Prioritäts-Badge. `waiting_for_customer` → „Ihre Rückmeldung". |
 | ⬜ | **Ticket-Erstellung: Formular verbessern** | `src/components/portal/PortalCreateTicket.tsx` | 2h | Neue Felder: Gerät (Dropdown aus Kundengeräten, optional), Dringlichkeit (Normal/Dringend/Kritisch), Anhänge (max. 3 Dateien, max. 10 MB). Bestätigungsseite mit Ticket-Nummer nach Absenden. |
-| ⬜ | **Geräte: Warnungen prominenter** | `src/components/portal/PortalDevices.tsx` | 1h | Geräte mit Warnungen oben (Sortierung nach Kritikalität). Zusammenfassungskarte: „X Geräte mit Warnungen". TeamViewer-Link als prominenter Button. |
-| ⬜ | **Portal-Dashboard als Startseite** | `src/components/portal/PortalDashboard.tsx` (neu) | 2h | Ersetzt leere Ticket-Ansicht als Einstieg. Zeigt: offene Tickets (Anzahl + letztes Update), Geräte mit Warnungen, Stunden diesen Monat (wenn `canViewTimeReport`), Restkontingent (wenn Vertrag). Ticket-Liste bleibt als eigener View erhalten. |
+| ✅ | **Geräte: Warnungen prominenter** | `src/components/portal/PortalDevices.tsx` | 1h | Commit 5faba28. Sortierung nach Kritikalität (Warnungen oben). Zusammenfassungskarte „X Geräte mit Warnungen". |
+| ✅ | **Portal-Dashboard als Startseite** | `src/components/portal/PortalDashboard.tsx` (neu) | 2h | Commit 5faba28. Startseite mit Tickets-/Geräte-/Stunden-/Vertrags-Übersicht. Quick-Action für neues Ticket. |
 
 ---
 
@@ -581,4 +581,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–D + Sprint F ✅ komplett. Portal-Stundentransparenz und Vertragsansicht live (PortalTimeReport, PortalContract). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert. Verbleibend: Sprint E (Portal-Qualitätsverbesserungen).*
+*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–D + Sprint F ✅ komplett. Sprint E 3/4 Tasks (Portal-Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert. Verbleibend: Sprint E Task 2 (Ticket-Erstellung verbessern).*
