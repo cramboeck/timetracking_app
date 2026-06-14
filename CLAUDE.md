@@ -595,3 +595,65 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 ---
 
 *Zuletzt aktualisiert: 14.6.2026 — Ticket-Sidebar mit Tasks/Activities/Emails (Commit 3541f1a), E-Mail-Diagnose im Admin (674445b + 3541f1a), NinjaRMM Geräteverknüpfung, Aufgaben mit Fälligkeitsdatum. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
+
+---
+
+## Geplant: Lizenz-Management & Beleg-Positionen (Epic G)
+
+> **Status:** Geplant | **Geschätzter Aufwand:** 25-30 Tage | **Abhängigkeit:** Sprint 3 (Tickets-Paginierung) abgeschlossen
+
+### Übersicht
+
+MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Hornetsecurity, Mailstore, Elovade, Lywand, ADN) enthalten oft dutzende Positionen für verschiedene Endkunden. Diese sollen automatisch erkannt, Kunden zugeordnet und bei der Abrechnung berücksichtigt werden.
+
+### Sprint G1 — Datenbank & Extraktion (5-7 Tage)
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **Tabelle `invoice_line_items`** | Positionen mit customer_id, match_confidence, rebilling_status |
+| ⬜ | **Kunden-Erweiterung** | `primary_domain`, `distributor_identifiers` (JSONB) für Microsoft Tenant-ID, Hornetsecurity-Nr, etc. |
+| ⬜ | **pg_trgm Extension** | Fuzzy-Matching für Kundennamen |
+| ⬜ | **Line-Items persistieren** | Nach KI-Extraktion in DB speichern (aktuell nur temporär) |
+
+### Sprint G2 — Matching-Engine (4-5 Tage)
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **CustomerMatchingService** | Domain-Match (95%), Distributor-ID (90%), Exact Name (85%), Alias (80%), Fuzzy (60-75%) |
+| ⬜ | **Batch-Matching** | Alle Positionen einer Rechnung automatisch matchen |
+| ⬜ | **"Als Alias speichern"** | Bei manueller Zuordnung: Alias für zukünftige Rechnungen |
+
+### Sprint G3 — API & Review-UI (8-10 Tage)
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **Line-Item CRUD Endpoints** | GET/PATCH/POST für Positionen, Bulk-Assignment |
+| ⬜ | **Position-Review-Modal** | In InvoiceInbox: Positionen mit Match-Vorschlag, Kunden-Dropdown, Confidence-Badge |
+| ⬜ | **Unmatched-Dashboard** | Übersicht: "X Positionen ohne Kundenzuordnung" |
+
+### Sprint G4 — Rebilling-Workflow (4-5 Tage)
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **Rebilling-Status** | pending → included (in Pauschale) / billed / skipped |
+| ⬜ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option |
+| ⬜ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen |
+
+### Sprint G5 — Lizenzen in CRM & Portal (5-7 Tage)
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **CRM: Lizenzen-Tab** | Neuer Tab in CustomerHub: Aktive Lizenzen aus invoice_line_items aggregiert |
+| ⬜ | **Lizenz-Übersicht** | Monatliche wiederkehrende Kosten, Produkte, Mengen, Historie |
+| ⬜ | **Kundenportal: Lizenz-Info** | Welche monatlichen Lizenzen werden aktuell abgerechnet |
+| ⬜ | **Vertragsverknüpfung** | Lizenzen mit Verträgen verknüpfen (inkl. in Pauschale ja/nein) |
+
+### Langfristig: ADN-Integration & Self-Service
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **ADN API-Anbindung** | Automatischer Lizenz-Import von ADN (Also, TD Synnex, Ingram) |
+| ⬜ | **Portal: Lizenz-Self-Service** | Kunde kann Lizenzen bestellen/ändern (mit Genehmigungsworkflow) |
+| ⬜ | **Automatische Provisionierung** | Bei Lizenzbestellung → Microsoft CSP / Hornetsecurity API aufrufen |
+
+---
