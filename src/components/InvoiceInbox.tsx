@@ -5,10 +5,13 @@ import {
   Mail, AlertTriangle, X, Search, Upload, FileSearch
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData, sevdeskApi, SevdeskCustomer } from '../services/api';
+import { customersApi } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SourceBadge } from './ui/SourceBadge';
 import { useConfirm } from '../contexts/UIContext';
 import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
+import { LineItemReview } from './LineItemReview';
+import { Customer } from '../types';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -85,6 +88,9 @@ export const InvoiceInbox = () => {
     rank: number;
   }> | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // CRM customers for line item matching
+  const [crmCustomers, setCrmCustomers] = useState<Customer[]>([]);
 
   // Debounced full-text search. Empty / <2 chars resets to the normal list.
   useEffect(() => {
@@ -264,6 +270,13 @@ export const InvoiceInbox = () => {
     setSupplierResults([]);
     setSelectedSevdeskContact(null);
     setShowSupplierDropdown(false);
+
+    // Load CRM customers for line item matching (fire and forget)
+    if (crmCustomers.length === 0) {
+      customersApi.getAll().then(res => {
+        if (res.success) setCrmCustomers(res.data);
+      }).catch(() => {});
+    }
 
     try {
       // Extract invoice data from PDF
@@ -1468,83 +1481,13 @@ export const InvoiceInbox = () => {
                       </div>
                     )}
 
-                    {/* Line Items Section */}
-                    {extractedData.lineItems && extractedData.lineItems.length > 0 && (
-                      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-300">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                          <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
-                          {extractedData.lineItems.some(item => item.customerName) && (
-                            <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
-                              MSP/Reseller
-                            </span>
-                          )}
-                        </h4>
-                        <div className="space-y-2 max-h-80 overflow-y-auto scroll-touch touch-manipulation">
-                          {extractedData.lineItems.map((item, index) => (
-                            <div
-                              key={index}
-                              className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm"
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    {item.position !== null && (
-                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded">
-                                        #{item.position}
-                                      </span>
-                                    )}
-                                    <span className="font-medium text-gray-900 dark:text-white truncate">
-                                      {item.description}
-                                    </span>
-                                  </div>
-                                  {item.articleNumber && (
-                                    <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 font-mono">
-                                      Art.-Nr.: {item.articleNumber}
-                                    </div>
-                                  )}
-                                  {item.customerName && (
-                                    <div className="text-xs text-accent-primary dark:text-accent-primary mt-1 font-medium">
-                                      → Kunde: {item.customerName}
-                                    </div>
-                                  )}
-                                  <div className="flex flex-wrap gap-2 mt-1">
-                                    {item.productType && (
-                                      <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-1.5 py-0.5 rounded">
-                                        {item.productType}
-                                      </span>
-                                    )}
-                                    {item.period && (
-                                      <span className="text-xs text-gray-500 dark:text-dark-400">
-                                        {item.period}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  {item.quantity !== null && (
-                                    <div className="text-xs text-gray-500 dark:text-dark-400">
-                                      {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
-                                    </div>
-                                  )}
-                                  {item.totalPrice !== null && (
-                                    <div className="font-medium text-gray-900 dark:text-white">
-                                      {formatAmount(item.totalPrice)} €
-                                    </div>
-                                  )}
-                                  {item.vatRate !== null && item.vatRate !== extractedData.vatRate && (
-                                    <div className="text-xs text-amber-600 dark:text-amber-400">
-                                      {item.vatRate}% MwSt.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-dark-400">
-                          Diese Positionen können später für die Weiterverrechnung verwendet werden.
-                        </div>
-                      </div>
+                    {/* Line Items Section with Customer Matching */}
+                    {confirmingInvoice && (extractedData.lineItems?.length ?? 0) > 0 && (
+                      <LineItemReview
+                        invoiceId={confirmingInvoice.id}
+                        lineItems={extractedData.lineItems}
+                        customers={crmCustomers}
+                      />
                     )}
                   </>
                 ) : null}

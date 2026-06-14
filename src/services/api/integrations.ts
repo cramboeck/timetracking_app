@@ -513,6 +513,113 @@ export const sevdeskApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // ============================================
+  // Line Items & Customer Matching (Epic G)
+  // ============================================
+
+  getLineItems: async (invoiceId: string): Promise<{
+    success: boolean;
+    data: LineItemWithMatch[];
+  }> => {
+    return authFetch(`/sevdesk/line-items/${invoiceId}`);
+  },
+
+  autoMatchLineItems: async (invoiceId: string, minConfidence?: number): Promise<{
+    success: boolean;
+    data: {
+      applied: number;
+      skipped: number;
+      stats: LineItemStats;
+      message: string;
+    };
+  }> => {
+    const params = minConfidence !== undefined ? `?minConfidence=${minConfidence}` : '';
+    return authFetch(`/sevdesk/line-items/${invoiceId}/auto-match${params}`, {
+      method: 'POST',
+    });
+  },
+
+  assignLineItemCustomer: async (lineItemId: string, customerId: string, saveAsAlias?: boolean): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ customerId, saveAsAlias }),
+    });
+  },
+
+  updateLineItemStatus: async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped'): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  getLineItemStats: async (invoiceId: string): Promise<{
+    success: boolean;
+    data: LineItemStats;
+  }> => {
+    return authFetch(`/sevdesk/line-items/${invoiceId}/stats`);
+  },
+
+  getUnmatchedItems: async (limit?: number, offset?: number): Promise<{
+    success: boolean;
+    data: {
+      items: UnmatchedLineItem[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+  }> => {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (offset) params.set('offset', String(offset));
+    return authFetch(`/sevdesk/unmatched-items?${params.toString()}`);
+  },
+
+  getCustomerAliases: async (customerId: string): Promise<{
+    success: boolean;
+    data: CustomerAlias[];
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases`);
+  },
+
+  addCustomerAlias: async (customerId: string, alias: string): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases`, {
+      method: 'POST',
+      body: JSON.stringify({ alias }),
+    });
+  },
+
+  deleteCustomerAlias: async (customerId: string, aliasId: string): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases/${aliasId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  updateCustomerMatching: async (customerId: string, data: {
+    primaryDomain?: string | null;
+    distributorIdentifiers?: Record<string, string>;
+  }): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/matching`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 // ============================================
@@ -1019,6 +1126,70 @@ export interface InvoiceLineItem {
 
   productType: string | null;     // e.g. "Microsoft 365", "Exchange Online", "Hornetsecurity"
   productSku: string | null;      // Product SKU/article number from distributor
+}
+
+// Line item with customer matching info (returned from backend)
+export interface LineItemWithMatch {
+  id: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  extractedCustomerName: string | null;
+  extractedCustomerDomain: string | null;
+  extractedCustomerNumber: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  crmCustomerNumber: string | null;
+  matchConfidence: number | null;
+  matchMethod: 'exact_name' | 'domain' | 'distributor_id' | 'alias' | 'fuzzy' | 'customer_number' | 'manual' | null;
+  rebillingStatus: 'pending' | 'included' | 'billed' | 'skipped';
+  periodStart: string | null;
+  periodEnd: string | null;
+  productSku: string | null;
+  createdAt: string;
+}
+
+export interface LineItemStats {
+  total: number;
+  matched: number;
+  unmatched: number;
+  byMethod: {
+    exact_name: number;
+    domain: number;
+    distributor_id: number;
+    alias: number;
+    fuzzy: number;
+    customer_number: number;
+  };
+  byConfidence: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+export interface UnmatchedLineItem {
+  id: string;
+  processedInvoiceId: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number | null;
+  totalPrice: number | null;
+  extractedCustomerName: string | null;
+  extractedCustomerDomain: string | null;
+  extractedCustomerNumber: string | null;
+  supplierName: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+}
+
+export interface CustomerAlias {
+  id: string;
+  alias: string;
+  source: 'manual' | 'invoice_assignment';
+  createdAt: string;
 }
 
 export interface ExtractedInvoiceData {
