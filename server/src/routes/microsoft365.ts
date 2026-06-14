@@ -106,6 +106,8 @@ const extractedDataSchema = z.object({
   // Metadata
   confidence: z.number().min(0).max(1).optional(),
   lineItems: z.array(z.any()).optional(),
+  // sevDesk linking
+  sevdeskContactId: z.string().max(50).nullable().optional(),
 }).passthrough().optional();
 
 const finalizeVoucherSchema = z.object({

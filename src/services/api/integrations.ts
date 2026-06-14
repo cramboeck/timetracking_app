@@ -221,6 +221,13 @@ export const sevdeskApi = {
     return authFetch('/sevdesk/customers');
   },
 
+  getContacts: async (options?: { type?: 'customers' | 'suppliers' | 'all'; search?: string }): Promise<{ success: boolean; data: SevdeskCustomer[] }> => {
+    const params = new URLSearchParams();
+    if (options?.type) params.append('type', options.type);
+    if (options?.search) params.append('search', options.search);
+    return authFetch(`/sevdesk/contacts?${params.toString()}`);
+  },
+
   linkCustomer: async (customerId: string, sevdeskCustomerId: string): Promise<{ success: boolean }> => {
     return authFetch('/sevdesk/link-customer', {
       method: 'POST',
@@ -1040,6 +1047,9 @@ export interface ExtractedInvoiceData {
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];
+
+  // sevDesk linking
+  sevdeskContactId?: string | null;
 }
 
 export interface SupportEmail {

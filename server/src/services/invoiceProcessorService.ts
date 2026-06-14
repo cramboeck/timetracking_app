@@ -73,6 +73,9 @@ export interface ExtractedInvoiceData {
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];  // Line items for MSP rebilling
+
+  // sevDesk linking
+  sevdeskContactId?: string | null;
 }
 
 export interface ProcessedInvoice {
@@ -2279,6 +2282,7 @@ SPEZIELLE RECHNUNGSTYPEN:
               description: invoice.email_subject || 'Eingangsrechnung',
               invoiceNumber: extractedData.invoiceNumber || undefined,
               supplierName,
+              sevdeskContactId: extractedData.sevdeskContactId || undefined,
               creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
               taxRate: validation.correctedData.vatRate ?? extractedData.vatRate ?? 19,
               sumGross: validation.correctedData.grossAmount ?? extractedData.grossAmount ?? undefined,

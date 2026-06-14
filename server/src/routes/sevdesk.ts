@@ -365,6 +365,45 @@ router.get('/customers', authenticateToken, requireBillingFeature, async (req: A
   }
 });
 
+// GET /api/sevdesk/contacts - Get all contacts from sevDesk (customers, suppliers, all)
+router.get('/contacts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    // Query params: type = 'customers' | 'suppliers' | 'all' (default: all)
+    const contactType = req.query.type as string || 'all';
+    const search = (req.query.search as string || '').toLowerCase().trim();
+
+    const options = {
+      showAll: contactType === 'all',
+      includeSuppliers: contactType === 'suppliers' || contactType === 'all',
+    };
+
+    const contacts = await sevdeskService.getSevdeskCustomers(config.apiToken, options);
+
+    // Filter by search term if provided
+    const filtered = search
+      ? contacts.filter(c =>
+          c.name.toLowerCase().includes(search) ||
+          (c.customerNumber && c.customerNumber.toLowerCase().includes(search))
+        )
+      : contacts;
+
+    res.json({
+      success: true,
+      data: filtered,
+    });
+  } catch (error: any) {
+    console.error('Get sevDesk contacts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/sevdesk/link-customer - Link local customer to sevDesk customer
 router.post('/link-customer', authenticateToken, requireBillingFeature, validate(linkCustomerSchema), async (req: AuthRequest, res: Response) => {
   try {

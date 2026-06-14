@@ -1410,6 +1410,7 @@ export async function createVoucherFromFile(
     description?: string;
     invoiceNumber?: string;  // Rechnungsnummer für sevDesk
     supplierName?: string;
+    sevdeskContactId?: string;  // Direkter sevDesk-Kontakt (überschreibt supplierName-Suche)
     sumNet?: number | string;
     sumGross?: number | string;
     sumTax?: number | string;
@@ -1422,8 +1423,11 @@ export async function createVoucherFromFile(
   // First, we need to get or create the supplier if provided
   let supplierId: string | null = null;
 
-  if (voucherData.supplierName) {
-    // Search for existing supplier
+  // Use directly provided sevDesk contact ID if available
+  if (voucherData.sevdeskContactId) {
+    supplierId = voucherData.sevdeskContactId;
+  } else if (voucherData.supplierName) {
+    // Otherwise search for existing supplier by name
     const searchResponse = await sevdeskFetch(
       apiToken,
       `/Contact?name=${encodeURIComponent(voucherData.supplierName)}&category[id]=4&category[objectName]=Category`
