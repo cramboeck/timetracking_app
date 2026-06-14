@@ -4061,7 +4061,12 @@ export async function initializeDatabase() {
     await client.query(`
       DO $$
       BEGIN
-        -- Drop old constraint if it exists
+        -- Step 1: Fix any non-compliant status values before adding constraint
+        UPDATE processed_invoices
+        SET status = 'processed'
+        WHERE status IS NULL OR status NOT IN ('pending', 'draft', 'processed', 'failed', 'skipped');
+
+        -- Step 2: Drop old constraint if it exists
         IF EXISTS (
           SELECT 1 FROM information_schema.table_constraints
           WHERE constraint_name = 'processed_invoices_status_check'
@@ -4069,7 +4074,7 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
         END IF;
-        -- Add new constraint with all status values including 'draft'
+        -- Step 3: Add new constraint with all status values including 'draft'
         ALTER TABLE processed_invoices
           ADD CONSTRAINT processed_invoices_status_check
           CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped'));
@@ -4194,9 +4199,17 @@ export async function initializeDatabase() {
 
     // Erweitere status-Check-Constraint um 'imported' (= sevDesk-Sync-Rows,
     // die nie durch den Inbox-Workflow gingen).
+    // WICHTIG: Zuerst alle nicht-konformen Zeilen auf 'processed' setzen,
+    // DANN die Constraint hinzufügen.
     await client.query(`
       DO $$
       BEGIN
+        -- Step 1: Fix any non-compliant status values before adding constraint
+        UPDATE processed_invoices
+        SET status = 'processed'
+        WHERE status IS NULL OR status NOT IN ('pending', 'draft', 'processed', 'failed', 'skipped', 'imported');
+
+        -- Step 2: Drop old constraint if exists
         IF EXISTS (
           SELECT 1 FROM information_schema.table_constraints
           WHERE constraint_name = 'processed_invoices_status_check'
@@ -4204,6 +4217,8 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
         END IF;
+
+        -- Step 3: Add new constraint with all status values
         ALTER TABLE processed_invoices
           ADD CONSTRAINT processed_invoices_status_check
           CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped', 'imported'));
