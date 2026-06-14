@@ -4909,6 +4909,126 @@ export async function initializeDatabase() {
     }
     logger.info('✅ Multi-tenancy: indexes created on organization_id columns');
 
+    // ========================================
+    // Epic G: Invoice Line Items & License Management
+    // ========================================
+
+    // Enable pg_trgm extension for fuzzy matching
+    await client.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    logger.info('✅ pg_trgm extension enabled for fuzzy matching');
+
+    // Invoice Line Items table - individual positions from distributor invoices
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_line_items (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        processed_invoice_id TEXT NOT NULL REFERENCES processed_invoices(id) ON DELETE CASCADE,
+
+        -- Position from invoice
+        position_number INTEGER,
+        description TEXT NOT NULL,
+        article_number TEXT,
+
+        -- Quantities and prices
+        quantity NUMERIC(12,4),
+        unit TEXT,
+        unit_price NUMERIC(12,4),
+        total_price NUMERIC(12,4),
+        vat_rate NUMERIC(5,2),
+
+        -- Period
+        period_start DATE,
+        period_end DATE,
+        period_text TEXT,
+
+        -- Product categorization
+        product_type TEXT,
+        product_sku TEXT,
+
+        -- Customer detection (AI-extracted)
+        extracted_customer_name TEXT,
+        extracted_customer_domain TEXT,
+        extracted_customer_number TEXT,
+
+        -- Customer assignment (after matching/manual)
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        match_confidence NUMERIC(3,2),
+        match_method TEXT CHECK(match_method IN (
+          'exact_name', 'fuzzy_name', 'domain', 'alias',
+          'distributor_number', 'manual', 'unmatched'
+        )),
+
+        -- Rebilling workflow status
+        rebilling_status TEXT DEFAULT 'pending' CHECK(rebilling_status IN (
+          'pending', 'included', 'billed', 'skipped'
+        )),
+        rebilling_invoice_id TEXT,
+        rebilling_markup_percent NUMERIC(5,2),
+        rebilling_notes TEXT,
+
+        -- Audit
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        reviewed_at TIMESTAMP
+      )
+    `);
+
+    // Indexes for invoice_line_items
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_invoice ON invoice_line_items(processed_invoice_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_org ON invoice_line_items(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_customer ON invoice_line_items(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_rebilling ON invoice_line_items(rebilling_status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_period ON invoice_line_items(period_start, period_end)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_extracted_name ON invoice_line_items USING gin(extracted_customer_name gin_trgm_ops)');
+
+    logger.info('✅ invoice_line_items table created');
+
+    // Migration: Add primary_domain and distributor_identifiers to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        -- primary_domain for domain-based matching
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'primary_domain'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN primary_domain TEXT;
+        END IF;
+
+        -- distributor_identifiers for matching by distributor-specific IDs
+        -- Schema: { "microsoft_tenant_id": "...", "hornetsecurity_id": "...", "elovade_number": "..." }
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'distributor_identifiers'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN distributor_identifiers JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
+    // Index for domain matching
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customers_primary_domain') THEN
+          CREATE INDEX idx_customers_primary_domain ON customers(primary_domain);
+        END IF;
+      END $$;
+    `);
+
+    // GIN index for fuzzy name matching on customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customers_name_trgm') THEN
+          CREATE INDEX idx_customers_name_trgm ON customers USING gin(name gin_trgm_ops);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Customer matching columns added (primary_domain, distributor_identifiers)');
+
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');
   } catch (error) {

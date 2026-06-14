@@ -1001,14 +1001,24 @@ export interface InvoiceLineItem {
   position: number | null;        // Position number on invoice
   description: string;
   articleNumber: string | null;   // Article/SKU number
-  customerName: string | null;    // End customer name (for MSP/reseller invoices)
+
+  // End customer detection (for MSP/reseller invoices)
+  customerName: string | null;    // End customer name
+  customerDomain: string | null;  // End customer domain (e.g. "musterfirma.at")
+  customerNumber: string | null;  // Customer number at distributor (e.g. "HS-12345")
+
   quantity: number | null;
-  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
+  unit: string | null;            // Unit (Stück, Monat, Lizenz, User, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
   vatRate: number | null;         // VAT rate for this line item if different
-  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
-  productType: string | null;     // e.g. "Microsoft 365", "Cloud Server"
+
+  period: string | null;          // Original period text e.g. "01.12.2024 - 31.12.2024"
+  periodStart: string | null;     // Parsed start date YYYY-MM-DD
+  periodEnd: string | null;       // Parsed end date YYYY-MM-DD
+
+  productType: string | null;     // e.g. "Microsoft 365", "Exchange Online", "Hornetsecurity"
+  productSku: string | null;      // Product SKU/article number from distributor
 }
 
 export interface ExtractedInvoiceData {

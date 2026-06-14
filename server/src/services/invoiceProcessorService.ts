@@ -26,14 +26,24 @@ export interface InvoiceLineItem {
   position: number | null;        // Position number on invoice
   description: string;
   articleNumber: string | null;   // Article/SKU number
-  customerName: string | null;    // End customer name (e.g. for MSP/reseller invoices)
+
+  // End customer detection (for MSP/reseller invoices)
+  customerName: string | null;    // End customer name
+  customerDomain: string | null;  // End customer domain (e.g. "musterfirma.at")
+  customerNumber: string | null;  // Customer number at distributor (e.g. "HS-12345")
+
   quantity: number | null;
   unit: string | null;            // Unit (Stück, Monat, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
   vatRate: number | null;         // VAT rate for this line item if different
-  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
+
+  period: string | null;          // Original period text e.g. "01.12.2024 - 31.12.2024"
+  periodStart: string | null;     // Parsed start date YYYY-MM-DD
+  periodEnd: string | null;       // Parsed end date YYYY-MM-DD
+
   productType: string | null;     // e.g. "Microsoft 365", "Azure", "Cloud Server"
+  productSku: string | null;      // Product SKU/article number from distributor
 }
 
 // Interface for extracted invoice data
@@ -1390,9 +1400,76 @@ class InvoiceProcessorService {
           processedInvoiceId,
         ]
       );
+      // Persist line items if present
+      if (extracted.lineItems && extracted.lineItems.length > 0) {
+        await this.persistLineItems(processedInvoiceId, extracted.lineItems);
+      }
     } catch (err: any) {
       logger.error(`Failed to persist extracted data for invoice ${processedInvoiceId}: ${err.message}`);
       // Non-fatal — search just won't find this invoice until next extraction.
+    }
+  }
+
+  /**
+   * Persist line items to the invoice_line_items table
+   */
+  private async persistLineItems(processedInvoiceId: string, lineItems: InvoiceLineItem[]): Promise<void> {
+    try {
+      // Get organization_id from the parent invoice
+      const invoiceResult = await query(
+        `SELECT organization_id FROM processed_invoices WHERE id = $1`,
+        [processedInvoiceId]
+      );
+      if (invoiceResult.rows.length === 0) {
+        logger.warn(`Cannot persist line items: invoice ${processedInvoiceId} not found`);
+        return;
+      }
+      const organizationId = invoiceResult.rows[0].organization_id;
+
+      // Delete existing line items for this invoice (in case of re-extraction)
+      await query(
+        `DELETE FROM invoice_line_items WHERE processed_invoice_id = $1`,
+        [processedInvoiceId]
+      );
+
+      // Insert new line items
+      for (const item of lineItems) {
+        await query(
+          `INSERT INTO invoice_line_items (
+            organization_id, processed_invoice_id,
+            position_number, description, article_number,
+            extracted_customer_name, extracted_customer_domain, extracted_customer_number,
+            quantity, unit, unit_price, total_price, vat_rate,
+            period_text, period_start, period_end,
+            product_type, product_sku
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+          [
+            organizationId,
+            processedInvoiceId,
+            item.position,
+            item.description,
+            item.articleNumber,
+            item.customerName,
+            item.customerDomain,
+            item.customerNumber,
+            item.quantity,
+            item.unit,
+            item.unitPrice,
+            item.totalPrice,
+            item.vatRate,
+            item.period,
+            item.periodStart,
+            item.periodEnd,
+            item.productType,
+            item.productSku,
+          ]
+        );
+      }
+
+      logger.info(`Persisted ${lineItems.length} line items for invoice ${processedInvoiceId}`);
+    } catch (err: any) {
+      logger.error(`Failed to persist line items for invoice ${processedInvoiceId}: ${err.message}`);
+      // Non-fatal
     }
   }
 
@@ -1434,7 +1511,44 @@ class InvoiceProcessorService {
       iban: r.iban,
       bic: r.bic,
       confidence: r.extraction_confidence !== null ? Number(r.extraction_confidence) : 0,
+      lineItems: await this.getStoredLineItems(processedInvoiceId),
     };
+  }
+
+  /**
+   * Read line items from the database
+   */
+  private async getStoredLineItems(processedInvoiceId: string): Promise<InvoiceLineItem[]> {
+    const result = await query(
+      `SELECT position_number, description, article_number,
+              extracted_customer_name, extracted_customer_domain, extracted_customer_number,
+              quantity, unit, unit_price, total_price, vat_rate,
+              period_text, period_start, period_end,
+              product_type, product_sku
+       FROM invoice_line_items
+       WHERE processed_invoice_id = $1
+       ORDER BY position_number NULLS LAST, created_at`,
+      [processedInvoiceId]
+    );
+
+    return result.rows.map(r => ({
+      position: r.position_number,
+      description: r.description,
+      articleNumber: r.article_number,
+      customerName: r.extracted_customer_name,
+      customerDomain: r.extracted_customer_domain,
+      customerNumber: r.extracted_customer_number,
+      quantity: r.quantity !== null ? Number(r.quantity) : null,
+      unit: r.unit,
+      unitPrice: r.unit_price !== null ? Number(r.unit_price) : null,
+      totalPrice: r.total_price !== null ? Number(r.total_price) : null,
+      vatRate: r.vat_rate !== null ? Number(r.vat_rate) : null,
+      period: r.period_text,
+      periodStart: r.period_start ? new Date(r.period_start).toISOString().slice(0, 10) : null,
+      periodEnd: r.period_end ? new Date(r.period_end).toISOString().slice(0, 10) : null,
+      productType: r.product_type,
+      productSku: r.product_sku,
+    }));
   }
 
   /**
@@ -1992,14 +2106,23 @@ Wichtig:
             position: this.parseNumberFromAny(item.position),
             description: item.description || '',
             articleNumber: item.articleNumber || null,
+            // Customer detection fields
             customerName: item.customerName || null,
+            customerDomain: item.customerDomain || null,
+            customerNumber: item.customerNumber || null,
+            // Quantities
             quantity: this.parseNumberFromAny(item.quantity),
             unit: item.unit || null,
             unitPrice: this.parseNumberFromAny(item.unitPrice),
             totalPrice: this.parseNumberFromAny(item.totalPrice),
             vatRate: this.parseNumberFromAny(item.vatRate),
+            // Period
             period: item.period || null,
+            periodStart: item.periodStart || null,
+            periodEnd: item.periodEnd || null,
+            // Product
             productType: item.productType || null,
+            productSku: item.productSku || null,
           }));
           lineItems = parsedItems;
           logger.info(`Extracted ${parsedItems.length} line items from ${pageImages.length} page(s)`);
@@ -2089,14 +2212,23 @@ Antworte NUR im folgenden JSON-Format (keine anderen Texte):
       "position": Positionsnummer als Zahl oder null,
       "description": "Beschreibung der Position/des Artikels",
       "articleNumber": "Artikelnummer falls vorhanden oder null",
-      "customerName": "Endkunde falls MSP/Reseller-Rechnung oder null",
+
+      "customerName": "Erkannter Endkunde (Firma/Tenant-Name) oder null",
+      "customerDomain": "Domain des Endkunden (z.B. musterfirma.at, firma.onmicrosoft.com) oder null",
+      "customerNumber": "Kundennummer beim Distributor (z.B. HS-12345, Kd.-Nr) oder null",
+
       "quantity": Menge als Zahl,
-      "unit": "Einheit (Stück, Monat, GB, etc.) oder null",
+      "unit": "Einheit (Stück, Monat, Lizenz, User, GB, etc.) oder null",
       "unitPrice": Einzelpreis als Zahl,
       "totalPrice": Gesamtpreis dieser Position als Zahl,
       "vatRate": MwSt-Satz dieser Position falls abweichend oder null,
-      "period": "Leistungszeitraum z.B. 01.03.2026 - 31.03.2026 oder null",
-      "productType": "Produktkategorie (Cloud Server, Microsoft 365, Hosting, Lizenz, etc.) oder null"
+
+      "period": "Original-Zeitraumtext z.B. 01.03.2026 - 31.03.2026 oder null",
+      "periodStart": "Startdatum YYYY-MM-DD oder null",
+      "periodEnd": "Enddatum YYYY-MM-DD oder null",
+
+      "productType": "Produktkategorie (Microsoft 365, Exchange Online, Hornetsecurity, Azure, etc.) oder null",
+      "productSku": "Produkt-SKU/Artikelnummer des Distributors oder null"
     }
   ]
 }
@@ -2121,12 +2253,25 @@ LINE ITEMS - VOLLSTÄNDIG EXTRAHIEREN:
 - ALLE Positionen von ALLEN Seiten erfassen
 - Bei Cloud-Rechnungen (Hetzner, AWS, Azure): Server, IPs, Traffic, Storage einzeln
 - Bei Microsoft CSP: Jede Lizenz/Subscription als eigene Position
-- "Rechnungsempfänger" in der Kopfzeile kann der Endkunde sein → in customerName
+
+ENDKUNDEN-ERKENNUNG (KRITISCH für MSP/Reseller):
+- customerName = ENDKUNDE, nicht der Rechnungsempfänger (MSP)!
+- customerDomain = E-Mail-Domain oder Tenant-Domain des Endkunden
+- customerNumber = Kundennummer beim Distributor (HS-12345, Account-ID, etc.)
 
 SPEZIELLE RECHNUNGSTYPEN:
-- Microsoft 365/CSP: "Dienstnutzungsadresse" enthält oft den Endkunden
-- Hetzner: Projektname kann Kundenreferenz sein (z.B. "Projekt Test")
-- Hosting-Rechnungen: Domain/Server als Beschreibung extrahieren`;
+- **Microsoft 365/CSP**: "Dienstnutzungsadresse" enthält den Endkunden, Tenant-Domain extrahieren
+- **Hornetsecurity**: Pro Domain eine Position, Domain in customerDomain
+- **Mailstore/Mailarchive**: Kundenname in Beschreibung, Domain falls vorhanden
+- **Elovade**: Kundennummer und Name in Positionsbeschreibung
+- **Lywand**: Assessment pro Kunde, Domain und Firmenname extrahieren
+- **ADN/TD Synnex/Ingram**: Endkundennummer und -name pro Lizenzposition
+
+MUSTER FÜR KUNDENERKENNUNG:
+- "Kunde:", "für:", "Endkunde:", "Customer:", "Account:" → customerName
+- Domains wie "firma.at", "company.onmicrosoft.com" → customerDomain
+- Nummern wie "Kd.-Nr:", "Customer ID:", "Account:" → customerNumber
+- Bei Sammelrechnungen: JEDE Position kann einen anderen Endkunden haben!`;
   }
 
   /**
