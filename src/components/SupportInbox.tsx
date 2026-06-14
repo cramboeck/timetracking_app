@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Loader2, AlertTriangle, RefreshCw, Ticket, Eye,
-  CheckCircle, Link2, Paperclip, Clock, X, ExternalLink,
-  ChevronDown, ChevronUp, AlertCircle, Users, MessageSquare
+  CheckCircle, Link2, Paperclip, X,
+  ChevronDown, ChevronUp, AlertCircle, MessageSquare
 } from 'lucide-react';
-import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
+import { microsoft365Api, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeEmailHtml } from '../utils/sanitize';
@@ -312,17 +312,6 @@ export const SupportInbox = () => {
       return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  };
-
-  const getImportanceColor = (importance: string) => {
-    switch (importance) {
-      case 'high':
-        return 'text-red-500';
-      case 'low':
-        return 'text-gray-400';
-      default:
-        return 'text-gray-600 dark:text-dark-400';
-    }
   };
 
   if (loading) {

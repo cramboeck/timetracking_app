@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, User, Globe, AlertTriangle, Clock, CheckCircle, HardDrive, Cpu, Power, LayoutGrid, List, Package, Shield, X, Info, Activity, Filter, Headphones, ExternalLink } from 'lucide-react';
+import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, Globe, AlertTriangle, Clock, CheckCircle, Cpu, Package, Shield, X, Info, Activity, Filter, Headphones, ExternalLink } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
 
@@ -55,7 +55,7 @@ const severityColors: Record<string, { bg: string; text: string; icon: string }>
   NONE: { bg: 'bg-gray-100 dark:bg-dark-200', text: 'text-gray-700 dark:text-dark-400', icon: 'text-gray-600' },
 };
 
-export const PortalDevices = ({ contact, teamviewerLink }: PortalDevicesProps) => {
+export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevicesProps) => {
   const [devices, setDevices] = useState<PortalDevice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
