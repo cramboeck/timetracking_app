@@ -14,11 +14,7 @@ import {
   Trash2,
   ArrowRight,
   User,
-  Building2,
   Filter,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
   PhoneIncoming,
   PhoneOutgoing,
 } from 'lucide-react';
@@ -28,7 +24,6 @@ import {
   InteractionType,
   InteractionDirection,
   InteractionOutcome,
-  TimelineItem,
 } from '../services/api';
 import { Customer } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -414,7 +409,7 @@ const InteractionForm: React.FC<InteractionFormProps> = ({
 
 export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
   customerId,
-  customer,
+  customer: _customer,
   compact = false,
   onInteractionClick,
 }) => {

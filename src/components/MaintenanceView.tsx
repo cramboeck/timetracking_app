@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, Send, Plus, RefreshCw, CheckCircle, XCircle,
-  AlertTriangle, Trash2, Edit, Eye, ChevronDown, ChevronUp,
-  Users, Monitor, Bell, Filter, MoreHorizontal, FileText, Lock, ShieldAlert
+  AlertTriangle, Trash2, Edit, Eye,
+  Users, Bell, Filter, Lock, ShieldAlert
 } from 'lucide-react';
 import {
   maintenanceApi,
@@ -116,14 +116,6 @@ function formatDateTime(dateStr: string): string {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
-  });
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
   });
 }
 

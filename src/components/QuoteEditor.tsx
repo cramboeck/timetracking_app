@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X,
   Search,
-  Plus,
   Trash2,
   FileText,
   Receipt,
@@ -105,7 +104,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId 
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContact, setSelectedContact] = useState<SevdeskContact | null>(null);
-  const [loadingQuote, setLoadingQuote] = useState(isEditing);
+  const [_loadingQuote, setLoadingQuote] = useState(isEditing);
 
   // Quote details
   const [header, setHeader] = useState('');
@@ -176,7 +175,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId 
   const [generatingDescription, setGeneratingDescription] = useState<string | null>(null); // position id being generated
 
   // Margin settings
-  const [showMarginSettings, setShowMarginSettings] = useState(false);
+  const [_showMarginSettings, _setShowMarginSettings] = useState(false);
   const [defaultMargin, setDefaultMargin] = useState(30); // 30% default margin
 
   // Load contacts on mount and check AI config
