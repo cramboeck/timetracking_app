@@ -623,19 +623,19 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **Batch-Matching** | `batchMatchLineItems()` + `applyBestMatches()` mit minConfidence-Schwelle |
 | ✅ | **"Als Alias speichern"** | `customer_aliases` Tabelle + `saveAsAlias` Flag bei manueller Zuordnung |
 
-### Sprint G3 — API & Review-UI (8-10 Tage)
+### Sprint G3 — API & Review-UI ✅
 
 | Status | Task | Beschreibung |
 |---|---|---|
 | ✅ | **Line-Item CRUD Endpoints** | GET/PATCH/POST für Positionen, Bulk-Assignment, Status-Update. Commit 5ba40ba |
-| ⬜ | **Position-Review-Modal** | In InvoiceInbox: Positionen mit Match-Vorschlag, Kunden-Dropdown, Confidence-Badge |
+| ✅ | **Position-Review-Modal** | `LineItemReview.tsx` in InvoiceInbox: Auto-Match, Kundensuche, Confidence-Badges, Alias-Option. Commit 3b8ae19 |
 | ✅ | **Unmatched-Dashboard API** | `GET /api/sevdesk/unmatched-items` mit Pagination |
 
 ### Sprint G4 — Rebilling-Workflow (4-5 Tage)
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **Rebilling-Status** | pending → included (in Pauschale) / billed / skipped |
+| ✅ | **Rebilling-Status** | Dropdown in LineItemReview: pending → included / billed / skipped. Commit 3b8ae19 |
 | ⬜ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option |
 | ⬜ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen |
 
