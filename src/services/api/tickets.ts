@@ -82,6 +82,23 @@ export interface TicketAttachment {
   createdAt: string;
 }
 
+// Ticket Template type
+export interface TicketTemplate {
+  id: string;
+  organizationId: string;
+  name: string;
+  titleTemplate?: string;
+  descriptionTemplate?: string;
+  defaultPriority?: 'low' | 'normal' | 'high' | 'critical';
+  defaultCustomerId?: string;
+  defaultProjectId?: string;
+  category?: string;
+  isActive: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Tickets API
 export const ticketsApi = {
   getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority }): Promise<{ success: boolean; data: Ticket[] }> => {
@@ -178,6 +195,42 @@ export const ticketsApi = {
     return authFetch(`/tickets/${targetTicketId}/merge`, {
       method: 'POST',
       body: JSON.stringify({ sourceTicketIds }),
+    });
+  },
+
+  // Bulk Actions
+  bulkUpdateStatus: async (ticketIds: string[], status: TicketStatus): Promise<{ success: boolean; message: string; count: number }> => {
+    return authFetch('/tickets/bulk/status', {
+      method: 'POST',
+      body: JSON.stringify({ ticketIds, status }),
+    });
+  },
+
+  bulkUpdatePriority: async (ticketIds: string[], priority: TicketPriority): Promise<{ success: boolean; message: string; count: number }> => {
+    return authFetch('/tickets/bulk/priority', {
+      method: 'POST',
+      body: JSON.stringify({ ticketIds, priority }),
+    });
+  },
+
+  bulkAssign: async (ticketIds: string[], assignedToUserId: string | null): Promise<{ success: boolean; message: string; count: number }> => {
+    return authFetch('/tickets/bulk/assign', {
+      method: 'POST',
+      body: JSON.stringify({ ticketIds, assignedToUserId }),
+    });
+  },
+
+  bulkArchive: async (ticketIds: string[]): Promise<{ success: boolean; message: string; count: number }> => {
+    return authFetch('/tickets/bulk/archive', {
+      method: 'POST',
+      body: JSON.stringify({ ticketIds }),
+    });
+  },
+
+  bulkDelete: async (ticketIds: string[]): Promise<{ success: boolean; message: string; count: number }> => {
+    return authFetch('/tickets/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ ticketIds }),
     });
   },
 
@@ -382,6 +435,53 @@ export const ticketsApi = {
     if (filters?.customerId) params.append('customerId', filters.customerId);
     const queryString = params.toString();
     return authFetch(`/tickets/tasks/all${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // Templates
+  getTemplates: async (options?: { category?: string; activeOnly?: boolean }): Promise<{ success: boolean; data: TicketTemplate[] }> => {
+    const params = new URLSearchParams();
+    if (options?.category) params.append('category', options.category);
+    if (options?.activeOnly) params.append('activeOnly', 'true');
+    const queryString = params.toString();
+    return authFetch(`/tickets/templates${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getTemplate: async (id: string): Promise<{ success: boolean; data: TicketTemplate }> => {
+    return authFetch(`/tickets/templates/${id}`);
+  },
+
+  createTemplate: async (data: {
+    name: string;
+    titleTemplate?: string;
+    descriptionTemplate?: string;
+    defaultPriority?: 'low' | 'normal' | 'high' | 'critical';
+    defaultCustomerId?: string;
+    defaultProjectId?: string;
+    category?: string;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; data: TicketTemplate }> => {
+    return authFetch('/tickets/templates', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  updateTemplate: async (id: string, data: {
+    name?: string;
+    titleTemplate?: string;
+    descriptionTemplate?: string;
+    defaultPriority?: 'low' | 'normal' | 'high' | 'critical' | null;
+    defaultCustomerId?: string | null;
+    defaultProjectId?: string | null;
+    category?: string | null;
+    isActive?: boolean;
+  }): Promise<{ success: boolean; data: TicketTemplate }> => {
+    return authFetch(`/tickets/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+
+  deleteTemplate: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/tickets/templates/${id}`, { method: 'DELETE' });
+  },
+
+  useTemplate: async (id: string): Promise<{ success: boolean; data: TicketTemplate }> => {
+    return authFetch(`/tickets/templates/${id}/use`, { method: 'POST' });
   },
 };
 

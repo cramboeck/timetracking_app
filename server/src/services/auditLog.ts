@@ -43,6 +43,12 @@ export type AuditAction =
   | 'ticket.assign'
   | 'ticket.status_change'
   | 'ticket.priority_change'
+  // Ticket bulk actions
+  | 'ticket.bulk_status'
+  | 'ticket.bulk_priority'
+  | 'ticket.bulk_assign'
+  | 'ticket.bulk_archive'
+  | 'ticket.bulk_delete'
   // Ticket comment actions
   | 'ticket_comment.create'
   | 'ticket_comment.update'

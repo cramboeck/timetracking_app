@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { X, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Save, FileText } from 'lucide-react';
 import { Customer, Project, TicketPriority } from '../types';
-import { ticketsApi } from '../services/api';
+import { ticketsApi, TicketTemplate } from '../services/api';
 import { Button, IconButton } from './ui';
 
 interface CreateTicketDialogProps {
@@ -28,10 +28,69 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Template state
+  const [templates, setTemplates] = useState<TicketTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Load templates when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      loadTemplates();
+    }
+  }, [isOpen]);
+
+  const loadTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const response = await ticketsApi.getTemplates({ activeOnly: true });
+      setTemplates(response.data);
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleTemplateSelect = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    // Apply template values
+    if (template.titleTemplate) setTitle(template.titleTemplate);
+    if (template.descriptionTemplate) setDescription(template.descriptionTemplate);
+    if (template.defaultPriority) setPriority(template.defaultPriority);
+    if (template.defaultCustomerId) {
+      setCustomerId(template.defaultCustomerId);
+      if (template.defaultProjectId) {
+        setProjectId(template.defaultProjectId);
+      }
+    }
+
+    // Track template usage
+    try {
+      await ticketsApi.useTemplate(templateId);
+    } catch (err) {
+      // Non-critical, just log
+      console.error('Failed to track template usage:', err);
+    }
+  };
+
   // Filter projects based on selected customer
   const filteredProjects = customerId
     ? projects.filter(p => p.customerId === customerId && p.isActive)
     : [];
+
+  // Group templates by category
+  const groupedTemplates = templates.reduce((acc, template) => {
+    const category = template.category || 'Allgemein';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(template);
+    return acc;
+  }, {} as Record<string, TicketTemplate[]>);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +117,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
       setTitle('');
       setDescription('');
       setPriority('normal');
+      setSelectedTemplateId('');
       onCreated();
       onClose();
     } catch (err) {
@@ -96,6 +156,37 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
                 {error}
+              </div>
+            )}
+
+            {/* Template Selector */}
+            {templates.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  <span className="flex items-center gap-2">
+                    <FileText size={16} />
+                    Vorlage (optional)
+                  </span>
+                </label>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => handleTemplateSelect(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  disabled={loadingTemplates}
+                >
+                  <option value="">
+                    {loadingTemplates ? 'Lade Vorlagen...' : 'Vorlage wählen...'}
+                  </option>
+                  {Object.entries(groupedTemplates).map(([category, categoryTemplates]) => (
+                    <optgroup key={category} label={category}>
+                      {categoryTemplates.map(template => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
             )}
 

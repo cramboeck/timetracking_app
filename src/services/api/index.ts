@@ -42,6 +42,7 @@ export type {
   TicketTag,
   TicketActivity,
   TicketAttachment,
+  TicketTemplate,
   KbCategory,
   KbArticle,
 } from './tickets';

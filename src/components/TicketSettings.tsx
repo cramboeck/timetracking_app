@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock, Download, Info } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, MessageSquare, Save, X, Clock, Download, Info, FileText } from 'lucide-react';
 import { Button, IconButton } from './ui';
-import { ticketsApi, CannedResponse, TicketTag } from '../services/api';
+import { ticketsApi, CannedResponse, TicketTag, TicketTemplate } from '../services/api';
 import { SlaPolicy } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useToast } from '../contexts/UIContext';
@@ -13,7 +13,7 @@ const TAG_COLORS = [
 
 export const TicketSettings = () => {
   const showToast = useToast();
-  const [activeSection, setActiveSection] = useState<'tags' | 'responses' | 'sla'>('tags');
+  const [activeSection, setActiveSection] = useState<'tags' | 'responses' | 'sla' | 'templates'>('tags');
 
   // Tags State
   const [tags, setTags] = useState<TicketTag[]>([]);
@@ -50,10 +50,24 @@ export const TicketSettings = () => {
   const [slaIsDefault, setSlaIsDefault] = useState(false);
   const [slaToDelete, setSlaToDelete] = useState<SlaPolicy | null>(null);
 
+  // Templates State
+  const [templates, setTemplates] = useState<TicketTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<TicketTemplate | null>(null);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templatePriority, setTemplatePriority] = useState<'low' | 'normal' | 'high' | 'critical' | ''>('');
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [templateIsActive, setTemplateIsActive] = useState(true);
+  const [templateToDelete, setTemplateToDelete] = useState<TicketTemplate | null>(null);
+
   useEffect(() => {
     loadTags();
     loadResponses();
     loadSlaPolicies();
+    loadTemplates();
   }, []);
 
   const loadTags = async () => {
@@ -89,6 +103,18 @@ export const TicketSettings = () => {
       console.error('Failed to load SLA policies:', err);
     } finally {
       setLoadingSla(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const response = await ticketsApi.getTemplates();
+      setTemplates(response.data);
+    } catch (err) {
+      console.error('Failed to load templates:', err);
+    } finally {
+      setLoadingTemplates(false);
     }
   };
 
@@ -288,6 +314,73 @@ export const TicketSettings = () => {
     setShowSlaForm(false);
   };
 
+  // Template handlers
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      showToast('Name ist erforderlich', 'warning');
+      return;
+    }
+    try {
+      if (editingTemplate) {
+        const response = await ticketsApi.updateTemplate(editingTemplate.id, {
+          name: templateName.trim(),
+          titleTemplate: templateTitle.trim() || undefined,
+          descriptionTemplate: templateDescription.trim() || undefined,
+          defaultPriority: templatePriority || undefined,
+          category: templateCategory.trim() || undefined,
+          isActive: templateIsActive,
+        });
+        setTemplates(prev => prev.map(t => t.id === editingTemplate.id ? response.data : t));
+      } else {
+        const response = await ticketsApi.createTemplate({
+          name: templateName.trim(),
+          titleTemplate: templateTitle.trim() || undefined,
+          descriptionTemplate: templateDescription.trim() || undefined,
+          defaultPriority: templatePriority || undefined,
+          category: templateCategory.trim() || undefined,
+          isActive: templateIsActive,
+        });
+        setTemplates(prev => [...prev, response.data]);
+      }
+      resetTemplateForm();
+    } catch (err: any) {
+      showToast(err.message || 'Fehler beim Speichern', 'error');
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    try {
+      await ticketsApi.deleteTemplate(templateToDelete.id);
+      setTemplates(prev => prev.filter(t => t.id !== templateToDelete.id));
+      setTemplateToDelete(null);
+    } catch (err) {
+      showToast('Fehler beim Löschen', 'error');
+    }
+  };
+
+  const startEditTemplate = (template: TicketTemplate) => {
+    setEditingTemplate(template);
+    setTemplateName(template.name);
+    setTemplateTitle(template.titleTemplate || '');
+    setTemplateDescription(template.descriptionTemplate || '');
+    setTemplatePriority(template.defaultPriority || '');
+    setTemplateCategory(template.category || '');
+    setTemplateIsActive(template.isActive);
+    setShowTemplateForm(true);
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplate(null);
+    setTemplateName('');
+    setTemplateTitle('');
+    setTemplateDescription('');
+    setTemplatePriority('');
+    setTemplateCategory('');
+    setTemplateIsActive(true);
+    setShowTemplateForm(false);
+  };
+
   const formatMinutesToTime = (minutes: number): string => {
     if (minutes < 60) return `${minutes} Min.`;
     const hours = Math.floor(minutes / 60);
@@ -340,6 +433,17 @@ export const TicketSettings = () => {
         >
           <Clock size={18} />
           SLA-Richtlinien
+        </button>
+        <button
+          onClick={() => setActiveSection('templates')}
+          className={`flex items-center gap-2 px-4 py-2 font-medium border-b-2 transition-colors ${
+            activeSection === 'templates'
+              ? 'border-accent-primary text-accent-primary'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
+          }`}
+        >
+          <FileText size={18} />
+          Vorlagen
         </button>
       </div>
 
@@ -869,6 +973,211 @@ export const TicketSettings = () => {
         </div>
       )}
 
+      {/* Templates Section */}
+      {activeSection === 'templates' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-sm text-gray-600 dark:text-dark-400">
+              Ticket-Vorlagen beschleunigen die Erstellung von häufig vorkommenden Ticket-Typen.
+            </p>
+            {!showTemplateForm && (
+              <Button
+                onClick={() => setShowTemplateForm(true)}
+                variant="primary"
+                size="sm"
+                icon={<Plus size={16} />}
+              >
+                Neue Vorlage
+              </Button>
+            )}
+          </div>
+
+          {/* Create/Edit Template Form */}
+          {showTemplateForm && (
+            <div className="p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                    Vorlagenname *
+                  </label>
+                  <input
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="z.B. Passwort zurücksetzen"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                    Kategorie (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    placeholder="z.B. IT-Support, Netzwerk"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                  Ticket-Titel (optional)
+                </label>
+                <input
+                  type="text"
+                  value={templateTitle}
+                  onChange={(e) => setTemplateTitle(e.target.value)}
+                  placeholder="Standardtitel für das Ticket"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                  Beschreibung (optional)
+                </label>
+                <textarea
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="Standardbeschreibung oder Checkliste..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                    Standard-Priorität
+                  </label>
+                  <select
+                    value={templatePriority}
+                    onChange={(e) => setTemplatePriority(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Keine Vorgabe</option>
+                    <option value="low">Niedrig</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">Hoch</option>
+                    <option value="critical">Kritisch</option>
+                  </select>
+                </div>
+                <div className="flex items-center">
+                  <label className="flex items-center gap-2 pt-6">
+                    <input
+                      type="checkbox"
+                      checked={templateIsActive}
+                      onChange={(e) => setTemplateIsActive(e.target.checked)}
+                      className="rounded border-gray-300 dark:border-dark-border"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-dark-500">Aktiv</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={resetTemplateForm}
+                  variant="secondary"
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={handleSaveTemplate}
+                  disabled={!templateName.trim()}
+                  variant="primary"
+                  icon={<Save size={16} />}
+                >
+                  {editingTemplate ? 'Aktualisieren' : 'Speichern'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Templates List */}
+          {loadingTemplates ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+              Noch keine Vorlagen erstellt. Vorlagen helfen dir, häufige Ticket-Typen schneller zu erstellen.
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {templates.map(template => (
+                <div
+                  key={template.id}
+                  className={`p-4 bg-white dark:bg-dark-100 border rounded-lg ${
+                    template.isActive
+                      ? 'border-gray-200 dark:border-dark-border'
+                      : 'border-gray-200 dark:border-dark-border opacity-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {template.name}
+                        </span>
+                        {template.category && (
+                          <span className="text-xs px-2 py-0.5 bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary rounded">
+                            {template.category}
+                          </span>
+                        )}
+                        {template.defaultPriority && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            template.defaultPriority === 'critical'
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                              : template.defaultPriority === 'high'
+                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                                : template.defaultPriority === 'low'
+                                  ? 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400'
+                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                          }`}>
+                            {priorityLabels[template.defaultPriority]}
+                          </span>
+                        )}
+                        {!template.isActive && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-dark-200 text-gray-500 dark:text-dark-400 rounded">
+                            Inaktiv
+                          </span>
+                        )}
+                      </div>
+                      {template.titleTemplate && (
+                        <p className="mt-1 text-sm text-gray-700 dark:text-dark-500">
+                          Titel: {template.titleTemplate}
+                        </p>
+                      )}
+                      {template.descriptionTemplate && (
+                        <p className="mt-1 text-sm text-gray-600 dark:text-dark-400 whitespace-pre-wrap line-clamp-2">
+                          {template.descriptionTemplate}
+                        </p>
+                      )}
+                      <div className="mt-2 text-xs text-gray-400">
+                        {template.usageCount} mal verwendet
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <IconButton
+                        onClick={() => startEditTemplate(template)}
+                        icon={<Edit2 size={16} />}
+                        tooltip="Bearbeiten"
+                      />
+                      <IconButton
+                        onClick={() => setTemplateToDelete(template)}
+                        icon={<Trash2 size={16} />}
+                        variant="danger"
+                        tooltip="Löschen"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Delete Tag Confirmation */}
       <ConfirmDialog
         isOpen={!!tagToDelete}
@@ -898,6 +1207,17 @@ export const TicketSettings = () => {
         onConfirm={handleDeleteSla}
         title="SLA-Richtlinie löschen"
         message={`Möchtest du die SLA-Richtlinie "${slaToDelete?.name}" wirklich löschen?`}
+        confirmText="Löschen"
+        variant="danger"
+      />
+
+      {/* Delete Template Confirmation */}
+      <ConfirmDialog
+        isOpen={!!templateToDelete}
+        onClose={() => setTemplateToDelete(null)}
+        onConfirm={handleDeleteTemplate}
+        title="Vorlage löschen"
+        message={`Möchtest du die Vorlage "${templateToDelete?.name}" wirklich löschen?`}
         confirmText="Löschen"
         variant="danger"
       />

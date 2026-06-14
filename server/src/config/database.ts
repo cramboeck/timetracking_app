@@ -1388,6 +1388,29 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
 
     // ============================================
+    // Ticket Templates (for quick ticket creation)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_templates (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        title_template TEXT,
+        description_template TEXT,
+        default_priority TEXT CHECK(default_priority IN ('low', 'normal', 'high', 'critical')),
+        default_customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        default_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        category TEXT,
+        is_active BOOLEAN DEFAULT true,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_templates_org ON ticket_templates(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_templates_category ON ticket_templates(category)');
+
+    // ============================================
     // Canned Responses (for quick ticket replies)
     // ============================================
     // Note: canned_responses and ticket_tags are created WITHOUT foreign keys here

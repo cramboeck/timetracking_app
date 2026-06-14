@@ -463,15 +463,28 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
-### Tickets — Offene Bugs & Verbesserungen (Stand 13.6.2026)
+### Tickets — Offene Bugs & Verbesserungen (Stand 14.6.2026)
 
 | Priorität | Problem | Beschreibung |
 |---|---|---|
 | ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
+| ~~🟠 Mittel~~ | ~~**Ticket-Darstellung optimieren**~~ | ✅ Gelöst in Commit 3541f1a. Sidebar-Layout mit Tasks, Activities, Email-History. Collapsible Sections. |
+| ~~🟡 Normal~~ | ~~**Schnittstellen-Optimierung**~~ | ✅ Gelöst in Commit 3541f1a. NinjaRMM Device-Linking im Ticket. E-Mail-Diagnose im Admin-Bereich. |
 | 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
 | 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
-| 🟡 Normal | **Ticket-Darstellung optimieren** | Allgemeine UI/UX-Verbesserungen für Ticket-Ansicht und -Handling |
-| 🟡 Normal | **Schnittstellen-Optimierung** | Integration mit externen Systemen (NinjaRMM, E-Mail) verbessern |
+
+### Ticket System Verbesserungen (14.6.2026)
+
+| Task | Commit |
+|---|---|
+| **E-Mail-Diagnose Endpoint** — `GET /api/admin/email/diagnose` mit Provider-Status, Fehler-Analyse, Empfehlungen | 674445b |
+| **E-Mail-Diagnose UI** — Neuer Tab „E-Mail-Diagnose" in Settings mit vollständiger Diagnose + Test-Button | 3541f1a |
+| **Ticket-Sidebar überarbeitet** — Tasks, Aktivitätsverlauf, E-Mail-Verlauf in rechte Sidebar verschoben | 3541f1a |
+| **Aufgaben mit Fälligkeitsdatum** — Datepicker, überfällige Tasks rot, heute orange, aufklappbar | 3541f1a |
+| **NinjaRMM Geräteverknüpfung** — Gerät mit Ticket verknüpfen, Status-Anzeige, Dropdown zur Auswahl | 3541f1a |
+| **Quick Status/Priority Change** — Status und Priorität direkt per Dropdown ändern ohne Edit-Modus | f961f2e |
+| **Ticket Templates** — Vorlagen für häufige Ticket-Typen (in Arbeit) | — |
+| **Bulk Actions** — Mehrfachauswahl + Massenaktionen für Tickets (in Arbeit) | — |
 
 ### ✅ Sicherheitslücken — Alle behoben
 
@@ -581,4 +594,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 14.6.2026 — Ticket Detail Desktop-Layout mit 2-Spalten-Sidebar (Commits 584e005, 1266a09). TS-Cleanup: 452→379 (-73, -16%). Sprints 1–4 + A–F ✅. Verbleibend: TS-Fehler (~379, v.a. fehlende Interface-Properties), TanStack Query für TimeEntriesList/Stopwatch, SocialMediaManager splitten, React Router v7.*
+*Zuletzt aktualisiert: 14.6.2026 — Ticket-Sidebar mit Tasks/Activities/Emails (Commit 3541f1a), E-Mail-Diagnose im Admin (674445b + 3541f1a), NinjaRMM Geräteverknüpfung, Aufgaben mit Fälligkeitsdatum. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
