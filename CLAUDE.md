@@ -606,30 +606,30 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Hornetsecurity, Mailstore, Elovade, Lywand, ADN) enthalten oft dutzende Positionen für verschiedene Endkunden. Diese sollen automatisch erkannt, Kunden zugeordnet und bei der Abrechnung berücksichtigt werden.
 
-### Sprint G1 — Datenbank & Extraktion (5-7 Tage)
+### Sprint G1 — Datenbank & Extraktion ✅
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **Tabelle `invoice_line_items`** | Positionen mit customer_id, match_confidence, rebilling_status |
-| ⬜ | **Kunden-Erweiterung** | `primary_domain`, `distributor_identifiers` (JSONB) für Microsoft Tenant-ID, Hornetsecurity-Nr, etc. |
-| ⬜ | **pg_trgm Extension** | Fuzzy-Matching für Kundennamen |
-| ⬜ | **Line-Items persistieren** | Nach KI-Extraktion in DB speichern (aktuell nur temporär) |
+| ✅ | **Tabelle `invoice_line_items`** | Positionen mit customer_id, match_confidence, rebilling_status. Commit 4502672 |
+| ✅ | **Kunden-Erweiterung** | `primary_domain`, `distributor_identifiers` (JSONB) für Microsoft Tenant-ID, Hornetsecurity-Nr, etc. |
+| ✅ | **pg_trgm Extension** | Fuzzy-Matching für Kundennamen |
+| ✅ | **Line-Items persistieren** | Nach KI-Extraktion in DB speichern (`persistLineItems()` in invoiceProcessorService) |
 
-### Sprint G2 — Matching-Engine (4-5 Tage)
+### Sprint G2 — Matching-Engine ✅
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **CustomerMatchingService** | Domain-Match (95%), Distributor-ID (90%), Exact Name (85%), Alias (80%), Fuzzy (60-75%) |
-| ⬜ | **Batch-Matching** | Alle Positionen einer Rechnung automatisch matchen |
-| ⬜ | **"Als Alias speichern"** | Bei manueller Zuordnung: Alias für zukünftige Rechnungen |
+| ✅ | **CustomerMatchingService** | 6 Algorithmen: customer_number (95%), domain (95%), distributor_id (90%), exact_name (85%), alias (80%), fuzzy (60-75%). Commit 5ba40ba |
+| ✅ | **Batch-Matching** | `batchMatchLineItems()` + `applyBestMatches()` mit minConfidence-Schwelle |
+| ✅ | **"Als Alias speichern"** | `customer_aliases` Tabelle + `saveAsAlias` Flag bei manueller Zuordnung |
 
 ### Sprint G3 — API & Review-UI (8-10 Tage)
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **Line-Item CRUD Endpoints** | GET/PATCH/POST für Positionen, Bulk-Assignment |
+| ✅ | **Line-Item CRUD Endpoints** | GET/PATCH/POST für Positionen, Bulk-Assignment, Status-Update. Commit 5ba40ba |
 | ⬜ | **Position-Review-Modal** | In InvoiceInbox: Positionen mit Match-Vorschlag, Kunden-Dropdown, Confidence-Badge |
-| ⬜ | **Unmatched-Dashboard** | Übersicht: "X Positionen ohne Kundenzuordnung" |
+| ✅ | **Unmatched-Dashboard API** | `GET /api/sevdesk/unmatched-items` mit Pagination |
 
 ### Sprint G4 — Rebilling-Workflow (4-5 Tage)
 
