@@ -117,6 +117,8 @@ export type AuditAction =
   | 'backup.cleanup'
   // Admin database actions
   | 'database.vacuum'
+  // Admin storage actions
+  | 'storage.cleanup'
   // Admin security actions
   | 'security.sessions_invalidated'
   // Admin notification actions
