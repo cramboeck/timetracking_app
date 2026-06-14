@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Send,
   Trash2,
+  Wand2,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { authFetch } from '../services/api';
@@ -104,6 +105,21 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
     },
     onError: (err: Error) => {
       showToast(`Fehler beim Abrufen: ${err.message}`, 'error');
+    },
+  });
+
+  // Extract all mutation
+  const extractAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await authFetch('/sevdesk/invoice-drafts/extract-all?limit=20', { method: 'POST' });
+      return res.data as { total: number; extracted: number; failed: number; message: string };
+    },
+    onSuccess: (data) => {
+      showToast(data.message, data.failed > 0 ? 'warning' : 'success');
+      queryClient.invalidateQueries({ queryKey: ['invoice-drafts'] });
+    },
+    onError: (err: Error) => {
+      showToast(`Extraktion fehlgeschlagen: ${err.message}`, 'error');
     },
   });
 
@@ -279,6 +295,16 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => extractAllMutation.mutate()}
+            disabled={extractAllMutation.isPending}
+            icon={extractAllMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+            title="OCR für alle Entwürfe ohne Extraktion ausführen"
+          >
+            OCR starten
+          </Button>
           <Button
             variant="outline"
             size="sm"

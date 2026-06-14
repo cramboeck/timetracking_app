@@ -1837,4 +1837,66 @@ router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, as
   }
 });
 
+// POST /api/sevdesk/invoice-drafts/extract-all - Extract data for all unextracted drafts
+router.post('/invoice-drafts/extract-all', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+    // Get drafts without extraction
+    const draftsResult = await query(`
+      SELECT id, email_subject, sender_name FROM processed_invoices
+      WHERE organization_id = $1
+        AND status IN ('pending', 'draft')
+        AND extracted_at IS NULL
+      ORDER BY received_at DESC
+      LIMIT $2
+    `, [organizationId, limit]);
+
+    let extracted = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const draft of draftsResult.rows) {
+      try {
+        const result = await invoiceProcessorService.extractInvoiceData(organizationId, draft.id);
+        if (result) {
+          await query(
+            `UPDATE processed_invoices SET status = 'draft' WHERE id = $1 AND status = 'pending'`,
+            [draft.id]
+          );
+          extracted++;
+        } else {
+          failed++;
+          errors.push(`${draft.sender_name || draft.email_subject}: Keine PDF gefunden`);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${draft.sender_name || draft.email_subject}: ${err.message}`);
+        logger.error(`Extract failed for ${draft.id}:`, err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        total: draftsResult.rows.length,
+        extracted,
+        failed,
+        errors: errors.slice(0, 5), // Only return first 5 errors
+        message: `${extracted} von ${draftsResult.rows.length} Belegen extrahiert`,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Extract all error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
