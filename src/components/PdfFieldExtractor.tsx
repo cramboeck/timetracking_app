@@ -1,13 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Target, X, Check, Loader2, MousePointer2 } from 'lucide-react';
+import { useState } from 'react';
+import { Target, X, Check, ExternalLink, Copy, ClipboardPaste } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
-
-// Configure pdf.js worker - use CDN for reliable loading
-// Version must match pdfjs-dist version (4.8.69)
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 export type ExtractableField =
   | 'supplierName'
@@ -25,28 +18,22 @@ export type ExtractableField =
 interface FieldConfig {
   label: string;
   type: 'text' | 'date' | 'amount';
+  placeholder: string;
 }
 
 const FIELD_CONFIG: Record<ExtractableField, FieldConfig> = {
-  supplierName: { label: 'Lieferant', type: 'text' },
-  invoiceNumber: { label: 'Rechnungsnr.', type: 'text' },
-  customerNumber: { label: 'Kundennr.', type: 'text' },
-  invoiceDate: { label: 'Rechnungsdatum', type: 'date' },
-  dueDate: { label: 'Fälligkeitsdatum', type: 'date' },
-  netAmount: { label: 'Nettobetrag', type: 'amount' },
-  vatAmount: { label: 'MwSt.', type: 'amount' },
-  grossAmount: { label: 'Bruttobetrag', type: 'amount' },
-  iban: { label: 'IBAN', type: 'text' },
-  bic: { label: 'BIC', type: 'text' },
-  taxId: { label: 'USt-IdNr.', type: 'text' },
+  supplierName: { label: 'Lieferant', type: 'text', placeholder: 'z.B. Microsoft GmbH' },
+  invoiceNumber: { label: 'Rechnungsnr.', type: 'text', placeholder: 'z.B. RE-2024-001' },
+  customerNumber: { label: 'Kundennr.', type: 'text', placeholder: 'z.B. K12345' },
+  invoiceDate: { label: 'Rechnungsdatum', type: 'date', placeholder: 'TT.MM.JJJJ' },
+  dueDate: { label: 'Fälligkeitsdatum', type: 'date', placeholder: 'TT.MM.JJJJ' },
+  netAmount: { label: 'Nettobetrag', type: 'amount', placeholder: 'z.B. 100,00' },
+  vatAmount: { label: 'MwSt.', type: 'amount', placeholder: 'z.B. 19,00' },
+  grossAmount: { label: 'Bruttobetrag', type: 'amount', placeholder: 'z.B. 119,00' },
+  iban: { label: 'IBAN', type: 'text', placeholder: 'z.B. DE89...' },
+  bic: { label: 'BIC', type: 'text', placeholder: 'z.B. COBADEFFXXX' },
+  taxId: { label: 'USt-IdNr.', type: 'text', placeholder: 'z.B. DE123456789' },
 };
-
-interface SelectionBox {
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
 
 interface PdfFieldExtractorProps {
   pdfUrl: string;
@@ -56,138 +43,18 @@ interface PdfFieldExtractorProps {
 }
 
 export const PdfFieldExtractor = ({ pdfUrl, onExtract, onClose, currentValues }: PdfFieldExtractorProps) => {
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Selection state
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionBox, setSelectionBox] = useState<SelectionBox | null>(null);
-  const [selectedText, setSelectedText] = useState<string>('');
   const [targetField, setTargetField] = useState<ExtractableField>('supplierName');
-  const [extracting, setExtracting] = useState(false);
+  const [inputValue, setInputValue] = useState('');
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setLoading(false);
-  };
-
-  const onDocumentLoadError = (err: Error) => {
-    setError(`PDF konnte nicht geladen werden: ${err.message}`);
-    setLoading(false);
-  };
-
-  // Handle mouse down to start selection
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!pageRef.current) return;
-
-    const rect = pageRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setIsSelecting(true);
-    setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
-    setSelectedText('');
-  }, []);
-
-  // Handle mouse move during selection
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isSelecting || !pageRef.current || !selectionBox) return;
-
-    const rect = pageRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-    const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-
-    setSelectionBox(prev => prev ? { ...prev, endX: x, endY: y } : null);
-  }, [isSelecting, selectionBox]);
-
-  // Handle mouse up to finish selection and extract text
-  const handleMouseUp = useCallback(async () => {
-    if (!isSelecting || !selectionBox || !pageRef.current) {
-      setIsSelecting(false);
-      return;
-    }
-
-    setIsSelecting(false);
-
-    // Normalize selection box (handle dragging in any direction)
-    const box = {
-      left: Math.min(selectionBox.startX, selectionBox.endX),
-      top: Math.min(selectionBox.startY, selectionBox.endY),
-      right: Math.max(selectionBox.startX, selectionBox.endX),
-      bottom: Math.max(selectionBox.startY, selectionBox.endY),
-    };
-
-    // Only process if selection is at least 10x10 pixels
-    if (box.right - box.left < 10 || box.bottom - box.top < 10) {
-      setSelectionBox(null);
-      return;
-    }
-
-    setExtracting(true);
-
-    try {
-      // Find text layer and extract text from selected region
-      const textLayer = pageRef.current.querySelector('.react-pdf__Page__textContent');
-      if (!textLayer) {
-        setSelectedText('(Kein Text in diesem Bereich gefunden)');
-        setExtracting(false);
-        return;
-      }
-
-      const textSpans = textLayer.querySelectorAll('span');
-      const selectedTexts: string[] = [];
-
-      textSpans.forEach((span) => {
-        const spanRect = span.getBoundingClientRect();
-        const pageRect = pageRef.current!.getBoundingClientRect();
-
-        // Convert to page-relative coordinates
-        const spanBox = {
-          left: spanRect.left - pageRect.left,
-          top: spanRect.top - pageRect.top,
-          right: spanRect.right - pageRect.left,
-          bottom: spanRect.bottom - pageRect.top,
-        };
-
-        // Check if span overlaps with selection
-        const overlaps = !(
-          spanBox.right < box.left ||
-          spanBox.left > box.right ||
-          spanBox.bottom < box.top ||
-          spanBox.top > box.bottom
-        );
-
-        if (overlaps) {
-          const text = span.textContent?.trim();
-          if (text) {
-            selectedTexts.push(text);
-          }
-        }
-      });
-
-      const extractedText = selectedTexts.join(' ').trim();
-      setSelectedText(extractedText || '(Kein Text in diesem Bereich gefunden)');
-    } catch (err) {
-      console.error('Text extraction error:', err);
-      setSelectedText('(Fehler bei Textextraktion)');
-    }
-
-    setExtracting(false);
-  }, [isSelecting, selectionBox]);
-
-  // Parse extracted value based on field type
+  // Parse value based on field type
   const parseValue = (text: string, field: ExtractableField): string | number | null => {
     const config = FIELD_CONFIG[field];
+    const trimmed = text.trim();
+    if (!trimmed) return null;
 
     if (config.type === 'amount') {
       // Parse German number format (1.234,56 or 1234,56)
-      const cleaned = text.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.');
+      const cleaned = trimmed.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.');
       const num = parseFloat(cleaned);
       return isNaN(num) ? null : num;
     }
@@ -201,173 +68,77 @@ export const PdfFieldExtractor = ({ pdfUrl, onExtract, onClose, currentValues }:
       ];
 
       for (const pattern of datePatterns) {
-        const match = text.match(pattern);
+        const match = trimmed.match(pattern);
         if (match) {
           if (pattern === datePatterns[0]) {
-            // DD.MM.YYYY
             const [, day, month, year] = match;
             return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
           } else if (pattern === datePatterns[1]) {
-            // DD.MM.YY
             const [, day, month, year] = match;
             const fullYear = parseInt(year) > 50 ? `19${year}` : `20${year}`;
             return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
           } else {
-            // YYYY-MM-DD
             return match[0];
           }
         }
       }
-      return text; // Return as-is if no pattern matches
+      return trimmed;
     }
 
-    return text.trim();
+    return trimmed;
   };
 
-  // Apply selected text to field
+  // Apply value to field
   const handleApply = () => {
-    if (!selectedText || selectedText.startsWith('(')) return;
-
-    const parsedValue = parseValue(selectedText, targetField);
+    if (!inputValue.trim()) return;
+    const parsedValue = parseValue(inputValue, targetField);
     onExtract(targetField, parsedValue);
-    setSelectionBox(null);
-    setSelectedText('');
+    setInputValue('');
   };
 
-  // Clear selection
-  const handleClearSelection = () => {
-    setSelectionBox(null);
-    setSelectedText('');
+  // Paste from clipboard
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setInputValue(text);
+    } catch {
+      // Clipboard access denied - user can paste manually
+    }
   };
 
-  // Zoom controls
-  const zoomIn = () => setScale(s => Math.min(s + 0.25, 3));
-  const zoomOut = () => setScale(s => Math.max(s - 0.25, 0.5));
-
-  // Page navigation
-  const prevPage = () => setPageNumber(p => Math.max(p - 1, 1));
-  const nextPage = () => setPageNumber(p => Math.min(p + 1, numPages));
-
-  // Calculate selection box style
-  const getSelectionStyle = (): React.CSSProperties | undefined => {
-    if (!selectionBox) return undefined;
-
-    const left = Math.min(selectionBox.startX, selectionBox.endX);
-    const top = Math.min(selectionBox.startY, selectionBox.endY);
-    const width = Math.abs(selectionBox.endX - selectionBox.startX);
-    const height = Math.abs(selectionBox.endY - selectionBox.startY);
-
-    return {
-      position: 'absolute',
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${width}px`,
-      height: `${height}px`,
-      border: '2px dashed #f97316',
-      backgroundColor: 'rgba(249, 115, 22, 0.1)',
-      pointerEvents: 'none',
-      zIndex: 10,
-    };
+  // Open PDF in new tab for easier text selection
+  const handleOpenInNewTab = () => {
+    window.open(pdfUrl, '_blank');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70">
-      {/* PDF Viewer Panel */}
+      {/* PDF Viewer Panel - Native browser viewer */}
       <div className="flex-1 flex flex-col bg-gray-900 min-w-0">
         {/* Toolbar */}
         <div className="flex items-center justify-between p-2 bg-gray-800 border-b border-gray-700">
-          <div className="flex items-center gap-2">
-            <IconButton
-              icon={<ZoomOut size={18} />}
-              onClick={zoomOut}
-              disabled={scale <= 0.5}
-              tooltip="Verkleinern"
-              className="text-white hover:bg-gray-700"
-            />
-            <span className="text-sm text-gray-300 w-12 text-center">{Math.round(scale * 100)}%</span>
-            <IconButton
-              icon={<ZoomIn size={18} />}
-              onClick={zoomIn}
-              disabled={scale >= 3}
-              tooltip="Vergrößern"
-              className="text-white hover:bg-gray-700"
-            />
+          <div className="flex items-center gap-2 text-sm text-gray-300">
+            <span>PDF-Vorschau</span>
           </div>
 
-          {numPages > 1 && (
-            <div className="flex items-center gap-2">
-              <IconButton
-                icon={<ChevronLeft size={18} />}
-                onClick={prevPage}
-                disabled={pageNumber <= 1}
-                tooltip="Vorherige Seite"
-                className="text-white hover:bg-gray-700"
-              />
-              <span className="text-sm text-gray-300">
-                {pageNumber} / {numPages}
-              </span>
-              <IconButton
-                icon={<ChevronRight size={18} />}
-                onClick={nextPage}
-                disabled={pageNumber >= numPages}
-                tooltip="Nächste Seite"
-                className="text-white hover:bg-gray-700"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            <MousePointer2 size={16} />
-            <span>Ziehen Sie ein Rechteck um den gewünschten Text</span>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenInNewTab}
+            icon={<ExternalLink size={16} />}
+            className="text-white hover:bg-gray-700"
+          >
+            In neuem Tab öffnen
+          </Button>
         </div>
 
-        {/* PDF Content */}
-        <div
-          ref={containerRef}
-          className="flex-1 overflow-auto p-4 flex justify-center"
-        >
-          {loading && (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              <Loader2 size={32} className="animate-spin mr-2" />
-              PDF wird geladen...
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-center justify-center h-full text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div
-            ref={pageRef}
-            className="relative select-none"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => isSelecting && handleMouseUp()}
-            style={{ cursor: isSelecting ? 'crosshair' : 'crosshair' }}
-          >
-            <Document
-              file={pdfUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={null}
-            >
-              <Page
-                pageNumber={pageNumber}
-                scale={scale}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
-              />
-            </Document>
-
-            {/* Selection overlay */}
-            {selectionBox && (
-              <div style={getSelectionStyle()} />
-            )}
-          </div>
+        {/* PDF Content - Native browser viewer */}
+        <div className="flex-1 overflow-hidden">
+          <iframe
+            src={pdfUrl}
+            className="w-full h-full border-0"
+            title="PDF Vorschau"
+          />
         </div>
       </div>
 
@@ -386,10 +157,23 @@ export const PdfFieldExtractor = ({ pdfUrl, onExtract, onClose, currentValues }:
           />
         </div>
 
+        {/* Instructions */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <strong>So geht's:</strong>
+          </p>
+          <ol className="text-sm text-blue-700 dark:text-blue-300 mt-1 list-decimal list-inside space-y-1">
+            <li>Markiere Text im PDF (links)</li>
+            <li>Kopiere mit Strg+C</li>
+            <li>Klicke "Einfügen" unten</li>
+            <li>Wähle Zielfeld & "Übernehmen"</li>
+          </ol>
+        </div>
+
         {/* Field Selector */}
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-            Zielfeld auswählen
+            Zielfeld
           </label>
           <select
             value={targetField}
@@ -411,61 +195,62 @@ export const PdfFieldExtractor = ({ pdfUrl, onExtract, onClose, currentValues }:
           )}
         </div>
 
-        {/* Extracted Text */}
+        {/* Input Area */}
         <div className="flex-1 p-4 overflow-auto">
-          {extracting ? (
-            <div className="flex items-center justify-center py-8 text-gray-500">
-              <Loader2 size={20} className="animate-spin mr-2" />
-              Extrahiere Text...
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                Wert eingeben oder einfügen
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                  placeholder={FIELD_CONFIG[targetField].placeholder}
+                  className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white text-sm"
+                />
+                <button
+                  onClick={handlePaste}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  title="Aus Zwischenablage einfügen"
+                >
+                  <ClipboardPaste size={18} />
+                </button>
+              </div>
             </div>
-          ) : selectedText ? (
-            <div className="space-y-3">
+
+            {inputValue && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                  Extrahierter Text
+                  Wird übernommen als
                 </label>
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-900 dark:text-amber-200 font-mono text-sm break-all">
-                  {selectedText}
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-900 dark:text-green-200 font-mono text-sm">
+                  {String(parseValue(inputValue, targetField) ?? '-')}
                 </div>
               </div>
+            )}
 
-              {!selectedText.startsWith('(') && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Wird übernommen als
-                  </label>
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-900 dark:text-green-200 font-mono text-sm">
-                    {String(parseValue(selectedText, targetField) ?? '-')}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  variant="primary"
-                  onClick={handleApply}
-                  disabled={!selectedText || selectedText.startsWith('(')}
-                  icon={<Check size={16} />}
-                  className="flex-1"
-                >
-                  Übernehmen
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={handleClearSelection}
-                  icon={<X size={16} />}
-                >
-                  Verwerfen
-                </Button>
-              </div>
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                onClick={handleApply}
+                disabled={!inputValue.trim()}
+                icon={<Check size={16} />}
+                className="flex-1"
+              >
+                Übernehmen
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={handlePaste}
+                icon={<Copy size={16} />}
+              >
+                Einfügen
+              </Button>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-dark-400 text-sm">
-              <MousePointer2 size={32} className="mx-auto mb-3 opacity-50" />
-              <p>Ziehen Sie ein Rechteck um den Text im PDF, den Sie extrahieren möchten.</p>
-              <p className="mt-2 text-xs">Der Text wird automatisch erkannt und kann dann in das ausgewählte Feld übernommen werden.</p>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Quick Field Buttons */}
