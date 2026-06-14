@@ -839,21 +839,29 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
           WHERE t.id = $1
         `, [id]);
 
-        if (contactInfo.rows.length > 0 && contactInfo.rows[0].email && contactInfo.rows[0].notify_ticket_status_changed !== false) {
-          const ticket = contactInfo.rows[0];
+        const contactData = contactInfo.rows[0];
+        logger.info(`[Ticket ${id}] Status change notification check:`, {
+          hasRow: contactInfo.rows.length > 0,
+          hasContactId: contactData?.contact_id || null,
+          hasEmail: !!contactData?.email,
+          notifyEnabled: contactData?.notify_ticket_status_changed,
+        });
+
+        if (contactInfo.rows.length > 0 && contactData.email && contactData.notify_ticket_status_changed !== false) {
           const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${id}`;
+          logger.info(`[Ticket ${id}] Sending status change email to: ${contactData.email}`);
           emailService.sendTicketStatusChangeNotification({
-            to: ticket.email,
-            customerName: ticket.name || 'Kunde',
-            ticketNumber: ticket.ticket_number,
-            ticketTitle: ticket.title,
+            to: contactData.email,
+            customerName: contactData.name || 'Kunde',
+            ticketNumber: contactData.ticket_number,
+            ticketTitle: contactData.title,
             oldStatus: oldValues.status,
             newStatus: status,
             portalUrl: portalTicketUrl,
           }).catch(err => logger.error('Failed to send status change notification:', err));
 
           // Send push notification for status change
-          if (ticket.contact_id) {
+          if (contactData.contact_id) {
             const statusNames: Record<string, string> = {
               'open': 'Offen',
               'in_progress': 'In Bearbeitung',
@@ -862,12 +870,18 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
               'closed': 'Geschlossen',
             };
             sendPortalTicketNotification(
-              ticket.contact_id,
-              { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+              contactData.contact_id,
+              { id, ticketNumber: contactData.ticket_number, title: contactData.title },
               'push_on_status_change',
               `Status geändert: ${statusNames[status] || status}`
             ).catch(err => logger.error('Failed to send portal status change push:', err));
           }
+        } else {
+          logger.info(`[Ticket ${id}] Skipping status change notification:`, {
+            reason: !contactInfo.rows.length ? 'no_ticket_found' :
+                    !contactData?.email ? 'no_contact_email' :
+                    contactData?.notify_ticket_status_changed === false ? 'notification_disabled' : 'unknown',
+          });
         }
       }
     }

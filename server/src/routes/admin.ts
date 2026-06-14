@@ -1978,4 +1978,152 @@ router.get('/email/types', async (req, res) => {
   }
 });
 
+// GET /api/admin/email/diagnose - Diagnose ticket notification issues
+router.get('/email/diagnose', async (req: AuthRequest, res) => {
+  try {
+    const { emailService } = await import('../services/emailService');
+
+    // 1. Email provider status
+    const providerTest = await emailService.testConnection();
+
+    // 2. Recent tickets without contact_id
+    const ticketsWithoutContact = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM tickets
+      WHERE contact_id IS NULL
+      AND created_at > NOW() - INTERVAL '30 days'
+    `);
+
+    // 3. Contacts without email
+    const contactsWithoutEmail = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM customer_contacts
+      WHERE email IS NULL OR email = ''
+    `);
+
+    // 4. Contacts with notifications disabled
+    const contactsWithDisabledNotifications = await pool.query(`
+      SELECT
+        COUNT(CASE WHEN notify_ticket_created = false THEN 1 END) as disabled_created,
+        COUNT(CASE WHEN notify_ticket_status_changed = false THEN 1 END) as disabled_status,
+        COUNT(CASE WHEN notify_ticket_reply = false THEN 1 END) as disabled_reply,
+        COUNT(*) as total
+      FROM customer_contacts
+    `);
+
+    // 5. Recent email_logs for ticket notifications
+    const recentTicketEmails = await pool.query(`
+      SELECT email_type, status, COUNT(*) as count, MAX(created_at) as last_sent
+      FROM email_logs
+      WHERE email_type LIKE 'ticket_%' OR email_type IN ('status_change', 'ticket_reply', 'ticket_created')
+      AND created_at > NOW() - INTERVAL '7 days'
+      GROUP BY email_type, status
+      ORDER BY last_sent DESC NULLS LAST
+    `);
+
+    // 6. Recent failed emails
+    const recentFailures = await pool.query(`
+      SELECT email_type, recipient_email, error_message, created_at
+      FROM email_logs
+      WHERE status = 'failed'
+      AND created_at > NOW() - INTERVAL '7 days'
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    // 7. Sample ticket with contact check
+    const sampleTicket = await pool.query(`
+      SELECT
+        t.id, t.ticket_number, t.contact_id,
+        cc.email as contact_email,
+        cc.notify_ticket_status_changed,
+        cc.notify_ticket_reply,
+        cc.notify_ticket_created
+      FROM tickets t
+      LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+      ORDER BY t.created_at DESC
+      LIMIT 5
+    `);
+
+    res.json({
+      emailProvider: {
+        provider: providerTest.provider,
+        connected: providerTest.success,
+        error: providerTest.error,
+        testMode: process.env.EMAIL_TEST_MODE === 'true',
+        testRecipient: process.env.EMAIL_TEST_RECIPIENT || null,
+      },
+      issues: {
+        ticketsWithoutContact: parseInt(ticketsWithoutContact.rows[0].count),
+        contactsWithoutEmail: parseInt(contactsWithoutEmail.rows[0].count),
+        notificationsDisabled: {
+          created: parseInt(contactsWithDisabledNotifications.rows[0].disabled_created || '0'),
+          statusChange: parseInt(contactsWithDisabledNotifications.rows[0].disabled_status || '0'),
+          reply: parseInt(contactsWithDisabledNotifications.rows[0].disabled_reply || '0'),
+          totalContacts: parseInt(contactsWithDisabledNotifications.rows[0].total),
+        },
+      },
+      recentTicketEmails: recentTicketEmails.rows,
+      recentFailures: recentFailures.rows,
+      sampleTickets: sampleTicket.rows.map(t => ({
+        ticketNumber: t.ticket_number,
+        hasContact: !!t.contact_id,
+        contactEmail: t.contact_email || null,
+        notifyStatusChange: t.notify_ticket_status_changed,
+        notifyReply: t.notify_ticket_reply,
+        notifyCreated: t.notify_ticket_created,
+      })),
+      recommendations: generateEmailRecommendations(
+        providerTest,
+        parseInt(ticketsWithoutContact.rows[0].count),
+        parseInt(contactsWithoutEmail.rows[0].count),
+        sampleTicket.rows
+      ),
+    });
+  } catch (error: any) {
+    logger.error('Error diagnosing email issues:', error);
+    res.status(500).json({ error: 'Failed to diagnose email issues' });
+  }
+});
+
+function generateEmailRecommendations(
+  providerTest: { success: boolean; provider: string; error?: string },
+  ticketsWithoutContact: number,
+  contactsWithoutEmail: number,
+  sampleTickets: any[]
+): string[] {
+  const recommendations: string[] = [];
+
+  if (!providerTest.success) {
+    if (providerTest.provider === 'none') {
+      recommendations.push('KRITISCH: Kein E-Mail-Provider konfiguriert. Setze EMAIL_HOST/USER/PASSWORD für SMTP oder AZURE_CLIENT_ID/GRAPH_MAIL_FROM für Graph API.');
+    } else {
+      recommendations.push(`KRITISCH: E-Mail-Provider (${providerTest.provider}) nicht verbunden: ${providerTest.error}`);
+    }
+  }
+
+  if (process.env.EMAIL_TEST_MODE === 'true') {
+    recommendations.push(`INFO: Test-Modus aktiv - alle E-Mails gehen an ${process.env.EMAIL_TEST_RECIPIENT || 'nicht konfiguriert'}`);
+  }
+
+  if (ticketsWithoutContact > 0) {
+    recommendations.push(`WARNUNG: ${ticketsWithoutContact} Tickets der letzten 30 Tage haben keinen Kundenkontakt verknüpft.`);
+  }
+
+  if (contactsWithoutEmail > 0) {
+    recommendations.push(`WARNUNG: ${contactsWithoutEmail} Kontakte haben keine E-Mail-Adresse.`);
+  }
+
+  const ticketsWithIssues = sampleTickets.filter(t => !t.contact_id || !t.contact_email);
+  if (ticketsWithIssues.length > 0) {
+    recommendations.push(`INFO: Beispiel-Tickets ohne E-Mail-Empfänger: ${ticketsWithIssues.map(t => t.ticket_number).join(', ')}`);
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('OK: E-Mail-Konfiguration scheint in Ordnung zu sein.');
+  }
+
+  return recommendations;
+}
+
 export default router;
