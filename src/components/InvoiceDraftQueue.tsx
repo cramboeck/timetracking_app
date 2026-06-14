@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Inbox,
@@ -18,6 +18,7 @@ import {
   Trash2,
   Wand2,
   Download,
+  Upload,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { authFetch } from '../services/api';
@@ -75,6 +76,43 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
   const [selectedDraft, setSelectedDraft] = useState<InvoiceDraft | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState<Partial<InvoiceDraft>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/sevdesk/invoice-drafts/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Upload fehlgeschlagen');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      showToast(data.data?.message || 'Datei hochgeladen', 'success');
+      queryClient.invalidateQueries({ queryKey: ['invoice-drafts'] });
+    },
+    onError: (err: Error) => {
+      showToast(`Upload fehlgeschlagen: ${err.message}`, 'error');
+    },
+  });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate(file);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Fetch drafts
   const draftsQuery = useQuery({
@@ -311,6 +349,24 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".pdf,image/jpeg,image/png,image/webp"
+            className="hidden"
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            icon={uploadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            title="PDF oder Bild manuell hochladen"
+          >
+            Hochladen
+          </Button>
           <Button
             variant="outline"
             size="sm"

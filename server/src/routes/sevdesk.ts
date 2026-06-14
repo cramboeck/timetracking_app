@@ -1,5 +1,9 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import * as fs from 'fs';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { query } from '../config/database';
@@ -10,6 +14,34 @@ import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
+
+// Invoice documents upload config
+const invoiceUploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+const invoiceDocsDir = path.join(invoiceUploadsDir, 'invoice-documents');
+if (!fs.existsSync(invoiceDocsDir)) {
+  fs.mkdirSync(invoiceDocsDir, { recursive: true });
+}
+
+const invoiceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, invoiceDocsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+const invoiceUpload = multer({
+  storage: invoiceStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Nur PDF und Bilder erlaubt'));
+    }
+  },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
 
 // ============================================================================
 // Zod validation schemas
@@ -1895,6 +1927,123 @@ router.post('/invoice-drafts/fetch-attachments', authenticateToken, requireBilli
     });
   } catch (error: any) {
     logger.error('Fetch attachments error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/upload - Manual PDF upload
+router.post('/invoice-drafts/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Keine Datei hochgeladen' });
+    }
+
+    const file = req.file;
+    const draftId = uuidv4();
+    const docId = uuidv4();
+
+    // Create draft entry
+    await query(`
+      INSERT INTO processed_invoices (
+        id, organization_id, source, status, original_filename, attachment_count, received_at
+      ) VALUES ($1, $2, 'manual', 'pending', $3, 1, NOW())
+    `, [draftId, organizationId, file.originalname]);
+
+    // Create document entry
+    await query(`
+      INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [docId, organizationId, draftId, file.filename, file.originalname, file.mimetype, file.size, file.path]);
+
+    // Auto-extract data
+    try {
+      await invoiceProcessorService.extractInvoiceData(organizationId, draftId);
+      await query('UPDATE processed_invoices SET status = $1 WHERE id = $2', ['draft', draftId]);
+    } catch (extractErr: any) {
+      logger.warn(`Auto-extract failed for manual upload ${draftId}:`, extractErr.message);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: draftId,
+        filename: file.originalname,
+        message: 'Datei hochgeladen und wird verarbeitet',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Manual upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/upload - Upload PDF for existing draft
+router.post('/invoice-drafts/:id/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: draftId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Keine Datei hochgeladen' });
+    }
+
+    // Verify draft exists and belongs to org
+    const draftResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [draftId, organizationId]
+    );
+
+    if (draftResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const file = req.file;
+    const docId = uuidv4();
+
+    // Create document entry
+    await query(`
+      INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [docId, organizationId, draftId, file.filename, file.originalname, file.mimetype, file.size, file.path]);
+
+    // Update attachment count
+    await query(`
+      UPDATE processed_invoices SET attachment_count = attachment_count + 1 WHERE id = $1
+    `, [draftId]);
+
+    // Re-extract data with new document
+    try {
+      await invoiceProcessorService.extractInvoiceData(organizationId, draftId);
+    } catch (extractErr: any) {
+      logger.warn(`Re-extract failed for ${draftId}:`, extractErr.message);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        documentId: docId,
+        filename: file.originalname,
+        message: 'PDF hochgeladen und Daten extrahiert',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Draft upload error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
