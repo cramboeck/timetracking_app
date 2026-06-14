@@ -1472,8 +1472,11 @@ export const microsoft365Api = {
 
   getDocumentDownloadUrl: (documentId: string, inline?: boolean): string => {
     const baseUrl = import.meta.env.VITE_API_URL || '';
-    // baseUrl already contains /api, so don't add it again
-    return `${baseUrl}/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
+    const token = localStorage.getItem('auth_token') || '';
+    const params = new URLSearchParams();
+    if (inline) params.set('inline', 'true');
+    if (token) params.set('token', token);
+    return `${baseUrl}/microsoft365/documents/${documentId}/download?${params.toString()}`;
   },
 
   // Support Email Methods
