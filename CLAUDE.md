@@ -381,7 +381,8 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **TS-Fehler auf 0** (~16 verbleibend) | `PostsTab.tsx`, `TemplatesTab.tsx`, `CRMDashboard.tsx`, `CalendarView.tsx` | 2-3h | Hauptsächlich Platform-Type-Mismatch im Social-Media-Modul. |
+| 🟡 | **TS-Fehler reduzieren** (~415 verbleibend, 37 gefixt) | diverse | 4-6h | Viele unbenutzte Imports (TS6133), Type-Mismatches in TicketDashboard/CustomerHub/CRMDashboard. Commit f8fa6b6. |
+| ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
 | 🟡 | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ migriert. TimeEntriesList + Stopwatch noch offen. |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
 | ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
@@ -457,7 +458,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Bekannte Probleme (pre-existing)
 
-- **TS-Fehler-Baseline: ~16 Fehler** (von ehemals 452). Hauptsächlich in Social-Media-Modul (Platform-Type-Mismatch in PostsTab/TemplatesTab), CRMDashboard, CalendarView. Backend kompiliert fehlerfrei.
+- **TS-Fehler-Baseline: ~415 Fehler** (194 unbenutzte Imports TS6133, 221 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38), CRMDashboard (21), CalendarView (14). Backend kompiliert fehlerfrei. Die hohe Zahl resultiert aus fehlenden Interface-Properties (z.B. `trends`, `sla` in TicketDashboardData). Cleanup-Commits: 8817b47, f8fa6b6.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
@@ -580,4 +581,4 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–4 + Sprint A–F ✅ komplett. Sprint 5 fortgeschritten: Vitest + 57 Tests, Push-Subscriptions-Tabellen vereinheitlicht, TaskHub auf TanStack Query migriert. Verbleibend: TS-Fehler (~16), TanStack Query für TimeEntriesList/Stopwatch, SocialMediaManager splitten, React Router v7.*
+*Zuletzt aktualisiert: 14.6.2026 — Ticket Detail Desktop-Layout mit 2-Spalten-Sidebar. TS-Cleanup: 452→415 (-37). Sprints 1–4 + A–F ✅. Verbleibend: TS-Fehler (~415, viele Type-Mismatches), TanStack Query für TimeEntriesList/Stopwatch, SocialMediaManager splitten, React Router v7.*
