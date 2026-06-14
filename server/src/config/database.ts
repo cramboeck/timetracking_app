@@ -5029,6 +5029,34 @@ export async function initializeDatabase() {
 
     logger.info('✅ Customer matching columns added (primary_domain, distributor_identifiers)');
 
+    // Customer aliases table for matching invoice names to customers
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_aliases (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        alias TEXT NOT NULL,
+        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'invoice_assignment')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, alias)
+      )
+    `);
+
+    // Index for fast alias lookup
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customer_aliases_lookup') THEN
+          CREATE INDEX idx_customer_aliases_lookup ON customer_aliases(organization_id, LOWER(TRIM(alias)));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customer_aliases_customer') THEN
+          CREATE INDEX idx_customer_aliases_customer ON customer_aliases(customer_id);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ customer_aliases table created');
+
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');
   } catch (error) {
