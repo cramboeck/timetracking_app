@@ -4,17 +4,12 @@ import {
   Building2,
   User,
   Mail,
-  Phone,
   MapPin,
   Calendar,
-  FileText,
   Ticket,
   Clock,
   MessageSquare,
-  TrendingUp,
-  Users,
   ExternalLink,
-  Plus,
   ChevronRight,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType } from '../types';
@@ -365,7 +360,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   customer,
   projects,
   onClose,
-  onEdit,
+  onEdit: _onEdit,
   onNavigateToTickets,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
