@@ -1259,7 +1259,7 @@ export const microsoft365Api = {
   approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, {
       method: 'POST',
-      body: extractedData ? JSON.stringify({ extractedData }) : undefined,
+      body: JSON.stringify({ extractedData }),
     });
   },
 
