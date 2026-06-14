@@ -74,7 +74,7 @@ async function processAllInvoiceMailboxes() {
     FROM microsoft365_config
     WHERE invoice_mailbox IS NOT NULL
       AND invoice_mailbox <> ''
-      AND access_token IS NOT NULL
+      AND is_configured = true
   `);
 
   if (result.rows.length === 0) {

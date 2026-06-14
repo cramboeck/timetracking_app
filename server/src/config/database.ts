@@ -2377,6 +2377,34 @@ export async function initializeDatabase() {
     `);
 
     // ============================================
+    // Add organization_id to canned_responses and ticket_tags (migration for existing DBs)
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'canned_responses' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE canned_responses ADD COLUMN organization_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tags' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ticket_tags ADD COLUMN organization_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id);
+        END IF;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    logger.info('✅ canned_responses and ticket_tags organization_id columns ensured');
+
+    // ============================================
     // Fix ticket_sequences - migrate from user_id to organization_id based
     // ============================================
     await client.query(`
