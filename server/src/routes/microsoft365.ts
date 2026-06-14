@@ -73,18 +73,40 @@ const markProcessedSchema = z.object({
 });
 
 const extractedDataSchema = z.object({
-  vendorName: z.string().max(500).optional(),
-  invoiceNumber: z.string().max(100).optional(),
-  invoiceDate: z.string().max(20).optional(),
-  dueDate: z.string().max(20).optional(),
-  totalGross: z.number().min(0).max(10000000).optional(),
-  totalNet: z.number().min(0).max(10000000).optional(),
-  taxAmount: z.number().min(0).max(10000000).optional(),
-  taxRate: z.number().min(0).max(100).optional(),
-  currency: z.string().max(10).optional(),
-  iban: z.string().max(50).optional(),
-  paymentReference: z.string().max(200).optional(),
-}).optional();
+  // Support both frontend field names and legacy backend names
+  // Frontend uses: supplierName, netAmount, grossAmount, vatAmount, vatRate
+  // Backend legacy: vendorName, totalNet, totalGross, taxAmount, taxRate
+  supplierName: z.string().max(500).nullable().optional(),
+  vendorName: z.string().max(500).nullable().optional(),
+  supplierAddress: z.string().max(1000).nullable().optional(),
+  recipientName: z.string().max(500).nullable().optional(),
+  recipientAddress: z.string().max(1000).nullable().optional(),
+  customerNumber: z.string().max(100).nullable().optional(),
+  invoiceNumber: z.string().max(100).nullable().optional(),
+  orderNumber: z.string().max(100).nullable().optional(),
+  invoiceDate: z.string().max(20).nullable().optional(),
+  dueDate: z.string().max(20).nullable().optional(),
+  deliveryDate: z.string().max(20).nullable().optional(),
+  // Amount fields - accept both naming conventions
+  netAmount: z.number().min(0).max(10000000).nullable().optional(),
+  totalNet: z.number().min(0).max(10000000).nullable().optional(),
+  grossAmount: z.number().min(0).max(10000000).nullable().optional(),
+  totalGross: z.number().min(0).max(10000000).nullable().optional(),
+  vatAmount: z.number().min(0).max(10000000).nullable().optional(),
+  taxAmount: z.number().min(0).max(10000000).nullable().optional(),
+  vatRate: z.number().min(0).max(100).nullable().optional(),
+  taxRate: z.number().min(0).max(100).nullable().optional(),
+  currency: z.string().max(10).nullable().optional(),
+  // Payment info
+  iban: z.string().max(50).nullable().optional(),
+  bic: z.string().max(20).nullable().optional(),
+  taxId: z.string().max(50).nullable().optional(),
+  paymentMethod: z.string().max(100).nullable().optional(),
+  paymentReference: z.string().max(200).nullable().optional(),
+  // Metadata
+  confidence: z.number().min(0).max(1).optional(),
+  lineItems: z.array(z.any()).optional(),
+}).passthrough().optional();
 
 const finalizeVoucherSchema = z.object({
   extractedData: extractedDataSchema,
