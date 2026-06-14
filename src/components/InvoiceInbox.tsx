@@ -5,13 +5,12 @@ import {
   Mail, AlertTriangle, X, Search, Upload, FileSearch
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData, sevdeskApi, SevdeskCustomer } from '../services/api';
-import { customersApi } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SourceBadge } from './ui/SourceBadge';
 import { useConfirm } from '../contexts/UIContext';
 import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
 import { LineItemReview } from './LineItemReview';
-import { Customer } from '../types';
+import { InvoiceReviewView } from './InvoiceReviewView';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -44,7 +43,10 @@ export const InvoiceInbox = () => {
   const [invoiceMailbox, setInvoiceMailbox] = useState<string>('');
   const [isConfigured, setIsConfigured] = useState(false);
 
-  // Confirmation modal state
+  // Full-screen review view state (new UX)
+  const [reviewingInvoice, setReviewingInvoice] = useState<ProcessedInvoice | null>(null);
+
+  // Confirmation modal state (legacy, still used for some flows)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmingInvoice, setConfirmingInvoice] = useState<ProcessedInvoice | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
@@ -88,9 +90,6 @@ export const InvoiceInbox = () => {
     rank: number;
   }> | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-
-  // CRM customers for line item matching
-  const [crmCustomers, setCrmCustomers] = useState<Customer[]>([]);
 
   // Debounced full-text search. Empty / <2 chars resets to the normal list.
   useEffect(() => {
@@ -256,66 +255,12 @@ export const InvoiceInbox = () => {
   };
 
   const handleApproveDraft = async (invoiceId: string) => {
-    // Find the invoice
+    // Find the invoice and open the full-screen review view
     const invoice = processedInvoices.find(inv => inv.id === invoiceId);
     if (!invoice) return;
 
-    setConfirmingInvoice(invoice);
-    setExtractedData(null);
-    setShowConfirmModal(true);
-    setExtractingData(true);
-    setError('');
-    // Reset supplier search state
-    setSupplierSearch('');
-    setSupplierResults([]);
-    setSelectedSevdeskContact(null);
-    setShowSupplierDropdown(false);
-
-    // Load CRM customers for line item matching (fire and forget)
-    if (crmCustomers.length === 0) {
-      customersApi.getAll().then(res => {
-        if (res.success) setCrmCustomers(res.data);
-      }).catch(() => {});
-    }
-
-    try {
-      // Extract invoice data from PDF
-      const response = await microsoft365Api.extractInvoiceData(invoiceId);
-      if (response.success && response.data) {
-        setExtractedData(response.data);
-      } else {
-        // Set empty data if extraction fails
-        setExtractedData({
-          supplierName: invoice.senderName || null,
-          invoiceNumber: null,
-          invoiceDate: null,
-          dueDate: null,
-          netAmount: null,
-          grossAmount: null,
-          vatAmount: null,
-          vatRate: 19,
-          currency: 'EUR',
-          confidence: 0,
-        });
-      }
-    } catch (err: any) {
-      console.error('Data extraction failed:', err);
-      // Set default data on error
-      setExtractedData({
-        supplierName: invoice.senderName || null,
-        invoiceNumber: null,
-        invoiceDate: null,
-        dueDate: null,
-        netAmount: null,
-        grossAmount: null,
-        vatAmount: null,
-        vatRate: 19,
-        currency: 'EUR',
-        confidence: 0,
-      });
-    } finally {
-      setExtractingData(false);
-    }
+    // Open the new full-screen review view
+    setReviewingInvoice(invoice);
   };
 
   // Manual-Upload-Flow: User klickt "Beleg hochladen" -> hidden file input
@@ -333,9 +278,7 @@ export const InvoiceInbox = () => {
         throw new Error(response.error || 'Upload fehlgeschlagen');
       }
       await loadProcessedInvoices();
-      // Modal direkt mit den extrahierten Daten oeffnen. Wir bauen ein
-      // minimales ProcessedInvoice-Pseudo-Objekt aus dem upload-Response,
-      // weil der echte Datensatz erst nach loadProcessedInvoices() im State ist.
+      // Open the new review view with the uploaded invoice
       const pseudo: ProcessedInvoice = {
         id: response.data.processedInvoiceId,
         emailId: '',
@@ -350,14 +293,7 @@ export const InvoiceInbox = () => {
         processedAt: null,
         vendorId: null,
       };
-      setConfirmingInvoice(pseudo);
-      setExtractedData(response.data.extracted);
-      setShowConfirmModal(true);
-      // Reset supplier search state
-      setSupplierSearch('');
-      setSupplierResults([]);
-      setSelectedSevdeskContact(null);
-      setShowSupplierDropdown(false);
+      setReviewingInvoice(pseudo);
       setSuccess(`Beleg "${file.name}" erfolgreich hochgeladen.`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -554,7 +490,7 @@ export const InvoiceInbox = () => {
     if (!ok) return;
 
     try {
-      const response = await microsoft365Api.deleteDraft(invoiceId);
+      const response = await microsoft365Api.deleteInvoiceDraft(invoiceId);
       if (response.success) {
         await loadProcessedInvoices();
         setSuccess('Entwurf gelöscht');
@@ -566,7 +502,7 @@ export const InvoiceInbox = () => {
 
   const handleRevertToDraft = async (invoiceId: string) => {
     try {
-      const response = await microsoft365Api.revertToDraft(invoiceId);
+      const response = await microsoft365Api.revertInvoiceToDraft(invoiceId);
       if (response.success) {
         await loadProcessedInvoices();
         setSuccess('Zurück zu Entwurf');
@@ -600,6 +536,20 @@ export const InvoiceInbox = () => {
           </p>
         </div>
       </div>
+    );
+  }
+
+  // Full-screen review view
+  if (reviewingInvoice) {
+    return (
+      <InvoiceReviewView
+        invoice={reviewingInvoice}
+        onClose={() => setReviewingInvoice(null)}
+        onApproved={() => {
+          setReviewingInvoice(null);
+          loadProcessedInvoices();
+        }}
+      />
     );
   }
 
@@ -1486,7 +1436,7 @@ export const InvoiceInbox = () => {
                       <LineItemReview
                         invoiceId={confirmingInvoice.id}
                         lineItems={extractedData.lineItems}
-                        customers={crmCustomers}
+                        customers={[]}
                       />
                     )}
                   </>
