@@ -93,6 +93,7 @@ export type {
   LineItemStats,
   UnmatchedLineItem,
   CustomerAlias,
+  PendingLineItem,
   ExtractedInvoiceData,
   SupportEmail,
   TicketEmail,

@@ -9,9 +9,12 @@ import {
   ChevronUp,
   Check,
   AlertCircle,
+  ShoppingCart,
+  Percent,
+  Loader2,
 } from 'lucide-react';
 import { Button, IconButton } from './ui';
-import { sevdeskApi, BillingSummaryItem } from '../services/api';
+import { sevdeskApi, BillingSummaryItem, PendingLineItem } from '../services/api';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import type { Customer } from '../types';
 
@@ -66,6 +69,13 @@ export const InvoiceCreationDialog = ({
   const [invoiceHeader, setInvoiceHeader] = useState('');
   const [headText, setHeadText] = useState('');
   const [footText, setFootText] = useState('');
+
+  // Pending expenses (line items for rebilling)
+  const [pendingExpenses, setPendingExpenses] = useState<PendingLineItem[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
+  const [expenseMarkup, setExpenseMarkup] = useState<number>(0); // Percentage markup
+  const [expandedExpenses, setExpandedExpenses] = useState(false);
 
   // Generate service report filename in format: Dienstleistungsnachweis_Kundenname_YYYY_MM.pdf
   const generateReportFilename = () => {
@@ -154,7 +164,27 @@ export const InvoiceCreationDialog = ({
     const paymentTermsDays = customer.paymentTermsDays || 14;
     const dueDate = calculateDueDate();
     setFootText(`Zahlungsbedingungen: Zahlung innerhalb von ${paymentTermsDays} Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
+
+    // Load pending expenses for this customer
+    loadPendingExpenses();
   }, [isOpen, customer, periodStart, periodEnd]);
+
+  const loadPendingExpenses = async () => {
+    if (!customer?.customerId) return;
+    setLoadingExpenses(true);
+    try {
+      const response = await sevdeskApi.getPendingLineItemsForCustomer(customer.customerId);
+      if (response.success && response.data) {
+        setPendingExpenses(response.data.items);
+        // Auto-select all by default
+        setSelectedExpenses(new Set(response.data.items.map(item => item.id)));
+      }
+    } catch (err) {
+      console.error('Failed to load pending expenses:', err);
+    } finally {
+      setLoadingExpenses(false);
+    }
+  };
 
   const totalHours = useMemo(() =>
     positions.reduce((sum, p) => sum + p.hours, 0), [positions]
@@ -167,6 +197,41 @@ export const InvoiceCreationDialog = ({
   const totalAmount = useMemo(() =>
     positions.reduce((sum, p) => sum + p.amount, 0), [positions]
   );
+
+  // Calculate selected expenses total with markup
+  const selectedExpensesTotal = useMemo(() => {
+    const baseTotal = pendingExpenses
+      .filter(exp => selectedExpenses.has(exp.id))
+      .reduce((sum, exp) => sum + exp.totalPrice, 0);
+    const markupAmount = baseTotal * (expenseMarkup / 100);
+    return {
+      base: baseTotal,
+      markup: markupAmount,
+      total: baseTotal + markupAmount,
+    };
+  }, [pendingExpenses, selectedExpenses, expenseMarkup]);
+
+  const grandTotal = useMemo(() =>
+    totalAmount + selectedExpensesTotal.total, [totalAmount, selectedExpensesTotal.total]
+  );
+
+  const toggleExpenseSelection = (id: string) => {
+    const newSelected = new Set(selectedExpenses);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedExpenses(newSelected);
+  };
+
+  const toggleAllExpenses = () => {
+    if (selectedExpenses.size === pendingExpenses.length) {
+      setSelectedExpenses(new Set());
+    } else {
+      setSelectedExpenses(new Set(pendingExpenses.map(exp => exp.id)));
+    }
+  };
 
   const togglePosition = (index: number) => {
     const newExpanded = new Set(expandedPositions);
@@ -234,7 +299,16 @@ export const InvoiceCreationDialog = ({
       const hourlyRate = customer.hourlyRate || 95;
 
       // Build positions array with header position first (quantity 0 = bold header in sevDesk)
-      const invoicePositions = [
+      const invoicePositions: Array<{
+        title: string;
+        description: string;
+        hours: number;
+        amount: number;
+        hourlyRate: number;
+        isHeader?: boolean;
+        quantity?: number;
+        unitPrice?: number;
+      }> = [
         // Header position (quantity 0 displays as bold header)
         {
           title: 'Dienstleistungen',
@@ -254,6 +328,34 @@ export const InvoiceCreationDialog = ({
         })),
       ];
 
+      // Add selected expenses as positions
+      const selectedExpenseItems = pendingExpenses.filter(exp => selectedExpenses.has(exp.id));
+      if (selectedExpenseItems.length > 0) {
+        // Add header for expenses section
+        invoicePositions.push({
+          title: 'Weiterberechnungen / Lizenzen',
+          description: '',
+          hours: 0,
+          amount: 0,
+          hourlyRate: 0,
+          isHeader: true,
+        });
+
+        // Add each expense as position
+        for (const expense of selectedExpenseItems) {
+          const priceWithMarkup = expense.totalPrice * (1 + expenseMarkup / 100);
+          invoicePositions.push({
+            title: expense.description || 'Weiterberechnung',
+            description: expense.vendorName ? `Lieferant: ${expense.vendorName}` : '',
+            hours: 0,
+            amount: Math.round(priceWithMarkup * 100) / 100,
+            hourlyRate: 0,
+            quantity: expense.quantity,
+            unitPrice: Math.round((expense.unitPrice * (1 + expenseMarkup / 100)) * 100) / 100,
+          });
+        }
+      }
+
       // Create invoice with grouped positions and custom texts. reportFilename
       // is passed so the backend can substitute {reportFilename} in the
       // per-customer position template.
@@ -270,6 +372,15 @@ export const InvoiceCreationDialog = ({
       });
 
       if (response.success) {
+        // Mark selected expenses as billed
+        if (selectedExpenseItems.length > 0) {
+          try {
+            await sevdeskApi.markLineItemsBilled(selectedExpenseItems.map(exp => exp.id));
+          } catch (markErr) {
+            console.error('Failed to mark expenses as billed:', markErr);
+            // Don't fail the whole operation - invoice was already created
+          }
+        }
         onSuccess(response.data.invoiceNumber);
         onClose();
       } else {
@@ -517,6 +628,137 @@ export const InvoiceCreationDialog = ({
               ))}
             </div>
           </div>
+
+          {/* Expenses / Rebilling Section */}
+          {(pendingExpenses.length > 0 || loadingExpenses) && (
+            <div className="space-y-4">
+              <div
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setExpandedExpenses(!expandedExpenses)}
+              >
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <ShoppingCart size={18} />
+                  Weiterberechnungen ({pendingExpenses.length})
+                  {selectedExpenses.size > 0 && (
+                    <span className="text-sm font-normal text-gray-500">
+                      • {selectedExpenses.size} ausgewählt
+                    </span>
+                  )}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {selectedExpensesTotal.total > 0 && (
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(selectedExpensesTotal.total)}
+                    </span>
+                  )}
+                  {expandedExpenses ? (
+                    <ChevronUp size={20} className="text-gray-400" />
+                  ) : (
+                    <ChevronDown size={20} className="text-gray-400" />
+                  )}
+                </div>
+              </div>
+
+              {expandedExpenses && (
+                <div className="space-y-3">
+                  {loadingExpenses ? (
+                    <div className="flex items-center justify-center py-4 text-gray-500">
+                      <Loader2 size={20} className="animate-spin mr-2" />
+                      Lade offene Ausgaben...
+                    </div>
+                  ) : pendingExpenses.length > 0 ? (
+                    <>
+                      {/* Markup Input */}
+                      <div className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Percent size={16} className="text-gray-400" />
+                          <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
+                            Aufschlag
+                          </label>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={expenseMarkup}
+                          onChange={(e) => setExpenseMarkup(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-100 text-gray-900 dark:text-white text-center"
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                        {expenseMarkup > 0 && (
+                          <span className="text-sm text-green-600 dark:text-green-400">
+                            (+{formatCurrency(selectedExpensesTotal.markup)})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Select All Toggle */}
+                      <div className="flex items-center justify-between px-1">
+                        <button
+                          onClick={toggleAllExpenses}
+                          className="text-sm text-accent-primary hover:underline"
+                        >
+                          {selectedExpenses.size === pendingExpenses.length ? 'Alle abwählen' : 'Alle auswählen'}
+                        </button>
+                        <span className="text-sm text-gray-500">
+                          Basis: {formatCurrency(selectedExpensesTotal.base)}
+                        </span>
+                      </div>
+
+                      {/* Expense Items */}
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {pendingExpenses.map((expense) => (
+                          <div
+                            key={expense.id}
+                            className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                              selectedExpenses.has(expense.id)
+                                ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/10'
+                                : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-200'
+                            }`}
+                            onClick={() => toggleExpenseSelection(expense.id)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedExpenses.has(expense.id)}
+                              onChange={() => toggleExpenseSelection(expense.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-1 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 dark:text-white truncate">
+                                {expense.description || 'Ohne Beschreibung'}
+                              </p>
+                              <p className="text-sm text-gray-500 dark:text-dark-400">
+                                {expense.vendorName && <span>{expense.vendorName} • </span>}
+                                {expense.quantity}× {formatCurrency(expense.unitPrice)}
+                                {expense.invoiceDate && (
+                                  <span> • {new Date(expense.invoiceDate).toLocaleDateString('de-DE')}</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                {formatCurrency(expense.totalPrice * (1 + expenseMarkup / 100))}
+                              </p>
+                              {expenseMarkup > 0 && (
+                                <p className="text-xs text-gray-500 line-through">
+                                  {formatCurrency(expense.totalPrice)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-dark-400 py-2">
+                      Keine offenen Weiterberechnungen für diesen Kunden.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -525,10 +767,13 @@ export const InvoiceCreationDialog = ({
             <div className="space-y-1">
               <p className="text-sm text-gray-500">
                 Gesamtstunden: {formatHours(totalHours)} → aufgerundet: {formatHours(totalRoundedHours)}
+                {selectedExpensesTotal.total > 0 && (
+                  <span> + Weiterberechnungen: {formatCurrency(selectedExpensesTotal.total)}</span>
+                )}
               </p>
               <p className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Euro size={20} />
-                {formatCurrency(totalAmount)} netto
+                {formatCurrency(grandTotal)} netto
               </p>
             </div>
 

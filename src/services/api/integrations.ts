@@ -620,6 +620,29 @@ export const sevdeskApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // Get pending line items for a customer (for rebilling)
+  getPendingLineItemsForCustomer: async (customerId: string): Promise<{
+    success: boolean;
+    data: {
+      items: PendingLineItem[];
+      totalAmount: number;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/sevdesk/line-items/customer/${customerId}/pending`);
+  },
+
+  // Mark line items as billed after creating invoice
+  markLineItemsBilled: async (lineItemIds: string[]): Promise<{
+    success: boolean;
+    data: { updatedCount: number };
+  }> => {
+    return authFetch('/sevdesk/line-items/mark-billed', {
+      method: 'POST',
+      body: JSON.stringify({ lineItemIds }),
+    });
+  },
 };
 
 // ============================================
@@ -1190,6 +1213,20 @@ export interface CustomerAlias {
   alias: string;
   source: 'manual' | 'invoice_assignment';
   createdAt: string;
+}
+
+export interface PendingLineItem {
+  id: string;
+  processedInvoiceId: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  extractedCustomerName: string | null;
+  vendorName: string | null;
+  invoiceSubject: string | null;
+  invoiceDate: string | null;
 }
 
 export interface ExtractedInvoiceData {

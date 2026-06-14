@@ -2420,6 +2420,108 @@ router.get('/line-items/:invoiceId/stats', authenticateToken, requireBillingFeat
   }
 });
 
+// GET /api/sevdesk/line-items/customer/:customerId/pending - Get pending line items for rebilling
+router.get('/line-items/customer/:customerId/pending', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get all pending line items assigned to this customer
+    const result = await pool.query(`
+      SELECT
+        li.id,
+        li.processed_invoice_id,
+        li.position_number,
+        li.description,
+        li.quantity,
+        li.unit_price,
+        li.total_price,
+        li.extracted_customer_name,
+        li.customer_id,
+        li.rebilling_status,
+        li.match_confidence,
+        li.match_method,
+        pi.email_subject AS invoice_subject,
+        pi.sender_name AS vendor_name,
+        pi.received_at AS invoice_date
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status = 'pending'
+      ORDER BY pi.received_at DESC, li.position_number
+    `, [organizationId, customerId]);
+
+    // Calculate totals
+    const items = result.rows;
+    const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_price) || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        items: items.map(row => ({
+          id: row.id,
+          processedInvoiceId: row.processed_invoice_id,
+          positionNumber: row.position_number,
+          description: row.description,
+          quantity: parseFloat(row.quantity) || 1,
+          unitPrice: parseFloat(row.unit_price) || 0,
+          totalPrice: parseFloat(row.total_price) || 0,
+          extractedCustomerName: row.extracted_customer_name,
+          vendorName: row.vendor_name,
+          invoiceSubject: row.invoice_subject,
+          invoiceDate: row.invoice_date,
+        })),
+        totalAmount,
+        count: items.length,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get pending line items for customer error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/line-items/mark-billed - Mark line items as billed
+router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { lineItemIds, sevdeskInvoiceId } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'lineItemIds is required' });
+    }
+
+    // Update status to 'billed' and optionally store the sevDesk invoice reference
+    const result = await pool.query(`
+      UPDATE invoice_line_items
+      SET rebilling_status = 'billed',
+          updated_at = NOW()
+      WHERE organization_id = $1
+        AND id = ANY($2)
+      RETURNING id
+    `, [organizationId, lineItemIds]);
+
+    res.json({
+      success: true,
+      data: { updatedCount: result.rowCount },
+    });
+  } catch (error: any) {
+    logger.error('Mark line items billed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================================
 // Customer Aliases
 // ============================================================================
