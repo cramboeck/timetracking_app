@@ -1738,7 +1738,7 @@ router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeat
           creditDebit: 'D', // Debit = expense
         });
 
-        sevdeskVoucherId = voucherResult.voucher?.id || null;
+        sevdeskVoucherId = voucherResult.voucherId || null;
       } catch (uploadError: any) {
         logger.error('sevDesk upload failed:', uploadError);
         return res.status(500).json({
