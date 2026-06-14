@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -98,6 +98,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     queryFn: async () => (await ticketsApi.getTicketTags(ticketId)).data as TicketTag[],
   });
   const ticketTags = ticketTagsQuery.data ?? [];
+
+  // Fetch customer contracts (for maintenance contract display)
+  const customerContractsQuery = useQuery({
+    queryKey: ['contracts', 'customer', ticket?.customerId],
+    queryFn: async () => {
+      if (!ticket?.customerId) return [];
+      const res = await contractsApi.getContractsByCustomer(ticket.customerId);
+      return res.success ? res.data : [];
+    },
+    enabled: !!ticket?.customerId,
+    staleTime: 5 * 60_000,
+  });
+  const activeContract = (customerContractsQuery.data ?? []).find(
+    (c: Contract) => c.status === 'active'
+  );
 
   const userRoleQuery = useQuery({
     queryKey: ['org', 'current'],
@@ -336,6 +351,28 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const handleArchive = () => archiveMutation.mutate('archived');
   const handleRestore = () => archiveMutation.mutate('open');
 
+  // Quick status change (without entering edit mode)
+  const handleQuickStatusChange = (newStatus: TicketStatus) => {
+    if (!ticket || newStatus === ticket.status) return;
+
+    // If closing, require solution
+    if (newStatus === 'closed' && ticket.status !== 'closed') {
+      setSolutionText(ticket.solution || '');
+      setResolutionType(ticket.resolutionType || 'solved');
+      setShowSolutionModal(true);
+      setEditStatus('closed');
+      return;
+    }
+
+    updateTicketMutation.mutate({ status: newStatus });
+  };
+
+  // Quick priority change (without entering edit mode)
+  const handleQuickPriorityChange = (newPriority: TicketPriority) => {
+    if (!ticket || newPriority === ticket.priority) return;
+    updateTicketMutation.mutate({ priority: newPriority });
+  };
+
   // Task handlers — write through setQueryData so the UI stays instant; also
   // invalidate the global ['tasks'] key so TasksOverview picks up changes.
   const tasksKey = ['ticket', ticketId, 'tasks'] as const;
@@ -534,6 +571,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         editStatus={editStatus}
         editPriority={editPriority}
         archiving={archiving}
+        saving={updateTicketMutation.isPending}
         onBack={onBack}
         onToggleEdit={() => setIsEditing(!isEditing)}
         onEditTitleChange={setEditTitle}
@@ -549,6 +587,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         onAddTag={handleAddTag}
         onRemoveTag={handleRemoveTag}
         onCreateTag={handleCreateTag}
+        onQuickStatusChange={handleQuickStatusChange}
+        onQuickPriorityChange={handleQuickPriorityChange}
       />
 
       {/* Content - Desktop: Two columns, Mobile: Single column */}
@@ -623,6 +663,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 ticket={ticket}
                 customers={customers}
                 timeEntries={timeEntries}
+                activeContract={activeContract}
                 onStartTimer={onStartTimer}
               />
 

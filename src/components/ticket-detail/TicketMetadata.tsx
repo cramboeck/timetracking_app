@@ -1,13 +1,15 @@
-import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone } from 'lucide-react';
+import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone, FileCheck, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { SlaStatus } from '../SlaStatus';
 import { Ticket, Customer, TimeEntry, formatDuration } from './types';
 import { TicketSource } from '../../types';
+import { Contract } from '../../services/api';
 
 interface TicketMetadataProps {
   ticket: Ticket;
   customers: Customer[];
   timeEntries: TimeEntry[];
+  activeContract?: Contract;
   onStartTimer: (ticket: Ticket) => void;
 }
 
@@ -22,6 +24,7 @@ export const TicketMetadata = ({
   ticket,
   customers,
   timeEntries,
+  activeContract,
   onStartTimer,
 }: TicketMetadataProps) => {
   const getCustomerName = (customerId: string) => {
@@ -31,6 +34,11 @@ export const TicketMetadata = ({
   const totalTime = timeEntries.reduce((sum, entry) => sum + (entry.duration || 0), 0);
   const source = ticket.source || 'manual';
   const SourceIcon = sourceConfig[source]?.icon || Globe;
+
+  // Contract hours info
+  const includedHours = activeContract?.includedHoursMonthly ?? 0;
+  const hourlyRate = activeContract?.hourlyRate ?? 0;
+  const overageRate = activeContract?.overageRate ?? 0;
 
   return (
     <div className="bg-white dark:bg-dark-50 rounded-lg border border-gray-200 dark:border-dark-border p-4 space-y-4">
@@ -82,6 +90,59 @@ export const TicketMetadata = ({
           </div>
         </div>
       </div>
+
+      {/* Maintenance Contract Info */}
+      {activeContract && (
+        <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <FileCheck className="text-green-600 dark:text-green-400" size={16} />
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+              Wartungsvertrag aktiv
+            </span>
+          </div>
+          <div className="text-xs text-green-600 dark:text-green-400 mb-2">
+            {activeContract.name}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {includedHours > 0 && (
+              <div className="bg-green-100 dark:bg-green-800/30 rounded p-1.5">
+                <div className="text-green-500 dark:text-green-500">Inkl. Stunden</div>
+                <div className="font-medium text-green-700 dark:text-green-300">{includedHours}h/Monat</div>
+              </div>
+            )}
+            {hourlyRate > 0 && (
+              <div className="bg-green-100 dark:bg-green-800/30 rounded p-1.5">
+                <div className="text-green-500 dark:text-green-500">Stundensatz</div>
+                <div className="font-medium text-green-700 dark:text-green-300">{hourlyRate}€/h</div>
+              </div>
+            )}
+            {activeContract.slaResponseHours && (
+              <div className="bg-green-100 dark:bg-green-800/30 rounded p-1.5">
+                <div className="text-green-500 dark:text-green-500">SLA Reaktion</div>
+                <div className="font-medium text-green-700 dark:text-green-300">{activeContract.slaResponseHours}h</div>
+              </div>
+            )}
+            {overageRate > 0 && overageRate !== hourlyRate && (
+              <div className="bg-green-100 dark:bg-green-800/30 rounded p-1.5">
+                <div className="text-green-500 dark:text-green-500">Mehrarbeit</div>
+                <div className="font-medium text-green-700 dark:text-green-300">{overageRate}€/h</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* No Contract Warning */}
+      {!activeContract && (
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="text-yellow-600 dark:text-yellow-400" size={16} />
+            <span className="text-sm text-yellow-700 dark:text-yellow-300">
+              Kein aktiver Wartungsvertrag
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* SLA Status */}
       <SlaStatus

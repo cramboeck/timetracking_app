@@ -69,17 +69,16 @@ export interface TicketActivity {
   createdAt: string;
 }
 
-// Ticket Attachment type
+// Ticket Attachment type (matches backend response)
 export interface TicketAttachment {
   id: string;
-  ticketId: string;
+  ticketId?: string;
   filename: string;
-  originalName: string;
+  fileUrl: string;
+  fileSize: number;
   mimeType: string;
-  size: number;
-  uploadedBy: string;
   uploadedByName?: string;
-  url: string;
+  uploadedByType?: 'user' | 'customer';
   createdAt: string;
 }
 

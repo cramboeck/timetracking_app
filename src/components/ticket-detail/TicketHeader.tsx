@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Edit2, Archive, RotateCcw, Trash2, Merge, Tag, Plus, X } from 'lucide-react';
+import { ArrowLeft, Edit2, Archive, RotateCcw, Trash2, Merge, Tag, Plus, X, ChevronDown, Loader2 } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
 import {
   Ticket,
@@ -21,6 +21,7 @@ interface TicketHeaderProps {
   editStatus: TicketStatus;
   editPriority: TicketPriority;
   archiving: boolean;
+  saving: boolean;
   onBack: () => void;
   onToggleEdit: () => void;
   onEditTitleChange: (value: string) => void;
@@ -36,6 +37,8 @@ interface TicketHeaderProps {
   onAddTag: (tagId: string) => void;
   onRemoveTag: (tagId: string) => void;
   onCreateTag: (name: string) => void;
+  onQuickStatusChange: (status: TicketStatus) => void;
+  onQuickPriorityChange: (priority: TicketPriority) => void;
 }
 
 export const TicketHeader = ({
@@ -49,6 +52,7 @@ export const TicketHeader = ({
   editStatus,
   editPriority,
   archiving,
+  saving,
   onBack,
   onToggleEdit,
   onEditTitleChange,
@@ -64,16 +68,28 @@ export const TicketHeader = ({
   onAddTag,
   onRemoveTag,
   onCreateTag,
+  onQuickStatusChange,
+  onQuickPriorityChange,
 }: TicketHeaderProps) => {
   const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const priorityDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
         setShowTagDropdown(false);
+      }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setShowStatusDropdown(false);
+      }
+      if (priorityDropdownRef.current && !priorityDropdownRef.current.contains(event.target as Node)) {
+        setShowPriorityDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -180,12 +196,20 @@ export const TicketHeader = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={onSaveEdit}>
-              Speichern
+            <Button onClick={onSaveEdit} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 size={16} className="animate-spin mr-2" />
+                  Speichern...
+                </>
+              ) : (
+                'Speichern'
+              )}
             </Button>
             <Button
               variant="outline"
               onClick={onCancelEdit}
+              disabled={saving}
             >
               Abbrechen
             </Button>
@@ -197,12 +221,64 @@ export const TicketHeader = ({
             {ticket.title}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[ticket.status].color}`}>
-              {statusConfig[ticket.status].label}
-            </span>
-            <span className={`text-sm font-medium ${priorityConfig[ticket.priority].color}`}>
-              {priorityConfig[ticket.priority].label}
-            </span>
+            {/* Quick Status Change Dropdown */}
+            <div className="relative" ref={statusDropdownRef}>
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                disabled={ticket.status === 'archived'}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-opacity ${statusConfig[ticket.status].color} ${ticket.status !== 'archived' ? 'hover:opacity-80 cursor-pointer' : 'cursor-not-allowed'}`}
+              >
+                {statusConfig[ticket.status].label}
+                {ticket.status !== 'archived' && <ChevronDown size={12} />}
+              </button>
+              {showStatusDropdown && (
+                <div className="absolute left-0 top-full mt-1 w-40 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border z-50">
+                  {Object.entries(statusConfig)
+                    .filter(([key]) => key !== 'archived')
+                    .map(([key, { label, color }]) => (
+                      <button
+                        key={key}
+                        onClick={() => {
+                          onQuickStatusChange(key as TicketStatus);
+                          setShowStatusDropdown(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-dark-200 first:rounded-t-lg last:rounded-b-lg ${ticket.status === key ? 'bg-gray-100 dark:bg-dark-200' : ''}`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${color.split(' ')[0]}`} />
+                        {label}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Priority Change Dropdown */}
+            <div className="relative" ref={priorityDropdownRef}>
+              <button
+                onClick={() => setShowPriorityDropdown(!showPriorityDropdown)}
+                disabled={ticket.status === 'archived'}
+                className={`inline-flex items-center gap-1 text-sm font-medium transition-opacity ${priorityConfig[ticket.priority].color} ${ticket.status !== 'archived' ? 'hover:opacity-80 cursor-pointer' : 'cursor-not-allowed'}`}
+              >
+                {priorityConfig[ticket.priority].label}
+                {ticket.status !== 'archived' && <ChevronDown size={12} />}
+              </button>
+              {showPriorityDropdown && (
+                <div className="absolute left-0 top-full mt-1 w-32 bg-white dark:bg-dark-100 rounded-lg shadow-lg border border-gray-200 dark:border-dark-border z-50">
+                  {Object.entries(priorityConfig).map(([key, { label, color }]) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        onQuickPriorityChange(key as TicketPriority);
+                        setShowPriorityDropdown(false);
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-dark-200 first:rounded-t-lg last:rounded-b-lg ${ticket.priority === key ? 'bg-gray-100 dark:bg-dark-200' : ''}`}
+                    >
+                      <span className={`${color}`}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Tags */}
