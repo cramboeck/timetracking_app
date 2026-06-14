@@ -2,12 +2,13 @@ import { useState, useEffect, Fragment, useRef } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle, X, Edit2, Search, Upload
+  Mail, AlertTriangle, X, Search, Upload, FileSearch
 } from 'lucide-react';
 import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SourceBadge } from './ui/SourceBadge';
 import { useConfirm } from '../contexts/UIContext';
+import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -46,6 +47,10 @@ export const InvoiceInbox = () => {
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [extractingData, setExtractingData] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  // PDF field extractor state
+  const [showPdfExtractor, setShowPdfExtractor] = useState(false);
+  const [pdfExtractorUrl, setPdfExtractorUrl] = useState<string | null>(null);
 
   // Manual-Upload state (Phase 2): hidden file input + uploading flag.
   // Nach erfolgreichem Upload oeffnet das Bestaetigungs-Modal direkt mit
@@ -360,6 +365,53 @@ export const InvoiceInbox = () => {
   const updateExtractedField = (field: keyof ExtractedInvoiceData, value: any) => {
     if (!extractedData) return;
     setExtractedData({ ...extractedData, [field]: value });
+  };
+
+  // Open PDF extractor with the first document
+  const handleOpenPdfExtractor = async () => {
+    if (!confirmingInvoice) return;
+
+    // Get documents for this invoice
+    let docs = invoiceDocuments[confirmingInvoice.id];
+    if (!docs) {
+      const result = await microsoft365Api.getInvoiceDocuments(confirmingInvoice.id);
+      if (result.success && result.data.length > 0) {
+        docs = result.data;
+        setInvoiceDocuments(prev => ({ ...prev, [confirmingInvoice.id]: docs }));
+      }
+    }
+
+    if (docs && docs.length > 0) {
+      const pdfDoc = docs.find(d => d.mimeType === 'application/pdf') || docs[0];
+      const url = microsoft365Api.getDocumentDownloadUrl(pdfDoc.id, true);
+      setPdfExtractorUrl(url);
+      setShowPdfExtractor(true);
+    }
+  };
+
+  // Handle field extraction from PDF
+  const handlePdfExtract = (field: ExtractableField, value: string | number | null) => {
+    if (!extractedData) return;
+
+    // Map ExtractableField to ExtractedInvoiceData fields
+    const fieldMapping: Record<ExtractableField, keyof ExtractedInvoiceData> = {
+      supplierName: 'supplierName',
+      invoiceNumber: 'invoiceNumber',
+      customerNumber: 'customerNumber',
+      invoiceDate: 'invoiceDate',
+      dueDate: 'dueDate',
+      netAmount: 'netAmount',
+      vatAmount: 'vatAmount',
+      grossAmount: 'grossAmount',
+      iban: 'iban',
+      bic: 'bic',
+      taxId: 'taxId',
+    };
+
+    const dataField = fieldMapping[field];
+    if (dataField) {
+      updateExtractedField(dataField, value);
+    }
   };
 
   const formatAmount = (amount: number | null): string => {
@@ -1030,6 +1082,12 @@ export const InvoiceInbox = () => {
                 </h3>
                 <div className="flex items-center gap-1">
                   <IconButton
+                    icon={<FileSearch size={18} />}
+                    onClick={handleOpenPdfExtractor}
+                    disabled={extractingData}
+                    tooltip="PDF öffnen & Felder manuell markieren"
+                  />
+                  <IconButton
                     icon={<RefreshCw size={18} className={extractingData ? 'animate-spin' : ''} />}
                     onClick={handleReExtract}
                     disabled={extractingData}
@@ -1405,6 +1463,31 @@ export const InvoiceInbox = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PDF Field Extractor Modal */}
+      {showPdfExtractor && pdfExtractorUrl && extractedData && (
+        <PdfFieldExtractor
+          pdfUrl={pdfExtractorUrl}
+          onExtract={handlePdfExtract}
+          onClose={() => {
+            setShowPdfExtractor(false);
+            setPdfExtractorUrl(null);
+          }}
+          currentValues={{
+            supplierName: extractedData.supplierName,
+            invoiceNumber: extractedData.invoiceNumber,
+            customerNumber: extractedData.customerNumber,
+            invoiceDate: extractedData.invoiceDate,
+            dueDate: extractedData.dueDate,
+            netAmount: extractedData.netAmount,
+            vatAmount: extractedData.vatAmount,
+            grossAmount: extractedData.grossAmount,
+            iban: extractedData.iban,
+            bic: extractedData.bic,
+            taxId: extractedData.taxId,
+          }}
+        />
       )}
     </div>
   );
