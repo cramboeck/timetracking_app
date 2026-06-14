@@ -5,9 +5,9 @@ import { Button, IconButton } from './ui/Button';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Configure pdf.js worker using Vite's ?url import
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Configure pdf.js worker - use CDN for reliable loading
+// Version must match pdfjs-dist version (4.8.69)
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 export type ExtractableField =
   | 'supplierName'
