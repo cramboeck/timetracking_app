@@ -234,9 +234,13 @@ export interface TicketTask {
   id: string;
   ticketId: string;
   title: string;
+  description?: string | null;
   completed: boolean;
   sortOrder: number;
   visibleToCustomer: boolean;
+  assignedTo?: string | null;
+  assignedToName?: string;
+  dueDate?: string | null;
   createdAt: string;
   completedAt?: string;
 }

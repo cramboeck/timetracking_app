@@ -242,7 +242,7 @@ export const TicketHeader = ({
                           onQuickStatusChange(key as TicketStatus);
                           setShowStatusDropdown(false);
                         }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-dark-200 first:rounded-t-lg last:rounded-b-lg ${ticket.status === key ? 'bg-gray-100 dark:bg-dark-200' : ''}`}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-dark-200 first:rounded-t-lg last:rounded-b-lg ${ticket.status === key ? 'bg-gray-100 dark:bg-dark-200' : ''}`}
                       >
                         <span className={`w-2 h-2 rounded-full ${color.split(' ')[0]}`} />
                         {label}
