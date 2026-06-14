@@ -1077,6 +1077,86 @@ class InvoiceProcessorService {
   }
 
   /**
+   * Re-fetch attachments for an existing processed invoice that has no documents
+   */
+  async refetchAttachments(organizationId: string, processedInvoiceId: string): Promise<boolean> {
+    // Get the invoice record
+    const invoiceResult = await query(
+      `SELECT email_id FROM processed_invoices WHERE id = $1 AND organization_id = $2`,
+      [processedInvoiceId, organizationId]
+    );
+
+    if (invoiceResult.rows.length === 0 || !invoiceResult.rows[0].email_id) {
+      logger.info(`No email_id for invoice ${processedInvoiceId}`);
+      return false;
+    }
+
+    const emailId = invoiceResult.rows[0].email_id;
+
+    // Fetch attachments from Graph API
+    const attachments = await mailboxMonitorService.getAttachments(organizationId, emailId, 'invoice');
+
+    if (attachments.length === 0) {
+      logger.info(`No attachments found for email ${emailId}`);
+      return false;
+    }
+
+    // Filter for PDFs and images
+    const relevantAttachments = attachments.filter(att =>
+      att.contentType?.includes('pdf') ||
+      att.contentType?.includes('image') ||
+      att.name?.toLowerCase().endsWith('.pdf') ||
+      att.name?.toLowerCase().endsWith('.png') ||
+      att.name?.toLowerCase().endsWith('.jpg') ||
+      att.name?.toLowerCase().endsWith('.jpeg')
+    );
+
+    if (relevantAttachments.length === 0) {
+      logger.info(`No PDF/image attachments for email ${emailId}`);
+      return false;
+    }
+
+    // Save attachments
+    const documentIds: string[] = [];
+    for (const attachment of relevantAttachments) {
+      const saved = await this.saveAttachment(organizationId, attachment, emailId);
+
+      if (saved) {
+        const docId = uuidv4();
+        await query(
+          `INSERT INTO invoice_documents (
+            id, organization_id, processed_invoice_id, filename, original_filename,
+            mime_type, size, storage_path, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+          [
+            docId,
+            organizationId,
+            processedInvoiceId,
+            saved.filename,
+            attachment.name,
+            attachment.contentType || 'application/pdf',
+            attachment.size || 0,
+            saved.path
+          ]
+        );
+        documentIds.push(docId);
+      }
+    }
+
+    if (documentIds.length > 0) {
+      // Update the invoice record with document IDs
+      await query(
+        `UPDATE processed_invoices SET document_ids = $1, attachment_count = $2 WHERE id = $3`,
+        [JSON.stringify(documentIds), documentIds.length, processedInvoiceId]
+      );
+      logger.info(`Saved ${documentIds.length} attachments for invoice ${processedInvoiceId}`);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Extract invoice data from PDF using text extraction and AI parsing
    */
   async extractInvoiceData(

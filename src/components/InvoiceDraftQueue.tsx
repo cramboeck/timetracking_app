@@ -17,6 +17,7 @@ import {
   Send,
   Trash2,
   Wand2,
+  Download,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { authFetch } from '../services/api';
@@ -105,6 +106,21 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
     },
     onError: (err: Error) => {
       showToast(`Fehler beim Abrufen: ${err.message}`, 'error');
+    },
+  });
+
+  // Fetch attachments mutation (for old imports without PDFs)
+  const fetchAttachmentsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await authFetch('/sevdesk/invoice-drafts/fetch-attachments?limit=20', { method: 'POST' });
+      return res.data as { total: number; fetched: number; failed: number; message: string };
+    },
+    onSuccess: (data) => {
+      showToast(data.message, data.failed > 0 ? 'warning' : 'success');
+      queryClient.invalidateQueries({ queryKey: ['invoice-drafts'] });
+    },
+    onError: (err: Error) => {
+      showToast(`Anhänge laden fehlgeschlagen: ${err.message}`, 'error');
     },
   });
 
@@ -295,6 +311,16 @@ export function InvoiceDraftQueue({ onClose }: InvoiceDraftQueueProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchAttachmentsMutation.mutate()}
+            disabled={fetchAttachmentsMutation.isPending}
+            icon={fetchAttachmentsMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            title="PDFs für Einträge ohne Anhänge nachladen"
+          >
+            PDFs laden
+          </Button>
           <Button
             variant="outline"
             size="sm"

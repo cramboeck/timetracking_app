@@ -1837,6 +1837,68 @@ router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, as
   }
 });
 
+// POST /api/sevdesk/invoice-drafts/fetch-attachments - Re-fetch attachments for drafts without documents
+router.post('/invoice-drafts/fetch-attachments', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+    // Get drafts WITHOUT documents (attachments never downloaded)
+    const draftsResult = await query(`
+      SELECT pi.id, pi.email_id, pi.email_subject, pi.sender_name
+      FROM processed_invoices pi
+      LEFT JOIN invoice_documents id ON id.processed_invoice_id = pi.id
+      WHERE pi.organization_id = $1
+        AND pi.source = 'email'
+        AND pi.email_id IS NOT NULL
+        AND id.id IS NULL
+      ORDER BY pi.received_at DESC
+      LIMIT $2
+    `, [organizationId, limit]);
+
+    let fetched = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const draft of draftsResult.rows) {
+      try {
+        // Re-fetch and save attachments
+        const success = await invoiceProcessorService.refetchAttachments(organizationId, draft.id);
+        if (success) {
+          fetched++;
+        } else {
+          failed++;
+          errors.push(`${draft.sender_name || draft.email_subject}: Keine Anhänge`);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${draft.sender_name || draft.email_subject}: ${err.message}`);
+        logger.error(`Fetch attachments failed for ${draft.id}:`, err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        total: draftsResult.rows.length,
+        fetched,
+        failed,
+        errors: errors.slice(0, 5),
+        message: `${fetched} von ${draftsResult.rows.length} Anhänge nachgeladen`,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Fetch attachments error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/sevdesk/invoice-drafts/extract-all - Extract data for all unextracted drafts
 router.post('/invoice-drafts/extract-all', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
