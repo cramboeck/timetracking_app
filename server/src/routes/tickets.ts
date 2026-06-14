@@ -881,17 +881,24 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
       // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
+        // Try direct contact first, then fallback to customer's primary contact
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name, cc.notify_ticket_status_changed
+          SELECT t.title, t.ticket_number, t.contact_id, t.customer_id,
+                 COALESCE(cc.email, primary_contact.email) as email,
+                 COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as name,
+                 COALESCE(cc.notify_ticket_status_changed, primary_contact.notify_ticket_status_changed, true) as notify_ticket_status_changed,
+                 COALESCE(cc.id, primary_contact.id) as resolved_contact_id
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+          LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
           WHERE t.id = $1
         `, [id]);
 
         const contactData = contactInfo.rows[0];
         logger.info(`[Ticket ${id}] Status change notification check:`, {
           hasRow: contactInfo.rows.length > 0,
-          hasContactId: contactData?.contact_id || null,
+          hasDirectContactId: contactData?.contact_id || null,
+          hasResolvedContactId: contactData?.resolved_contact_id || null,
           hasEmail: !!contactData?.email,
           notifyEnabled: contactData?.notify_ticket_status_changed,
         });
@@ -910,7 +917,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
           }).catch(err => logger.error('Failed to send status change notification:', err));
 
           // Send push notification for status change
-          if (contactData.contact_id) {
+          if (contactData.resolved_contact_id) {
             const statusNames: Record<string, string> = {
               'open': 'Offen',
               'in_progress': 'In Bearbeitung',
@@ -919,7 +926,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
               'closed': 'Geschlossen',
             };
             sendPortalTicketNotification(
-              contactData.contact_id,
+              contactData.resolved_contact_id,
               { id, ticketNumber: contactData.ticket_number, title: contactData.title },
               'push_on_status_change',
               `Status geändert: ${statusNames[status] || status}`
