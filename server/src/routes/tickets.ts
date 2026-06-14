@@ -38,6 +38,7 @@ const updateTicketSchema = z.object({
   assignedToUserId: z.string().uuid().optional().nullable(),
   solution: z.string().max(50_000).optional().nullable(),
   resolutionType: z.string().max(100).optional().nullable(),
+  deviceId: z.string().max(200).optional().nullable(),
 });
 
 const mergeTicketsSchema = z.object({
@@ -759,7 +760,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
-    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType } = req.body;
+    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
@@ -839,6 +840,11 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (assignedToUserId !== undefined) {
       updates.push(`assigned_to = $${paramIndex}`);
       params.push(assignedToUserId || null);
+      paramIndex++;
+    }
+    if (deviceId !== undefined) {
+      updates.push(`device_id = $${paramIndex}`);
+      params.push(deviceId || null);
       paramIndex++;
     }
 
@@ -2077,12 +2083,12 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
     }
 
     const result = await query(`
-      SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      SELECT id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
              notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
              last_login, created_at
       FROM customer_contacts
       WHERE customer_id = $1
-      ORDER BY is_primary DESC, name ASC
+      ORDER BY is_primary DESC, last_name ASC
     `, [customerId]);
 
     res.json({ success: true, data: result.rows });
@@ -2169,7 +2175,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, validate(upda
 
     const result = await query(`
       UPDATE customer_contacts SET
-        name = COALESCE($1, name),
+        last_name = COALESCE($1, last_name),
         email = COALESCE($2, email),
         can_create_tickets = COALESCE($3, can_create_tickets),
         can_view_all_tickets = COALESCE($4, can_view_all_tickets),
@@ -2177,7 +2183,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, validate(upda
         notify_ticket_status_changed = COALESCE($6, notify_ticket_status_changed),
         notify_ticket_reply = COALESCE($7, notify_ticket_reply)
       WHERE id = $8
-      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      RETURNING id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
                 notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
     `, [name, email, canCreateTickets, canViewAllTickets,
         notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply, id]);
