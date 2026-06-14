@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authFetch } from '../../services/api';
 import { HardDrive, Database, FileText, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
-import Button from '../Button';
+import { Button } from '../ui/Button';
 import { useToast, useConfirm } from '../../contexts/UIContext';
 
 interface StorageCategory {
