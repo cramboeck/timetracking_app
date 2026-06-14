@@ -1,6 +1,7 @@
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
+import FormData from 'form-data';
 
 // sevDesk API Base URL
 const SEVDESK_API_URL = 'https://my.sevdesk.de/api/v1';
@@ -1366,28 +1367,38 @@ export async function uploadVoucherFile(
   filename: string,
   mimeType: string
 ): Promise<{ id: string; filename: string }> {
+  logger.info(`Uploading voucher file: ${filename} (${mimeType}, ${file.length} bytes)`);
+
+  // Use form-data package for proper multipart handling in Node.js
   const formData = new FormData();
-  const blob = new Blob([file], { type: mimeType });
-  formData.append('file', blob, filename);
+  formData.append('file', file, {
+    filename: filename,
+    contentType: mimeType,
+  });
 
   const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/uploadTempFile`, {
     method: 'POST',
     headers: {
       'Authorization': apiToken,
+      ...formData.getHeaders(),
     },
-    body: formData,
+    body: formData as any,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
+    logger.error(`Voucher file upload failed: ${errorText}`);
     throw new Error(`Upload failed: ${errorText}`);
   }
 
   const data = await response.json() as { objects?: { id?: string | number; filename?: string } };
-  return {
+  const result = {
     id: data.objects?.id?.toString() || '',
     filename: data.objects?.filename || filename,
   };
+
+  logger.info(`Voucher file uploaded successfully: id=${result.id}, filename=${result.filename}`);
+  return result;
 }
 
 // Create voucher from uploaded file
