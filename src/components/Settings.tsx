@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -24,6 +24,7 @@ import { NotificationSettings } from './settings/NotificationSettings';
 import { CompanySettings } from './settings/CompanySettings';
 import { TeamSettings } from './settings/TeamSettings';
 import { TeamProvider } from '../contexts/TeamContext';
+import StorageMonitor from './admin/StorageMonitor';
 import { useAuth } from '../contexts/AuthContext';
 import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
@@ -79,7 +80,7 @@ export const Settings = ({
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -937,8 +938,10 @@ export const Settings = ({
       category: 'Geschäftlich',
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
-        { id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' }
-        // Billing moved to Finanzen in main navigation
+        { id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' },
+        ...(currentUser?.role === 'admin' || currentUser?.role === 'owner' ? [
+          { id: 'storage', label: 'Speicherplatz', icon: HardDrive, desc: 'Dateien & DB-Monitor' }
+        ] : [])
       ]
     },
     {
@@ -2041,6 +2044,13 @@ export const Settings = ({
         {/* Email Diagnostics Tab */}
         {activeTab === 'email' && (
           <EmailDiagnostics />
+        )}
+
+        {/* Storage Monitor Tab (Admin only) */}
+        {activeTab === 'storage' && (currentUser?.role === 'admin' || currentUser?.role === 'owner') && (
+          <div className="max-w-5xl mx-auto">
+            <StorageMonitor />
+          </div>
         )}
 
         {/* Data Import Tab */}

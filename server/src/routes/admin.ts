@@ -2126,4 +2126,227 @@ function generateEmailRecommendations(
   return recommendations;
 }
 
+// ============================================
+// STORAGE MONITORING
+// ============================================
+
+interface StorageStats {
+  category: string;
+  path: string;
+  fileCount: number;
+  totalSizeBytes: number;
+  totalSizeFormatted: string;
+  oldestFile?: string;
+  newestFile?: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+function getDirectoryStats(dirPath: string, category: string): StorageStats {
+  const stats: StorageStats = {
+    category,
+    path: dirPath,
+    fileCount: 0,
+    totalSizeBytes: 0,
+    totalSizeFormatted: '0 B',
+  };
+
+  if (!fs.existsSync(dirPath)) {
+    return stats;
+  }
+
+  const getAllFiles = (dir: string): string[] => {
+    const files: string[] = [];
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...getAllFiles(fullPath));
+        } else if (entry.isFile()) {
+          files.push(fullPath);
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+    }
+    return files;
+  };
+
+  const files = getAllFiles(dirPath);
+  let oldest: { path: string; mtime: number } | null = null;
+  let newest: { path: string; mtime: number } | null = null;
+
+  for (const file of files) {
+    try {
+      const fileStat = fs.statSync(file);
+      stats.fileCount++;
+      stats.totalSizeBytes += fileStat.size;
+
+      if (!oldest || fileStat.mtimeMs < oldest.mtime) {
+        oldest = { path: file, mtime: fileStat.mtimeMs };
+      }
+      if (!newest || fileStat.mtimeMs > newest.mtime) {
+        newest = { path: file, mtime: fileStat.mtimeMs };
+      }
+    } catch {
+      // Skip files we can't stat
+    }
+  }
+
+  stats.totalSizeFormatted = formatBytes(stats.totalSizeBytes);
+  if (oldest) stats.oldestFile = new Date(oldest.mtime).toISOString();
+  if (newest) stats.newestFile = new Date(newest.mtime).toISOString();
+
+  return stats;
+}
+
+// GET /api/admin/storage - Get storage usage statistics
+router.get('/storage', async (req: AuthRequest, res) => {
+  try {
+    const uploadsDir = path.resolve(process.cwd(), 'uploads');
+    const backupsDir = BACKUP_DIR;
+    const invoiceDocsDir = path.resolve(uploadsDir, 'invoice-documents');
+    const ticketAttachmentsDir = path.resolve(uploadsDir, 'ticket-attachments');
+    const knowledgeDocsDir = path.resolve(uploadsDir, 'knowledge-documents');
+    const socialMediaDir = path.resolve(uploadsDir, 'social-media');
+    const tempDir = path.resolve(uploadsDir, 'temp');
+
+    const categories: StorageStats[] = [
+      getDirectoryStats(invoiceDocsDir, 'Belege & Rechnungen'),
+      getDirectoryStats(ticketAttachmentsDir, 'Ticket-Anhänge'),
+      getDirectoryStats(knowledgeDocsDir, 'Wissensdatenbank'),
+      getDirectoryStats(socialMediaDir, 'Social Media'),
+      getDirectoryStats(backupsDir, 'Backups'),
+      getDirectoryStats(tempDir, 'Temporäre Dateien'),
+    ];
+
+    // Get total uploads directory stats (everything else)
+    const allUploadsStats = getDirectoryStats(uploadsDir, 'Gesamt Uploads');
+
+    // Calculate "Sonstige" (other files not in categorized directories)
+    const categorizedSize = categories.reduce((sum, cat) => sum + cat.totalSizeBytes, 0);
+    const otherSize = allUploadsStats.totalSizeBytes - categorizedSize;
+    const categorizedCount = categories.reduce((sum, cat) => sum + cat.fileCount, 0);
+    const otherCount = allUploadsStats.fileCount - categorizedCount;
+
+    if (otherSize > 0 || otherCount > 0) {
+      categories.push({
+        category: 'Sonstige',
+        path: uploadsDir,
+        fileCount: Math.max(0, otherCount),
+        totalSizeBytes: Math.max(0, otherSize),
+        totalSizeFormatted: formatBytes(Math.max(0, otherSize)),
+      });
+    }
+
+    // Database storage stats
+    const dbStats = await pool.query(`
+      SELECT
+        relname as table_name,
+        pg_total_relation_size(relid) as total_bytes,
+        pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+        n_live_tup as row_count
+      FROM pg_stat_user_tables
+      WHERE schemaname = 'public'
+      ORDER BY pg_total_relation_size(relid) DESC
+      LIMIT 20
+    `);
+
+    const dbTotalResult = await pool.query(`
+      SELECT pg_database_size(current_database()) as size
+    `);
+    const dbTotalSize = dbTotalResult.rows[0]?.size || 0;
+
+    // Invoice documents from DB
+    const invoiceDocCount = await pool.query(`
+      SELECT COUNT(*) as count, COALESCE(SUM(size), 0) as total_size
+      FROM invoice_documents
+    `);
+
+    res.json({
+      fileStorage: {
+        categories: categories.filter(c => c.fileCount > 0 || c.totalSizeBytes > 0),
+        total: {
+          fileCount: allUploadsStats.fileCount,
+          totalSizeBytes: allUploadsStats.totalSizeBytes,
+          totalSizeFormatted: allUploadsStats.totalSizeFormatted,
+        },
+      },
+      database: {
+        totalSizeBytes: dbTotalSize,
+        totalSizeFormatted: formatBytes(dbTotalSize),
+        tables: dbStats.rows.map(row => ({
+          name: row.table_name,
+          sizeBytes: parseInt(row.total_bytes),
+          sizeFormatted: row.total_size,
+          rowCount: parseInt(row.row_count),
+        })),
+      },
+      invoiceDocuments: {
+        count: parseInt(invoiceDocCount.rows[0]?.count || '0'),
+        totalSizeBytes: parseInt(invoiceDocCount.rows[0]?.total_size || '0'),
+        totalSizeFormatted: formatBytes(parseInt(invoiceDocCount.rows[0]?.total_size || '0')),
+      },
+    });
+  } catch (error) {
+    logger.error('Error getting storage stats:', error);
+    res.status(500).json({ error: 'Failed to get storage statistics' });
+  }
+});
+
+// DELETE /api/admin/storage/cleanup - Clean up temporary files
+router.delete('/storage/cleanup', async (req: AuthRequest, res) => {
+  try {
+    const tempDir = path.resolve(process.cwd(), 'uploads', 'temp');
+    const maxAgeHours = parseInt(req.query.maxAgeHours as string) || 24;
+    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+    const now = Date.now();
+
+    let deletedCount = 0;
+    let deletedBytes = 0;
+
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir);
+      for (const file of files) {
+        const filePath = path.join(tempDir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          if (now - stat.mtimeMs > maxAgeMs) {
+            deletedBytes += stat.size;
+            fs.unlinkSync(filePath);
+            deletedCount++;
+          }
+        } catch {
+          // Skip files we can't delete
+        }
+      }
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'storage.cleanup',
+      details: JSON.stringify({ deletedCount, deletedBytes: formatBytes(deletedBytes), maxAgeHours }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      deletedCount,
+      deletedBytes,
+      deletedBytesFormatted: formatBytes(deletedBytes),
+    });
+  } catch (error) {
+    logger.error('Error cleaning up storage:', error);
+    res.status(500).json({ error: 'Failed to clean up storage' });
+  }
+});
+
 export default router;

@@ -17,7 +17,8 @@ import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherF
 import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
+const pdfParseModule = require('pdf-parse');
+const pdfParse = pdfParseModule.default || pdfParseModule;
 // PDF to image conversion for Vision API
 import { pdf } from 'pdf-to-img';
 
