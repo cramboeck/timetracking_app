@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Edit2, Archive, RotateCcw, Trash2, Merge, Tag, Plus, X } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
-import { MarkdownEditor } from '../MarkdownEditor';
 import {
   Ticket,
   TicketStatus,

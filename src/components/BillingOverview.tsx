@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import {
-  Clock, Receipt, CheckCircle2, AlertCircle,
-  TrendingUp, Users, ArrowRight, Zap
+  Clock, Receipt, CheckCircle2,
+  TrendingUp, Users, Zap
 } from 'lucide-react';
 import { StatWidget } from './ui/StatWidget';
 import { Button } from './ui/Button';
@@ -31,7 +31,7 @@ export const BillingOverview = ({
   periodName,
   onCreateInvoice,
   onMarkAllBilled,
-  onNavigateToCustomer,
+  onNavigateToCustomer: _onNavigateToCustomer,
 }: BillingOverviewProps) => {
   // Calculate stats
   const stats = useMemo(() => {

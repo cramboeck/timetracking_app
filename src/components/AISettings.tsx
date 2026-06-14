@@ -90,7 +90,6 @@ export const AISettings = () => {
     setError('');
 
     try {
-      const keyToTest = apiKey || 'existing'; // Use existing key if not changed
       const response = await aiApi.testConnection(provider, apiKey || config?.apiKey || '');
       setTestResult(response);
       if (response.success) {
