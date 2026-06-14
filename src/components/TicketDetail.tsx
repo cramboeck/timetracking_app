@@ -20,6 +20,7 @@ import {
   TicketEmailHistory,
   TicketAIPanel,
   TicketMetaInfo,
+  TicketDeviceLink,
   SolutionModal,
 } from './ticket-detail';
 
@@ -380,8 +381,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const invalidateTasksOverview = () =>
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
-  const handleAddTask = async (title: string, visible: boolean) => {
-    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible });
+  const handleAddTask = async (title: string, visible: boolean, dueDate?: string | null) => {
+    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible, dueDate });
     writeTasks((prev) => [...prev, response.data]);
     invalidateTasksOverview();
   };
@@ -400,8 +401,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     invalidateTasksOverview();
   };
 
-  const handleUpdateTask = async (taskId: string, title: string) => {
-    const response = await ticketsApi.updateTask(ticketId, taskId, { title });
+  const handleUpdateTask = async (taskId: string, title: string, dueDate?: string | null) => {
+    const response = await ticketsApi.updateTask(ticketId, taskId, { title, dueDate });
     writeTasks((prev) => prev.map((t) => (t.id === taskId ? response.data : t)));
     invalidateTasksOverview();
   };
@@ -458,6 +459,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     });
     if (!ok) return;
     await deleteAttachmentMutation.mutateAsync(attachmentId);
+  };
+
+  // Device link handler
+  const handleDeviceChange = async (deviceId: string | null) => {
+    try {
+      await updateTicketMutation.mutateAsync({ deviceId });
+      showToast(deviceId ? 'Gerät verknüpft' : 'Geräteverknüpfung entfernt', 'success');
+    } catch {
+      showToast('Fehler beim Ändern der Geräteverknüpfung', 'error');
+    }
   };
 
   // AI handlers
@@ -604,19 +615,6 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
               onEditDescriptionChange={setEditDescription}
             />
 
-            {/* Tasks */}
-            <TicketTasks
-              ticketId={ticketId}
-              tasks={tasks}
-              loadingTasks={loadingTasks}
-              onAddTask={handleAddTask}
-              onToggleTask={handleToggleTask}
-              onToggleTaskVisibility={handleToggleTaskVisibility}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onReorderTasks={handleReorderTasks}
-            />
-
             {/* Attachments */}
             <TicketAttachments
               attachments={attachments}
@@ -636,27 +634,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
 
             {/* Time Entries */}
             <TicketTimeEntries timeEntries={timeEntries} />
-
-            {/* Activity Timeline */}
-            <TicketTimeline
-              activities={activities}
-              loading={loadingActivities}
-              onLoad={loadActivities}
-            />
-
-            {/* Email History */}
-            {ticket.source === 'email' && (
-              <TicketEmailHistory
-                emails={ticketEmails}
-                loading={loadingEmails}
-                onLoad={loadTicketEmails}
-              />
-            )}
           </div>
 
           {/* Sidebar - Desktop only sticky, Mobile shows at top */}
           <div className="lg:w-80 xl:w-96 lg:flex-shrink-0 space-y-4 mb-6 lg:mb-0 order-first lg:order-last">
-            <div className="lg:sticky lg:top-0 space-y-4">
+            <div className="lg:sticky lg:top-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
               {/* Metadata (info cards, SLA, timer button) */}
               <TicketMetadata
                 ticket={ticket}
@@ -664,6 +646,43 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 timeEntries={timeEntries}
                 activeContract={activeContract}
                 onStartTimer={onStartTimer}
+              />
+
+              {/* Tasks - now in sidebar, collapsible */}
+              <TicketTasks
+                ticketId={ticketId}
+                tasks={tasks}
+                loadingTasks={loadingTasks}
+                onAddTask={handleAddTask}
+                onToggleTask={handleToggleTask}
+                onToggleTaskVisibility={handleToggleTaskVisibility}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onReorderTasks={handleReorderTasks}
+              />
+
+              {/* Activity Timeline - collapsible */}
+              <TicketTimeline
+                activities={activities}
+                loading={loadingActivities}
+                onLoad={loadActivities}
+              />
+
+              {/* Email History - collapsible */}
+              {ticket.source === 'email' && (
+                <TicketEmailHistory
+                  emails={ticketEmails}
+                  loading={loadingEmails}
+                  onLoad={loadTicketEmails}
+                />
+              )}
+
+              {/* Device Link - for NinjaRMM integration */}
+              <TicketDeviceLink
+                ticketId={ticketId}
+                customerId={ticket.customerId}
+                linkedDeviceId={ticket.deviceId}
+                onDeviceChange={handleDeviceChange}
               />
 
               {/* AI Assistant Button */}

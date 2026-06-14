@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail } from 'lucide-react';
 import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -16,6 +16,7 @@ import { CustomerDetailModal } from './CustomerDetailModal';
 import { MFASettings } from './MFASettings';
 import { ClockodoImport } from './ClockodoImport';
 import { Microsoft365Settings } from './Microsoft365Settings';
+import { EmailDiagnostics } from './settings/EmailDiagnostics';
 import { Link2 } from 'lucide-react';
 import { AccountSettings } from './settings/AccountSettings';
 import { AppearanceSettings } from './settings/AppearanceSettings';
@@ -78,7 +79,7 @@ export const Settings = ({
   const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -947,6 +948,7 @@ export const Settings = ({
         { id: 'portal', label: 'Kundenportal', icon: Book, desc: 'KB & Branding' },
         { id: 'ninjarmm', label: 'NinjaRMM', icon: Server, desc: 'Geräte & Alerts' },
         { id: 'microsoft365', label: 'Microsoft 365', icon: Cloud, desc: 'E-Mail & Azure' },
+        { id: 'email', label: 'E-Mail-Diagnose', icon: Mail, desc: 'Status & Probleme' },
         { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
       ]
     },
@@ -2034,6 +2036,11 @@ export const Settings = ({
               <AISettings />
             </div>
           </div>
+        )}
+
+        {/* Email Diagnostics Tab */}
+        {activeTab === 'email' && (
+          <EmailDiagnostics />
         )}
 
         {/* Data Import Tab */}
