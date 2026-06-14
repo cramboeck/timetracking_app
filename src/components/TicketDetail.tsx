@@ -271,10 +271,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const saveSolutionMutation = useMutation({
     mutationFn: () =>
       ticketsApi.update(ticketId, {
-        title: editTitle,
-        description: editDescription,
         status: 'closed',
-        priority: editPriority,
         solution: solutionText.trim(),
         resolutionType: resolutionType,
       }),
@@ -284,10 +281,12 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setIsEditing(false);
       setShowSolutionModal(false);
       setSolutionText('');
+      showToast('Ticket erfolgreich geschlossen', 'success');
     },
-    onError: (err) => {
+    onError: (err: any) => {
       console.error('Failed to save solution:', err);
-      showToast('Fehler beim Speichern der Loesung', 'error');
+      const errorMessage = err?.message || 'Fehler beim Speichern der Lösung';
+      showToast(errorMessage, 'error');
     },
   });
   const savingSolution = saveSolutionMutation.isPending;
