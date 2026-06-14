@@ -631,13 +631,13 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **Position-Review-Modal** | `LineItemReview.tsx` in InvoiceInbox: Auto-Match, Kundensuche, Confidence-Badges, Alias-Option. Commit 3b8ae19 |
 | ✅ | **Unmatched-Dashboard API** | `GET /api/sevdesk/unmatched-items` mit Pagination |
 
-### Sprint G4 — Rebilling-Workflow (4-5 Tage)
+### Sprint G4 — Rebilling-Workflow ✅
 
 | Status | Task | Beschreibung |
 |---|---|---|
 | ✅ | **Rebilling-Status** | Dropdown in LineItemReview: pending → included / billed / skipped. Commit 3b8ae19 |
-| ⬜ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option |
-| ⬜ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen |
+| ✅ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option. Commit 849b4e0 |
+| ✅ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen, Status auf "billed" setzen. Commit 849b4e0 |
 
 ### Sprint G5 — Lizenzen in CRM & Portal (5-7 Tage)
 
