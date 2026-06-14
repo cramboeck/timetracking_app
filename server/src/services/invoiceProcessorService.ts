@@ -1178,7 +1178,8 @@ class InvoiceProcessorService {
       const aiConfigResult = await query(
         `SELECT ac.* FROM ai_config ac
          JOIN users u ON ac.user_id = u.id
-         WHERE u.organization_id = $1 AND ac.enabled = true AND ac.api_key IS NOT NULL
+         JOIN organization_members om ON u.id = om.user_id
+         WHERE om.organization_id = $1 AND ac.enabled = true AND ac.api_key IS NOT NULL
          LIMIT 1`,
         [organizationId]
       );
@@ -2283,7 +2284,8 @@ SPEZIELLE RECHNUNGSTYPEN:
     const tokenResult = await query(
       `SELECT sc.api_token FROM sevdesk_config sc
        JOIN users u ON sc.user_id = u.id
-       WHERE u.organization_id = $1 AND sc.api_token IS NOT NULL AND sc.api_token <> ''
+       JOIN organization_members om ON u.id = om.user_id
+       WHERE om.organization_id = $1 AND sc.api_token IS NOT NULL AND sc.api_token <> ''
        LIMIT 1`,
       [organizationId]
     );

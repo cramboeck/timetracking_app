@@ -27,13 +27,14 @@ export function startSevdeskVoucherSyncJob() {
 async function runVoucherSync() {
   // sevdesk_config ist per-user (legacy). Holt die distincten Org-IDs aller
   // User mit konfiguriertem Token, damit wir die Sync-Methode pro Org einmal
-  // aufrufen.
+  // aufrufen. Users sind über organization_members mit Orgs verknüpft.
   const result = await pool.query(`
-    SELECT DISTINCT u.organization_id
+    SELECT DISTINCT om.organization_id
     FROM sevdesk_config sc
     JOIN users u ON sc.user_id = u.id
+    JOIN organization_members om ON u.id = om.user_id
     WHERE sc.api_token IS NOT NULL AND sc.api_token <> ''
-      AND u.organization_id IS NOT NULL
+      AND om.organization_id IS NOT NULL
   `);
 
   if (result.rows.length === 0) {
