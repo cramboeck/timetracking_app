@@ -10,6 +10,7 @@ import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
 import { startContractHoursJob } from './jobs/contractHoursCron';
+import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -210,6 +211,10 @@ startSevdeskVoucherSyncJob();
 // Start Contract Hours Check job (daily at 6:00 AM)
 // Warns when customers approach/exceed their included monthly hours
 startContractHoursJob();
+
+// Start Invoice Inbox Cron (every 15 minutes)
+// Polls invoice mailbox, extracts attachments, runs OCR, creates draft entries
+startInvoiceInboxJob();
 
 // Start server
 app.listen(PORT, () => {

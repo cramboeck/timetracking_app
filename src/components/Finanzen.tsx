@@ -74,8 +74,9 @@ import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 import { BillingOverview } from './BillingOverview';
+import { InvoiceDraftQueue } from './InvoiceDraftQueue';
 
-type FinanzenTab = 'billing' | 'documents' | 'settings';
+type FinanzenTab = 'billing' | 'documents' | 'inbox' | 'settings';
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
 
 interface FinanzenProps {
@@ -161,6 +162,7 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
   const tabs: { id: FinanzenTab; label: string; icon: typeof Receipt }[] = [
     { id: 'billing', label: 'Offene Posten', icon: Clock },
     { id: 'documents', label: 'Dokumente', icon: FileText },
+    { id: 'inbox', label: 'Beleg-Inbox', icon: Receipt },
     { id: 'settings', label: 'Einstellungen', icon: Settings },
   ];
 
@@ -201,6 +203,11 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
       {/* Tab Content */}
       {activeTab === 'billing' && <BillingTab />}
       {activeTab === 'documents' && <DocumentsTab />}
+      {activeTab === 'inbox' && (
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: '500px' }}>
+          <InvoiceDraftQueue />
+        </div>
+      )}
       {activeTab === 'settings' && <SettingsTab />}
     </div>
   );

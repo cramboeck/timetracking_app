@@ -5,6 +5,9 @@ import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
 import * as aiService from '../services/aiService';
+import { invoiceProcessorService } from '../services/invoiceProcessorService';
+import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
 
@@ -147,6 +150,30 @@ const updateCustomerFromSevdeskSchema = z.object({
   address: z.string().max(1000).optional(),
   color: z.string().max(50).optional(),
   hourlyRate: z.number().min(0).max(10000).optional().nullable(),
+});
+
+// Invoice Draft schemas
+const updateInvoiceDraftSchema = z.object({
+  supplierName: z.string().max(500).optional(),
+  invoiceNumber: z.string().max(100).optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional().nullable(),
+  netAmount: z.number().min(0).max(100000000).optional().nullable(),
+  grossAmount: z.number().min(0).max(100000000).optional().nullable(),
+  vatAmount: z.number().min(0).max(100000000).optional().nullable(),
+  vatRate: z.number().min(0).max(100).optional().nullable(),
+  currency: z.string().max(10).optional(),
+  vendorId: z.string().uuid().optional().nullable(),
+});
+
+const confirmInvoiceDraftSchema = z.object({
+  supplierName: z.string().min(1).max(500),
+  invoiceNumber: z.string().min(1).max(100),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  netAmount: z.number().min(0).max(100000000),
+  grossAmount: z.number().min(0).max(100000000),
+  taxRate: z.number().min(0).max(100),
+  description: z.string().max(2000).optional(),
 });
 
 const recordExportSchema = z.object({
@@ -1340,6 +1367,472 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
     });
   } catch (error: any) {
     console.error('Single import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Invoice Draft Queue Routes
+// ============================================
+
+// Helper: Get organization ID for user
+async function getOrgIdForUser(userId: string): Promise<string | null> {
+  const result = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  return result.rows[0]?.organization_id || null;
+}
+
+// GET /api/sevdesk/invoice-drafts - List all invoice drafts
+router.get('/invoice-drafts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const status = req.query.status as string || 'draft';
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await query(`
+      SELECT
+        pi.id,
+        pi.email_id,
+        pi.email_subject,
+        pi.sender_email,
+        pi.sender_name,
+        pi.received_at,
+        pi.attachment_count,
+        pi.document_ids,
+        pi.vendor_id,
+        pi.status,
+        pi.error_message,
+        pi.processed_at,
+        pi.source,
+        pi.original_filename,
+        pi.sevdesk_voucher_id,
+        pi.invoice_number,
+        pi.supplier_name,
+        pi.supplier_address,
+        pi.invoice_date,
+        pi.due_date,
+        pi.net_amount,
+        pi.gross_amount,
+        pi.vat_amount,
+        pi.vat_rate,
+        pi.currency,
+        pi.iban,
+        pi.extracted_at,
+        pi.extraction_confidence,
+        c.name as vendor_name
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON pi.vendor_id = c.id
+      WHERE pi.organization_id = $1
+        AND pi.status = $2
+      ORDER BY pi.received_at DESC
+      LIMIT $3 OFFSET $4
+    `, [organizationId, status, limit, offset]);
+
+    // Get total count
+    const countResult = await query(`
+      SELECT COUNT(*) as total FROM processed_invoices
+      WHERE organization_id = $1 AND status = $2
+    `, [organizationId, status]);
+
+    res.json({
+      success: true,
+      data: {
+        drafts: result.rows,
+        total: parseInt(countResult.rows[0].total),
+        limit,
+        offset,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get invoice drafts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/invoice-drafts/stats - Get draft queue statistics
+router.get('/invoice-drafts/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT
+        status,
+        COUNT(*) as count,
+        COALESCE(SUM(gross_amount), 0) as total_amount
+      FROM processed_invoices
+      WHERE organization_id = $1
+      GROUP BY status
+    `, [organizationId]);
+
+    const stats = {
+      pending: { count: 0, amount: 0 },
+      draft: { count: 0, amount: 0 },
+      processed: { count: 0, amount: 0 },
+      failed: { count: 0, amount: 0 },
+      skipped: { count: 0, amount: 0 },
+    };
+
+    for (const row of result.rows) {
+      if (stats[row.status as keyof typeof stats]) {
+        stats[row.status as keyof typeof stats] = {
+          count: parseInt(row.count),
+          amount: parseFloat(row.total_amount) || 0,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    logger.error('Get draft stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/invoice-drafts/:id - Get single draft with document
+router.get('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT pi.*, c.name as vendor_name
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON pi.vendor_id = c.id
+      WHERE pi.id = $1 AND pi.organization_id = $2
+    `, [id, organizationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const draft = result.rows[0];
+
+    // Get associated documents
+    const docsResult = await query(`
+      SELECT id, filename, original_filename, mime_type, size, storage_path, created_at
+      FROM invoice_documents
+      WHERE processed_invoice_id = $1
+      ORDER BY created_at ASC
+    `, [id]);
+
+    res.json({
+      success: true,
+      data: {
+        ...draft,
+        documents: docsResult.rows,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/sevdesk/invoice-drafts/:id - Update draft with corrections
+router.put('/invoice-drafts/:id', authenticateToken, requireBillingFeature, validate(updateInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Verify draft belongs to organization
+    const checkResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const updates = req.body;
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    // Build dynamic update query
+    if (updates.supplierName !== undefined) {
+      fields.push(`supplier_name = $${paramIndex++}`);
+      values.push(updates.supplierName);
+    }
+    if (updates.invoiceNumber !== undefined) {
+      fields.push(`invoice_number = $${paramIndex++}`);
+      values.push(updates.invoiceNumber);
+    }
+    if (updates.invoiceDate !== undefined) {
+      fields.push(`invoice_date = $${paramIndex++}`);
+      values.push(updates.invoiceDate);
+    }
+    if (updates.dueDate !== undefined) {
+      fields.push(`due_date = $${paramIndex++}`);
+      values.push(updates.dueDate);
+    }
+    if (updates.netAmount !== undefined) {
+      fields.push(`net_amount = $${paramIndex++}`);
+      values.push(updates.netAmount);
+    }
+    if (updates.grossAmount !== undefined) {
+      fields.push(`gross_amount = $${paramIndex++}`);
+      values.push(updates.grossAmount);
+    }
+    if (updates.vatAmount !== undefined) {
+      fields.push(`vat_amount = $${paramIndex++}`);
+      values.push(updates.vatAmount);
+    }
+    if (updates.vatRate !== undefined) {
+      fields.push(`vat_rate = $${paramIndex++}`);
+      values.push(updates.vatRate);
+    }
+    if (updates.currency !== undefined) {
+      fields.push(`currency = $${paramIndex++}`);
+      values.push(updates.currency);
+    }
+    if (updates.vendorId !== undefined) {
+      fields.push(`vendor_id = $${paramIndex++}`);
+      values.push(updates.vendorId);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    values.push(id);
+    await query(
+      `UPDATE processed_invoices SET ${fields.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+
+    res.json({ success: true, message: 'Draft updated' });
+  } catch (error: any) {
+    logger.error('Update draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/extract - Re-run OCR extraction
+router.post('/invoice-drafts/:id/extract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Verify draft belongs to organization
+    const checkResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    // Force re-extraction
+    const extracted = await invoiceProcessorService.extractInvoiceData(organizationId, id, { force: true });
+
+    if (!extracted) {
+      return res.status(400).json({ success: false, error: 'Extraction failed - no PDF found' });
+    }
+
+    res.json({
+      success: true,
+      data: extracted,
+    });
+  } catch (error: any) {
+    logger.error('Extract draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/confirm - Confirm draft and create sevDesk voucher
+router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeature, validate(confirmInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get draft with document
+    const draftResult = await query(`
+      SELECT pi.*, id.storage_path, id.original_filename, id.mime_type
+      FROM processed_invoices pi
+      LEFT JOIN invoice_documents id ON id.processed_invoice_id = pi.id
+      WHERE pi.id = $1 AND pi.organization_id = $2
+      LIMIT 1
+    `, [id, organizationId]);
+
+    if (draftResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const draft = draftResult.rows[0];
+
+    if (draft.status === 'processed') {
+      return res.status(400).json({ success: false, error: 'Draft already processed' });
+    }
+
+    // Get sevDesk config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const { supplierName, invoiceNumber, invoiceDate, netAmount, grossAmount, taxRate, description } = req.body;
+
+    let sevdeskVoucherId: string | null = null;
+
+    // Upload file to sevDesk if we have a document
+    if (draft.storage_path) {
+      try {
+        const fs = await import('fs');
+        const fileBuffer = await fs.promises.readFile(draft.storage_path);
+
+        // Upload file
+        const uploadResult = await sevdeskService.uploadVoucherFile(
+          config.apiToken,
+          fileBuffer,
+          draft.original_filename || 'invoice.pdf',
+          draft.mime_type || 'application/pdf'
+        );
+
+        // Create voucher from file
+        const voucherResult = await sevdeskService.createVoucherFromFile(config.apiToken, uploadResult.id, {
+          voucherDate: invoiceDate,
+          description: description || `${supplierName} - ${invoiceNumber}`,
+          supplierName,
+          sumNet: netAmount,
+          sumGross: grossAmount,
+          taxRate,
+          creditDebit: 'D', // Debit = expense
+        });
+
+        sevdeskVoucherId = voucherResult.voucher?.id || null;
+      } catch (uploadError: any) {
+        logger.error('sevDesk upload failed:', uploadError);
+        return res.status(500).json({
+          success: false,
+          error: `sevDesk Upload fehlgeschlagen: ${uploadError.message}`,
+        });
+      }
+    }
+
+    // Update draft status
+    await query(`
+      UPDATE processed_invoices SET
+        status = 'processed',
+        sevdesk_voucher_id = $2,
+        supplier_name = $3,
+        invoice_number = $4,
+        invoice_date = $5,
+        net_amount = $6,
+        gross_amount = $7,
+        vat_rate = $8,
+        processed_at = NOW()
+      WHERE id = $1
+    `, [id, sevdeskVoucherId, supplierName, invoiceNumber, invoiceDate, netAmount, grossAmount, taxRate]);
+
+    res.json({
+      success: true,
+      data: {
+        sevdeskVoucherId,
+        message: sevdeskVoucherId
+          ? 'Beleg erfolgreich in sevDesk erstellt'
+          : 'Entwurf als verarbeitet markiert (ohne sevDesk)',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Confirm draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/sevdesk/invoice-drafts/:id - Delete/skip draft
+router.delete('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const skipOnly = req.query.skip === 'true';
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (skipOnly) {
+      // Just mark as skipped
+      await query(
+        'UPDATE processed_invoices SET status = $1 WHERE id = $2 AND organization_id = $3',
+        ['skipped', id, organizationId]
+      );
+    } else {
+      // Delete documents first
+      await query('DELETE FROM invoice_documents WHERE processed_invoice_id = $1', [id]);
+      // Delete draft
+      await query('DELETE FROM processed_invoices WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    }
+
+    res.json({ success: true, message: skipOnly ? 'Draft skipped' : 'Draft deleted' });
+  } catch (error: any) {
+    logger.error('Delete draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/poll - Manually trigger mailbox poll
+router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await triggerInvoiceMailboxProcessing(organizationId);
+
+    res.json({
+      success: result.success,
+      data: {
+        processed: result.processed,
+        skipped: result.skipped,
+        failed: result.failed,
+        message: result.message,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Poll mailbox error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
