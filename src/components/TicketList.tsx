@@ -1,7 +1,7 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive, Trash2, Square, CheckSquare, MinusSquare } from 'lucide-react';
-import { Ticket, TicketStatus, TicketPriority, Customer, Project } from '../types';
+import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive, Trash2, Square, CheckSquare, MinusSquare, Mail, Globe, Smartphone, Monitor } from 'lucide-react';
+import { Ticket, TicketStatus, TicketPriority, TicketSource, Customer, Project } from '../types';
 import { ticketsApi, organizationsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
 import { Button } from './ui';
@@ -48,6 +48,13 @@ const priorityConfig: Record<TicketPriority, { label: string; color: string }> =
   normal: { label: 'Normal', color: 'text-accent-primary' },
   high: { label: 'Hoch', color: 'text-orange-500' },
   critical: { label: 'Kritisch', color: 'text-red-500' },
+};
+
+const sourceConfig: Record<TicketSource, { label: string; icon: typeof Mail; color: string }> = {
+  manual: { label: 'Manuell', icon: Globe, color: 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400' },
+  email: { label: 'E-Mail', icon: Mail, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  ninja_alert: { label: 'NinjaRMM', icon: AlertCircle, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  portal: { label: 'Portal', icon: Smartphone, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
 };
 
 export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
@@ -692,6 +699,9 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
               const status = statusConfig[ticket.status];
               const priority = priorityConfig[ticket.priority];
               const StatusIcon = status.icon;
+              const source = ticket.source || 'manual';
+              const sourceInfo = sourceConfig[source] || sourceConfig.manual;
+              const SourceIcon = sourceInfo.icon;
 
               const isArchived = ticket.status === 'archived';
               const isKeyboardSelected = index === selectedIndex;
@@ -750,6 +760,12 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                             status={ticket.status}
                             compact
                           />
+                          {source !== 'manual' && (
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${sourceInfo.color}`}>
+                              <SourceIcon size={10} />
+                              {sourceInfo.label}
+                            </span>
+                          )}
                         </div>
                         <h3 className="font-medium text-gray-900 dark:text-white truncate">
                           {ticket.title}
@@ -758,6 +774,15 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                           <span>{getCustomerName(ticket.customerId)}</span>
                           <span>•</span>
                           <span>{formatDate(ticket.createdAt)}</span>
+                          {ticket.deviceName && (
+                            <>
+                              <span>•</span>
+                              <span className="inline-flex items-center gap-1">
+                                <Monitor size={12} />
+                                {ticket.deviceName}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <ChevronRight className="flex-shrink-0 text-gray-400" size={20} />

@@ -252,11 +252,15 @@ function transformTicket(row: any) {
     emailConversationId: row.email_conversation_id,
     emailFrom: row.email_from,
     contactId: row.contact_id,
+    // NinjaRMM fields
+    deviceId: row.device_id,
+    ninjaAlertId: row.ninja_alert_id,
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
     creatorName: row.creator_name,
     assigneeName: row.assignee_name,
+    deviceName: row.device_name,
   };
 }
 
@@ -332,10 +336,13 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
              t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
              t.sla_response_breached, t.sla_resolution_breached,
              t.created_at, t.updated_at, t.created_by_contact_id,
-             c.name as customer_name, p.name as project_name
+             t.device_id, t.ninja_alert_id,
+             c.name as customer_name, p.name as project_name,
+             d.display_name as device_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
       ${whereClause}
       ORDER BY t.created_at DESC`;
 
@@ -607,12 +614,14 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
     const ticketResult = await query(`
       SELECT t.*, c.name as customer_name, p.name as project_name,
              COALESCE(creator.display_name, creator.username) as creator_name,
-             COALESCE(assignee.display_name, assignee.username) as assignee_name
+             COALESCE(assignee.display_name, assignee.username) as assignee_name,
+             d.display_name as device_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users creator ON t.user_id = creator.id
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
+      LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
       WHERE t.id = $1 AND t.organization_id = $2
     `, [id, organizationId]);
 

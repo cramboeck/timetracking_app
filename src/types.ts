@@ -223,13 +223,15 @@ export interface Ticket {
   emailConversationId?: string;
   emailFrom?: string;
   contactId?: string; // Customer contact linked to ticket
-  // Device linking
+  // NinjaRMM fields
   deviceId?: string; // Link to NinjaRMM device
+  ninjaAlertId?: string; // Original NinjaRMM alert UID
   // Related names (from joins)
   customerName?: string;
   projectName?: string;
   creatorName?: string;
   assigneeName?: string;
+  deviceName?: string;
 }
 
 export interface TicketTask {

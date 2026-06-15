@@ -842,6 +842,10 @@ export const ninjaApi = {
     return authFetch(`/ninjarmm/devices${queryString ? `?${queryString}` : ''}`);
   },
 
+  getDevice: async (deviceId: string): Promise<{ success: boolean; data: NinjaDevice }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}`);
+  },
+
   getDeviceDetails: async (deviceId: string): Promise<{ success: boolean; data: any }> => {
     return authFetch(`/ninjarmm/devices/${deviceId}/details`);
   },

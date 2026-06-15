@@ -21,6 +21,7 @@ import {
   TicketAIPanel,
   TicketMetaInfo,
   TicketDeviceLink,
+  TicketNinjaInfo,
   SolutionModal,
 } from './ticket-detail';
 
@@ -647,6 +648,15 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
                 activeContract={activeContract}
                 onStartTimer={onStartTimer}
               />
+
+              {/* NinjaRMM Alert Info - for tickets from NinjaRMM */}
+              {ticket.source === 'ninja_alert' && ticket.deviceId && (
+                <TicketNinjaInfo
+                  deviceId={ticket.deviceId}
+                  ninjaAlertId={ticket.ninjaAlertId}
+                  deviceName={ticket.deviceName}
+                />
+              )}
 
               {/* Tasks - now in sidebar, collapsible */}
               <TicketTasks

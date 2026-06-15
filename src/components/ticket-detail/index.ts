@@ -11,6 +11,7 @@ export { TicketEmailHistory } from './TicketEmailHistory';
 export { TicketAIPanel } from './TicketAIPanel';
 export { TicketMetaInfo } from './TicketMetaInfo';
 export { TicketDeviceLink } from './TicketDeviceLink';
+export { TicketNinjaInfo } from './TicketNinjaInfo';
 export { SolutionModal } from './SolutionModal';
 
 // Types and configs

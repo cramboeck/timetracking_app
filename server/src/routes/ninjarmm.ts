@@ -381,7 +381,58 @@ router.get('/devices', authenticateToken, requireNinjaFeature, async (req: AuthR
   }
 });
 
-// GET /api/ninjarmm/devices/:id - Get device details (live from NinjaRMM)
+// GET /api/ninjarmm/devices/:id - Get cached device by local ID
+router.get('/devices/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT d.id, d.ninja_id, d.system_name, d.display_name, d.node_class, d.os_name,
+              d.last_contact_time, d.offline, d.last_logged_in_user, d.private_ip, d.public_ip,
+              d.processor_name, d.processor_cores, d.memory_gb, d.synced_at,
+              o.name as organization_name, c.name as customer_name
+       FROM ninjarmm_devices d
+       LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE d.id = $1 AND d.user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        ninjaId: row.ninja_id,
+        systemName: row.system_name,
+        displayName: row.display_name,
+        nodeClass: row.node_class,
+        osName: row.os_name,
+        lastContactTime: row.last_contact_time,
+        offline: row.offline,
+        lastLoggedInUser: row.last_logged_in_user,
+        privateIp: row.private_ip,
+        publicIp: row.public_ip,
+        processorName: row.processor_name,
+        processorCores: row.processor_cores,
+        memoryGb: row.memory_gb,
+        syncedAt: row.synced_at,
+        organizationName: row.organization_name,
+        customerName: row.customer_name,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/devices/:id/details - Get device details (live from NinjaRMM)
 router.get('/devices/:id/details', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
