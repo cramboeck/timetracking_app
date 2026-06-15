@@ -594,7 +594,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 14.6.2026 — Ticket-Sidebar mit Tasks/Activities/Emails (Commit 3541f1a), E-Mail-Diagnose im Admin (674445b + 3541f1a), NinjaRMM Geräteverknüpfung, Aufgaben mit Fälligkeitsdatum. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
+*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management): Sprints G1–G4 + G5 (teilweise) ✅. CRM Lizenzen-Tab (CustomerHub), Portal Lizenzen-Tab (CustomerPortal), Rebilling-Workflow mit Aufschlag in InvoiceCreationDialog. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
 
 ---
 
@@ -643,9 +643,9 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **CRM: Lizenzen-Tab** | Neuer Tab in CustomerHub: Aktive Lizenzen aus invoice_line_items aggregiert |
-| ⬜ | **Lizenz-Übersicht** | Monatliche wiederkehrende Kosten, Produkte, Mengen, Historie |
-| ⬜ | **Kundenportal: Lizenz-Info** | Welche monatlichen Lizenzen werden aktuell abgerechnet |
+| ✅ | **CRM: Lizenzen-Tab** | Neuer Tab in CustomerHub: Aktive Lizenzen aus invoice_line_items aggregiert. CustomerLicenses.tsx mit Trend-Chart + Produkt-Liste |
+| ✅ | **Lizenz-Übersicht** | Monatliche wiederkehrende Kosten, Produkte, Mengen, Historie. Summary-Cards + Monthly-Breakdown |
+| ✅ | **Kundenportal: Lizenz-Info** | PortalLicenses.tsx mit GET /api/customer-portal/licenses. Zeigt billed/included Items. Commit 679933c |
 | ⬜ | **Vertragsverknüpfung** | Lizenzen mit Verträgen verknüpfen (inkl. in Pauschale ja/nein) |
 
 ### Langfristig: ADN-Integration & Self-Service
