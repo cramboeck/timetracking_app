@@ -5057,6 +5057,30 @@ export async function initializeDatabase() {
 
     logger.info('✅ customer_aliases table created');
 
+    // Migration: Add contract_id to invoice_line_items for contract linking
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'invoice_line_items' AND column_name = 'contract_id'
+        ) THEN
+          ALTER TABLE invoice_line_items ADD COLUMN contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_line_items_contract') THEN
+          CREATE INDEX idx_line_items_contract ON invoice_line_items(contract_id);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ invoice_line_items.contract_id column added');
+
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');
   } catch (error) {

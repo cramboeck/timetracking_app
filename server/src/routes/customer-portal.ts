@@ -2970,11 +2970,13 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
     const customerId = req.customerId;
 
     // Get all line items assigned to this customer (billed and included)
-    // grouped by product description
+    // grouped by product description, with contract info
     const productsResult = await pool.query(`
       SELECT
         li.description,
         li.product_sku,
+        li.contract_id,
+        c.name AS contract_name,
         SUM(li.quantity) AS total_quantity,
         SUM(li.total_price) AS total_amount,
         COUNT(DISTINCT li.id) AS line_count,
@@ -2984,9 +2986,10 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         MAX(li.rebilling_status) AS status
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      LEFT JOIN contracts c ON c.id = li.contract_id
       WHERE li.customer_id = $1
         AND li.rebilling_status IN ('billed', 'included')
-      GROUP BY li.description, li.product_sku
+      GROUP BY li.description, li.product_sku, li.contract_id, c.name
       ORDER BY MAX(pi.received_at) DESC
     `, [customerId]);
 
@@ -3024,6 +3027,8 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         products: productsResult.rows.map(row => ({
           description: row.description,
           productSku: row.product_sku,
+          contractId: row.contract_id,
+          contractName: row.contract_name,
           totalQuantity: parseInt(row.total_quantity) || 0,
           totalAmount: parseFloat(row.total_amount) || 0,
           lineCount: parseInt(row.line_count) || 0,

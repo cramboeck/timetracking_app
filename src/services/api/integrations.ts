@@ -1240,6 +1240,10 @@ export interface PendingLineItem {
 export interface CustomerLicenseProduct {
   description: string;
   productSku: string | null;
+  rebillingStatus: string;
+  contractId: string | null;
+  contractName: string | null;
+  contractNumber: string | null;
   totalQuantity: number;
   totalAmount: number;
   lineCount: number;

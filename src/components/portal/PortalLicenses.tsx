@@ -212,6 +212,12 @@ const ProductRow = ({ product }: ProductRowProps) => {
                 <span>{product.vendors.join(', ')}</span>
               </>
             )}
+            {product.contractName && (
+              <>
+                <span>•</span>
+                <span className="text-green-600 dark:text-green-400">{product.contractName}</span>
+              </>
+            )}
           </div>
         </div>
       </div>

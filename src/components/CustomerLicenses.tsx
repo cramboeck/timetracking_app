@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
-  Package, TrendingUp, Calendar, Building2, Loader2,
-  AlertCircle, CheckCircle, Clock, DollarSign
+  Package, TrendingUp, Building2, Loader2,
+  AlertCircle, CheckCircle, Clock, DollarSign, FileText
 } from 'lucide-react';
 import { sevdeskApi, CustomerLicenseData, CustomerLicenseProduct } from '../services/api';
 
@@ -32,7 +32,7 @@ const formatMonth = (dateStr: string): string => {
   });
 };
 
-export const CustomerLicenses = ({ customerId, customerName }: CustomerLicensesProps) => {
+export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
   const [data, setData] = useState<CustomerLicenseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +144,7 @@ export const CustomerLicenses = ({ customerId, customerName }: CustomerLicensesP
             Monatliche Entwicklung
           </h3>
           <div className="flex items-end gap-2 h-32">
-            {monthlyBreakdown.slice().reverse().map((month, index) => {
+            {monthlyBreakdown.slice().reverse().map((month) => {
               const maxAmount = Math.max(...monthlyBreakdown.map(m => m.totalAmount));
               const height = maxAmount > 0 ? (month.totalAmount / maxAmount) * 100 : 0;
               return (
@@ -219,8 +219,22 @@ const ProductRow = ({ product, isExpanded, onToggle }: ProductRowProps) => {
         onClick={onToggle}
       >
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-gray-900 dark:text-white truncate">
-            {product.description || 'Ohne Beschreibung'}
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-900 dark:text-white truncate">
+              {product.description || 'Ohne Beschreibung'}
+            </span>
+            {product.rebillingStatus === 'included' && (
+              <span className="inline-flex items-center gap-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
+                <CheckCircle size={12} />
+                Inkl.
+              </span>
+            )}
+            {product.contractName && (
+              <span className="inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                <FileText size={12} />
+                {product.contractName}
+              </span>
+            )}
           </div>
           <div className="text-sm text-gray-500 dark:text-dark-400 flex items-center gap-3 mt-0.5">
             {product.productSku && (
@@ -280,6 +294,18 @@ const ProductRow = ({ product, isExpanded, onToggle }: ProductRowProps) => {
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+          {product.contractId && (
+            <div className="mt-3 flex items-center gap-2">
+              <FileText size={14} className="text-blue-500" />
+              <span className="text-sm text-gray-500 dark:text-dark-400">Vertrag:</span>
+              <span className="text-sm text-blue-600 dark:text-blue-400">
+                {product.contractNumber ? `${product.contractNumber} - ` : ''}{product.contractName}
+              </span>
+              {product.rebillingStatus === 'included' && (
+                <span className="text-xs text-green-600 dark:text-green-400">(in Pauschale enthalten)</span>
+              )}
             </div>
           )}
         </div>

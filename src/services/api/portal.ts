@@ -10,6 +10,8 @@ import { TrustedDevice } from './auth';
 export interface PortalLicenseProduct {
   description: string;
   productSku: string | null;
+  contractId: string | null;
+  contractName: string | null;
   totalQuantity: number;
   totalAmount: number;
   lineCount: number;
