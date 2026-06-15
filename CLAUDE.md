@@ -594,7 +594,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management): Sprints G1–G4 + G5 (teilweise) ✅. CRM Lizenzen-Tab (CustomerHub), Portal Lizenzen-Tab (CustomerPortal), Rebilling-Workflow mit Aufschlag in InvoiceCreationDialog. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
+*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management) komplett ✅: Sprints G1–G5 inkl. Vertragsverknüpfung. CRM + Portal Lizenzen-Tabs, Rebilling-Workflow. Geplant: ADN/Infinigate, NinjaRMM Vulnerabilities, Lywand, Microsoft Security. Ticket Templates + Bulk Actions in Arbeit. Sprints 1–4 + A–F ✅.*
 
 ---
 
@@ -639,20 +639,24 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option. Commit 849b4e0 |
 | ✅ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen, Status auf "billed" setzen. Commit 849b4e0 |
 
-### Sprint G5 — Lizenzen in CRM & Portal (5-7 Tage)
+### Sprint G5 — Lizenzen in CRM & Portal ✅
 
 | Status | Task | Beschreibung |
 |---|---|---|
 | ✅ | **CRM: Lizenzen-Tab** | Neuer Tab in CustomerHub: Aktive Lizenzen aus invoice_line_items aggregiert. CustomerLicenses.tsx mit Trend-Chart + Produkt-Liste |
 | ✅ | **Lizenz-Übersicht** | Monatliche wiederkehrende Kosten, Produkte, Mengen, Historie. Summary-Cards + Monthly-Breakdown |
 | ✅ | **Kundenportal: Lizenz-Info** | PortalLicenses.tsx mit GET /api/customer-portal/licenses. Zeigt billed/included Items. Commit 679933c |
-| ⬜ | **Vertragsverknüpfung** | Lizenzen mit Verträgen verknüpfen (inkl. in Pauschale ja/nein) |
+| ✅ | **Vertragsverknüpfung** | contract_id Spalte, PATCH Endpoints für Verknüpfung, Vertragsanzeige in CRM + Portal. Commit 64e4c4c |
 
-### Langfristig: ADN-Integration & Self-Service
+### Geplant: Distributor- & Sicherheits-Integrationen
 
 | Status | Task | Beschreibung |
 |---|---|---|
-| ⬜ | **ADN API-Anbindung** | Automatischer Lizenz-Import von ADN (Also, TD Synnex, Ingram) |
+| ⬜ | **ADN API-Anbindung** | Automatischer Lizenz-Import von ADN mit Preisen |
+| ⬜ | **Infinigate-Integration** | Lizenz-Abfrage und Kundenzuordnung |
+| ⬜ | **NinjaRMM erweitern** | Schwachstellen-API (Vulnerabilities), besseres Ticket-Handling für Ninja-generierte Tickets |
+| ⬜ | **Lywand-Integration** | Security-Audit-Daten im Kundenportal anzeigen |
+| ⬜ | **Microsoft Security Center** | Security-Scores und Empfehlungen aus M365 abrufen |
 | ⬜ | **Portal: Lizenz-Self-Service** | Kunde kann Lizenzen bestellen/ändern (mit Genehmigungsworkflow) |
 | ⬜ | **Automatische Provisionierung** | Bei Lizenzbestellung → Microsoft CSP / Hornetsecurity API aufrufen |
 
