@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Clock, CalendarClock,
-  Ticket, Monitor, Bell, Wrench, Mail,
+  Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   ChevronLeft, ChevronRight, Shield, Users, Target,
@@ -45,6 +45,7 @@ const areaConfig = {
       { view: 'inbox' as SubView, icon: Mail, label: 'E-Mail' },
       { view: 'devices' as SubView, icon: Monitor, label: 'Geräte' },
       { view: 'alerts' as SubView, icon: Bell, label: 'Alerts' },
+      { view: 'vulnerabilities' as SubView, icon: ShieldAlert, label: 'Schwachstellen' },
       { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
     ],
   },
