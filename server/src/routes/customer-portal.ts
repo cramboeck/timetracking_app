@@ -2960,4 +2960,95 @@ router.get('/contract', authenticateCustomerToken, async (req: CustomerAuthReque
   }
 });
 
+// ========================================================================
+// License / Subscription Overview (for MSP/reseller customers)
+// ========================================================================
+
+// Get licenses/subscriptions for customer (from invoice line items)
+router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const customerId = req.customerId;
+
+    // Get all line items assigned to this customer (billed and included)
+    // grouped by product description
+    const productsResult = await pool.query(`
+      SELECT
+        li.description,
+        li.product_sku,
+        SUM(li.quantity) AS total_quantity,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS line_count,
+        MIN(pi.received_at) AS first_seen,
+        MAX(pi.received_at) AS last_seen,
+        ARRAY_AGG(DISTINCT pi.sender_name) FILTER (WHERE pi.sender_name IS NOT NULL) AS vendors,
+        MAX(li.rebilling_status) AS status
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+      GROUP BY li.description, li.product_sku
+      ORDER BY MAX(pi.received_at) DESC
+    `, [customerId]);
+
+    // Get monthly totals for last 6 months
+    const monthlyResult = await pool.query(`
+      SELECT
+        DATE_TRUNC('month', pi.received_at) AS month,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS item_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+        AND pi.received_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', pi.received_at)
+      ORDER BY month DESC
+    `, [customerId]);
+
+    // Summary stats
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT li.description) AS unique_products,
+        SUM(CASE WHEN li.rebilling_status = 'billed' THEN li.total_price ELSE 0 END) AS billed_amount,
+        SUM(CASE WHEN li.rebilling_status = 'included' THEN li.total_price ELSE 0 END) AS included_amount
+      FROM invoice_line_items li
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+    `, [customerId]);
+
+    const summary = summaryResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        products: productsResult.rows.map(row => ({
+          description: row.description,
+          productSku: row.product_sku,
+          totalQuantity: parseInt(row.total_quantity) || 0,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          lineCount: parseInt(row.line_count) || 0,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          vendors: row.vendors || [],
+          isIncluded: row.status === 'included',
+        })),
+        monthlyBreakdown: monthlyResult.rows.map(row => ({
+          month: row.month,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          itemCount: parseInt(row.item_count) || 0,
+        })),
+        summary: {
+          uniqueProducts: parseInt(summary.unique_products) || 0,
+          billedAmount: parseFloat(summary.billed_amount) || 0,
+          includedAmount: parseFloat(summary.included_amount) || 0,
+          totalAmount: (parseFloat(summary.billed_amount) || 0) + (parseFloat(summary.included_amount) || 0),
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Get portal licenses error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

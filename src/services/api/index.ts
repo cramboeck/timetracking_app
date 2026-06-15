@@ -62,6 +62,8 @@ export type {
   PushSubscription,
   NotificationPreferences,
   DeviceSubscription,
+  PortalLicenseData,
+  PortalLicenseProduct,
 } from './portal';
 
 // Integrations API (sevDesk, NinjaRMM, Microsoft 365)

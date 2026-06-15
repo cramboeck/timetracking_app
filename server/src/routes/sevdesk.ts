@@ -2432,7 +2432,7 @@ router.get('/line-items/customer/:customerId/pending', authenticateToken, requir
     }
 
     // Get all pending line items assigned to this customer
-    const result = await pool.query(`
+    const result = await query(`
       SELECT
         li.id,
         li.processed_invoice_id,
@@ -2459,12 +2459,12 @@ router.get('/line-items/customer/:customerId/pending', authenticateToken, requir
 
     // Calculate totals
     const items = result.rows;
-    const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_price) || 0), 0);
+    const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.total_price) || 0), 0);
 
     res.json({
       success: true,
       data: {
-        items: items.map(row => ({
+        items: items.map((row: any) => ({
           id: row.id,
           processedInvoiceId: row.processed_invoice_id,
           positionNumber: row.position_number,
@@ -2503,7 +2503,7 @@ router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature,
     }
 
     // Update status to 'billed' and optionally store the sevDesk invoice reference
-    const result = await pool.query(`
+    const result = await query(`
       UPDATE invoice_line_items
       SET rebilling_status = 'billed',
           updated_at = NOW()
@@ -2534,7 +2534,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
     }
 
     // Get all line items for this customer, aggregated by description (product)
-    const aggregatedResult = await pool.query(`
+    const aggregatedResult = await query(`
       SELECT
         li.description,
         li.product_sku,
@@ -2554,7 +2554,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
     `, [organizationId, customerId]);
 
     // Get monthly breakdown for the last 6 months
-    const monthlyResult = await pool.query(`
+    const monthlyResult = await query(`
       SELECT
         DATE_TRUNC('month', pi.received_at) AS month,
         SUM(li.total_price) AS total_amount,
@@ -2570,7 +2570,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
     `, [organizationId, customerId]);
 
     // Get summary stats
-    const statsResult = await pool.query(`
+    const statsResult = await query(`
       SELECT
         COUNT(DISTINCT li.id) AS total_items,
         SUM(li.total_price) AS total_amount,
@@ -2588,7 +2588,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
     res.json({
       success: true,
       data: {
-        products: aggregatedResult.rows.map(row => ({
+        products: aggregatedResult.rows.map((row: any) => ({
           description: row.description,
           productSku: row.product_sku,
           totalQuantity: parseInt(row.total_quantity) || 0,
@@ -2598,7 +2598,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
           lastSeen: row.last_seen,
           vendors: row.vendors || [],
         })),
-        monthlyBreakdown: monthlyResult.rows.map(row => ({
+        monthlyBreakdown: monthlyResult.rows.map((row: any) => ({
           month: row.month,
           totalAmount: parseFloat(row.total_amount) || 0,
           itemCount: parseInt(row.item_count) || 0,
