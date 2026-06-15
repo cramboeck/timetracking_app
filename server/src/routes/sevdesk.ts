@@ -2522,6 +2522,103 @@ router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature,
   }
 });
 
+// GET /api/sevdesk/customers/:customerId/licenses - Get aggregated license info for a customer
+router.get('/customers/:customerId/licenses', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get all line items for this customer, aggregated by description (product)
+    const aggregatedResult = await pool.query(`
+      SELECT
+        li.description,
+        li.product_sku,
+        SUM(li.quantity) AS total_quantity,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS line_count,
+        MIN(pi.received_at) AS first_seen,
+        MAX(pi.received_at) AS last_seen,
+        ARRAY_AGG(DISTINCT pi.sender_name) FILTER (WHERE pi.sender_name IS NOT NULL) AS vendors
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status IN ('pending', 'billed', 'included')
+      GROUP BY li.description, li.product_sku
+      ORDER BY total_amount DESC
+    `, [organizationId, customerId]);
+
+    // Get monthly breakdown for the last 6 months
+    const monthlyResult = await pool.query(`
+      SELECT
+        DATE_TRUNC('month', pi.received_at) AS month,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS item_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status IN ('pending', 'billed', 'included')
+        AND pi.received_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', pi.received_at)
+      ORDER BY month DESC
+    `, [organizationId, customerId]);
+
+    // Get summary stats
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT li.id) AS total_items,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.description) AS unique_products,
+        SUM(CASE WHEN li.rebilling_status = 'pending' THEN li.total_price ELSE 0 END) AS pending_amount,
+        SUM(CASE WHEN li.rebilling_status = 'billed' THEN li.total_price ELSE 0 END) AS billed_amount,
+        SUM(CASE WHEN li.rebilling_status = 'included' THEN li.total_price ELSE 0 END) AS included_amount
+      FROM invoice_line_items li
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+    `, [organizationId, customerId]);
+
+    const stats = statsResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        products: aggregatedResult.rows.map(row => ({
+          description: row.description,
+          productSku: row.product_sku,
+          totalQuantity: parseInt(row.total_quantity) || 0,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          lineCount: parseInt(row.line_count) || 0,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          vendors: row.vendors || [],
+        })),
+        monthlyBreakdown: monthlyResult.rows.map(row => ({
+          month: row.month,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          itemCount: parseInt(row.item_count) || 0,
+        })),
+        summary: {
+          totalItems: parseInt(stats.total_items) || 0,
+          totalAmount: parseFloat(stats.total_amount) || 0,
+          uniqueProducts: parseInt(stats.unique_products) || 0,
+          pendingAmount: parseFloat(stats.pending_amount) || 0,
+          billedAmount: parseFloat(stats.billed_amount) || 0,
+          includedAmount: parseFloat(stats.included_amount) || 0,
+        },
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get customer licenses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================================
 // Customer Aliases
 // ============================================================================

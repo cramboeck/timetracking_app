@@ -643,6 +643,14 @@ export const sevdeskApi = {
       body: JSON.stringify({ lineItemIds }),
     });
   },
+
+  // Get aggregated license info for a customer
+  getCustomerLicenses: async (customerId: string): Promise<{
+    success: boolean;
+    data: CustomerLicenseData;
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/licenses`);
+  },
 };
 
 // ============================================
@@ -1227,6 +1235,38 @@ export interface PendingLineItem {
   vendorName: string | null;
   invoiceSubject: string | null;
   invoiceDate: string | null;
+}
+
+export interface CustomerLicenseProduct {
+  description: string;
+  productSku: string | null;
+  totalQuantity: number;
+  totalAmount: number;
+  lineCount: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  vendors: string[];
+}
+
+export interface CustomerLicenseMonthly {
+  month: string;
+  totalAmount: number;
+  itemCount: number;
+}
+
+export interface CustomerLicenseSummary {
+  totalItems: number;
+  totalAmount: number;
+  uniqueProducts: number;
+  pendingAmount: number;
+  billedAmount: number;
+  includedAmount: number;
+}
+
+export interface CustomerLicenseData {
+  products: CustomerLicenseProduct[];
+  monthlyBreakdown: CustomerLicenseMonthly[];
+  summary: CustomerLicenseSummary;
 }
 
 export interface ExtractedInvoiceData {

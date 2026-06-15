@@ -55,6 +55,7 @@ import {
   Zap,
   Inbox,
   X,
+  Package,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType, Task } from '../types';
 import {
@@ -77,6 +78,7 @@ import { CustomerContacts } from './CustomerContacts';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { useToast } from '../contexts/UIContext';
 import TaskModal from './TaskModal';
+import { CustomerLicenses } from './CustomerLicenses';
 
 // ============================================
 // Types
@@ -99,7 +101,7 @@ interface CustomerHubProps {
   isInitialDataLoading?: boolean;
 }
 
-type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries';
+type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries' | 'licenses';
 
 interface CustomerHealthScore {
   score: number; // 0-100
@@ -1517,6 +1519,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     { id: 'tickets', label: 'Tickets', icon: Ticket, count: stats.openTickets || undefined },
     { id: 'tasks', label: 'Aufgaben', icon: ListTodo, count: stats.activeTasks || undefined },
     { id: 'contracts', label: 'Verträge', icon: FileSignature, count: stats.activeContracts || undefined },
+    { id: 'licenses', label: 'Lizenzen', icon: Package },
     { id: 'entries', label: 'Zeiten', icon: Clock },
   ];
 
@@ -1775,6 +1778,12 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                       // Navigate to contracts view or open contract modal
                       console.log('Open contract:', contract.id);
                     }}
+                  />
+                )}
+                {activeTab === 'licenses' && selectedCustomer && (
+                  <CustomerLicenses
+                    customerId={selectedCustomer.id}
+                    customerName={selectedCustomer.name}
                   />
                 )}
                 {activeTab === 'entries' && (
