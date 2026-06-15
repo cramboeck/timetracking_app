@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { AlertTriangle, Monitor, Wifi, WifiOff, Shield, ExternalLink, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { AlertTriangle, Monitor, Wifi, WifiOff, Shield, RefreshCw } from 'lucide-react';
 import { ninjaApi, NinjaDevice } from '../../services/api';
 
 interface TicketNinjaInfoProps {
@@ -13,11 +13,7 @@ export const TicketNinjaInfo = ({ deviceId, ninjaAlertId, deviceName }: TicketNi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDeviceInfo();
-  }, [deviceId]);
-
-  const loadDeviceInfo = async () => {
+  const loadDeviceInfo = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -32,7 +28,11 @@ export const TicketNinjaInfo = ({ deviceId, ninjaAlertId, deviceName }: TicketNi
     } finally {
       setLoading(false);
     }
-  };
+  }, [deviceId]);
+
+  useEffect(() => {
+    loadDeviceInfo();
+  }, [loadDeviceInfo]);
 
   if (loading) {
     return (
