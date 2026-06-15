@@ -2187,4 +2187,150 @@ router.get('/devices/:id/ip-history', authenticateToken, requireNinjaFeature, as
   }
 });
 
+// ============================================
+// Vulnerabilities
+// ============================================
+
+const vulnerabilityStatusSchema = z.object({
+  status: z.enum(['open', 'patched', 'ignored', 'false_positive']),
+  reason: z.string().max(500).optional(),
+});
+
+const vulnerabilityTicketSchema = z.object({
+  ticketId: z.string().uuid(),
+});
+
+// GET /api/ninjarmm/vulnerabilities - Get all vulnerabilities
+router.get('/vulnerabilities', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      status,
+      severity,
+      deviceId,
+      organizationId,
+      cveId,
+      page = '1',
+      limit = '50',
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const result = await ninjaService.getLocalVulnerabilities(userId, {
+      status: status as string,
+      severity: severity as string,
+      deviceId: deviceId as string,
+      organizationId: organizationId as string,
+      cveId: cveId as string,
+      limit: limitNum,
+      offset,
+    });
+
+    res.json({
+      success: true,
+      data: result.vulnerabilities,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limitNum),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get vulnerabilities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/vulnerabilities/summary - Get vulnerability summary/stats
+router.get('/vulnerabilities/summary', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const summary = await ninjaService.getVulnerabilitySummary(userId);
+    res.json({ success: true, data: summary });
+  } catch (error: any) {
+    console.error('Get vulnerability summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/vulnerabilities/sync - Sync vulnerabilities from NinjaRMM
+router.post('/vulnerabilities/sync', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const result = await ninjaService.syncVulnerabilities(userId);
+    res.json({
+      success: true,
+      data: result,
+      message: `Synced ${result.synced} devices, found ${result.newVulnerabilities} new vulnerabilities`,
+    });
+  } catch (error: any) {
+    console.error('Sync vulnerabilities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/ninjarmm/vulnerabilities/:id/status - Update vulnerability status
+router.patch('/vulnerabilities/:id/status', authenticateToken, requireNinjaFeature, validate(vulnerabilityStatusSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { status, reason } = req.body;
+
+    await ninjaService.updateVulnerabilityStatus(userId, id, status, reason);
+    res.json({ success: true, message: 'Vulnerability status updated' });
+  } catch (error: any) {
+    console.error('Update vulnerability status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/vulnerabilities/:id/ticket - Link vulnerability to ticket
+router.post('/vulnerabilities/:id/ticket', authenticateToken, requireNinjaFeature, validate(vulnerabilityTicketSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { ticketId } = req.body;
+
+    await ninjaService.linkVulnerabilityToTicket(userId, id, ticketId);
+    res.json({ success: true, message: 'Vulnerability linked to ticket' });
+  } catch (error: any) {
+    console.error('Link vulnerability to ticket error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/devices/:id/vulnerabilities - Get vulnerabilities for a specific device
+router.get('/devices/:id/vulnerabilities', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { status, severity } = req.query;
+
+    // Verify device belongs to user
+    const deviceResult = await query(
+      'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    const result = await ninjaService.getLocalVulnerabilities(userId, {
+      deviceId: id,
+      status: status as string,
+      severity: severity as string,
+      limit: 100,
+    });
+
+    res.json({ success: true, data: result.vulnerabilities });
+  } catch (error: any) {
+    console.error('Get device vulnerabilities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

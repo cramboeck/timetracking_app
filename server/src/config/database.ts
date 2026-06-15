@@ -5081,6 +5081,57 @@ export async function initializeDatabase() {
 
     logger.info('✅ invoice_line_items.contract_id column added');
 
+    // NinjaRMM Vulnerabilities table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_vulnerabilities (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+
+        -- CVE Information
+        cve_id TEXT NOT NULL,
+        cve_description TEXT,
+        cve_published_date TIMESTAMP,
+
+        -- Vulnerability details
+        severity TEXT CHECK(severity IN ('NONE', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+        cvss_score NUMERIC(3,1),
+        cvss_vector TEXT,
+
+        -- Affected software
+        software_name TEXT,
+        software_vendor TEXT,
+        software_version TEXT,
+
+        -- Status tracking
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'patched', 'ignored', 'false_positive')),
+        first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        patched_at TIMESTAMP,
+        ignored_at TIMESTAMP,
+        ignored_reason TEXT,
+
+        -- References
+        ninja_vulnerability_id TEXT,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        UNIQUE(device_id, cve_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_user ON ninjarmm_vulnerabilities(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_org ON ninjarmm_vulnerabilities(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_device ON ninjarmm_vulnerabilities(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_cve ON ninjarmm_vulnerabilities(cve_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_severity ON ninjarmm_vulnerabilities(severity)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_status ON ninjarmm_vulnerabilities(status)');
+
+    logger.info('✅ ninjarmm_vulnerabilities table created');
+
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');
   } catch (error) {
