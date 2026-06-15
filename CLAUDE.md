@@ -594,7 +594,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management) komplett ✅: Sprints G1–G5 inkl. Vertragsverknüpfung. NinjaRMM erweitert: Vulnerability-Tracking (Backend), Ninja-Ticket-Darstellung verbessert. CRM + Portal Lizenzen-Tabs, Rebilling-Workflow. Geplant: ADN/Infinigate, Lywand, Microsoft Security. Sprints 1–4 + A–F ✅.*
+*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management) komplett ✅: Sprints G1–G5 inkl. Vertragsverknüpfung. NinjaRMM komplett erweitert: Vulnerability-Tracking (Backend + Frontend Dashboard), Ninja-Ticket-Darstellung verbessert. CRM + Portal Lizenzen-Tabs, Rebilling-Workflow. Geplant: ADN/Infinigate, Lywand, Microsoft Security. Sprints 1–4 + A–F ✅.*
 
 ---
 
@@ -648,13 +648,13 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **Kundenportal: Lizenz-Info** | PortalLicenses.tsx mit GET /api/customer-portal/licenses. Zeigt billed/included Items. Commit 679933c |
 | ✅ | **Vertragsverknüpfung** | contract_id Spalte, PATCH Endpoints für Verknüpfung, Vertragsanzeige in CRM + Portal. Commit 64e4c4c |
 
-### Teilweise fertig: NinjaRMM Erweiterungen
+### ✅ Komplett: NinjaRMM Erweiterungen
 
 | Status | Task | Beschreibung |
 |---|---|---|
 | ✅ | **Vulnerability-Tracking Backend** | Commit 6c3676d. Tabelle `ninjarmm_vulnerabilities`, Sync-Service, API-Endpoints (GET/PATCH/POST). Schweregrade, CVSS-Scores, Status-Management. |
 | ✅ | **Ninja-Ticket-Darstellung verbessert** | Commit 16fa38b. Source-Badges in TicketList (NinjaRMM/E-Mail/Portal/Manuell), Geräte-Name, TicketNinjaInfo-Komponente in Sidebar mit Device-Details. |
-| 🟡 | **Vulnerability-Frontend** | UI-Komponenten für Schwachstellen-Dashboard, Geräte-Vulnerabilities-Ansicht, Ticket-Erstellung aus Vulnerability. |
+| ✅ | **Vulnerability-Frontend** | Commit 3969549. `VulnerabilitiesDashboard.tsx` mit Summary-Cards, Filter, Status-Management. Neuer SubView "Schwachstellen" unter Support. Ticket-Erstellung aus Vulnerability. NVD-Links für CVE-Details. |
 
 ### Geplant: Distributor- & Sicherheits-Integrationen
 
