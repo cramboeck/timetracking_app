@@ -2248,7 +2248,7 @@ const vulnerabilityStatusSchema = z.object({
 });
 
 const vulnerabilityTicketSchema = z.object({
-  ticketId: z.string().uuid(),
+  ticketId: z.string().uuid().optional(),
 });
 
 // GET /api/ninjarmm/vulnerabilities - Get all vulnerabilities
@@ -2338,17 +2338,86 @@ router.patch('/vulnerabilities/:id/status', authenticateToken, requireNinjaFeatu
   }
 });
 
-// POST /api/ninjarmm/vulnerabilities/:id/ticket - Link vulnerability to ticket
+// POST /api/ninjarmm/vulnerabilities/:id/ticket - Create or link ticket for vulnerability
 router.post('/vulnerabilities/:id/ticket', authenticateToken, requireNinjaFeature, validate(vulnerabilityTicketSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { ticketId } = req.body;
+    let { ticketId } = req.body;
+
+    // Get vulnerability details
+    const vulnResult = await query(
+      `SELECT v.*, d.display_name as device_name, d.system_name, o.customer_id
+       FROM ninjarmm_vulnerabilities v
+       LEFT JOIN ninjarmm_devices d ON v.device_id = d.id
+       LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id
+       WHERE v.id = $1 AND v.user_id = $2`,
+      [id, userId]
+    );
+
+    if (vulnResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Vulnerability not found' });
+    }
+
+    const vuln = vulnResult.rows[0];
+
+    // If no ticketId provided, create a new ticket
+    if (!ticketId) {
+      // Get organization_id for this user
+      const orgIdResult = await query(
+        `SELECT o.id FROM organizations o
+         JOIN organization_members om ON o.id = om.organization_id
+         WHERE om.user_id = $1 ORDER BY om.role = 'owner' DESC LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgIdResult.rows[0]?.id;
+      if (!organizationId) {
+        throw new Error(`Keine Organisation für User ${userId} gefunden`);
+      }
+
+      // Get or create ticket sequence
+      await query(
+        'INSERT INTO ticket_sequences (organization_id, last_number) VALUES ($1, 0) ON CONFLICT (organization_id) DO NOTHING',
+        [organizationId]
+      );
+
+      // Increment and get next ticket number
+      const seqResult = await query(
+        'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE organization_id = $1 RETURNING last_number',
+        [organizationId]
+      );
+      const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
+
+      // Create ticket
+      ticketId = uuidv4();
+      const deviceName = vuln.device_name || vuln.system_name || 'Unbekanntes Gerät';
+      const severityLabel = vuln.severity === 'CRITICAL' ? 'Kritisch' : vuln.severity === 'HIGH' ? 'Hoch' : vuln.severity === 'MEDIUM' ? 'Mittel' : 'Niedrig';
+
+      await query(
+        `INSERT INTO tickets (
+          id, ticket_number, user_id, organization_id, customer_id, device_id, title, description,
+          priority, status, source, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+        [
+          ticketId,
+          ticketNumber,
+          userId,
+          organizationId,
+          vuln.customer_id,
+          vuln.device_id,
+          `[${severityLabel}] ${vuln.cve_id}: ${vuln.software_name || 'Schwachstelle'}`,
+          `Schwachstelle aus NinjaRMM:\n\nCVE: ${vuln.cve_id}\nSchweregrad: ${severityLabel}\nCVSS Score: ${vuln.cvss_score || 'N/A'}\nGerät: ${deviceName}\nSoftware: ${vuln.software_name || 'N/A'} ${vuln.software_version || ''}\n\nBeschreibung:\n${vuln.cve_description || 'Keine Beschreibung verfügbar'}`,
+          vuln.severity === 'CRITICAL' ? 'critical' : vuln.severity === 'HIGH' ? 'high' : 'normal',
+          'open',
+          'ninja_alert',
+        ]
+      );
+    }
 
     await ninjaService.linkVulnerabilityToTicket(userId, id, ticketId);
-    res.json({ success: true, message: 'Vulnerability linked to ticket' });
+    res.json({ success: true, data: { ticketId }, message: 'Ticket erstellt und verknüpft' });
   } catch (error: any) {
-    console.error('Link vulnerability to ticket error:', error);
+    console.error('Create/link vulnerability ticket error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

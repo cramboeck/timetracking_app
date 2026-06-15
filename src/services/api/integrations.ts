@@ -771,6 +771,38 @@ export interface NinjaAlertExclusion {
   updatedAt: string;
 }
 
+export interface NinjaVulnerability {
+  id: string;
+  cveId: string;
+  cveDescription: string | null;
+  cvePublishedDate: string | null;
+  severity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  cvssScore: number | null;
+  cvssVector: string | null;
+  softwareName: string | null;
+  softwareVendor: string | null;
+  softwareVersion: string | null;
+  status: 'open' | 'patched' | 'ignored' | 'false_positive';
+  firstSeenAt: string;
+  lastSeenAt: string;
+  patchedAt: string | null;
+  deviceId: string;
+  deviceName: string | null;
+  organizationName: string | null;
+  ticketId: string | null;
+}
+
+export interface VulnerabilitySummary {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  open: number;
+  patched: number;
+  affectedDevices: number;
+}
+
 // NinjaRMM API
 export const ninjaApi = {
   getConfig: async (): Promise<{ success: boolean; data: NinjaRMMConfig | null }> => {
@@ -1077,6 +1109,69 @@ export const ninjaApi = {
     };
   }> => {
     return authFetch(`/ninjarmm/devices/${deviceId}/os-patches/refresh`, { method: 'POST' });
+  },
+
+  // Vulnerabilities
+  getVulnerabilities: async (options?: {
+    status?: string;
+    severity?: string;
+    deviceId?: string;
+    organizationId?: string;
+    cveId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    success: boolean;
+    data: NinjaVulnerability[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.severity) params.append('severity', options.severity);
+    if (options?.deviceId) params.append('deviceId', options.deviceId);
+    if (options?.organizationId) params.append('organizationId', options.organizationId);
+    if (options?.cveId) params.append('cveId', options.cveId);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/vulnerabilities${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getVulnerabilitySummary: async (): Promise<{ success: boolean; data: VulnerabilitySummary }> => {
+    return authFetch('/ninjarmm/vulnerabilities/summary');
+  },
+
+  syncVulnerabilities: async (): Promise<{
+    success: boolean;
+    data: { synced: number; errors: number; newVulnerabilities: number };
+  }> => {
+    return authFetch('/ninjarmm/vulnerabilities/sync', { method: 'POST' });
+  },
+
+  updateVulnerabilityStatus: async (
+    id: string,
+    status: 'open' | 'patched' | 'ignored' | 'false_positive',
+    reason?: string
+  ): Promise<{ success: boolean }> => {
+    return authFetch(`/ninjarmm/vulnerabilities/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason }),
+    });
+  },
+
+  createTicketFromVulnerability: async (id: string): Promise<{ success: boolean; data: { ticketId: string } }> => {
+    return authFetch(`/ninjarmm/vulnerabilities/${id}/ticket`, { method: 'POST' });
+  },
+
+  getDeviceVulnerabilities: async (deviceId: string, options?: {
+    status?: string;
+    severity?: string;
+  }): Promise<{ success: boolean; data: NinjaVulnerability[] }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.severity) params.append('severity', options.severity);
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/devices/${deviceId}/vulnerabilities${queryString ? `?${queryString}` : ''}`);
   },
 };
 

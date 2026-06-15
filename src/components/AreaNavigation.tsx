@@ -1,6 +1,6 @@
 import {
   Clock, CalendarClock,
-  Ticket, Monitor, Bell, Wrench, Mail,
+  Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   Target, Users, LayoutDashboard, Building2, Receipt, Search
@@ -21,7 +21,7 @@ export type SubView =
   // Arbeiten
   | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks' | 'grid' | 'zeiten'
   // Support
-  | 'tickets' | 'devices' | 'alerts' | 'maintenance' | 'inbox'
+  | 'tickets' | 'devices' | 'alerts' | 'vulnerabilities' | 'maintenance' | 'inbox'
   // CRM
   | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
   // Finanzen
@@ -61,6 +61,7 @@ const areaConfig = {
       { view: 'inbox' as SubView, icon: Mail, label: 'E-Mail' },
       { view: 'devices' as SubView, icon: Monitor, label: 'Geräte' },
       { view: 'alerts' as SubView, icon: Bell, label: 'Alerts' },
+      { view: 'vulnerabilities' as SubView, icon: ShieldAlert, label: 'Schwachstellen' },
       { view: 'maintenance' as SubView, icon: Wrench, label: 'Wartung' },
     ],
   },
@@ -214,7 +215,7 @@ export const AreaNavigation = ({
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['overview'].includes(subView)) return 'dashboard';
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten'].includes(subView)) return 'arbeiten';
-  if (['tickets', 'devices', 'alerts', 'maintenance', 'inbox'].includes(subView)) return 'support';
+  if (['tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
   if (['invoices', 'billing', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
   return 'dashboard'; // Default to dashboard
@@ -242,7 +243,7 @@ const STANDALONE_SUBVIEWS: SubView[] = ['settings', 'social-media'];
 const ALL_SUBVIEWS: SubView[] = [
   'overview',
   'stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten',
-  'tickets', 'devices', 'alerts', 'maintenance', 'inbox',
+  'tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
   'invoices', 'billing', 'reports', 'documents-search',
   'settings', 'admin', 'social-media',

@@ -12,6 +12,7 @@ import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
+import { VulnerabilitiesDashboard } from './components/VulnerabilitiesDashboard';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
@@ -1089,6 +1090,13 @@ function App() {
         )}
         {currentSubView === 'alerts' && (
           <AlertsView />
+        )}
+        {currentSubView === 'vulnerabilities' && (
+          <VulnerabilitiesDashboard
+            onNavigateToTicket={() => {
+              navigateToSubView('tickets');
+            }}
+          />
         )}
         {currentSubView === 'maintenance' && (
           <MaintenanceView />
