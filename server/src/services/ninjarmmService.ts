@@ -1847,24 +1847,45 @@ export interface VulnerabilitySummary {
   affectedDevices: number;
 }
 
-// Fetch vulnerabilities from NinjaRMM API for a device
+// Candidate public-API v2 endpoints for native CVE/vulnerability data.
+// NinjaOne's web UI reads these from the internal /swb/s4/vulnerability-mgmt/* API
+// (session-auth, org-scoped) which is NOT reachable via our OAuth2 token. The public
+// API surface is uncertain, so we probe known/plausible paths and report which (if any)
+// actually responds. Order matters: first non-404 wins.
+const VULN_ENDPOINT_CANDIDATES = (deviceId: number): string[] => [
+  `/device/${deviceId}/software/cves`,
+  `/device/${deviceId}/cves`,
+  `/device/${deviceId}/vulnerabilities`,
+];
+
+// Fetch vulnerabilities from NinjaRMM API for a device.
+// Returns the data plus a diagnostic so the sync can distinguish "endpoint not found"
+// (wrong/missing public-API path) from "endpoint OK but device has 0 CVEs".
 export async function fetchDeviceVulnerabilities(
   userId: string,
   deviceId: number
-): Promise<any[]> {
+): Promise<{ data: any[]; endpoint?: string; error?: string }> {
   const config = await getConfig(userId);
   if (!config) {
     throw new Error('NinjaRMM not configured');
   }
 
-  try {
-    // NinjaRMM API endpoint for device vulnerabilities
-    const data = await ninjaFetch(config, `/device/${deviceId}/software/cves`);
-    return data || [];
-  } catch (error: any) {
-    console.error(`Error fetching vulnerabilities for device ${deviceId}:`, error.message);
-    return [];
+  let lastError = '';
+  for (const endpoint of VULN_ENDPOINT_CANDIDATES(deviceId)) {
+    try {
+      const data = await ninjaFetch(config, endpoint);
+      // Endpoint responded — this is the working path.
+      console.log(`[Vuln] device ${deviceId}: endpoint ${endpoint} OK, ${Array.isArray(data) ? data.length : 0} item(s)`);
+      return { data: Array.isArray(data) ? data : (data ? [data] : []), endpoint };
+    } catch (error: any) {
+      lastError = error.message || String(error);
+      const is404 = /\b404\b/.test(lastError);
+      console.error(`[Vuln] device ${deviceId}: endpoint ${endpoint} failed${is404 ? ' (404)' : ''}: ${lastError}`);
+      // On 404 keep probing the next candidate; on other errors stop (e.g. 401/403/500).
+      if (!is404) break;
+    }
   }
+  return { data: [], error: lastError };
 }
 
 // Sync vulnerabilities for all devices
@@ -1872,6 +1893,8 @@ export async function syncVulnerabilities(userId: string): Promise<{
   synced: number;
   errors: number;
   newVulnerabilities: number;
+  workingEndpoint: string | null;
+  fetchErrors: string[];
 }> {
   const config = await getConfig(userId);
   if (!config) {
@@ -1894,10 +1917,14 @@ export async function syncVulnerabilities(userId: string): Promise<{
   let synced = 0;
   let errors = 0;
   let newVulnerabilities = 0;
+  let workingEndpoint: string | null = null;
+  const fetchErrors = new Set<string>();
 
   for (const device of devicesResult.rows) {
     try {
-      const vulnerabilities = await fetchDeviceVulnerabilities(userId, device.ninja_id);
+      const { data: vulnerabilities, endpoint, error } = await fetchDeviceVulnerabilities(userId, device.ninja_id);
+      if (endpoint) workingEndpoint = endpoint;
+      if (error) fetchErrors.add(error);
 
       for (const vuln of vulnerabilities) {
         // Map severity from CVSS score
@@ -1953,7 +1980,11 @@ export async function syncVulnerabilities(userId: string): Promise<{
     }
   }
 
-  return { synced, errors, newVulnerabilities };
+  if (!workingEndpoint && fetchErrors.size > 0) {
+    console.error(`[Vuln] No working vulnerability endpoint found across ${synced} device(s). Errors: ${[...fetchErrors].join(' | ')}`);
+  }
+
+  return { synced, errors, newVulnerabilities, workingEndpoint, fetchErrors: [...fetchErrors] };
 }
 
 // Get vulnerabilities from local database

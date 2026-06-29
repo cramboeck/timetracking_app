@@ -2312,10 +2312,18 @@ router.post('/vulnerabilities/sync', authenticateToken, requireNinjaFeature, asy
   try {
     const userId = req.user!.id;
     const result = await ninjaService.syncVulnerabilities(userId);
+    // Surface WHY a sync returned 0: a missing/wrong endpoint (no working path + fetch
+    // errors) is very different from "all devices genuinely have 0 CVEs".
+    let message = `Synced ${result.synced} devices, found ${result.newVulnerabilities} new vulnerabilities`;
+    if (!result.workingEndpoint && result.fetchErrors.length > 0) {
+      message += ` — WARNUNG: kein funktionierender Vulnerability-Endpoint gefunden (${result.fetchErrors.join(' | ')})`;
+    } else if (result.workingEndpoint) {
+      message += ` (Endpoint: ${result.workingEndpoint})`;
+    }
     res.json({
       success: true,
       data: result,
-      message: `Synced ${result.synced} devices, found ${result.newVulnerabilities} new vulnerabilities`,
+      message,
     });
   } catch (error: any) {
     console.error('Sync vulnerabilities error:', error);
