@@ -1077,7 +1077,9 @@ Die Beschreibung soll:
 - Maximal 1-2 Sätze lang sein
 - Auf Deutsch sein
 - Für eine Rechnung geeignet sein
-- Keine Anreden oder Floskeln enthalten`;
+- Keine Anreden oder Floskeln enthalten
+- Sich ausschließlich auf die durchgeführte Tätigkeit konzentrieren
+- WEDER den Kundennamen NOCH den Projektnamen erwähnen oder anhängen — beide sind bereits in separaten Feldern erfasst. Beschreibe nur die Arbeit selbst, ohne Zusätze wie "für das …-Projekt" oder "für Kunde …"`;
 
 export async function suggestTimeEntryDescription(
   userId: string,
@@ -1116,7 +1118,7 @@ export async function suggestTimeEntryDescription(
     prompt += `\nBereits eingetragene Beschreibung (erweitern/verbessern): ${context.existingDescription}\n`;
   }
 
-  prompt += '\nGib nur die Beschreibung zurück, ohne Erklärungen.';
+  prompt += '\nDie obigen Angaben zu Kunde und Projekt dienen nur als Kontext zum Verständnis — sie dürfen NICHT im Text erscheinen. Gib nur die Beschreibung der durchgeführten Tätigkeit zurück, ohne Erklärungen und ohne Kunden-/Projektbezug anzuhängen.';
 
   let result: { content: string; tokensUsed: number };
   if (config.provider === 'anthropic') {
