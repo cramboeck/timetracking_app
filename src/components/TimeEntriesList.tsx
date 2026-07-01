@@ -299,9 +299,15 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
       if (response.success && response.data.suggestion) {
         setEditDescription(response.data.suggestion);
+      } else {
+        showToast('KI konnte keinen Vorschlag generieren. Bitte versuche es später erneut.', 'error', 5000);
       }
-    } catch (err) {
+    } catch (err: any) {
+      // Surface the real error (e.g. "OpenAI API error: You exceeded your current
+      // quota") instead of failing silently — previously this only logged to the
+      // console, so the button appeared to do nothing.
       console.error('Failed to generate description:', err);
+      showToast(`Fehler beim Generieren: ${err.message || 'Unbekannter Fehler'}`, 'error', 5000);
     } finally {
       setGeneratingDescription(false);
     }
