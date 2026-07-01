@@ -86,6 +86,24 @@ const filterToDateRange = (
   return {};
 };
 
+// ── Month helpers for the always-visible month stepper ──────────────────────
+// filterMonth is a "YYYY-MM" string. These shift it by whole months and format
+// it for display, so the user can step to the previous/next month without
+// opening the filter panel.
+const shiftMonth = (month: string, delta: number): string => {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+const formatMonthLabel = (month: string): string => {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+};
+const currentMonthStr = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 export const TimeEntriesList = ({ projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
   const showToast = useToast();
@@ -630,21 +648,70 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     link.click();
   };
 
+  // Always-visible month stepper (‹ Vormonat · Monat Jahr · Folgemonat ›).
+  // Only shown in month mode (the default); quarter/year/custom are driven from
+  // the filter panel instead. "Next" and the label-reset are disabled on the
+  // current month so the user can't step into empty future months.
+  const currentMonth = currentMonthStr();
+  const isCurrentMonth = filterMonth === currentMonth;
+  const monthStepper = filterTimeframeType === 'month' ? (
+    <div className="flex items-center gap-1 bg-gray-50 dark:bg-dark-100 rounded-lg p-1 border border-gray-200 dark:border-dark-border">
+      <button
+        type="button"
+        onClick={() => setFilterMonth(shiftMonth(filterMonth, -1))}
+        className="p-1.5 rounded-md text-gray-600 dark:text-dark-400 hover:bg-white dark:hover:bg-dark-200 hover:text-accent-primary transition-colors"
+        title="Vormonat"
+        aria-label="Vormonat"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setFilterMonth(currentMonth)}
+        disabled={isCurrentMonth}
+        className="min-w-[8.5rem] text-center text-sm font-semibold px-2 py-1 rounded-md text-gray-800 dark:text-white enabled:hover:bg-white dark:enabled:hover:bg-dark-200 transition-colors disabled:cursor-default"
+        title={isCurrentMonth ? undefined : 'Zum aktuellen Monat springen'}
+      >
+        {formatMonthLabel(filterMonth)}
+      </button>
+      <button
+        type="button"
+        onClick={() => setFilterMonth(shiftMonth(filterMonth, 1))}
+        disabled={isCurrentMonth}
+        className="p-1.5 rounded-md text-gray-600 dark:text-dark-400 enabled:hover:bg-white dark:enabled:hover:bg-dark-200 enabled:hover:text-accent-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Folgemonat"
+        aria-label="Folgemonat"
+      >
+        <ChevronRight size={18} />
+      </button>
+    </div>
+  ) : null;
+
   // Empty state: no entries on this page AND nothing loading AND no
   // filter that could be narrowing the result. If filters are active,
   // we fall through to the list view (which then shows its own empty
-  // hint inside the table area).
+  // hint inside the table area). The month stepper stays visible so the
+  // user can navigate away from an empty month.
   const hasActiveBackendFilter =
     !!filterProjectId || filterTimeframeType !== 'month' || !!filterDateFrom || !!filterDateTo;
   if (entries.length === 0 && !loading && !fetchError && !hasActiveBackendFilter && pagination?.total === 0) {
     return (
       <div className="flex flex-col h-full p-6">
-        <h1 className="text-2xl font-bold mb-6">Übersicht</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <h1 className="text-2xl font-bold dark:text-white">Übersicht</h1>
+          {monthStepper}
+        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-gray-500">
             <Clock size={48} className="mx-auto mb-4 opacity-50" />
-            <p>Noch keine Zeiteinträge vorhanden</p>
-            <p className="text-sm mt-2">Starte die Stoppuhr oder erfasse Zeit manuell</p>
+            {isCurrentMonth ? (
+              <>
+                <p>Noch keine Zeiteinträge vorhanden</p>
+                <p className="text-sm mt-2">Starte die Stoppuhr oder erfasse Zeit manuell</p>
+              </>
+            ) : (
+              <p>Keine Zeiteinträge in {formatMonthLabel(filterMonth)}</p>
+            )}
           </div>
         </div>
       </div>
@@ -703,6 +770,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             </Button>
           </div>
         </div>
+
+        {/* Month stepper — always-visible quick month navigation */}
+        {monthStepper && (
+          <div className="flex justify-center sm:justify-start mb-3">
+            {monthStepper}
+          </div>
+        )}
 
         {/* Filter Panel */}
         {showFilters && (
