@@ -68,7 +68,7 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
       // The backend reports which vulnerability endpoint (if any) actually
       // responded. Without a working endpoint "0 Schwachstellen" is a fetch
       // failure, not a clean result — show that as an error, not a success.
-      const d: any = data.data;
+      const d = data.data;
       if (!d.workingEndpoint && d.fetchErrors?.length) {
         showToast(
           `Sync fehlgeschlagen: kein funktionierender Vulnerability-Endpoint (${d.fetchErrors[0]})`,

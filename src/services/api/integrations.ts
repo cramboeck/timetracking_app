@@ -1143,7 +1143,14 @@ export const ninjaApi = {
 
   syncVulnerabilities: async (): Promise<{
     success: boolean;
-    data: { synced: number; errors: number; newVulnerabilities: number };
+    data: {
+      synced: number;
+      errors: number;
+      newVulnerabilities: number;
+      workingEndpoint: string | null;
+      fetchErrors: string[];
+    };
+    message?: string;
   }> => {
     return authFetch('/ninjarmm/vulnerabilities/sync', { method: 'POST' });
   },
