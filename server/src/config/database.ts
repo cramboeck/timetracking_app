@@ -1125,10 +1125,13 @@ export async function initializeDatabase() {
         title TEXT NOT NULL,
         description TEXT,
         status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
-        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+        -- 'critical' (not 'urgent') is the app-wide ticket priority set: frontend
+        -- TicketPriority, ticketPrioritySchema and the live production constraint
+        -- all use low/normal/high/critical. Tasks use 'urgent' — tickets do not.
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'critical')),
         category TEXT,
         assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
-        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert')),
+        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert', 'ninja_webhook')),
         ninja_alert_id TEXT,
         due_date TIMESTAMP,
         resolved_at TIMESTAMP,
@@ -1175,6 +1178,32 @@ export async function initializeDatabase() {
         ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual';
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: normalize ticket priority values to the app-wide set
+    // low/normal/high/critical. Older installs may carry a constraint with
+    // 'urgent', which no code path writes for tickets (tasks use 'urgent',
+    // tickets use 'critical'). Atomic: on any failure the block rolls back.
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_priority_check;
+        ALTER TABLE tickets ADD CONSTRAINT tickets_priority_check
+          CHECK(priority IN ('low', 'normal', 'high', 'critical'));
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: allow 'ninja_webhook' as ticket source (written by the
+    // NinjaRMM webhook auto-ticket path) alongside the original values.
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_source_check;
+        ALTER TABLE tickets ADD CONSTRAINT tickets_source_check
+          CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert', 'ninja_webhook'));
+      EXCEPTION
         WHEN others THEN NULL;
       END $$;
     `);

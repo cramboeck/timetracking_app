@@ -891,7 +891,7 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
         alert.device_id,
         `[${severity}] ${alert.message.substring(0, 100)}`,
         `Alert from NinjaRMM:\n\nGerät: ${deviceName}\nSeverity: ${severity}\nPriorität: ${priority}\nQuelle: ${alert.source_name || 'N/A'}\n\nNachricht:\n${alert.message}`,
-        severity === 'CRITICAL' ? 'urgent' : severity === 'MAJOR' ? 'high' : 'normal',
+        severity === 'CRITICAL' ? 'critical' : severity === 'MAJOR' ? 'high' : 'normal',
         'open',
         'ninja_alert',
         alert.ninja_uid,
@@ -1522,7 +1522,7 @@ async function createTicketFromWebhook(
 
     // Determine priority based on severity
     let priority = 'normal';
-    if (severity.toUpperCase() === 'CRITICAL') priority = 'urgent';
+    if (severity.toUpperCase() === 'CRITICAL') priority = 'critical';
     else if (severity.toUpperCase() === 'MAJOR') priority = 'high';
     else if (severity.toUpperCase() === 'MINOR' || severity.toUpperCase() === 'INFO') priority = 'low';
 
