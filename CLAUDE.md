@@ -381,9 +381,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| 🟡 | **TS-Fehler reduzieren** (~379 verbleibend, 73 gefixt) | diverse | 6h+ | Commits 8817b47–4992d7b. Unbenutzte Imports bereinigt. Verbleibend: ~135 TS6133 (Imports), ~244 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
+| 🟡 | **TS-Fehler reduzieren** (~379 verbleibend, 73 gefixt) | diverse | 6h+ | Commits 8817b47–4992d7b. Unbenutzte Imports bereinigt. Verbleibend: ~135 TS6133 (Imports), ~244 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). **Nächster Sprint H.** |
 | ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
-| 🟡 | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ migriert. TimeEntriesList + Stopwatch noch offen. |
+| ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ migriert. TimeEntriesList + Stopwatch: offen (nächster Sprint). |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
 | ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
@@ -446,7 +446,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 4. **Keine nativen Alerts:** `window.alert` und `window.confirm` sind verboten. Nutze `Toast` und `ConfirmDialog`.
 5. **Farben & Theme-Tokens:** Nutze die CSS-Variablen-Tokens (`bg-dark-50/100/200/300`, `border-dark-border`, `text-dark-400/500`, `bg-accent-primary`, `text-accent-dark` etc.), **niemals hartcodierte** Tailwind-Farben wie `dark:bg-gray-800` oder `dark:border-gray-700`. Die `dark-*` Tokens werden durch die `tone-*` Klasse (`tone-medium`/`tone-dark`/`tone-ramboeck`) per CSS-Variable umgesetzt — hardcodete `gray`-Klassen bleiben fix und ignorieren den Theme-Switch. Ausnahmen sind nur semantisch zwingende Stellen (Status-Color, Error-Badge = Rot, Info-Toast = Blau, Brand-Logos wie Facebook).
 6. **Zod-Validierung ist Pflicht** — jede neue Route muss Eingaben mit Zod + `validate()` middleware validieren.
-7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries.
+7. **Kein `SELECT *`** — immer explizite Spaltenlisten in SQL-Queries. ⚠️ **Vor dem Ersetzen von `SELECT *` zwingend `server/src/config/database.ts` für die betreffende Tabelle lesen** (CREATE TABLE + alle ALTER TABLE). Spalten, die nur in einer Migration stehen aber nicht im CREATE TABLE, können in der Praxis fehlen. Erfahrung aus Sprint 3 (12.6.2026): 5 aufeinanderfolgende Fix-Commits nötig, weil `is_active` und `deleted_at` in `activities` referenziert wurden, die dort nicht existieren.
 8. **Soft-Delete beachten** — Queries auf `customers`, `projects`, `activities`, `contracts` immer mit `WHERE deleted_at IS NULL` filtern. DELETE-Endpoints nutzen `UPDATE SET deleted_at = NOW()`, nicht `DELETE FROM`.
 9. **Paginierung bevorzugen** — neue Listenendpunkte immer mit `?page=&limit=` implementieren. Legacy-Clients via `?all=true` rückwärtskompatibel halten.
 10. **`password_hash` niemals zurückgeben** — in keiner API-Antwort.
@@ -483,8 +483,8 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | **Aufgaben mit Fälligkeitsdatum** — Datepicker, überfällige Tasks rot, heute orange, aufklappbar | 3541f1a |
 | **NinjaRMM Geräteverknüpfung** — Gerät mit Ticket verknüpfen, Status-Anzeige, Dropdown zur Auswahl | 3541f1a |
 | **Quick Status/Priority Change** — Status und Priorität direkt per Dropdown ändern ohne Edit-Modus | f961f2e |
-| **Ticket Templates** — Vorlagen für häufige Ticket-Typen (in Arbeit) | — |
-| **Bulk Actions** — Mehrfachauswahl + Massenaktionen für Tickets (in Arbeit) | — |
+| **Ticket Templates** — Vorlagen für häufige Ticket-Typen | ✅ Commit (ticket_templates Tabelle + UI) |
+| **Bulk Actions** — Mehrfachauswahl + Massenaktionen für Tickets | ✅ Commit (Multi-Select, Status/Prio/Assign/Delete) |
 
 ### ✅ Sicherheitslücken — Alle behoben
 
@@ -594,13 +594,60 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management) komplett ✅: Sprints G1–G5 inkl. Vertragsverknüpfung. NinjaRMM komplett erweitert: Vulnerability-Tracking (Backend + Frontend Dashboard), Ninja-Ticket-Darstellung verbessert. CRM + Portal Lizenzen-Tabs, Rebilling-Workflow. Geplant: ADN/Infinigate, Lywand, Microsoft Security. Sprints 1–4 + A–F ✅.*
+*Zuletzt aktualisiert: 2.7.2026 — Epic G (Lizenz-Management) komplett ✅. NinjaRMM Vulnerability-Tracking ✅. Sprints 1–4 + A–F + G ✅. Sprint 5 (Tech-Debt) teilweise offen: TS-Fehler (~379), SocialMediaManager splitten, React Router v7, TanStack Query für TimeEntriesList/Stopwatch. Nächste Sprints: H (Tech-Debt-Abschluss), I (Attachment-Handling), J (Distributor-Integrationen). Verhaltensregel 7 um SELECT*-Warnung erweitert.*
 
 ---
 
-## Geplant: Lizenz-Management & Beleg-Positionen (Epic G)
+---
 
-> **Status:** Geplant | **Geschätzter Aufwand:** 25-30 Tage | **Abhängigkeit:** Sprint 3 (Tickets-Paginierung) abgeschlossen
+## Nächste Sprints für Claude Code (Stand 2.7.2026)
+
+> **Für Claude Code:** Sprints 1–4 + A–F + G sind vollständig abgeschlossen ✅. Sprint 5 (Tech-Debt) ist teilweise offen. Die folgenden Sprints H–J sind die nächsten priorisierten Aufgaben. Reihenfolge: H → I → J. Branch-Konvention beachten.
+
+### 🔴 Sprint H — Tech-Debt-Abschluss (Sprint 5 Rest)
+
+**Abhängigkeit:** keine | **Geschätzter Aufwand:** 3–4 Tage
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **TS-Fehler auf 0 reduzieren** | diverse | 6h+ | ~379 verbleibend. Hauptdateien: TicketDashboard.tsx (47), SocialMediaManager.tsx (40), CustomerHub.tsx (38). Fehlende Interface-Properties ergänzen: `date`, `billed`, `trends`, `sla`. Vorgehen: `npx tsc --noEmit 2>&1 | head -50` für aktuellen Stand, dann pro Datei die Interface-Definitionen in `src/types.ts` erweitern. |
+| ⬜ | **TanStack Query für TimeEntriesList + Stopwatch** | `src/components/TimeEntriesList.tsx`, `src/components/Stopwatch.tsx` | 3–4h | Analog zur TaskHub-Migration. `useEffect+loadData` → `useQuery`, Mutations für create/update/delete. Cache-Key: `['entries', filters]`. |
+| ⬜ | **SocialMediaManager.tsx splitten** | `src/components/SocialMediaManager.tsx` (6482 Zeilen) | 1 Tag | In 4 Tabs aufteilen: `PostsTab.tsx`, `TemplatesTab.tsx`, `AnalyticsTab.tsx`, `CalendarTab.tsx`. Lazy-Import in App.tsx. Jede Datei max. 800 Zeilen. |
+| ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes prüfen: `useNavigate`-API, `<Routes>`-Syntax. Erst `pnpm add react-router-dom@7`, dann alle Imports anpassen, dann testen. |
+| ⬜ | **text-gray-* Cleanup (priorisiert)** | `SocialMediaManager.tsx` (118), `Finanzen.tsx` (29), `MaintenanceView.tsx` (26) | 2–3h | Nur diese 3 Dateien manuell prüfen. `text-gray-*` ohne `dark:`-Pendant → `text-dark-400` oder `text-dark-500`. Nicht automatisch ersetzen — jede Stelle einzeln prüfen. |
+
+---
+
+### 🟠 Sprint I — Attachment-Handling & E-Mail-Anhänge
+
+**Abhängigkeit:** keine | **Geschätzter Aufwand:** 3–4 Tage
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **Ticket-Attachments: Upload/Download/Vorschau** | `src/components/ticket-detail/TicketAttachments.tsx`, `server/src/routes/tickets.ts` | 2–3h | Aktueller Stand: Upload funktioniert, Download/Vorschau unzureichend. Ziel: Bild-Vorschau im Modal (lightbox-style), PDF-Vorschau via `<iframe>`, Download-Button mit korrektem Content-Disposition Header. Max 10 MB, erlaubte Typen: Bilder, PDF, Word, Excel, Text. |
+| ⬜ | **E-Mail-Anhänge ans Ticket hängen** | `server/src/routes/tickets.ts`, E-Mail-Verarbeitungs-Service | 3–4h | Eingehende E-Mails mit Anhängen: Anhänge werden aktuell nicht persistiert. Ziel: Bei E-Mail-Ticket-Erstellung Anhänge in `ticket_email_attachments` speichern, in TicketDetail anzeigen. Basis: vorhandene `ticket_email_attachments`-Tabelle nutzen. |
+| ⬜ | **Attachment-Größenlimit serverseitig** | `server/src/routes/tickets.ts` | 30min | Multer-Konfiguration: `limits: { fileSize: 10 * 1024 * 1024 }`. Fehler-Response mit klarer Meldung. |
+| ⬜ | **Offline-Sync für weitere Aktionen** | `src/hooks/useOfflineEntrySync.ts` | 2–3h | Aktuell nur Zeiteinträge. Erweiterung: Ticket-Kommentare und Task-Updates offline puffern. Gleiche `clientId`-Idempotenz-Strategie wie bei Einträgen. |
+
+---
+
+### 🟡 Sprint J — Distributor-Integrationen (Epic G Fortsetzung)
+
+**Abhängigkeit:** Epic G vollständig (✅) | **Geschätzter Aufwand:** 5–8 Tage
+
+| Status | Task | Datei | Aufwand | Hinweis |
+|---|---|---|---|---|
+| ⬜ | **ADN API-Anbindung** | `server/src/routes/sevdesk.ts` oder neue `server/src/routes/adn.ts` | 2–3 Tage | ADN Distributor-API: Lizenz-Import mit Preisen. Neue Tabelle `adn_licenses` (analog zu `invoice_line_items`). Matching über `CustomerMatchingService`. Cron-Job für täglichen Sync. |
+| ⬜ | **Infinigate-Integration** | `server/src/routes/infinigate.ts` (neu) | 2–3 Tage | Lizenz-Abfrage und Kundenzuordnung. Gleiche Architektur wie ADN. `distributor_identifiers` JSONB in `customers` nutzen. |
+| ⬜ | **Lywand Security-Daten im Portal** | `server/src/routes/customer-portal.ts`, `src/components/portal/PortalSecurity.tsx` (neu) | 2–3 Tage | Security-Audit-Daten von Lywand-API abrufen, im Kundenportal als neuer Tab „Sicherheit" anzeigen. Score, offene Findings, Empfehlungen. Berechtigung: `can_view_security` (neue Spalte in `customer_portal_users`). |
+| ⬜ | **Microsoft Security Center** | `server/src/routes/microsoft365.ts` | 2 Tage | Security-Scores und Empfehlungen aus M365 Defender/Secure Score API abrufen. Neuer SubView unter Support → „M365 Security". |
+| ⬜ | **Portal: Lizenz-Self-Service** | `src/components/portal/PortalLicenses.tsx`, `server/src/routes/customer-portal.ts` | 3–4 Tage | Kunde kann Lizenzen bestellen/ändern. Genehmigungsworkflow: Anfrage → Admin-Benachrichtigung → Bestätigung → Provisionierung. Neue Tabelle `license_requests`. |
+
+---
+
+## ✅ Epic G — Lizenz-Management & Beleg-Positionen (abgeschlossen)
+
+> **Status:** ✅ Vollständig abgeschlossen (Stand 15.6.2026) | **Aufwand:** ~25 Tage | **Abhängigkeit:** Sprint 3 (Tickets-Paginierung) ✅
 
 ### Übersicht
 
