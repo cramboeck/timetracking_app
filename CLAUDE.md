@@ -656,6 +656,10 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **Ninja-Ticket-Darstellung verbessert** | Commit 16fa38b. Source-Badges in TicketList (NinjaRMM/E-Mail/Portal/Manuell), Geräte-Name, TicketNinjaInfo-Komponente in Sidebar mit Device-Details. |
 | ✅ | **Vulnerability-Frontend** | Commit 3969549. `VulnerabilitiesDashboard.tsx` mit Summary-Cards, Filter, Status-Management. Neuer SubView "Schwachstellen" unter Support. Ticket-Erstellung aus Vulnerability. NVD-Links für CVE-Details. |
 
+> **⚠️ API-Limitierung Vulnerability-Sync (verifiziert 3.7.2026 gegen die offizielle NinjaOne Public API 2.0 OpenAPI-Spec, v2.0.9-draft):**
+> Die Public API bietet **keinen Lese-Endpoint für native Software-Scanning-CVEs pro Gerät**. Vulnerability-Management existiert dort nur als `GET /v2/vulnerability/scan-groups`, `GET /v2/vulnerability/scan-groups/{id}` und `POST /v2/vulnerability/scan-groups/{id}/upload` — d.h. ausschließlich **CSV-Import** von Drittanbieter-Scannern (Mapping via Hostname/IP/MAC + CVE-ID, max 200 MB). Lesbar sind nur **aggregierte Zähler** pro Gerät via `GET /v2/queries/device-health` (`criticalVulnerabilityCount`, `highVulnerabilityCount`, …). Die im NinjaOne-Portal sichtbaren CVE-Details laufen über die interne `/swb/s4/vulnerability-mgmt/*`-API (Session-Auth, nicht per OAuth2-Token erreichbar).
+> **Konsequenz:** Der Probe-Mechanismus in `ninjarmmService.ts` (`VULN_ENDPOINT_CANDIDATES`) findet erwartungsgemäß keinen funktionierenden Endpoint (alle 404). `VulnerabilitiesDashboard.tsx` zeigt bei 0 Einträgen einen Hinweis-Banner mit Deep-Link ins NinjaOne-Portal. Sobald NinjaOne einen Read-Endpoint veröffentlicht, kann er in `VULN_ENDPOINT_CANDIDATES` ergänzt werden — Rest der Pipeline (DB, Sync, UI) funktioniert dann unverändert. Alternative bis dahin: Aggregat-Zähler aus `device-health` syncen (nur Counts, keine CVE-Details).
+
 ### Geplant: Distributor- & Sicherheits-Integrationen
 
 | Status | Task | Beschreibung |
