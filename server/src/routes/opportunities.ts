@@ -198,6 +198,38 @@ router.post('/stages', validate(createStageSchema), async (req: Request, res: Re
   }
 });
 
+// PUT /api/opportunities/stages/reorder - Reorder stages.
+// MUSS vor PUT /stages/:id registriert sein, sonst matcht Express 'reorder'
+// als Stage-ID und das Umsortieren der Pipeline-Stages schlägt fehl.
+router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request, res: Response) => {
+  try {
+    const organizationId = await getUserOrganizationId((req as any).user.id);
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID required' });
+    }
+
+    const { stage_ids } = req.body; // Array of stage IDs in new order
+
+    for (let i = 0; i < stage_ids.length; i++) {
+      await query(
+        'UPDATE pipeline_stages SET sort_order = $3 WHERE id = $1 AND organization_id = $2',
+        [stage_ids[i], organizationId, i]
+      );
+    }
+
+    const result = await query(`
+      SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
+      WHERE organization_id = $1
+      ORDER BY sort_order ASC
+    `, [organizationId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    logger.error('Error reordering stages:', error);
+    res.status(500).json({ error: 'Failed to reorder stages' });
+  }
+});
+
 // PUT /api/opportunities/stages/:id - Update stage
 router.put('/stages/:id', validate(updateStageSchema), async (req: Request, res: Response) => {
   try {
@@ -230,36 +262,6 @@ router.put('/stages/:id', validate(updateStageSchema), async (req: Request, res:
   } catch (error) {
     logger.error('Error updating pipeline stage:', error);
     res.status(500).json({ error: 'Failed to update pipeline stage' });
-  }
-});
-
-// PUT /api/opportunities/stages/reorder - Reorder stages
-router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request, res: Response) => {
-  try {
-    const organizationId = await getUserOrganizationId((req as any).user.id);
-    if (!organizationId) {
-      return res.status(400).json({ error: 'Organization ID required' });
-    }
-
-    const { stage_ids } = req.body; // Array of stage IDs in new order
-
-    for (let i = 0; i < stage_ids.length; i++) {
-      await query(
-        'UPDATE pipeline_stages SET sort_order = $3 WHERE id = $1 AND organization_id = $2',
-        [stage_ids[i], organizationId, i]
-      );
-    }
-
-    const result = await query(`
-      SELECT ${PIPELINE_STAGE_COLUMNS} FROM pipeline_stages
-      WHERE organization_id = $1
-      ORDER BY sort_order ASC
-    `, [organizationId]);
-
-    res.json(result.rows);
-  } catch (error) {
-    logger.error('Error reordering stages:', error);
-    res.status(500).json({ error: 'Failed to reorder stages' });
   }
 });
 
