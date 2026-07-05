@@ -637,21 +637,23 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-## Nächste Sprints für Claude Code (Stand 2.7.2026)
+## Nächste Sprints für Claude Code (Stand 5.7.2026)
 
-> **Für Claude Code:** Sprints 1–4 + A–F + G sind vollständig abgeschlossen ✅. Sprint 5 (Tech-Debt) ist teilweise offen. Die folgenden Sprints H–J sind die nächsten priorisierten Aufgaben. Reihenfolge: H → I → J. Branch-Konvention beachten.
+> **Für Claude Code:** Sprints 1–4 + A–F + G sind vollständig abgeschlossen ✅. TanStack Query für TimeEntriesList/Stopwatch ✅. Sprint H ist teilweise offen (TS-Fehler, Router v7, text-gray-Cleanup, SocialMedia-Split zuletzt). Die folgenden Sprints H–J sind die nächsten priorisierten Aufgaben. Reihenfolge: H → I → J. Branch-Konvention beachten.
 
 ### 🔴 Sprint H — Tech-Debt-Abschluss (Sprint 5 Rest)
 
 **Abhängigkeit:** keine | **Geschätzter Aufwand:** 3–4 Tage
 
+> **Priorisierung (5.7.2026):** SocialMediaManager-Split bewusst nach hinten gestellt — kein fachlicher Mehrwert, nur Code-Hygiene. Reihenfolge: TS-Fehler → Router v7 → text-gray-Cleanup → SocialMedia (zuletzt).
+
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **TS-Fehler auf 0 reduzieren** | diverse | 6h+ | ~379 verbleibend. Hauptdateien: TicketDashboard.tsx (47), SocialMediaManager.tsx (40), CustomerHub.tsx (38). Fehlende Interface-Properties ergänzen: `date`, `billed`, `trends`, `sla`. Vorgehen: `npx tsc --noEmit 2>&1 | head -50` für aktuellen Stand, dann pro Datei die Interface-Definitionen in `src/types.ts` erweitern. |
-| ⬜ | **TanStack Query für TimeEntriesList + Stopwatch** | `src/components/TimeEntriesList.tsx`, `src/components/Stopwatch.tsx` | 3–4h | Analog zur TaskHub-Migration. `useEffect+loadData` → `useQuery`, Mutations für create/update/delete. Cache-Key: `['entries', filters]`. |
-| ⬜ | **SocialMediaManager.tsx splitten** | `src/components/SocialMediaManager.tsx` (6482 Zeilen) | 1 Tag | In 4 Tabs aufteilen: `PostsTab.tsx`, `TemplatesTab.tsx`, `AnalyticsTab.tsx`, `CalendarTab.tsx`. Lazy-Import in App.tsx. Jede Datei max. 800 Zeilen. |
+| ⬜ | **TS-Fehler auf 0 reduzieren** | diverse | 6h+ | ~374 verbleibend (Stand 5.7.2026). Hauptdateien: TicketDashboard.tsx (47), SocialMediaManager.tsx (40), CustomerHub.tsx (38). Fehlende Interface-Properties ergänzen: `date`, `billed`, `trends`, `sla`. Vorgehen: `npx tsc --noEmit 2>&1 | head -50` für aktuellen Stand, dann pro Datei die Interface-Definitionen in `src/types.ts` erweitern. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes prüfen: `useNavigate`-API, `<Routes>`-Syntax. Erst `pnpm add react-router-dom@7`, dann alle Imports anpassen, dann testen. |
+| ✅ | **TanStack Query für TimeEntriesList + Stopwatch** | `src/components/TimeEntriesList.tsx`, `src/components/Stopwatch.tsx` | 3–4h | Commit f01807f. Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key. |
 | ⬜ | **text-gray-* Cleanup (priorisiert)** | `SocialMediaManager.tsx` (118), `Finanzen.tsx` (29), `MaintenanceView.tsx` (26) | 2–3h | Nur diese 3 Dateien manuell prüfen. `text-gray-*` ohne `dark:`-Pendant → `text-dark-400` oder `text-dark-500`. Nicht automatisch ersetzen — jede Stelle einzeln prüfen. |
+| ⬜ | **SocialMediaManager.tsx splitten** *(niedrige Priorität — zuletzt)* | `src/components/SocialMediaManager.tsx` (6482 Zeilen) | 1 Tag | In 4 Tabs aufteilen: `PostsTab.tsx`, `TemplatesTab.tsx`, `AnalyticsTab.tsx`, `CalendarTab.tsx`. Lazy-Import in App.tsx. Jede Datei max. 800 Zeilen. **Erst nach TS-Fehler + Router v7 + text-gray-Cleanup angehen.** |
 
 ---
 
