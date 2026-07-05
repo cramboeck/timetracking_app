@@ -13,6 +13,7 @@ import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { UIProvider } from './contexts/UIContext.tsx'
 import { queryClient } from './lib/queryClient.ts'
+import { isPortalHost } from './utils/portalHost.ts'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
 import { darkMode } from './utils/darkMode.ts'
@@ -44,23 +45,32 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <AuthProvider>
             <FeaturesProvider>
               <UIProvider>
-                <Routes>
-                  {/* Public route for report approval */}
-                  <Route path="/approve/:token" element={<ReportApprovalReview />} />
+                {isPortalHost() ? (
+                  /* Dedicated portal host (portal.ramboeck.it): the portal
+                     lives at the root — every path renders CustomerPortal,
+                     which handles /, /activate and /tickets/:id internally. */
+                  <Routes>
+                    <Route path="/*" element={<CustomerPortal />} />
+                  </Routes>
+                ) : (
+                  <Routes>
+                    {/* Public route for report approval */}
+                    <Route path="/approve/:token" element={<ReportApprovalReview />} />
 
-                  {/* Public route for maintenance approval */}
-                  <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
+                    {/* Public route for maintenance approval */}
+                    <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
 
-                  {/* Customer Portal (separate from main app) */}
-                  <Route path="/portal" element={<CustomerPortal />} />
-                  <Route path="/portal/activate" element={<CustomerPortal />} />
+                    {/* Customer Portal (separate from main app) */}
+                    <Route path="/portal" element={<CustomerPortal />} />
+                    <Route path="/portal/activate" element={<CustomerPortal />} />
 
-                  {/* Admin Portal (separate from main app, with auth) */}
-                  <Route path="/admin" element={<AdminRoute />} />
+                    {/* Admin Portal (separate from main app, with auth) */}
+                    <Route path="/admin" element={<AdminRoute />} />
 
-                  {/* Main app */}
-                  <Route path="/*" element={<App />} />
-                </Routes>
+                    {/* Main app */}
+                    <Route path="/*" element={<App />} />
+                  </Routes>
+                )}
               </UIProvider>
             </FeaturesProvider>
           </AuthProvider>

@@ -15,6 +15,7 @@ import { PortalContract } from './PortalContract';
 import { PortalLicenses } from './PortalLicenses';
 import { PortalWelcomeGuide } from './PortalWelcomeGuide';
 import { PortalDashboard } from './PortalDashboard';
+import { portalHomePath } from '../../utils/portalHost';
 
 type PortalView = 'dashboard' | 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract' | 'licenses';
 
@@ -31,15 +32,18 @@ export const CustomerPortal = () => {
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
 
-  // Check for activation token in URL
+  // Check for activation token in URL. Works on both hosts: the main app
+  // serves the portal under /portal/activate, the dedicated portal host
+  // (portal.ramboeck.it) under /activate.
   const urlParams = new URLSearchParams(window.location.search);
   const activationToken = urlParams.get('token');
-  const isActivation = window.location.pathname.includes('/portal/activate');
+  const isActivation = window.location.pathname.endsWith('/activate');
 
-  // Check for deep link to ticket: /portal/tickets/{id}
+  // Check for deep link to ticket: /portal/tickets/{id} (app host) or
+  // /tickets/{id} (portal host). The optional /portal prefix covers both.
   useEffect(() => {
     const path = window.location.pathname;
-    const ticketMatch = path.match(/\/portal\/tickets\/([a-f0-9-]+)/i);
+    const ticketMatch = path.match(/(?:\/portal)?\/tickets\/([a-f0-9-]+)/i);
     if (ticketMatch) {
       const ticketId = ticketMatch[1];
       setPendingTicketId(ticketId);
@@ -78,7 +82,7 @@ export const CustomerPortal = () => {
       setCurrentView('ticket-detail');
       setPendingTicketId(null);
       // Clean up URL
-      window.history.replaceState({}, '', '/portal');
+      window.history.replaceState({}, '', portalHomePath());
     }
   }, [contact, pendingTicketId]);
 
@@ -229,7 +233,7 @@ export const CustomerPortal = () => {
 
   const handleActivated = () => {
     // Clear URL params and redirect to login
-    window.history.replaceState({}, '', '/portal');
+    window.history.replaceState({}, '', portalHomePath());
     setLoading(true);
     setTimeout(() => setLoading(false), 100);
   };
