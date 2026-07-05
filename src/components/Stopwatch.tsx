@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Play, Pause, Square, Plus, Sparkles, Check, Briefcase, Coffee, Calendar } from 'lucide-react';
 import { formatDuration } from '../utils/time';
 import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
@@ -75,24 +76,16 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [isStopping, setIsStopping] = useState(false);
   const [showStopSuccess, setShowStopSuccess] = useState(false);
 
-  // AI state
-  const [aiConfigured, setAiConfigured] = useState(false);
+  // AI state — shared cache key with TicketDetail/TimeEntriesList
+  const aiConfigQuery = useQuery({
+    queryKey: ['ai', 'config'],
+    queryFn: async () => (await aiApi.getConfig()).data,
+    staleTime: 5 * 60_000,
+  });
+  const aiConfigured = Boolean(aiConfigQuery.data?.enabled && aiConfigQuery.data?.hasApiKey);
   const [generatingDescription, setGeneratingDescription] = useState(false);
 
   const activeProjects = projects.filter(p => p.isActive);
-
-  // Check AI config on mount
-  useEffect(() => {
-    const checkAiConfig = async () => {
-      try {
-        const response = await aiApi.getConfig();
-        setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
-      } catch (err) {
-        setAiConfigured(false);
-      }
-    };
-    checkAiConfig();
-  }, []);
 
   // Generate AI description
   const generateAiDescription = async () => {

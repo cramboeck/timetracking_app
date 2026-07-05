@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar } from 'lucide-react';
 import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
@@ -104,6 +104,10 @@ const currentMonthStr = (): string => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// Stable empty array: `data?.data ?? NO_ENTRIES` must not mint a new array
+// per render, or every effect depending on `entries` would re-run endlessly.
+const NO_ENTRIES: TimeEntry[] = [];
+
 export const TimeEntriesList = ({ projects, customers, activities, onDelete, onEdit, onRepeatEntry, onBulkUpdate }: TimeEntriesListProps) => {
   const { currentUser } = useAuth();
   const showToast = useToast();
@@ -147,17 +151,79 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     };
   }, []);
 
-  // Server-side pagination state (declared early so the inline-edit-sync
-  // useEffect below — which depends on `entries` — can see it). Backend
-  // filters startDate/endDate/projectId; customer and description filters
-  // are applied client-side on the loaded page.
-  const [entries, setEntries] = useState<TimeEntry[]>([]);
-  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  // Filter state (declared before the entries query so the query key can
+  // depend on it)
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCustomerId, setFilterCustomerId] = useState<string>('');
+  const [filterProjectId, setFilterProjectId] = useState<string>('');
+  const [filterEntryScope, setFilterEntryScope] = useState<EntryScope | ''>('');
+  const [filterTimeframeType, setFilterTimeframeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
+  const [filterMonth, setFilterMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [filterQuarter, setFilterQuarter] = useState(() => {
+    const now = new Date();
+    const quarter = Math.floor(now.getMonth() / 3) + 1;
+    return `${now.getFullYear()}-Q${quarter}`;
+  });
+  const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()));
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [filterDescription, setFilterDescription] = useState<string>('');
+
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [refetchToken, setRefetchToken] = useState(0);
-  const triggerRefetch = useCallback(() => setRefetchToken((t) => t + 1), []);
+  const queryClient = useQueryClient();
+
+  // Reset to page 1 whenever any backend-relevant filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription]);
+
+  const dateRange = useMemo(
+    () => filterToDateRange(filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo),
+    [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo]
+  );
+
+  // Server-side pagination — ALL filters go to the backend (startDate/
+  // endDate/projectId/customerId/searchText). keepPreviousData hält beim
+  // Blättern/Filtern die letzte Seite sichtbar (kein Skeleton-Flackern);
+  // staleTime 0 lädt bei jedem Remount (SubView-Wechsel) frisch, damit neue
+  // Einträge aus Stoppuhr/Offline-Sync sofort erscheinen.
+  const entriesQuery = useQuery({
+    queryKey: ['entries', 'list', {
+      page: currentPage,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      projectId: filterProjectId || undefined,
+      customerId: filterCustomerId || undefined,
+      searchText: filterDescription || undefined,
+    }],
+    queryFn: () => entriesApi.getPaginated({
+      page: currentPage,
+      limit: PAGE_SIZE,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      projectId: filterProjectId || undefined,
+      customerId: filterCustomerId || undefined,
+      searchText: filterDescription || undefined,
+    }),
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  });
+
+  const entries = entriesQuery.data?.data ?? NO_ENTRIES;
+  const pagination: PaginationMeta | null = entriesQuery.data?.pagination ?? null;
+  const loading = entriesQuery.isPending;
+  const isFetching = entriesQuery.isFetching;
+  const fetchError = entriesQuery.error
+    ? (entriesQuery.error instanceof Error ? entriesQuery.error.message : 'Fehler beim Laden')
+    : null;
+  // Invalidiert alle entries-Queries (Liste + Timeframes) — nach Edit/Delete/
+  // Bulk holt die aktive Seite sich selbst frisch.
+  const triggerRefetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['entries'] });
+  }, [queryClient]);
 
   // Sync inline edit state when entries change
   useEffect(() => {
@@ -184,75 +250,6 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     entry: null
   });
 
-  // Filter state
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterCustomerId, setFilterCustomerId] = useState<string>('');
-  const [filterProjectId, setFilterProjectId] = useState<string>('');
-  const [filterEntryScope, setFilterEntryScope] = useState<EntryScope | ''>('');
-  const [filterTimeframeType, setFilterTimeframeType] = useState<'month' | 'quarter' | 'year' | 'custom'>('month');
-  const [filterMonth, setFilterMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [filterQuarter, setFilterQuarter] = useState(() => {
-    const now = new Date();
-    const quarter = Math.floor(now.getMonth() / 3) + 1;
-    return `${now.getFullYear()}-Q${quarter}`;
-  });
-  const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()));
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
-  const [filterDateTo, setFilterDateTo] = useState<string>('');
-  const [filterDescription, setFilterDescription] = useState<string>('');
-
-  // Reset to page 1 whenever any backend-relevant filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription]);
-
-  // Fetch entries when filters/page change. ALL filters now go to the
-  // backend (since the entries endpoint learned customerId + searchText
-  // support) — no client-side narrowing of the loaded page anymore.
-  useEffect(() => {
-    let cancelled = false;
-    const dateRange = filterToDateRange(
-      filterTimeframeType,
-      filterMonth,
-      filterQuarter,
-      filterYear,
-      filterDateFrom,
-      filterDateTo,
-    );
-    setLoading(true);
-    setFetchError(null);
-    entriesApi
-      .getPaginated({
-        page: currentPage,
-        limit: PAGE_SIZE,
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        projectId: filterProjectId || undefined,
-        customerId: filterCustomerId || undefined,
-        searchText: filterDescription || undefined,
-      })
-      .then((response) => {
-        if (cancelled) return;
-        setEntries(response.data);
-        setPagination(response.pagination);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setFetchError(err instanceof Error ? err.message : 'Fehler beim Laden');
-        setEntries([]);
-        setPagination(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentPage, filterTimeframeType, filterMonth, filterQuarter, filterYear, filterDateFrom, filterDateTo, filterProjectId, filterCustomerId, filterDescription, refetchToken]);
-
   // View mode state
   const [compactView, setCompactView] = useState<boolean>(() => {
     const saved = localStorage.getItem('timeEntriesCompactView');
@@ -264,22 +261,14 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     localStorage.setItem('timeEntriesCompactView', String(compactView));
   }, [compactView]);
 
-  // AI state
-  const [aiConfigured, setAiConfigured] = useState(false);
+  // AI state — shared cache key with TicketDetail/Stopwatch
+  const aiConfigQuery = useQuery({
+    queryKey: ['ai', 'config'],
+    queryFn: async () => (await aiApi.getConfig()).data,
+    staleTime: 5 * 60_000,
+  });
+  const aiConfigured = Boolean(aiConfigQuery.data?.enabled && aiConfigQuery.data?.hasApiKey);
   const [generatingDescription, setGeneratingDescription] = useState(false);
-
-  // Check AI config on mount
-  useEffect(() => {
-    const checkAiConfig = async () => {
-      try {
-        const response = await aiApi.getConfig();
-        setAiConfigured(!!(response.data?.enabled && response.data?.hasApiKey));
-      } catch (err) {
-        setAiConfigured(false);
-      }
-    };
-    checkAiConfig();
-  }, []);
 
   // Generate AI description for edit modal
   const generateEditAiDescription = async () => {
@@ -1708,10 +1697,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             <span className="hidden sm:inline"> · {pagination.total} Einträge</span>
           </div>
           <div className="flex items-center gap-2">
-            {loading && <Loader2 size={14} className="animate-spin text-gray-400" />}
+            {isFetching && <Loader2 size={14} className="animate-spin text-gray-400" />}
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={pagination.page <= 1 || loading}
+              disabled={pagination.page <= 1 || isFetching}
               className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Vorherige Seite"
             >
@@ -1720,7 +1709,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             </button>
             <button
               onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={!pagination.hasMore || loading}
+              disabled={!pagination.hasMore || isFetching}
               className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-100 disabled:opacity-40 disabled:cursor-not-allowed"
               aria-label="Nächste Seite"
             >
