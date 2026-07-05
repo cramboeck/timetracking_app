@@ -485,8 +485,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | **Aufgaben mit Fälligkeitsdatum** — Datepicker, überfällige Tasks rot, heute orange, aufklappbar | 3541f1a |
 | **NinjaRMM Geräteverknüpfung** — Gerät mit Ticket verknüpfen, Status-Anzeige, Dropdown zur Auswahl | 3541f1a |
 | **Quick Status/Priority Change** — Status und Priorität direkt per Dropdown ändern ohne Edit-Modus | f961f2e |
-| **Ticket Templates** — Vorlagen für häufige Ticket-Typen (in Arbeit) | — |
-| **Bulk Actions** — Mehrfachauswahl + Massenaktionen für Tickets (in Arbeit) | — |
+| **Ticket Templates** — Vorlagen für häufige Ticket-Typen. UI (CreateTicketDialog, TicketSettings) und Backend waren komplett — `GET /tickets/templates` wurde aber von `GET /:id` geschluckt (Route-Order), die Liste lieferte immer 404 | b895df0 |
+| **Bulk Actions** — Mehrfachauswahl + Massenaktionen (Status/Priorität/Zuweisen/Archivieren/Löschen) in TicketList. War komplett gebaut — nur `DELETE /tickets/bulk` wurde von `DELETE /:id` geschluckt | b895df0 |
+| **Route-Shadowing-Sweep** — Scanner über alle Route-Dateien fand 6 tote Routen (Express-Registrierungsreihenfolge): tickets bulk-delete/templates/task-reorder, admin maintenance-bulk-delete, opportunities stages-reorder, sevdesk line-items bulk-contract. Alle vor die param-Routen verschoben | b895df0 |
 
 ### ✅ Sicherheitslücken — Alle behoben
 
