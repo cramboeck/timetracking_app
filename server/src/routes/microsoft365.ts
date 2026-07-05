@@ -11,6 +11,7 @@ import { mailboxMonitorService } from '../services/mailboxMonitorService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
+import { saveTicketFileFromBuffer } from '../middleware/upload';
 import multer from 'multer';
 
 // ============================================================================
@@ -575,6 +576,55 @@ async function findCustomerByEmail(organizationId: string, email: string): Promi
   return null;
 }
 
+// Fetch the attachments of an inbound email from Microsoft Graph, store the
+// file contents in the tickets upload directory and record them in
+// ticket_email_attachments. Must run while the message still exists in the
+// mailbox — once it is moved/deleted, Graph can no longer serve the bytes.
+// Failures are logged but never break ticket creation.
+async function persistEmailAttachments(
+  organizationId: string,
+  emailRecordId: string,
+  messageId: string
+): Promise<void> {
+  try {
+    const attachments = await mailboxMonitorService.getAttachments(organizationId, messageId, 'support');
+
+    for (const att of attachments) {
+      if (!att.contentBytes) {
+        logger.warn(`Email attachment ${att.name} has no contentBytes — storing metadata only`);
+      }
+
+      let fileUrl: string | null = null;
+      if (att.contentBytes) {
+        const buffer = Buffer.from(att.contentBytes, 'base64');
+        fileUrl = saveTicketFileFromBuffer(buffer, att.name).fileUrl;
+      }
+
+      await query(`
+        INSERT INTO ticket_email_attachments (
+          id, ticket_email_id, attachment_id, name, content_type, size,
+          stored_locally, local_path
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        crypto.randomUUID(),
+        emailRecordId,
+        att.id,
+        att.name,
+        att.contentType || null,
+        att.size ?? null,
+        fileUrl !== null,
+        fileUrl,
+      ]);
+    }
+
+    if (attachments.length > 0) {
+      logger.info(`Persisted ${attachments.length} email attachment(s) for ticket email ${emailRecordId}`);
+    }
+  } catch (error: any) {
+    logger.error('Failed to persist email attachments:', error.message || error);
+  }
+}
+
 // Helper to save email to ticket_emails table
 async function saveEmailToTicket(
   organizationId: string,
@@ -591,7 +641,7 @@ async function saveEmailToTicket(
     bodyText = bodyText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  await query(`
+  const insertResult = await query(`
     INSERT INTO ticket_emails (
       id, ticket_id, organization_id, message_id, conversation_id,
       direction, subject, body_preview, body_html, body_text,
@@ -601,6 +651,7 @@ async function saveEmailToTicket(
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
     )
     ON CONFLICT (organization_id, message_id) DO NOTHING
+    RETURNING id
   `, [
     emailRecordId,
     ticketId,
@@ -621,6 +672,22 @@ async function saveEmailToTicket(
     email.hasAttachments,
     email.receivedDateTime
   ]);
+
+  // Conflict → the email was saved before (attachments included); return the
+  // existing row id instead of the never-inserted one.
+  if (insertResult.rows.length === 0) {
+    const existing = await query(
+      `SELECT id FROM ticket_emails WHERE organization_id = $1 AND message_id = $2`,
+      [organizationId, messageId]
+    );
+    return existing.rows[0]?.id ?? emailRecordId;
+  }
+
+  // New email row — pull its attachments from Graph while the message is
+  // still available in the mailbox.
+  if (direction === 'inbound' && email.hasAttachments) {
+    await persistEmailAttachments(organizationId, emailRecordId, messageId);
+  }
 
   return emailRecordId;
 }
@@ -1055,27 +1122,40 @@ router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequ
 
     const result = await query(`
       SELECT
-        id,
-        message_id,
-        conversation_id,
-        direction,
-        subject,
-        body_preview,
-        body_html,
-        body_text,
-        from_name,
-        from_email,
-        to_recipients,
-        cc_recipients,
-        is_read,
-        importance,
-        has_attachments,
-        received_at,
-        sent_at,
-        created_at
-      FROM ticket_emails
-      WHERE ticket_id = $1 AND organization_id = $2
-      ORDER BY received_at ASC
+        te.id,
+        te.message_id,
+        te.conversation_id,
+        te.direction,
+        te.subject,
+        te.body_preview,
+        te.body_html,
+        te.body_text,
+        te.from_name,
+        te.from_email,
+        te.to_recipients,
+        te.cc_recipients,
+        te.is_read,
+        te.importance,
+        te.has_attachments,
+        te.received_at,
+        te.sent_at,
+        te.created_at,
+        COALESCE(att.attachments, '[]'::json) AS attachments
+      FROM ticket_emails te
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object(
+          'id', tea.id,
+          'name', tea.name,
+          'contentType', tea.content_type,
+          'size', tea.size,
+          'storedLocally', tea.stored_locally,
+          'localPath', tea.local_path
+        ) ORDER BY tea.created_at) AS attachments
+        FROM ticket_email_attachments tea
+        WHERE tea.ticket_email_id = te.id
+      ) att ON true
+      WHERE te.ticket_id = $1 AND te.organization_id = $2
+      ORDER BY te.received_at ASC
     `, [ticketId, organizationId]);
 
     res.json({

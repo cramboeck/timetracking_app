@@ -1447,6 +1447,15 @@ export interface SupportEmail {
   importance: 'low' | 'normal' | 'high';
 }
 
+export interface TicketEmailAttachment {
+  id: string;
+  name: string;
+  contentType: string | null;
+  size: number | null;
+  storedLocally: boolean;
+  localPath: string | null;
+}
+
 export interface TicketEmail {
   id: string;
   message_id: string;
@@ -1463,6 +1472,7 @@ export interface TicketEmail {
   is_read: boolean;
   importance: 'low' | 'normal' | 'high';
   has_attachments: boolean;
+  attachments?: TicketEmailAttachment[];
   received_at: string;
   sent_at: string | null;
   created_at: string;

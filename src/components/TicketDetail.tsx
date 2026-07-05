@@ -433,9 +433,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       });
       const result = await ticketsApi.uploadAttachments(ticketId, formData);
       writeAttachments((prev) => [...prev, ...result.data]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to upload files:', err);
-      showToast('Fehler beim Hochladen der Dateien', 'error');
+      // Server liefert konkrete Gründe (Datei zu groß, Dateityp nicht
+      // erlaubt, zu viele Dateien) — die sollen beim User ankommen.
+      showToast(err?.message || 'Fehler beim Hochladen der Dateien', 'error');
     } finally {
       setUploadingFiles(false);
     }

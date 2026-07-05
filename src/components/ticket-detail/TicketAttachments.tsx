@@ -53,7 +53,7 @@ export const TicketAttachments = ({
             onChange={handleFileUpload}
             disabled={uploadingFiles}
             className="hidden"
-            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.eml,.msg"
           />
         </label>
       </div>
@@ -89,20 +89,25 @@ export const TicketAttachments = ({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
-                        title="Offnen"
+                        title="Öffnen"
                       >
                         <Download size={16} />
                       </a>
-                      <IconButton
-                        onClick={() => onDeleteAttachment(attachment.id)}
-                        icon={<Trash2 size={16} />}
-                        variant="danger"
-                        size="sm"
-                        tooltip="Loschen"
-                        className="bg-white/20 hover:bg-red-500/50 text-white"
-                      />
+                      {attachment.source !== 'email' && (
+                        <IconButton
+                          onClick={() => onDeleteAttachment(attachment.id)}
+                          icon={<Trash2 size={16} />}
+                          variant="danger"
+                          size="sm"
+                          tooltip="Löschen"
+                          className="bg-white/20 hover:bg-red-500/50 text-white"
+                        />
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-gray-500 dark:text-dark-400 truncate">
+                      {attachment.source === 'email' && (
+                        <span className="mr-1 px-1 py-px text-[10px] bg-accent-primary/10 text-accent-primary rounded align-middle">E-Mail</span>
+                      )}
                       {attachment.filename}
                     </p>
                   </div>
@@ -128,6 +133,9 @@ export const TicketAttachments = ({
                       <FileIcon size={20} className="text-gray-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {attachment.source === 'email' && (
+                            <span className="mr-1.5 px-1 py-px text-[10px] bg-accent-primary/10 text-accent-primary rounded align-middle">E-Mail</span>
+                          )}
                           {attachment.filename}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-dark-400">
@@ -144,13 +152,15 @@ export const TicketAttachments = ({
                         >
                           <Download size={16} />
                         </a>
-                        <IconButton
-                          onClick={() => onDeleteAttachment(attachment.id)}
-                          icon={<Trash2 size={16} />}
-                          variant="danger"
-                          size="sm"
-                          tooltip="Loschen"
-                        />
+                        {attachment.source !== 'email' && (
+                          <IconButton
+                            onClick={() => onDeleteAttachment(attachment.id)}
+                            icon={<Trash2 size={16} />}
+                            variant="danger"
+                            size="sm"
+                            tooltip="Löschen"
+                          />
+                        )}
                       </div>
                     </div>
                   );

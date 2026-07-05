@@ -4409,6 +4409,24 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Ticket attachments (UI/portal uploads). The table predates this schema
+    // file on the production DB — IF NOT EXISTS makes fresh installs work
+    // without touching existing data.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_attachments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        file_url TEXT NOT NULL,
+        file_size BIGINT,
+        mime_type TEXT,
+        uploaded_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_by_contact_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id)');
+
     // Ticket email attachments
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_email_attachments (
