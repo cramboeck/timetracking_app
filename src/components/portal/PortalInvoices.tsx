@@ -130,6 +130,13 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
   const canViewInvoices = contact.canViewInvoices;
   const canViewQuotes = contact.canViewQuotes;
 
+  // Set default tab based on permissions
+  useEffect(() => {
+    if (!canViewInvoices && canViewQuotes) {
+      setActiveTab('quotes');
+    }
+  }, [canViewInvoices, canViewQuotes]);
+
   // If user has no permissions for either
   if (!canViewInvoices && !canViewQuotes) {
     return (
@@ -139,13 +146,6 @@ export const PortalInvoices = ({ contact }: PortalInvoicesProps) => {
       </div>
     );
   }
-
-  // Set default tab based on permissions
-  useEffect(() => {
-    if (!canViewInvoices && canViewQuotes) {
-      setActiveTab('quotes');
-    }
-  }, [canViewInvoices, canViewQuotes]);
 
   const loading = activeTab === 'invoices' ? loadingInvoices : loadingQuotes;
   const error = activeTab === 'invoices' ? errorInvoices : errorQuotes;

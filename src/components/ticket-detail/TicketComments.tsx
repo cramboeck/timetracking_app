@@ -49,7 +49,7 @@ export const TicketComments = ({
     const result = await ticketsApi.uploadAttachments(ticket.id, formData);
     if (result.success && result.data.length > 0) {
       const attachment = result.data[0];
-      return getAbsoluteFileUrl(attachment.url);
+      return getAbsoluteFileUrl(attachment.fileUrl);
     }
     throw new Error('Upload fehlgeschlagen');
   }, [ticket.id]);

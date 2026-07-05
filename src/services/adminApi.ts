@@ -223,5 +223,10 @@ export const adminApi = {
 
   getEmailTypes: async () => {
     return adminFetch('/admin/email/types');
+  },
+
+  // Email Diagnostics
+  diagnoseEmail: async () => {
+    return adminFetch('/admin/email/diagnose');
   }
 };

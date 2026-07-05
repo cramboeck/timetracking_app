@@ -20,6 +20,7 @@ import {
   BarChart3,
   Filter,
   Search,
+  FileText,
 } from 'lucide-react';
 import {
   opportunitiesApi,
@@ -34,6 +35,7 @@ import { customersApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
 import { useToast } from '../contexts/UIContext';
+import { QuoteEditor } from './QuoteEditor';
 
 // ============================================
 // Helper Functions
@@ -665,6 +667,11 @@ const SalesPipeline: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Won opportunity state - for creating quotes
+  const [wonOpportunity, setWonOpportunity] = useState<Opportunity | null>(null);
+  const [showQuoteEditor, setShowQuoteEditor] = useState(false);
+  const [quoteCustomerSevdeskId, setQuoteCustomerSevdeskId] = useState<string | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -717,6 +724,17 @@ const SalesPipeline: React.FC = () => {
     try {
       await opportunitiesApi.move(opp.id, stageId);
       await loadData();
+
+      // Check if moved to a "won" stage
+      const targetStage = stages.find(s => s.id === stageId);
+      if (targetStage?.is_won && opp.customer_id) {
+        // Find customer and check if they have sevDesk link
+        const customer = customers.find(c => c.id === opp.customer_id);
+        if (customer?.sevdeskCustomerId) {
+          setWonOpportunity(opp);
+          setQuoteCustomerSevdeskId(customer.sevdeskCustomerId);
+        }
+      }
     } catch (err) {
       console.error('Failed to move opportunity:', err);
       showToast('Fehler beim Verschieben', 'error');
@@ -725,8 +743,25 @@ const SalesPipeline: React.FC = () => {
 
   const handleDropOpportunity = async (opportunityId: string, stageId: string) => {
     try {
+      // Find the opportunity being moved
+      let movedOpp: Opportunity | undefined;
+      pipeline?.pipeline.forEach(stage => {
+        const found = stage.opportunities?.find(o => o.id === opportunityId);
+        if (found) movedOpp = found;
+      });
+
       await opportunitiesApi.move(opportunityId, stageId);
       await loadData();
+
+      // Check if moved to a "won" stage
+      const targetStage = stages.find(s => s.id === stageId);
+      if (targetStage?.is_won && movedOpp?.customer_id) {
+        const customer = customers.find(c => c.id === movedOpp?.customer_id);
+        if (customer?.sevdeskCustomerId) {
+          setWonOpportunity(movedOpp);
+          setQuoteCustomerSevdeskId(customer.sevdeskCustomerId);
+        }
+      }
     } catch (err) {
       console.error('Failed to move opportunity:', err);
     }
@@ -861,7 +896,7 @@ const SalesPipeline: React.FC = () => {
                 stages={stages}
                 customers={customers}
                 onSave={handleSaveOpportunity}
-                onClose={() => {
+                onCancel={() => {
                   setShowForm(false);
                   setEditingOpportunity(null);
                   setInitialStageId(null);
@@ -882,6 +917,73 @@ const SalesPipeline: React.FC = () => {
         confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
       />
+
+      {/* Won Opportunity - Create Quote Prompt */}
+      {wonOpportunity && !showQuoteEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setWonOpportunity(null)} />
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <Award className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Gewonnen!
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-dark-400">
+                  {wonOpportunity.name}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-gray-600 dark:text-dark-400 mb-6">
+              Möchtest du direkt ein Angebot für diesen gewonnenen Deal erstellen?
+              Der Kunde ist bereits mit sevDesk verknüpft.
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setWonOpportunity(null)}
+                variant="secondary"
+                className="flex-1"
+              >
+                Später
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowQuoteEditor(true);
+                }}
+                variant="primary"
+                icon={<FileText size={18} />}
+                className="flex-1"
+              >
+                Angebot erstellen
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quote Editor Modal */}
+      {showQuoteEditor && quoteCustomerSevdeskId && (
+        <div className="fixed inset-0 z-50 bg-white dark:bg-dark-50">
+          <QuoteEditor
+            onClose={() => {
+              setShowQuoteEditor(false);
+              setWonOpportunity(null);
+              setQuoteCustomerSevdeskId(null);
+            }}
+            onSuccess={(quoteNumber) => {
+              showToast(`Angebot ${quoteNumber} erstellt`, 'success');
+              setShowQuoteEditor(false);
+              setWonOpportunity(null);
+              setQuoteCustomerSevdeskId(null);
+            }}
+            preselectedContactId={quoteCustomerSevdeskId}
+          />
+        </div>
+      )}
     </div>
   );
 };

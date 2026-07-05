@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
-  Plus, Edit2, Trash2, Book, FileText, FolderOpen, Eye, EyeOff,
-  Star, Save, Palette, Globe, Image, ChevronDown, ChevronUp, Search, X,
+  Plus, Edit2, Trash2, FileText, FolderOpen, Eye, EyeOff,
+  Star, Save, Palette, Search, X,
   Sparkles, Ticket, Loader2
 } from 'lucide-react';
 import { Button, IconButton } from './ui';

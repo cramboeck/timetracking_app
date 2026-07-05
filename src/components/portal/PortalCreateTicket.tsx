@@ -1056,12 +1056,15 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     } catch (err) {
       console.error('Failed to create ticket:', err);
 
+      // Get more specific error message
+      const errorDetail = err instanceof Error ? err.message : 'Unbekannter Fehler';
+
       const errorMessage: Message = {
         id: `bot-error-${Date.now()}`,
         type: 'bot',
-        content: '❌ Ups, da ist etwas schiefgelaufen. Bitte versuchen Sie es nochmal.',
+        content: `❌ Ups, da ist etwas schiefgelaufen.\n\n**Fehler:** ${errorDetail}\n\nBitte versuchen Sie es nochmal.`,
         options: [
-          { id: 'retry', label: '🔄 Nochmal versuchen', value: 'retry' },
+          { id: 'retry', label: '🔄 Nochmal versuchen', value: 'create' }, // Use 'create' to trigger retry
         ],
         timestamp: new Date(),
       };

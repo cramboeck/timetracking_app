@@ -221,6 +221,13 @@ export const sevdeskApi = {
     return authFetch('/sevdesk/customers');
   },
 
+  getContacts: async (options?: { type?: 'customers' | 'suppliers' | 'all'; search?: string }): Promise<{ success: boolean; data: SevdeskCustomer[] }> => {
+    const params = new URLSearchParams();
+    if (options?.type) params.append('type', options.type);
+    if (options?.search) params.append('search', options.search);
+    return authFetch(`/sevdesk/contacts?${params.toString()}`);
+  },
+
   linkCustomer: async (customerId: string, sevdeskCustomerId: string): Promise<{ success: boolean }> => {
     return authFetch('/sevdesk/link-customer', {
       method: 'POST',
@@ -506,6 +513,144 @@ export const sevdeskApi = {
       body: JSON.stringify(data),
     });
   },
+
+  // ============================================
+  // Line Items & Customer Matching (Epic G)
+  // ============================================
+
+  getLineItems: async (invoiceId: string): Promise<{
+    success: boolean;
+    data: LineItemWithMatch[];
+  }> => {
+    return authFetch(`/sevdesk/line-items/${invoiceId}`);
+  },
+
+  autoMatchLineItems: async (invoiceId: string, minConfidence?: number): Promise<{
+    success: boolean;
+    data: {
+      applied: number;
+      skipped: number;
+      stats: LineItemStats;
+      message: string;
+    };
+  }> => {
+    const params = minConfidence !== undefined ? `?minConfidence=${minConfidence}` : '';
+    return authFetch(`/sevdesk/line-items/${invoiceId}/auto-match${params}`, {
+      method: 'POST',
+    });
+  },
+
+  assignLineItemCustomer: async (lineItemId: string, customerId: string, saveAsAlias?: boolean): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ customerId, saveAsAlias }),
+    });
+  },
+
+  updateLineItemStatus: async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped'): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  getLineItemStats: async (invoiceId: string): Promise<{
+    success: boolean;
+    data: LineItemStats;
+  }> => {
+    return authFetch(`/sevdesk/line-items/${invoiceId}/stats`);
+  },
+
+  getUnmatchedItems: async (limit?: number, offset?: number): Promise<{
+    success: boolean;
+    data: {
+      items: UnmatchedLineItem[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+  }> => {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', String(limit));
+    if (offset) params.set('offset', String(offset));
+    return authFetch(`/sevdesk/unmatched-items?${params.toString()}`);
+  },
+
+  getCustomerAliases: async (customerId: string): Promise<{
+    success: boolean;
+    data: CustomerAlias[];
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases`);
+  },
+
+  addCustomerAlias: async (customerId: string, alias: string): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases`, {
+      method: 'POST',
+      body: JSON.stringify({ alias }),
+    });
+  },
+
+  deleteCustomerAlias: async (customerId: string, aliasId: string): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/aliases/${aliasId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  updateCustomerMatching: async (customerId: string, data: {
+    primaryDomain?: string | null;
+    distributorIdentifiers?: Record<string, string>;
+  }): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/matching`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Get pending line items for a customer (for rebilling)
+  getPendingLineItemsForCustomer: async (customerId: string): Promise<{
+    success: boolean;
+    data: {
+      items: PendingLineItem[];
+      totalAmount: number;
+      count: number;
+    };
+  }> => {
+    return authFetch(`/sevdesk/line-items/customer/${customerId}/pending`);
+  },
+
+  // Mark line items as billed after creating invoice
+  markLineItemsBilled: async (lineItemIds: string[]): Promise<{
+    success: boolean;
+    data: { updatedCount: number };
+  }> => {
+    return authFetch('/sevdesk/line-items/mark-billed', {
+      method: 'POST',
+      body: JSON.stringify({ lineItemIds }),
+    });
+  },
+
+  // Get aggregated license info for a customer
+  getCustomerLicenses: async (customerId: string): Promise<{
+    success: boolean;
+    data: CustomerLicenseData;
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/licenses`);
+  },
 };
 
 // ============================================
@@ -626,6 +771,38 @@ export interface NinjaAlertExclusion {
   updatedAt: string;
 }
 
+export interface NinjaVulnerability {
+  id: string;
+  cveId: string;
+  cveDescription: string | null;
+  cvePublishedDate: string | null;
+  severity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  cvssScore: number | null;
+  cvssVector: string | null;
+  softwareName: string | null;
+  softwareVendor: string | null;
+  softwareVersion: string | null;
+  status: 'open' | 'patched' | 'ignored' | 'false_positive';
+  firstSeenAt: string;
+  lastSeenAt: string;
+  patchedAt: string | null;
+  deviceId: string;
+  deviceName: string | null;
+  organizationName: string | null;
+  ticketId: string | null;
+}
+
+export interface VulnerabilitySummary {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  open: number;
+  patched: number;
+  affectedDevices: number;
+}
+
 // NinjaRMM API
 export const ninjaApi = {
   getConfig: async (): Promise<{ success: boolean; data: NinjaRMMConfig | null }> => {
@@ -695,6 +872,10 @@ export const ninjaApi = {
     if (options?.offset) params.append('offset', options.offset.toString());
     const queryString = params.toString();
     return authFetch(`/ninjarmm/devices${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getDevice: async (deviceId: string): Promise<{ success: boolean; data: NinjaDevice }> => {
+    return authFetch(`/ninjarmm/devices/${deviceId}`);
   },
 
   getDeviceDetails: async (deviceId: string): Promise<{ success: boolean; data: any }> => {
@@ -929,6 +1110,76 @@ export const ninjaApi = {
   }> => {
     return authFetch(`/ninjarmm/devices/${deviceId}/os-patches/refresh`, { method: 'POST' });
   },
+
+  // Vulnerabilities
+  getVulnerabilities: async (options?: {
+    status?: string;
+    severity?: string;
+    deviceId?: string;
+    organizationId?: string;
+    cveId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    success: boolean;
+    data: NinjaVulnerability[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+  }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.severity) params.append('severity', options.severity);
+    if (options?.deviceId) params.append('deviceId', options.deviceId);
+    if (options?.organizationId) params.append('organizationId', options.organizationId);
+    if (options?.cveId) params.append('cveId', options.cveId);
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/vulnerabilities${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getVulnerabilitySummary: async (): Promise<{ success: boolean; data: VulnerabilitySummary }> => {
+    return authFetch('/ninjarmm/vulnerabilities/summary');
+  },
+
+  syncVulnerabilities: async (): Promise<{
+    success: boolean;
+    data: {
+      synced: number;
+      errors: number;
+      newVulnerabilities: number;
+      workingEndpoint: string | null;
+      fetchErrors: string[];
+    };
+    message?: string;
+  }> => {
+    return authFetch('/ninjarmm/vulnerabilities/sync', { method: 'POST' });
+  },
+
+  updateVulnerabilityStatus: async (
+    id: string,
+    status: 'open' | 'patched' | 'ignored' | 'false_positive',
+    reason?: string
+  ): Promise<{ success: boolean }> => {
+    return authFetch(`/ninjarmm/vulnerabilities/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, reason }),
+    });
+  },
+
+  createTicketFromVulnerability: async (id: string): Promise<{ success: boolean; data: { ticketId: string } }> => {
+    return authFetch(`/ninjarmm/vulnerabilities/${id}/ticket`, { method: 'POST' });
+  },
+
+  getDeviceVulnerabilities: async (deviceId: string, options?: {
+    status?: string;
+    severity?: string;
+  }): Promise<{ success: boolean; data: NinjaVulnerability[] }> => {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.severity) params.append('severity', options.severity);
+    const queryString = params.toString();
+    return authFetch(`/ninjarmm/devices/${deviceId}/vulnerabilities${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // ============================================
@@ -994,14 +1245,138 @@ export interface InvoiceLineItem {
   position: number | null;        // Position number on invoice
   description: string;
   articleNumber: string | null;   // Article/SKU number
-  customerName: string | null;    // End customer name (for MSP/reseller invoices)
+
+  // End customer detection (for MSP/reseller invoices)
+  customerName: string | null;    // End customer name
+  customerDomain: string | null;  // End customer domain (e.g. "musterfirma.at")
+  customerNumber: string | null;  // Customer number at distributor (e.g. "HS-12345")
+
   quantity: number | null;
-  unit: string | null;            // Unit (Stück, Monat, GB, etc.)
+  unit: string | null;            // Unit (Stück, Monat, Lizenz, User, GB, etc.)
   unitPrice: number | null;
   totalPrice: number | null;
   vatRate: number | null;         // VAT rate for this line item if different
-  period: string | null;          // e.g. "01.12.2024 - 31.12.2024"
-  productType: string | null;     // e.g. "Microsoft 365", "Cloud Server"
+
+  period: string | null;          // Original period text e.g. "01.12.2024 - 31.12.2024"
+  periodStart: string | null;     // Parsed start date YYYY-MM-DD
+  periodEnd: string | null;       // Parsed end date YYYY-MM-DD
+
+  productType: string | null;     // e.g. "Microsoft 365", "Exchange Online", "Hornetsecurity"
+  productSku: string | null;      // Product SKU/article number from distributor
+}
+
+// Line item with customer matching info (returned from backend)
+export interface LineItemWithMatch {
+  id: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  extractedCustomerName: string | null;
+  extractedCustomerDomain: string | null;
+  extractedCustomerNumber: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  crmCustomerNumber: string | null;
+  matchConfidence: number | null;
+  matchMethod: 'exact_name' | 'domain' | 'distributor_id' | 'alias' | 'fuzzy' | 'customer_number' | 'manual' | null;
+  rebillingStatus: 'pending' | 'included' | 'billed' | 'skipped';
+  periodStart: string | null;
+  periodEnd: string | null;
+  productSku: string | null;
+  createdAt: string;
+}
+
+export interface LineItemStats {
+  total: number;
+  matched: number;
+  unmatched: number;
+  byMethod: {
+    exact_name: number;
+    domain: number;
+    distributor_id: number;
+    alias: number;
+    fuzzy: number;
+    customer_number: number;
+  };
+  byConfidence: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+export interface UnmatchedLineItem {
+  id: string;
+  processedInvoiceId: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number | null;
+  totalPrice: number | null;
+  extractedCustomerName: string | null;
+  extractedCustomerDomain: string | null;
+  extractedCustomerNumber: string | null;
+  supplierName: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+}
+
+export interface CustomerAlias {
+  id: string;
+  alias: string;
+  source: 'manual' | 'invoice_assignment';
+  createdAt: string;
+}
+
+export interface PendingLineItem {
+  id: string;
+  processedInvoiceId: string;
+  positionNumber: number | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  extractedCustomerName: string | null;
+  vendorName: string | null;
+  invoiceSubject: string | null;
+  invoiceDate: string | null;
+}
+
+export interface CustomerLicenseProduct {
+  description: string;
+  productSku: string | null;
+  rebillingStatus: string;
+  contractId: string | null;
+  contractName: string | null;
+  contractNumber: string | null;
+  totalQuantity: number;
+  totalAmount: number;
+  lineCount: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  vendors: string[];
+}
+
+export interface CustomerLicenseMonthly {
+  month: string;
+  totalAmount: number;
+  itemCount: number;
+}
+
+export interface CustomerLicenseSummary {
+  totalItems: number;
+  totalAmount: number;
+  uniqueProducts: number;
+  pendingAmount: number;
+  billedAmount: number;
+  includedAmount: number;
+}
+
+export interface CustomerLicenseData {
+  products: CustomerLicenseProduct[];
+  monthlyBreakdown: CustomerLicenseMonthly[];
+  summary: CustomerLicenseSummary;
 }
 
 export interface ExtractedInvoiceData {
@@ -1040,6 +1415,9 @@ export interface ExtractedInvoiceData {
   confidence: number;
   rawText?: string;
   lineItems?: InvoiceLineItem[];
+
+  // sevDesk linking
+  sevdeskContactId?: string | null;
 }
 
 export interface SupportEmail {
@@ -1069,6 +1447,15 @@ export interface SupportEmail {
   importance: 'low' | 'normal' | 'high';
 }
 
+export interface TicketEmailAttachment {
+  id: string;
+  name: string;
+  contentType: string | null;
+  size: number | null;
+  storedLocally: boolean;
+  localPath: string | null;
+}
+
 export interface TicketEmail {
   id: string;
   message_id: string;
@@ -1085,6 +1472,7 @@ export interface TicketEmail {
   is_read: boolean;
   importance: 'low' | 'normal' | 'high';
   has_attachments: boolean;
+  attachments?: TicketEmailAttachment[];
   received_at: string;
   sent_at: string | null;
   created_at: string;
@@ -1259,7 +1647,7 @@ export const microsoft365Api = {
   approveInvoiceDraft: async (invoiceId: string, extractedData?: ExtractedInvoiceData): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/approve`, {
       method: 'POST',
-      body: extractedData ? JSON.stringify({ extractedData }) : undefined,
+      body: JSON.stringify({ extractedData }),
     });
   },
 
@@ -1281,8 +1669,11 @@ export const microsoft365Api = {
 
   getDocumentDownloadUrl: (documentId: string, inline?: boolean): string => {
     const baseUrl = import.meta.env.VITE_API_URL || '';
-    // baseUrl already contains /api, so don't add it again
-    return `${baseUrl}/microsoft365/documents/${documentId}/download${inline ? '?inline=true' : ''}`;
+    const token = localStorage.getItem('auth_token') || '';
+    const params = new URLSearchParams();
+    if (inline) params.set('inline', 'true');
+    if (token) params.set('token', token);
+    return `${baseUrl}/microsoft365/documents/${documentId}/download?${params.toString()}`;
   },
 
   // Support Email Methods

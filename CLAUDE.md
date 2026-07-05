@@ -104,7 +104,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Support & NinjaRMM Integration
 - Backend-Webhook `/webhook/:userId` ist solide (Secret-Validierung, Auto-Ticket aus Alerts, Exclusion-Rules mit Regex, OAuth2 Token-Refresh, 5-Min Auto-Sync via Cron) ✅
-- **Lücken:** Tickets ohne Bulk-Actions; SLA-Warnungen nur im Detail-View. (~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
+- **Lücken:** SLA-Warnungen nur im Detail-View. (~~Tickets ohne Bulk-Actions~~ — waren komplett gebaut, nur route-geshadowed; reaktiviert in b895df0. ~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
 
 ### CRM
 - Fragmentiert: `CustomerHub.tsx` ist sehr umfangreich (360°), aber `Leads.tsx` und `SalesPipeline.tsx` wirken wie separate Apps
@@ -115,7 +115,22 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 10.6.2026)
+## Aktueller Stand (Stand 5.7.2026)
+
+### Stabilitäts-Sprint Anfang Juli 2026 — ✅ abgeschlossen
+
+| Task | Commit |
+|---|---|
+| **NinjaRMM: Kritische Alerts erzeugten keine Tickets** (Priority-Check-Bug) | 65e9a4d |
+| Vulnerability-Sync: Endpoint-Diagnose im Toast, Typisierung statt `any` | b6d53ab, b1d49f6 |
+| **NinjaOne-API-Limitierung verifiziert** (offizielle OpenAPI-Spec 2.0.9): kein Lese-Endpoint für native CVEs — Details siehe Hinweis-Box in der NinjaRMM-Sektion. Dashboard zeigt Hinweis-Banner | 3ac440b |
+| **React #310 Crash auf /support/tickets** — `useCallback` nach Early-Return in TicketKanban; App-weiter `rules-of-hooks`-Sweep fand + fixte 2 weitere (PortalInvoices `useEffect`, SocialMediaManager `useTemplate`→`applyTemplate`) | cc16ba9 |
+| **Sleep-Mode-Logout behoben** (3 Ursachen): (1) Frontend wertete JEDE Nicht-OK-Antwort vom Refresh als Session-Tod inkl. 429/5xx → jetzt nur 401/403 fatal. (2) `/auth/refresh` hing am 5/15min-Login-Brute-Force-Limiter → eigener `refreshLimiter` (60/15min). (3) Multi-Tab-Rotation-Race → Web-Locks Cross-Tab-Mutex in `tryRefreshAccessToken` | 45fc233 |
+| **Deploy-Script** `scripts/deploy.sh` — git pull + `docker compose -f docker-compose.production.yml --env-file .env.production up -d --build` + Health-Checks; `--no-pull`-Option; Preflight für root-owned `.git` | e12758b, 80de596 |
+| **E-Mail-Anhänge → Ticket** + Attachment-Handling-Fixes (Details siehe Bug-Tabelle „Tickets") | 1603e4d |
+| **Static-Serving eingeschränkt** auf `uploads/tickets` — Rechnungs-PDFs nur noch über den authentifizierten Download-Endpoint | a7604e8 |
+| **Route-Shadowing-Sweep: 6 tote Routen reaktiviert** — Bulk Actions, Ticket Templates, Task-Reorder, Maintenance-Bulk-Delete, Pipeline-Stage-Reorder, Line-Items-Bulk-Contract (Details siehe Tabelle „Ticket System Verbesserungen") | b895df0 |
+| **TanStack Query: TimeEntriesList + Stopwatch** — damit Zeiterfassung komplett migriert | f01807f |
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -335,6 +350,25 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 > **Für Claude Code:** Sprints der Reihe nach abarbeiten. Nach jedem PR die Checkbox in der jeweiligen Tabelle auf ✅ setzen und PR-Nummer eintragen. Branch-Konvention beachten (immer von `claude/next-version-roadmap-ks0D0` abzweigen, PR gegen denselben Branch).
 
+### 🎯 Offene Punkte auf einen Blick (Stand 5.7.2026 — Basis für nächste Planungsrunde)
+
+> Konsolidierte Sicht über alle Sprints/Epics hinweg. Sprints 1–4, A–F, G1–G5 und der Juli-Stabilitäts-Sprint sind komplett ✅ — das hier ist ALLES, was noch offen ist, sortiert nach empfohlener Priorität.
+
+| Prio | Task | Aufwand | Kontext |
+|---|---|---|---|
+| 1 | **NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler** | 3-4h | `GET /api/ninjarmm/diagnose` (analog E-Mail-Diagnose) probiert Endpoints mit gespeichertem OAuth-Token durch; Vulnerability-Zähler (`criticalVulnerabilityCount` etc.) aus `/v2/queries/device-health` syncen → Dashboard zeigt echte Zahlen pro Gerät statt Hinweis-Banner. CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
+| 2 | **SocialMediaManager.tsx splitten** (6482 Zeilen) | 1 Tag | In PostsTab/TemplatesTab/AnalyticsTab/CalendarTab; lazy-Import. Größter Einzelbrocken Tech-Debt, blockiert auch TS-Fehler-Abbau (40 Fehler in der Datei). |
+| 3 | **TS-Fehler 374 → 0** | 6h+ | ~135 unbenutzte Imports (mechanisch), ~239 fehlende Interface-Properties (TicketDashboard 47, SocialMediaManager 40, CustomerHub 38). Nach dem Split (Punkt 2) leichter. |
+| 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
+| 5 | **text-gray-* Cleanup** (~495 Stellen) | 4-6h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: SocialMediaManager (118, nach Split), Finanzen (29), MaintenanceView (26). |
+| 6 | **React Router v7 Upgrade** + echte `<Routes>`-Definitionen | 1 Tag | Von v6.22; danach Pass 5 (App.tsx switch → `<Route>`-Elemente). |
+| 7 | **Epic G Rest: Distributor-Integrationen** | je 1-3 Tage | ADN-Lizenzimport, Infinigate, Lywand-Security-Audits im Portal, Microsoft Security Center Scores. Reihenfolge nach Business-Priorität festlegen. |
+| 8 | **Social Media: echtes Posten an Plattformen** | 3-5 Tage | Aktuell nur DB-Einträge. Meta/LinkedIn-APIs, OAuth-Flows, Fehlerbehandlung. |
+| 9 | **database.ts splitten** (4400+ Zeilen) | 1 Tag | In nummerierte Migrationsdateien; reine Hygiene, kein Featuregewinn. |
+| 10 | **Schichtenarchitektur-Pilot** (`tickets.ts` → Controller/Repository) | 2-3 Tage | Langfristig; tickets.ts ist mit ~4000 Zeilen die größte Route-Datei. |
+
+**Verschoben/bewusst offen:** Authentifiziertes Attachment-Serving (Capability-URLs reichen vorerst, siehe Hinweis-Box bei den Ticket-Bugs) · Offline-Sync für andere Aktionen als Zeiteinträge · React 19 Upgrade (Abhängigkeiten prüfen).
+
 ### 🔴 Sprint 1 — Sicherheit (kritisch, sofort umsetzen)
 
 Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben behoben werden.
@@ -371,22 +405,23 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Vertrags-Stunden-Cron** — automatische Stunden-Abrechnung aus Verträgen | neue Datei `server/src/jobs/contractHoursCron.ts` | 4-6h | Tabellen `contracts` + `contract_hours` existieren bereits. Job soll täglich prüfen ob gebuchte Stunden das Kontingent überschreiten und eine Warnung erstellen. |
+| ✅ | **Vertrags-Stunden-Cron** — automatische Stunden-Abrechnung aus Verträgen | `server/src/jobs/contractHoursCron.ts` | 4-6h | Commit e165343. Cron-Job läuft täglich um 6:00 Uhr, prüft Stundenverbrauch gegen Kontingent. Schwellen: 80% Warning, 90% Critical, 100%+ Exceeded. API-Endpoints: `GET /api/contracts/hours-check/status`, `POST /api/contracts/hours-check/run`. |
 | ✅ | **CommandPalette-Historie** — letzte 3-5 Aktionen anzeigen | `src/components/CommandPalette.tsx` | 2-3h | Commit e37a668. Letzte 5 Befehle in localStorage, „Zuletzt verwendet" Sektion beim Öffnen. |
-| ⬜ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Bei Lead-Status „Won" Button „Angebot erstellen" → öffnet `QuoteEditor` mit vorausgefülltem Kunden. |
-| ⬜ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | neuer Endpoint `server/src/routes/sse.ts` + Frontend | 1-2 Tage | `EventSource` im Frontend, `res.write('data: ...\n\n')` im Backend. Ersetzt den 30s-Poll in `AlertsView.tsx`. |
-| ⬜ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` + diverse | 3-4h | Kanban-Board auf `md:` breakpoint verstecken, stattdessen Card-Liste zeigen. |
+| ✅ | **CRM-Finanzen-Brücke** — Angebote direkt aus Sales Pipeline erstellen | `src/components/SalesPipeline.tsx` + `QuoteEditor.tsx` | 4-6h | Commit 7fb86c7. Bei Opportunity in „Won"-Stage → Dialog „Angebot erstellen" → öffnet QuoteEditor mit vorausgefülltem sevDesk-Kontakt. |
+| ✅ | **SSE für Echtzeit-Updates** — NinjaRMM Alerts ohne Polling | `server/src/routes/sse.ts` + `src/hooks/useSSE.ts` | 1-2 Tage | Commit ae64770. Backend: `/api/sse/events` mit JWT-Auth. Frontend: `useSSE` Hook invalidiert TanStack Query bei Events. Polling bleibt als Fallback. |
+| ✅ | **Mobile-Strategie** — TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | `src/components/TicketKanban.tsx` | 3-4h | Commit 2b854c3. Mobile (<768px): collapsible card list per Status. Desktop: Kanban mit Drag-and-Drop. |
 
 ### 🔵 Sprint 5 — Tech-Debt & Architektur (unabhängig, jederzeit einschiebbar)
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **TS-Fehler auf 0** (~16 verbleibend) | `PostsTab.tsx`, `TemplatesTab.tsx`, `CRMDashboard.tsx`, `CalendarView.tsx` | 2-3h | Hauptsächlich Platform-Type-Mismatch im Social-Media-Modul. |
-| ⬜ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | Analog Epic 5 Pass 3. `useEffect`+`loadData` → `useQuery`, Mutations via `useMutation`. |
+| 🟡 | **TS-Fehler reduzieren** (374 verbleibend, Stand 5.7.2026) | diverse | 6h+ | Commits 8817b47–4992d7b + Nebeneffekte des Juli-Sprints (379→374). Verbleibend: ~135 TS6133 (Imports), ~239 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
+| ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
+| ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ (efbb042). TimeEntriesList + Stopwatch ✅ (f01807f): Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key (TicketDetail/Stopwatch/TimeEntriesList teilen einen Request). |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
-| ⬜ | **Test-Setup** (Vitest) + erste Unit-Tests | neue Dateien | 1 Tag | Fokus: `src/utils/`, `src/hooks/`, Backend-Middleware. |
+| ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
-| ⬜ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | `push_subscriptions` + `portal_push_subscriptions` in eine Tabelle mit `type`-Spalte. |
+| ✅ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | Migration: `subscription_type` + `contact_id` Spalten, Daten-Migration, Routes aktualisiert. |
 
 ---
 
@@ -421,11 +456,10 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Task | Status |
 |---|---|
-| Mobile-Strategie: TicketKanban auf Mobile deaktivieren, Tabellen → Card-Layout | Offen |
-| CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen | Offen |
+| ~~CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen~~ | ✅ Erledigt (Commit 7fb86c7) |
 | Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
 | Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
-| Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen | Offen |
+| ~~Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen~~ | ✅ Erledigt |
 
 ### Langfristig — Architektur
 
@@ -458,20 +492,36 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Bekannte Probleme (pre-existing)
 
-- **TS-Fehler-Baseline: ~16 Fehler** (von ehemals 452). Hauptsächlich in Social-Media-Modul (Platform-Type-Mismatch in PostsTab/TemplatesTab), CRMDashboard, CalendarView. Backend kompiliert fehlerfrei.
+- **TS-Fehler-Baseline: 374 Fehler** (Stand 5.7.2026; ~135 TS6133, ~239 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b, 379→374 als Nebeneffekt des Juli-Sprints.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
 
-### Tickets — Offene Bugs & Verbesserungen (Stand 13.6.2026)
+### Tickets — Offene Bugs & Verbesserungen (Stand 14.6.2026)
 
 | Priorität | Problem | Beschreibung |
 |---|---|---|
 | ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
-| 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
-| 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
-| 🟡 Normal | **Ticket-Darstellung optimieren** | Allgemeine UI/UX-Verbesserungen für Ticket-Ansicht und -Handling |
-| 🟡 Normal | **Schnittstellen-Optimierung** | Integration mit externen Systemen (NinjaRMM, E-Mail) verbessern |
+| ~~🟠 Mittel~~ | ~~**Ticket-Darstellung optimieren**~~ | ✅ Gelöst in Commit 3541f1a. Sidebar-Layout mit Tasks, Activities, Email-History. Collapsible Sections. |
+| ~~🟡 Normal~~ | ~~**Schnittstellen-Optimierung**~~ | ✅ Gelöst in Commit 3541f1a. NinjaRMM Device-Linking im Ticket. E-Mail-Diagnose im Admin-Bereich. |
+| ~~🟠 Mittel~~ | ~~**Attachment-Handling verbessern**~~ | ✅ Gelöst in Commit 1603e4d. Delete-File-Leak gefixt (basename statt URL-Join), Multer-Limit 5→10 (Route versprach 10), Upload-Fehler (zu groß/zu viele/Dateityp) als 400 mit deutscher Meldung bis in den Toast, `uploadAttachments` via `authFetchMultipart`, `CREATE TABLE ticket_attachments` nachgerüstet, accept-Liste an Backend-Whitelist angeglichen. |
+| ~~🟠 Mittel~~ | ~~**E-Mail-Anhänge verarbeiten**~~ | ✅ Gelöst in Commit 1603e4d. `saveEmailToTicket` holt Anhänge von MS Graph (solange die Mail noch im Postfach liegt), speichert sie lokal + in `ticket_email_attachments` (hatte vorher **null Schreiber**). E-Mail-Verlauf zeigt Download-Chips, Attachment-Liste des Tickets zeigt E-Mail-Anhänge read-only mit Badge. |
+
+> **Verbleibende bekannte Schwäche (Attachments):** `/api/uploads/tickets` wird via `express.static` **ohne Auth** ausgeliefert (`server/src/index.ts`) — seit Commit a7604e8 ist das Serving auf das tickets-Unterverzeichnis beschränkt, Rechnungs-PDFs (`uploads/invoices`) laufen ausschließlich über den authentifizierten Download-Endpoint. Schutz der Ticket-Dateien ist die Nicht-Erratbarkeit der UUID-Dateinamen (Capability-URLs). Ein authentifizierter Streaming-Endpoint würde `<img>`-Previews und Portal-Zugriff brechen und braucht ein eigenes Konzept (z.B. signierte Kurzzeit-URLs). Bewusst zurückgestellt.
+
+### Ticket System Verbesserungen (14.6.2026)
+
+| Task | Commit |
+|---|---|
+| **E-Mail-Diagnose Endpoint** — `GET /api/admin/email/diagnose` mit Provider-Status, Fehler-Analyse, Empfehlungen | 674445b |
+| **E-Mail-Diagnose UI** — Neuer Tab „E-Mail-Diagnose" in Settings mit vollständiger Diagnose + Test-Button | 3541f1a |
+| **Ticket-Sidebar überarbeitet** — Tasks, Aktivitätsverlauf, E-Mail-Verlauf in rechte Sidebar verschoben | 3541f1a |
+| **Aufgaben mit Fälligkeitsdatum** — Datepicker, überfällige Tasks rot, heute orange, aufklappbar | 3541f1a |
+| **NinjaRMM Geräteverknüpfung** — Gerät mit Ticket verknüpfen, Status-Anzeige, Dropdown zur Auswahl | 3541f1a |
+| **Quick Status/Priority Change** — Status und Priorität direkt per Dropdown ändern ohne Edit-Modus | f961f2e |
+| **Ticket Templates** — Vorlagen für häufige Ticket-Typen. UI (CreateTicketDialog, TicketSettings) und Backend waren komplett — `GET /tickets/templates` wurde aber von `GET /:id` geschluckt (Route-Order), die Liste lieferte immer 404 | b895df0 |
+| **Bulk Actions** — Mehrfachauswahl + Massenaktionen (Status/Priorität/Zuweisen/Archivieren/Löschen) in TicketList. War komplett gebaut — nur `DELETE /tickets/bulk` wurde von `DELETE /:id` geschluckt | b895df0 |
+| **Route-Shadowing-Sweep** — Scanner über alle Route-Dateien fand 6 tote Routen (Express-Registrierungsreihenfolge): tickets bulk-delete/templates/task-reorder, admin maintenance-bulk-delete, opportunities stages-reorder, sevdesk line-items bulk-contract. Alle vor die param-Routen verschoben | b895df0 |
 
 ### ✅ Sicherheitslücken — Alle behoben
 
@@ -581,4 +631,81 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 13.6.2026 — Sprints 1–3 + Sprint A–F ✅ komplett. Sprint 4: CommandPalette-Historie ✅. Portal-Features: Dashboard, Ticket-Liste mit SLA/Mitarbeiter/relativer Zeit, Geräte-Warnungen, Ticket-Erstellung mit Gerätewahl + Dateianhängen (max 3, 10 MB). KI-Assistent-Kontrast im Dark Mode gefixt. ReportsPage-Tabs mobile-optimiert.*
+*Zuletzt aktualisiert: 5.7.2026 — Stabilitäts-Sprint komplett ✅: Sleep-Mode-Logout behoben (Refresh-Limiter, Web-Locks, 429≠Session-Tod), React-#310-Kanban-Crash + rules-of-hooks-Sweep, E-Mail-Anhänge → Ticket (Tabelle hatte null Schreiber), Route-Shadowing-Sweep reaktivierte 6 tote Features (u.a. Bulk Actions + Ticket Templates), Static-Serving auf tickets/ beschränkt, TanStack-Migration der Zeiterfassung abgeschlossen, Deploy-Script. NinjaOne-API-Limitierung für CVE-Details gegen offizielle Spec verifiziert. TS-Fehler: 374. **Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
+
+---
+
+## Geplant: Lizenz-Management & Beleg-Positionen (Epic G)
+
+> **Status:** Geplant | **Geschätzter Aufwand:** 25-30 Tage | **Abhängigkeit:** Sprint 3 (Tickets-Paginierung) abgeschlossen
+
+### Übersicht
+
+MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Hornetsecurity, Mailstore, Elovade, Lywand, ADN) enthalten oft dutzende Positionen für verschiedene Endkunden. Diese sollen automatisch erkannt, Kunden zugeordnet und bei der Abrechnung berücksichtigt werden.
+
+### Sprint G1 — Datenbank & Extraktion ✅
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **Tabelle `invoice_line_items`** | Positionen mit customer_id, match_confidence, rebilling_status. Commit 4502672 |
+| ✅ | **Kunden-Erweiterung** | `primary_domain`, `distributor_identifiers` (JSONB) für Microsoft Tenant-ID, Hornetsecurity-Nr, etc. |
+| ✅ | **pg_trgm Extension** | Fuzzy-Matching für Kundennamen |
+| ✅ | **Line-Items persistieren** | Nach KI-Extraktion in DB speichern (`persistLineItems()` in invoiceProcessorService) |
+
+### Sprint G2 — Matching-Engine ✅
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **CustomerMatchingService** | 6 Algorithmen: customer_number (95%), domain (95%), distributor_id (90%), exact_name (85%), alias (80%), fuzzy (60-75%). Commit 5ba40ba |
+| ✅ | **Batch-Matching** | `batchMatchLineItems()` + `applyBestMatches()` mit minConfidence-Schwelle |
+| ✅ | **"Als Alias speichern"** | `customer_aliases` Tabelle + `saveAsAlias` Flag bei manueller Zuordnung |
+
+### Sprint G3 — API & Review-UI ✅
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **Line-Item CRUD Endpoints** | GET/PATCH/POST für Positionen, Bulk-Assignment, Status-Update. Commit 5ba40ba |
+| ✅ | **Position-Review-Modal** | `LineItemReview.tsx` in InvoiceInbox: Auto-Match, Kundensuche, Confidence-Badges, Alias-Option. Commit 3b8ae19 |
+| ✅ | **Unmatched-Dashboard API** | `GET /api/sevdesk/unmatched-items` mit Pagination |
+
+### Sprint G4 — Rebilling-Workflow ✅
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **Rebilling-Status** | Dropdown in LineItemReview: pending → included / billed / skipped. Commit 3b8ae19 |
+| ✅ | **InvoiceCreationDialog erweitern** | Ausgaben-Positionen pro Kunde anzeigen, Aufschlag-Option. Commit 849b4e0 |
+| ✅ | **sevDesk-Integration** | Positionen als Rechnungspositionen übernehmen, Status auf "billed" setzen. Commit 849b4e0 |
+
+### Sprint G5 — Lizenzen in CRM & Portal ✅
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **CRM: Lizenzen-Tab** | Neuer Tab in CustomerHub: Aktive Lizenzen aus invoice_line_items aggregiert. CustomerLicenses.tsx mit Trend-Chart + Produkt-Liste |
+| ✅ | **Lizenz-Übersicht** | Monatliche wiederkehrende Kosten, Produkte, Mengen, Historie. Summary-Cards + Monthly-Breakdown |
+| ✅ | **Kundenportal: Lizenz-Info** | PortalLicenses.tsx mit GET /api/customer-portal/licenses. Zeigt billed/included Items. Commit 679933c |
+| ✅ | **Vertragsverknüpfung** | contract_id Spalte, PATCH Endpoints für Verknüpfung, Vertragsanzeige in CRM + Portal. Commit 64e4c4c |
+
+### ✅ Komplett: NinjaRMM Erweiterungen
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ✅ | **Vulnerability-Tracking Backend** | Commit 6c3676d. Tabelle `ninjarmm_vulnerabilities`, Sync-Service, API-Endpoints (GET/PATCH/POST). Schweregrade, CVSS-Scores, Status-Management. |
+| ✅ | **Ninja-Ticket-Darstellung verbessert** | Commit 16fa38b. Source-Badges in TicketList (NinjaRMM/E-Mail/Portal/Manuell), Geräte-Name, TicketNinjaInfo-Komponente in Sidebar mit Device-Details. |
+| ✅ | **Vulnerability-Frontend** | Commit 3969549. `VulnerabilitiesDashboard.tsx` mit Summary-Cards, Filter, Status-Management. Neuer SubView "Schwachstellen" unter Support. Ticket-Erstellung aus Vulnerability. NVD-Links für CVE-Details. |
+
+> **⚠️ API-Limitierung Vulnerability-Sync (verifiziert 3.7.2026 gegen die offizielle NinjaOne Public API 2.0 OpenAPI-Spec, v2.0.9-draft):**
+> Die Public API bietet **keinen Lese-Endpoint für native Software-Scanning-CVEs pro Gerät**. Vulnerability-Management existiert dort nur als `GET /v2/vulnerability/scan-groups`, `GET /v2/vulnerability/scan-groups/{id}` und `POST /v2/vulnerability/scan-groups/{id}/upload` — d.h. ausschließlich **CSV-Import** von Drittanbieter-Scannern (Mapping via Hostname/IP/MAC + CVE-ID, max 200 MB). Lesbar sind nur **aggregierte Zähler** pro Gerät via `GET /v2/queries/device-health` (`criticalVulnerabilityCount`, `highVulnerabilityCount`, …). Die im NinjaOne-Portal sichtbaren CVE-Details laufen über die interne `/swb/s4/vulnerability-mgmt/*`-API (Session-Auth, nicht per OAuth2-Token erreichbar).
+> **Konsequenz:** Der Probe-Mechanismus in `ninjarmmService.ts` (`VULN_ENDPOINT_CANDIDATES`) findet erwartungsgemäß keinen funktionierenden Endpoint (alle 404). `VulnerabilitiesDashboard.tsx` zeigt bei 0 Einträgen einen Hinweis-Banner mit Deep-Link ins NinjaOne-Portal. Sobald NinjaOne einen Read-Endpoint veröffentlicht, kann er in `VULN_ENDPOINT_CANDIDATES` ergänzt werden — Rest der Pipeline (DB, Sync, UI) funktioniert dann unverändert. Alternative bis dahin: Aggregat-Zähler aus `device-health` syncen (nur Counts, keine CVE-Details).
+
+### Geplant: Distributor- & Sicherheits-Integrationen
+
+| Status | Task | Beschreibung |
+|---|---|---|
+| ⬜ | **ADN API-Anbindung** | Automatischer Lizenz-Import von ADN mit Preisen |
+| ⬜ | **Infinigate-Integration** | Lizenz-Abfrage und Kundenzuordnung |
+| ⬜ | **Lywand-Integration** | Security-Audit-Daten im Kundenportal anzeigen |
+| ⬜ | **Microsoft Security Center** | Security-Scores und Empfehlungen aus M365 abrufen |
+| ⬜ | **Portal: Lizenz-Self-Service** | Kunde kann Lizenzen bestellen/ändern (mit Genehmigungsworkflow) |
+| ⬜ | **Automatische Provisionierung** | Bei Lizenzbestellung → Microsoft CSP / Hornetsecurity API aufrufen |
+
+---

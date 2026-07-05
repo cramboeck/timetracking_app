@@ -1,12 +1,48 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import * as fs from 'fs';
+import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
 import * as aiService from '../services/aiService';
+import { invoiceProcessorService } from '../services/invoiceProcessorService';
+import { customerMatchingService } from '../services/customerMatchingService';
+import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
+import { logger } from '../utils/logger';
 
 const router = express.Router();
+
+// Invoice documents upload config
+const invoiceUploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
+const invoiceDocsDir = path.join(invoiceUploadsDir, 'invoice-documents');
+if (!fs.existsSync(invoiceDocsDir)) {
+  fs.mkdirSync(invoiceDocsDir, { recursive: true });
+}
+
+const invoiceStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, invoiceDocsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+const invoiceUpload = multer({
+  storage: invoiceStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Nur PDF und Bilder erlaubt'));
+    }
+  },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
 
 // ============================================================================
 // Zod validation schemas
@@ -149,6 +185,30 @@ const updateCustomerFromSevdeskSchema = z.object({
   hourlyRate: z.number().min(0).max(10000).optional().nullable(),
 });
 
+// Invoice Draft schemas
+const updateInvoiceDraftSchema = z.object({
+  supplierName: z.string().max(500).optional(),
+  invoiceNumber: z.string().max(100).optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional().nullable(),
+  netAmount: z.number().min(0).max(100000000).optional().nullable(),
+  grossAmount: z.number().min(0).max(100000000).optional().nullable(),
+  vatAmount: z.number().min(0).max(100000000).optional().nullable(),
+  vatRate: z.number().min(0).max(100).optional().nullable(),
+  currency: z.string().max(10).optional(),
+  vendorId: z.string().uuid().optional().nullable(),
+});
+
+const confirmInvoiceDraftSchema = z.object({
+  supplierName: z.string().min(1).max(500),
+  invoiceNumber: z.string().min(1).max(100),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
+  netAmount: z.number().min(0).max(100000000),
+  grossAmount: z.number().min(0).max(100000000),
+  taxRate: z.number().min(0).max(100),
+  description: z.string().max(2000).optional(),
+});
+
 const recordExportSchema = z.object({
   customerId: z.string().uuid(),
   entryIds: z.array(z.string().uuid()).min(1).max(1000),
@@ -164,6 +224,34 @@ const generateInvoiceTextsSchema = z.object({
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD'),
   entries: z.array(entrySchema).min(1).max(1000),
+});
+
+// Line item matching schemas
+const matchLineItemsSchema = z.object({
+  lineItemIds: z.array(z.string()).min(1).max(500),
+  minConfidence: z.number().min(0).max(1).optional(),
+});
+
+const assignLineItemSchema = z.object({
+  customerId: z.string().uuid(),
+  saveAsAlias: z.boolean().optional(),
+});
+
+const updateLineItemSchema = z.object({
+  customerId: z.string().uuid().nullable().optional(),
+  rebillingStatus: z.enum(['pending', 'included', 'billed', 'skipped']).optional(),
+  matchConfidence: z.number().min(0).max(1).nullable().optional(),
+  matchMethod: z.string().max(50).nullable().optional(),
+});
+
+const createAliasSchema = z.object({
+  alias: z.string().min(1).max(500),
+  source: z.enum(['manual', 'invoice_assignment']).optional(),
+});
+
+const updateCustomerMatchingSchema = z.object({
+  primaryDomain: z.string().max(255).nullable().optional(),
+  distributorIdentifiers: z.record(z.string()).optional(),
 });
 
 // Middleware to check if billing feature is enabled
@@ -302,6 +390,45 @@ router.get('/customers', authenticateToken, requireBillingFeature, async (req: A
     });
   } catch (error: any) {
     console.error('Get sevDesk customers error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/contacts - Get all contacts from sevDesk (customers, suppliers, all)
+router.get('/contacts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const config = await sevdeskService.getConfig(userId);
+
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk is not configured' });
+    }
+
+    // Query params: type = 'customers' | 'suppliers' | 'all' (default: all)
+    const contactType = req.query.type as string || 'all';
+    const search = (req.query.search as string || '').toLowerCase().trim();
+
+    const options = {
+      showAll: contactType === 'all',
+      includeSuppliers: contactType === 'suppliers' || contactType === 'all',
+    };
+
+    const contacts = await sevdeskService.getSevdeskCustomers(config.apiToken, options);
+
+    // Filter by search term if provided
+    const filtered = search
+      ? contacts.filter(c =>
+          c.name.toLowerCase().includes(search) ||
+          (c.customerNumber && c.customerNumber.toLowerCase().includes(search))
+        )
+      : contacts;
+
+    res.json({
+      success: true,
+      data: filtered,
+    });
+  } catch (error: any) {
+    console.error('Get sevDesk contacts error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1340,6 +1467,1398 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
     });
   } catch (error: any) {
     console.error('Single import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Invoice Draft Queue Routes
+// ============================================
+
+// Helper: Get organization ID for user
+async function getOrgIdForUser(userId: string): Promise<string | null> {
+  const result = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  return result.rows[0]?.organization_id || null;
+}
+
+// GET /api/sevdesk/invoice-drafts - List all invoice drafts
+router.get('/invoice-drafts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const status = req.query.status as string || 'draft';
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await query(`
+      SELECT
+        pi.id,
+        pi.email_id,
+        pi.email_subject,
+        pi.sender_email,
+        pi.sender_name,
+        pi.received_at,
+        pi.attachment_count,
+        pi.document_ids,
+        pi.vendor_id,
+        pi.status,
+        pi.error_message,
+        pi.processed_at,
+        pi.source,
+        pi.original_filename,
+        pi.sevdesk_voucher_id,
+        pi.invoice_number,
+        pi.supplier_name,
+        pi.supplier_address,
+        pi.invoice_date,
+        pi.due_date,
+        pi.net_amount,
+        pi.gross_amount,
+        pi.vat_amount,
+        pi.vat_rate,
+        pi.currency,
+        pi.iban,
+        pi.extracted_at,
+        pi.extraction_confidence,
+        c.name as vendor_name
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON pi.vendor_id = c.id
+      WHERE pi.organization_id = $1
+        AND pi.status = $2
+      ORDER BY pi.received_at DESC
+      LIMIT $3 OFFSET $4
+    `, [organizationId, status, limit, offset]);
+
+    // Get total count
+    const countResult = await query(`
+      SELECT COUNT(*) as total FROM processed_invoices
+      WHERE organization_id = $1 AND status = $2
+    `, [organizationId, status]);
+
+    res.json({
+      success: true,
+      data: {
+        drafts: result.rows,
+        total: parseInt(countResult.rows[0].total),
+        limit,
+        offset,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get invoice drafts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/invoice-drafts/stats - Get draft queue statistics
+router.get('/invoice-drafts/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT
+        status,
+        COUNT(*) as count,
+        COALESCE(SUM(gross_amount), 0) as total_amount
+      FROM processed_invoices
+      WHERE organization_id = $1
+      GROUP BY status
+    `, [organizationId]);
+
+    const stats = {
+      pending: { count: 0, amount: 0 },
+      draft: { count: 0, amount: 0 },
+      processed: { count: 0, amount: 0 },
+      failed: { count: 0, amount: 0 },
+      skipped: { count: 0, amount: 0 },
+    };
+
+    for (const row of result.rows) {
+      if (stats[row.status as keyof typeof stats]) {
+        stats[row.status as keyof typeof stats] = {
+          count: parseInt(row.count),
+          amount: parseFloat(row.total_amount) || 0,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    logger.error('Get draft stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/invoice-drafts/:id - Get single draft with document
+router.get('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT pi.*, c.name as vendor_name
+      FROM processed_invoices pi
+      LEFT JOIN customers c ON pi.vendor_id = c.id
+      WHERE pi.id = $1 AND pi.organization_id = $2
+    `, [id, organizationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const draft = result.rows[0];
+
+    // Get associated documents
+    const docsResult = await query(`
+      SELECT id, filename, original_filename, mime_type, size, storage_path, created_at
+      FROM invoice_documents
+      WHERE processed_invoice_id = $1
+      ORDER BY created_at ASC
+    `, [id]);
+
+    res.json({
+      success: true,
+      data: {
+        ...draft,
+        documents: docsResult.rows,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/sevdesk/invoice-drafts/:id - Update draft with corrections
+router.put('/invoice-drafts/:id', authenticateToken, requireBillingFeature, validate(updateInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Verify draft belongs to organization
+    const checkResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const updates = req.body;
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    // Build dynamic update query
+    if (updates.supplierName !== undefined) {
+      fields.push(`supplier_name = $${paramIndex++}`);
+      values.push(updates.supplierName);
+    }
+    if (updates.invoiceNumber !== undefined) {
+      fields.push(`invoice_number = $${paramIndex++}`);
+      values.push(updates.invoiceNumber);
+    }
+    if (updates.invoiceDate !== undefined) {
+      fields.push(`invoice_date = $${paramIndex++}`);
+      values.push(updates.invoiceDate);
+    }
+    if (updates.dueDate !== undefined) {
+      fields.push(`due_date = $${paramIndex++}`);
+      values.push(updates.dueDate);
+    }
+    if (updates.netAmount !== undefined) {
+      fields.push(`net_amount = $${paramIndex++}`);
+      values.push(updates.netAmount);
+    }
+    if (updates.grossAmount !== undefined) {
+      fields.push(`gross_amount = $${paramIndex++}`);
+      values.push(updates.grossAmount);
+    }
+    if (updates.vatAmount !== undefined) {
+      fields.push(`vat_amount = $${paramIndex++}`);
+      values.push(updates.vatAmount);
+    }
+    if (updates.vatRate !== undefined) {
+      fields.push(`vat_rate = $${paramIndex++}`);
+      values.push(updates.vatRate);
+    }
+    if (updates.currency !== undefined) {
+      fields.push(`currency = $${paramIndex++}`);
+      values.push(updates.currency);
+    }
+    if (updates.vendorId !== undefined) {
+      fields.push(`vendor_id = $${paramIndex++}`);
+      values.push(updates.vendorId);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No fields to update' });
+    }
+
+    values.push(id);
+    await query(
+      `UPDATE processed_invoices SET ${fields.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    );
+
+    res.json({ success: true, message: 'Draft updated' });
+  } catch (error: any) {
+    logger.error('Update draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/extract - Re-run OCR extraction
+router.post('/invoice-drafts/:id/extract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Verify draft belongs to organization
+    const checkResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [id, organizationId]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    // Force re-extraction
+    const extracted = await invoiceProcessorService.extractInvoiceData(organizationId, id, { force: true });
+
+    if (!extracted) {
+      return res.status(400).json({ success: false, error: 'Extraction failed - no PDF found' });
+    }
+
+    res.json({
+      success: true,
+      data: extracted,
+    });
+  } catch (error: any) {
+    logger.error('Extract draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/confirm - Confirm draft and create sevDesk voucher
+router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeature, validate(confirmInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get draft with document
+    const draftResult = await query(`
+      SELECT pi.*, id.storage_path, id.original_filename, id.mime_type
+      FROM processed_invoices pi
+      LEFT JOIN invoice_documents id ON id.processed_invoice_id = pi.id
+      WHERE pi.id = $1 AND pi.organization_id = $2
+      LIMIT 1
+    `, [id, organizationId]);
+
+    if (draftResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const draft = draftResult.rows[0];
+
+    if (draft.status === 'processed') {
+      return res.status(400).json({ success: false, error: 'Draft already processed' });
+    }
+
+    // Get sevDesk config
+    const config = await sevdeskService.getConfig(userId);
+    if (!config?.apiToken) {
+      return res.status(400).json({ success: false, error: 'sevDesk not configured' });
+    }
+
+    const { supplierName, invoiceNumber, invoiceDate, netAmount, grossAmount, taxRate, description } = req.body;
+
+    let sevdeskVoucherId: string | null = null;
+
+    // Upload file to sevDesk if we have a document
+    if (draft.storage_path) {
+      try {
+        const fs = await import('fs');
+        const fileBuffer = await fs.promises.readFile(draft.storage_path);
+
+        // Upload file
+        const uploadResult = await sevdeskService.uploadVoucherFile(
+          config.apiToken,
+          fileBuffer,
+          draft.original_filename || 'invoice.pdf',
+          draft.mime_type || 'application/pdf'
+        );
+
+        // Create voucher from file
+        const voucherResult = await sevdeskService.createVoucherFromFile(config.apiToken, uploadResult.id, {
+          voucherDate: invoiceDate,
+          description: description || `${supplierName} - ${invoiceNumber}`,
+          supplierName,
+          sumNet: netAmount,
+          sumGross: grossAmount,
+          taxRate,
+          creditDebit: 'D', // Debit = expense
+        });
+
+        sevdeskVoucherId = voucherResult.voucherId || null;
+      } catch (uploadError: any) {
+        logger.error('sevDesk upload failed:', uploadError);
+        return res.status(500).json({
+          success: false,
+          error: `sevDesk Upload fehlgeschlagen: ${uploadError.message}`,
+        });
+      }
+    }
+
+    // Update draft status
+    await query(`
+      UPDATE processed_invoices SET
+        status = 'processed',
+        sevdesk_voucher_id = $2,
+        supplier_name = $3,
+        invoice_number = $4,
+        invoice_date = $5,
+        net_amount = $6,
+        gross_amount = $7,
+        vat_rate = $8,
+        processed_at = NOW()
+      WHERE id = $1
+    `, [id, sevdeskVoucherId, supplierName, invoiceNumber, invoiceDate, netAmount, grossAmount, taxRate]);
+
+    res.json({
+      success: true,
+      data: {
+        sevdeskVoucherId,
+        message: sevdeskVoucherId
+          ? 'Beleg erfolgreich in sevDesk erstellt'
+          : 'Entwurf als verarbeitet markiert (ohne sevDesk)',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Confirm draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/sevdesk/invoice-drafts/:id - Delete/skip draft
+router.delete('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const skipOnly = req.query.skip === 'true';
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (skipOnly) {
+      // Just mark as skipped
+      await query(
+        'UPDATE processed_invoices SET status = $1 WHERE id = $2 AND organization_id = $3',
+        ['skipped', id, organizationId]
+      );
+    } else {
+      // Delete documents first
+      await query('DELETE FROM invoice_documents WHERE processed_invoice_id = $1', [id]);
+      // Delete draft
+      await query('DELETE FROM processed_invoices WHERE id = $1 AND organization_id = $2', [id, organizationId]);
+    }
+
+    res.json({ success: true, message: skipOnly ? 'Draft skipped' : 'Draft deleted' });
+  } catch (error: any) {
+    logger.error('Delete draft error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/poll - Manually trigger mailbox poll
+router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await triggerInvoiceMailboxProcessing(organizationId);
+
+    res.json({
+      success: result.success,
+      data: {
+        processed: result.processed,
+        skipped: result.skipped,
+        failed: result.failed,
+        message: result.message,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Poll mailbox error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/fetch-attachments - Re-fetch attachments for drafts without documents
+router.post('/invoice-drafts/fetch-attachments', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+    // Get drafts WITHOUT documents (attachments never downloaded)
+    const draftsResult = await query(`
+      SELECT pi.id, pi.email_id, pi.email_subject, pi.sender_name
+      FROM processed_invoices pi
+      LEFT JOIN invoice_documents id ON id.processed_invoice_id = pi.id
+      WHERE pi.organization_id = $1
+        AND pi.source = 'email'
+        AND pi.email_id IS NOT NULL
+        AND id.id IS NULL
+      ORDER BY pi.received_at DESC
+      LIMIT $2
+    `, [organizationId, limit]);
+
+    let fetched = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const draft of draftsResult.rows) {
+      try {
+        // Re-fetch and save attachments
+        const success = await invoiceProcessorService.refetchAttachments(organizationId, draft.id);
+        if (success) {
+          fetched++;
+        } else {
+          failed++;
+          errors.push(`${draft.sender_name || draft.email_subject}: Keine Anhänge`);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${draft.sender_name || draft.email_subject}: ${err.message}`);
+        logger.error(`Fetch attachments failed for ${draft.id}:`, err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        total: draftsResult.rows.length,
+        fetched,
+        failed,
+        errors: errors.slice(0, 5),
+        message: `${fetched} von ${draftsResult.rows.length} Anhänge nachgeladen`,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Fetch attachments error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/upload - Manual PDF upload
+router.post('/invoice-drafts/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Keine Datei hochgeladen' });
+    }
+
+    const file = req.file;
+    const draftId = uuidv4();
+    const docId = uuidv4();
+
+    // Create draft entry
+    await query(`
+      INSERT INTO processed_invoices (
+        id, organization_id, source, status, original_filename, attachment_count, received_at
+      ) VALUES ($1, $2, 'manual', 'pending', $3, 1, NOW())
+    `, [draftId, organizationId, file.originalname]);
+
+    // Create document entry
+    await query(`
+      INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [docId, organizationId, draftId, file.filename, file.originalname, file.mimetype, file.size, file.path]);
+
+    // Auto-extract data
+    try {
+      await invoiceProcessorService.extractInvoiceData(organizationId, draftId);
+      await query('UPDATE processed_invoices SET status = $1 WHERE id = $2', ['draft', draftId]);
+    } catch (extractErr: any) {
+      logger.warn(`Auto-extract failed for manual upload ${draftId}:`, extractErr.message);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: draftId,
+        filename: file.originalname,
+        message: 'Datei hochgeladen und wird verarbeitet',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Manual upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/:id/upload - Upload PDF for existing draft
+router.post('/invoice-drafts/:id/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: draftId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Keine Datei hochgeladen' });
+    }
+
+    // Verify draft exists and belongs to org
+    const draftResult = await query(
+      'SELECT id FROM processed_invoices WHERE id = $1 AND organization_id = $2',
+      [draftId, organizationId]
+    );
+
+    if (draftResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Draft not found' });
+    }
+
+    const file = req.file;
+    const docId = uuidv4();
+
+    // Create document entry
+    await query(`
+      INSERT INTO invoice_documents (
+        id, organization_id, processed_invoice_id, filename, original_filename,
+        mime_type, size, storage_path, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [docId, organizationId, draftId, file.filename, file.originalname, file.mimetype, file.size, file.path]);
+
+    // Update attachment count
+    await query(`
+      UPDATE processed_invoices SET attachment_count = attachment_count + 1 WHERE id = $1
+    `, [draftId]);
+
+    // Re-extract data with new document
+    try {
+      await invoiceProcessorService.extractInvoiceData(organizationId, draftId);
+    } catch (extractErr: any) {
+      logger.warn(`Re-extract failed for ${draftId}:`, extractErr.message);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        documentId: docId,
+        filename: file.originalname,
+        message: 'PDF hochgeladen und Daten extrahiert',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Draft upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/invoice-drafts/extract-all - Extract data for all unextracted drafts
+router.post('/invoice-drafts/extract-all', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+
+    // Get drafts without extraction
+    const draftsResult = await query(`
+      SELECT id, email_subject, sender_name FROM processed_invoices
+      WHERE organization_id = $1
+        AND status IN ('pending', 'draft')
+        AND extracted_at IS NULL
+      ORDER BY received_at DESC
+      LIMIT $2
+    `, [organizationId, limit]);
+
+    let extracted = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const draft of draftsResult.rows) {
+      try {
+        const result = await invoiceProcessorService.extractInvoiceData(organizationId, draft.id);
+        if (result) {
+          await query(
+            `UPDATE processed_invoices SET status = 'draft' WHERE id = $1 AND status = 'pending'`,
+            [draft.id]
+          );
+          extracted++;
+        } else {
+          failed++;
+          errors.push(`${draft.sender_name || draft.email_subject}: Keine PDF gefunden`);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${draft.sender_name || draft.email_subject}: ${err.message}`);
+        logger.error(`Extract failed for ${draft.id}:`, err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        total: draftsResult.rows.length,
+        extracted,
+        failed,
+        errors: errors.slice(0, 5), // Only return first 5 errors
+        message: `${extracted} von ${draftsResult.rows.length} Belegen extrahiert`,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Extract all error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
+// Invoice Line Items - Customer Matching (Epic G)
+// ============================================================================
+
+// GET /api/sevdesk/line-items/:invoiceId - Get line items for an invoice
+router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { invoiceId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT
+        li.id, li.position_number, li.description, li.quantity, li.unit_price, li.total_price,
+        li.extracted_customer_name, li.extracted_customer_domain, li.extracted_customer_number,
+        li.customer_id, li.match_confidence, li.match_method, li.rebilling_status,
+        li.period_start, li.period_end, li.product_sku, li.created_at,
+        c.name as customer_name, c.customer_number as crm_customer_number
+      FROM invoice_line_items li
+      LEFT JOIN customers c ON c.id = li.customer_id
+      WHERE li.organization_id = $1 AND li.processed_invoice_id = $2
+      ORDER BY li.position_number
+    `, [organizationId, invoiceId]);
+
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error: any) {
+    logger.error('Get line items error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/line-items/match - Match line items to customers
+router.post('/line-items/match', authenticateToken, requireBillingFeature, validate(matchLineItemsSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { lineItemIds, minConfidence } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get line item details
+    const lineItemsResult = await query(`
+      SELECT id, extracted_customer_name, extracted_customer_domain, extracted_customer_number
+      FROM invoice_line_items
+      WHERE organization_id = $1 AND id = ANY($2)
+    `, [organizationId, lineItemIds]);
+
+    const inputs = lineItemsResult.rows.map(row => ({
+      lineItemId: row.id,
+      extractedCustomerName: row.extracted_customer_name,
+      extractedCustomerDomain: row.extracted_customer_domain,
+      extractedCustomerNumber: row.extracted_customer_number,
+    }));
+
+    const results = await customerMatchingService.batchMatchLineItems(organizationId, inputs);
+
+    // Apply matches if minConfidence is provided
+    if (minConfidence !== undefined) {
+      const applyResult = await customerMatchingService.applyBestMatches(
+        organizationId,
+        lineItemIds,
+        minConfidence
+      );
+
+      res.json({
+        success: true,
+        data: {
+          matches: results,
+          applied: applyResult.applied,
+          skipped: applyResult.skipped,
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        data: { matches: results },
+      });
+    }
+  } catch (error: any) {
+    logger.error('Match line items error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/line-items/:invoiceId/auto-match - Auto-match all line items for an invoice
+router.post('/line-items/:invoiceId/auto-match', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { invoiceId } = req.params;
+    const minConfidence = parseFloat(req.query.minConfidence as string) || 0.8;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get unmatched line items
+    const lineItemsResult = await query(`
+      SELECT id FROM invoice_line_items
+      WHERE organization_id = $1 AND processed_invoice_id = $2 AND customer_id IS NULL
+    `, [organizationId, invoiceId]);
+
+    const lineItemIds = lineItemsResult.rows.map(r => r.id);
+
+    if (lineItemIds.length === 0) {
+      return res.json({
+        success: true,
+        data: { applied: 0, skipped: 0, message: 'Keine ungematchten Positionen gefunden' },
+      });
+    }
+
+    const result = await customerMatchingService.applyBestMatches(
+      organizationId,
+      lineItemIds,
+      minConfidence
+    );
+
+    // Get updated stats
+    const stats = await customerMatchingService.getInvoiceMatchingStats(organizationId, invoiceId);
+
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        stats,
+        message: `${result.applied} von ${lineItemIds.length} Positionen automatisch zugeordnet`,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Auto-match line items error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/line-items/bulk-contract - Bulk link line items to contract.
+// MUSS vor PATCH /line-items/:id registriert sein, sonst matcht Express
+// 'bulk-contract' als id und die Bulk-Vertragszuordnung schlägt fehl.
+router.patch('/line-items/bulk-contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { lineItemIds, contractId, includeInContract } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'lineItemIds is required' });
+    }
+
+    const rebillingStatus = includeInContract ? 'included' : 'pending';
+
+    const result = await query(`
+      UPDATE invoice_line_items
+      SET contract_id = $1,
+          rebilling_status = $2,
+          updated_at = NOW()
+      WHERE id = ANY($3) AND organization_id = $4
+      RETURNING id
+    `, [contractId || null, rebillingStatus, lineItemIds, organizationId]);
+
+    res.json({ success: true, data: { updatedCount: result.rowCount } });
+  } catch (error: any) {
+    logger.error('Bulk link line items to contract error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/line-items/:id - Update line item (assign customer, change status)
+router.patch('/line-items/:id', authenticateToken, requireBillingFeature, validate(assignLineItemSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const { customerId, saveAsAlias } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get the line item first
+    const lineItemResult = await query(`
+      SELECT extracted_customer_name FROM invoice_line_items
+      WHERE id = $1 AND organization_id = $2
+    `, [id, organizationId]);
+
+    if (lineItemResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Line item nicht gefunden' });
+    }
+
+    // Update line item
+    await query(`
+      UPDATE invoice_line_items
+      SET customer_id = $1, match_method = 'manual', match_confidence = 1.0, updated_at = NOW()
+      WHERE id = $2 AND organization_id = $3
+    `, [customerId, id, organizationId]);
+
+    // Save alias if requested
+    if (saveAsAlias && lineItemResult.rows[0].extracted_customer_name) {
+      await customerMatchingService.saveAlias(
+        organizationId,
+        customerId,
+        lineItemResult.rows[0].extracted_customer_name,
+        'invoice_assignment'
+      );
+    }
+
+    res.json({
+      success: true,
+      data: { message: 'Kunde zugeordnet' + (saveAsAlias ? ', Alias gespeichert' : '') },
+    });
+  } catch (error: any) {
+    logger.error('Assign line item error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/line-items/:id/status - Update line item rebilling status
+router.patch('/line-items/:id/status', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const validStatuses = ['pending', 'included', 'billed', 'skipped'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: `Status muss einer von ${validStatuses.join(', ')} sein` });
+    }
+
+    await query(`
+      UPDATE invoice_line_items
+      SET rebilling_status = $1, updated_at = NOW()
+      WHERE id = $2 AND organization_id = $3
+    `, [status, id, organizationId]);
+
+    res.json({ success: true, data: { message: 'Status aktualisiert' } });
+  } catch (error: any) {
+    logger.error('Update line item status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/line-items/:invoiceId/stats - Get matching statistics for an invoice
+router.get('/line-items/:invoiceId/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { invoiceId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const stats = await customerMatchingService.getInvoiceMatchingStats(organizationId, invoiceId);
+
+    res.json({ success: true, data: stats });
+  } catch (error: any) {
+    logger.error('Get line item stats error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/line-items/customer/:customerId/pending - Get pending line items for rebilling
+router.get('/line-items/customer/:customerId/pending', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get all pending line items assigned to this customer
+    const result = await query(`
+      SELECT
+        li.id,
+        li.processed_invoice_id,
+        li.position_number,
+        li.description,
+        li.quantity,
+        li.unit_price,
+        li.total_price,
+        li.extracted_customer_name,
+        li.customer_id,
+        li.rebilling_status,
+        li.match_confidence,
+        li.match_method,
+        pi.email_subject AS invoice_subject,
+        pi.sender_name AS vendor_name,
+        pi.received_at AS invoice_date
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status = 'pending'
+      ORDER BY pi.received_at DESC, li.position_number
+    `, [organizationId, customerId]);
+
+    // Calculate totals
+    const items = result.rows;
+    const totalAmount = items.reduce((sum: number, item: any) => sum + (parseFloat(item.total_price) || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        items: items.map((row: any) => ({
+          id: row.id,
+          processedInvoiceId: row.processed_invoice_id,
+          positionNumber: row.position_number,
+          description: row.description,
+          quantity: parseFloat(row.quantity) || 1,
+          unitPrice: parseFloat(row.unit_price) || 0,
+          totalPrice: parseFloat(row.total_price) || 0,
+          extractedCustomerName: row.extracted_customer_name,
+          vendorName: row.vendor_name,
+          invoiceSubject: row.invoice_subject,
+          invoiceDate: row.invoice_date,
+        })),
+        totalAmount,
+        count: items.length,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get pending line items for customer error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/line-items/mark-billed - Mark line items as billed
+router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { lineItemIds, sevdeskInvoiceId } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'lineItemIds is required' });
+    }
+
+    // Update status to 'billed' and optionally store the sevDesk invoice reference
+    const result = await query(`
+      UPDATE invoice_line_items
+      SET rebilling_status = 'billed',
+          updated_at = NOW()
+      WHERE organization_id = $1
+        AND id = ANY($2)
+      RETURNING id
+    `, [organizationId, lineItemIds]);
+
+    res.json({
+      success: true,
+      data: { updatedCount: result.rowCount },
+    });
+  } catch (error: any) {
+    logger.error('Mark line items billed error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/customers/:customerId/licenses - Get aggregated license info for a customer
+router.get('/customers/:customerId/licenses', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // Get all line items for this customer, aggregated by description (product) with contract info
+    const aggregatedResult = await query(`
+      SELECT
+        li.description,
+        li.product_sku,
+        li.rebilling_status,
+        li.contract_id,
+        c.name AS contract_name,
+        c.contract_number,
+        SUM(li.quantity) AS total_quantity,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS line_count,
+        MIN(pi.received_at) AS first_seen,
+        MAX(pi.received_at) AS last_seen,
+        ARRAY_AGG(DISTINCT pi.sender_name) FILTER (WHERE pi.sender_name IS NOT NULL) AS vendors
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      LEFT JOIN contracts c ON c.id = li.contract_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status IN ('pending', 'billed', 'included')
+      GROUP BY li.description, li.product_sku, li.rebilling_status, li.contract_id, c.name, c.contract_number
+      ORDER BY total_amount DESC
+    `, [organizationId, customerId]);
+
+    // Get monthly breakdown for the last 6 months
+    const monthlyResult = await query(`
+      SELECT
+        DATE_TRUNC('month', pi.received_at) AS month,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS item_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.rebilling_status IN ('pending', 'billed', 'included')
+        AND pi.received_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', pi.received_at)
+      ORDER BY month DESC
+    `, [organizationId, customerId]);
+
+    // Get summary stats
+    const statsResult = await query(`
+      SELECT
+        COUNT(DISTINCT li.id) AS total_items,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.description) AS unique_products,
+        SUM(CASE WHEN li.rebilling_status = 'pending' THEN li.total_price ELSE 0 END) AS pending_amount,
+        SUM(CASE WHEN li.rebilling_status = 'billed' THEN li.total_price ELSE 0 END) AS billed_amount,
+        SUM(CASE WHEN li.rebilling_status = 'included' THEN li.total_price ELSE 0 END) AS included_amount
+      FROM invoice_line_items li
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+    `, [organizationId, customerId]);
+
+    const stats = statsResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        products: aggregatedResult.rows.map((row: any) => ({
+          description: row.description,
+          productSku: row.product_sku,
+          rebillingStatus: row.rebilling_status,
+          contractId: row.contract_id,
+          contractName: row.contract_name,
+          contractNumber: row.contract_number,
+          totalQuantity: parseInt(row.total_quantity) || 0,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          lineCount: parseInt(row.line_count) || 0,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          vendors: row.vendors || [],
+        })),
+        monthlyBreakdown: monthlyResult.rows.map((row: any) => ({
+          month: row.month,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          itemCount: parseInt(row.item_count) || 0,
+        })),
+        summary: {
+          totalItems: parseInt(stats.total_items) || 0,
+          totalAmount: parseFloat(stats.total_amount) || 0,
+          uniqueProducts: parseInt(stats.unique_products) || 0,
+          pendingAmount: parseFloat(stats.pending_amount) || 0,
+          billedAmount: parseFloat(stats.billed_amount) || 0,
+          includedAmount: parseFloat(stats.included_amount) || 0,
+        },
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get customer licenses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/line-items/:id/contract - Link/unlink line item to contract
+router.patch('/line-items/:id/contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: lineItemId } = req.params;
+    const { contractId, includeInContract } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    // If includeInContract is true, set status to 'included', otherwise keep/set to 'pending'
+    const rebillingStatus = includeInContract ? 'included' : 'pending';
+
+    const result = await query(`
+      UPDATE invoice_line_items
+      SET contract_id = $1,
+          rebilling_status = $2,
+          updated_at = NOW()
+      WHERE id = $3 AND organization_id = $4
+      RETURNING id, contract_id, rebilling_status
+    `, [contractId || null, rebillingStatus, lineItemId, organizationId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Line item not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    logger.error('Link line item to contract error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/customers/:customerId/contracts - Get contracts for a customer (for dropdown)
+router.get('/customers/:customerId/contracts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { customerId } = req.params;
+
+    const result = await query(`
+      SELECT id, contract_number, name, status, start_date, end_date
+      FROM contracts
+      WHERE user_id = $1 AND customer_id = $2 AND status IN ('active', 'draft')
+      ORDER BY status = 'active' DESC, name
+    `, [userId, customerId]);
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    logger.error('Get customer contracts error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
+// Customer Aliases
+// ============================================================================
+
+// GET /api/sevdesk/customers/:id/aliases - Get aliases for a customer
+router.get('/customers/:id/aliases', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const aliases = await customerMatchingService.getAliases(organizationId, customerId);
+
+    res.json({ success: true, data: aliases });
+  } catch (error: any) {
+    logger.error('Get customer aliases error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/customers/:id/aliases - Add alias for a customer
+router.post('/customers/:id/aliases', authenticateToken, requireBillingFeature, validate(createAliasSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: customerId } = req.params;
+    const { alias, source } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    await customerMatchingService.saveAlias(organizationId, customerId, alias, source || 'manual');
+
+    res.json({ success: true, data: { message: 'Alias gespeichert' } });
+  } catch (error: any) {
+    logger.error('Add customer alias error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/sevdesk/customers/:id/aliases/:aliasId - Delete an alias
+router.delete('/customers/:id/aliases/:aliasId', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { aliasId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const deleted = await customerMatchingService.deleteAlias(organizationId, aliasId);
+
+    if (!deleted) {
+      return res.status(404).json({ success: false, error: 'Alias nicht gefunden' });
+    }
+
+    res.json({ success: true, data: { message: 'Alias gelöscht' } });
+  } catch (error: any) {
+    logger.error('Delete customer alias error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/customers/:id/matching - Update customer matching settings (domain, distributor IDs)
+router.patch('/customers/:id/matching', authenticateToken, requireBillingFeature, validate(updateCustomerMatchingSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id: customerId } = req.params;
+    const { primaryDomain, distributorIdentifiers } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (primaryDomain !== undefined) {
+      if (primaryDomain === null) {
+        await query(`UPDATE customers SET primary_domain = NULL WHERE id = $1 AND organization_id = $2`, [customerId, organizationId]);
+      } else {
+        await customerMatchingService.setCustomerDomain(organizationId, customerId, primaryDomain);
+      }
+    }
+
+    if (distributorIdentifiers) {
+      await customerMatchingService.updateDistributorIdentifiers(organizationId, customerId, distributorIdentifiers);
+    }
+
+    res.json({ success: true, data: { message: 'Matching-Einstellungen aktualisiert' } });
+  } catch (error: any) {
+    logger.error('Update customer matching error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/sevdesk/unmatched-items - Get all unmatched line items across invoices
+router.get('/unmatched-items', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      SELECT
+        li.id, li.processed_invoice_id, li.position_number, li.description,
+        li.quantity, li.total_price, li.extracted_customer_name,
+        li.extracted_customer_domain, li.extracted_customer_number,
+        pi.supplier_name, pi.invoice_number, pi.invoice_date
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1 AND li.customer_id IS NULL AND li.rebilling_status = 'pending'
+      ORDER BY pi.invoice_date DESC, li.position_number
+      LIMIT $2 OFFSET $3
+    `, [organizationId, limit, offset]);
+
+    const countResult = await query(`
+      SELECT COUNT(*) FROM invoice_line_items
+      WHERE organization_id = $1 AND customer_id IS NULL AND rebilling_status = 'pending'
+    `, [organizationId]);
+
+    res.json({
+      success: true,
+      data: {
+        items: result.rows,
+        total: parseInt(countResult.rows[0].count),
+        limit,
+        offset,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Get unmatched items error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from 'react';
-import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle, Clock, LayoutDashboard } from 'lucide-react';
+import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle, Clock, LayoutDashboard, Package } from 'lucide-react';
 import { PortalContact, customerPortalApi, PortalSettings } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
 
@@ -14,13 +14,14 @@ interface PortalLayoutProps {
   onShowDashboard?: () => void;
   onShowTimeReport?: () => void;
   onShowContract?: () => void;
+  onShowLicenses?: () => void;
   onShowHelp?: () => void;
   currentView?: string;
   portalSettings?: PortalSettings | null;
   children: ReactNode;
 }
 
-export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, onShowDashboard, onShowTimeReport, onShowContract, onShowHelp, currentView, portalSettings, children }: PortalLayoutProps) => {
+export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledgeBase, onShowDevices, onShowInvoices, onShowTickets, onShowDashboard, onShowTimeReport, onShowContract, onShowLicenses, onShowHelp, currentView, portalSettings, children }: PortalLayoutProps) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
@@ -113,7 +114,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       </header>
 
       {/* Navigation Tabs */}
-      {(onShowDashboard || onShowTickets || onShowDevices || onShowInvoices || onShowTimeReport || onShowContract) && (
+      {(onShowDashboard || onShowTickets || onShowDevices || onShowInvoices || onShowTimeReport || onShowContract || onShowLicenses) && (
         <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
           <div className="max-w-6xl mx-auto px-4">
             <nav className="flex gap-1 overflow-x-auto">
@@ -190,6 +191,21 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                   }`}
                 >
                   Vertrag
+                </Button>
+              )}
+              {onShowLicenses && (
+                <Button
+                  onClick={onShowLicenses}
+                  variant="ghost"
+                  size="sm"
+                  icon={<Package size={18} />}
+                  className={`px-4 py-3 rounded-none border-b-2 whitespace-nowrap ${
+                    currentView === 'licenses'
+                      ? 'border-accent-primary text-accent-primary dark:text-accent-primary'
+                      : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
+                  }`}
+                >
+                  Lizenzen
                 </Button>
               )}
               {onShowInvoices && (

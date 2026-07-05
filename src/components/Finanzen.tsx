@@ -21,18 +21,15 @@ import {
   EyeOff,
   Search,
   Plus,
-  Download,
   RefreshCw,
-  Database,
   CheckCircle,
-  Upload,
-  Camera,
   X,
   Pencil,
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
 import { toLocalDateString } from '../utils/time';
-import { sevdeskApi, microsoft365Api, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, DocumentSearchResult, ProcessedInvoice } from '../services/api';
+import { formatCurrency, formatDate } from '../utils/formatting';
+import { sevdeskApi, microsoft365Api, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, ProcessedInvoice } from '../services/api';
 import { SourceBadge, ReceiptSource } from './ui/SourceBadge';
 
 // Erweitert SevdeskVoucher um die Quelle, damit der Belege-Tab auch fuer
@@ -74,15 +71,16 @@ import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 import { BillingOverview } from './BillingOverview';
+import { InvoiceDraftQueue } from './InvoiceDraftQueue';
 
-type FinanzenTab = 'billing' | 'documents' | 'settings';
+type FinanzenTab = 'billing' | 'outgoing' | 'quotes' | 'incoming' | 'settings';
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
 
 interface FinanzenProps {
   onBack?: () => void;
 }
 
-export const Finanzen = ({ onBack }: FinanzenProps) => {
+export const Finanzen = ({ onBack: _onBack }: FinanzenProps) => {
   const [activeTab, setActiveTab] = useState<FinanzenTab>('billing');
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,8 +157,10 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
   }
 
   const tabs: { id: FinanzenTab; label: string; icon: typeof Receipt }[] = [
-    { id: 'billing', label: 'Offene Posten', icon: Clock },
-    { id: 'documents', label: 'Dokumente', icon: FileText },
+    { id: 'billing', label: 'Abrechnung', icon: Clock },
+    { id: 'outgoing', label: 'Ausgangsrechnungen', icon: FileText },
+    { id: 'quotes', label: 'Angebote', icon: Send },
+    { id: 'incoming', label: 'Eingangsbelege', icon: Receipt },
     { id: 'settings', label: 'Einstellungen', icon: Settings },
   ];
 
@@ -200,7 +200,9 @@ export const Finanzen = ({ onBack }: FinanzenProps) => {
 
       {/* Tab Content */}
       {activeTab === 'billing' && <BillingTab />}
-      {activeTab === 'documents' && <DocumentsTab />}
+      {activeTab === 'outgoing' && <OutgoingInvoicesTab />}
+      {activeTab === 'quotes' && <QuotesTab />}
+      {activeTab === 'incoming' && <IncomingReceiptsTab />}
       {activeTab === 'settings' && <SettingsTab />}
     </div>
   );
@@ -1143,1013 +1145,419 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
   );
 };
 
-// ==================== Documents Tab ====================
-const DocumentsTab = () => {
-  const [activeDocType, setActiveDocType] = useState<DocumentType>('invoices');
+// ==================== Outgoing Invoices Tab ====================
+const OutgoingInvoicesTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<SevdeskInvoice[]>([]);
-  const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
-  const [vouchers, setVouchers] = useState<VoucherWithSource[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDocument, setSelectedDocument] = useState<{ type: DocumentType; doc: SevdeskInvoice | SevdeskQuote | SevdeskVoucher } | null>(null);
-
-  // Sync state
-  const [syncStatus, setSyncStatus] = useState<{ lastSync: string | null; invoiceCount: number; quoteCount: number } | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  // Search mode: 'live' = directly from sevDesk, 'cached' = from local database
-  const [searchMode, setSearchMode] = useState<'live' | 'cached'>('live');
-  const [searchResults, setSearchResults] = useState<DocumentSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  // Quote Editor
-  const [showQuoteEditor, setShowQuoteEditor] = useState(false);
-  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
-
-  // Voucher Upload
-  const [showVoucherUpload, setShowVoucherUpload] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<SevdeskInvoice | null>(null);
 
   useEffect(() => {
-    loadDocuments();
-    loadSyncStatus();
+    loadInvoices();
   }, []);
 
-  const loadDocuments = async () => {
+  const loadInvoices = async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      const [invoicesRes, quotesRes, voucherInvoicesRes] = await Promise.all([
-        sevdeskApi.getInvoices({ limit: 500 }),
-        sevdeskApi.getQuotes({ limit: 500 }),
-        // Belege kommen jetzt aus processed_invoices (SSOT). Drei Quellen:
-        // E-Mail-Inbox, Manual-Upload und sevDesk-Sync. Das Mapping
-        // konvertiert auf das alte SevdeskVoucher-Shape, damit die
-        // bestehende UI ohne Aenderungen weiterlaeuft.
-        microsoft365Api.getProcessedInvoices({
-          status: 'processed,imported,draft',
-          source: 'email,manual,sevdesk_import',
-          limit: 500,
-        }),
-      ]);
-
-      setInvoices(invoicesRes.data || []);
-      setQuotes(quotesRes.data || []);
-      setVouchers((voucherInvoicesRes.data || []).map(mapProcessedInvoiceToVoucher));
+      const res = await sevdeskApi.getInvoices({ limit: 500 });
+      setInvoices(res.data || []);
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Laden der Dokumente');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadSyncStatus = async () => {
-    try {
-      const response = await sevdeskApi.getSyncStatus();
-      if (response.success) {
-        setSyncStatus(response.data);
-      }
-    } catch (err) {
-      console.error('Failed to load sync status:', err);
-    }
-  };
-
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      setSyncMessage('Synchronisiere Dokumente...');
-      const response = await sevdeskApi.syncAll();
-      if (response.success) {
-        setSyncMessage(`✓ ${response.data.totalSynced} Dokumente synchronisiert`);
-        loadSyncStatus();
-        setTimeout(() => setSyncMessage(null), 5000);
-      }
-    } catch (err: any) {
-      setSyncMessage(`✗ Fehler: ${err.message}`);
-      setTimeout(() => setSyncMessage(null), 5000);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleCachedSearch = async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      setSearching(true);
-      const response = await sevdeskApi.searchDocuments(query, {
-        type: activeDocType === 'invoices' ? 'invoice' : 'quote',
-      });
-      if (response.success) {
-        setSearchResults(response.data);
-      }
-    } catch (err) {
-      console.error('Search error:', err);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  // Debounced search for cached mode
-  useEffect(() => {
-    if (searchMode === 'cached' && searchQuery.length >= 2) {
-      const timer = setTimeout(() => handleCachedSearch(searchQuery), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [searchQuery, searchMode, activeDocType]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('de-DE');
-  };
-
-  const getStatusColor = (status: number, type: DocumentType) => {
-    if (type === 'invoices') {
-      switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
-        case 200: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
-        case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-        default: return 'bg-gray-100 text-gray-700';
-      }
-    } else {
-      switch (status) {
-        case 100: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
-        case 200: return 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary';
-        case 300: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-        case 400: return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-        default: return 'bg-gray-100 text-gray-700';
-      }
-    }
-  };
-
   const filteredInvoices = invoices.filter(inv =>
-    inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    inv.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    inv.header?.toLowerCase().includes(searchQuery.toLowerCase())
+    !searchQuery ||
+    inv.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    inv.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredQuotes = quotes.filter(quote =>
-    quote.quoteNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    quote.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    quote.header?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredVouchers = vouchers.filter(voucher =>
-    voucher.voucherNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    voucher.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    voucher.supplier?.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const getVoucherStatusColor = (status: number) => {
-    switch (status) {
-      case 50: return 'bg-gray-100 text-gray-700 dark:bg-dark-200 dark:text-dark-500';
-      case 100: return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 1000: return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-      default: return 'bg-gray-100 text-gray-700';
-    }
+  const getStatusColor = (status: number) => {
+    if (status >= 1000) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    if (status >= 200) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400';
   };
 
   return (
     <div className="space-y-4">
-      {/* Header with Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Sync Status */}
-          {syncStatus && (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
-              <Database size={14} />
-              <span>{syncStatus.invoiceCount + syncStatus.quoteCount} im Cache</span>
-              {syncStatus.lastSync && (
-                <span className="text-gray-400 hidden md:inline">
-                  (Sync: {new Date(syncStatus.lastSync).toLocaleDateString('de-DE')})
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* New Quote Button */}
-          <Button
-            variant="success"
-            size="sm"
-            onClick={() => setShowQuoteEditor(true)}
-            icon={<Plus size={14} />}
-          >
-            <span className="hidden xs:inline sm:inline">Angebot</span>
-          </Button>
-
-          {/* New Voucher Button */}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setShowVoucherUpload(true)}
-            icon={<Camera size={14} />}
-            className="bg-accent-primary hover:bg-accent-dark"
-          >
-            <span className="hidden xs:inline sm:inline">Beleg</span>
-          </Button>
-
-          {/* Sync Button */}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSync}
-            disabled={syncing}
-            loading={syncing}
-            icon={<Download size={14} />}
-          >
-            <span className="hidden xs:inline sm:inline">Sync</span>
-          </Button>
-
-          {/* Refresh Button */}
-          <IconButton
-            icon={<RefreshCw size={18} className={loading ? 'animate-spin' : ''} />}
-            onClick={loadDocuments}
-            disabled={loading}
-            tooltip="Von sevDesk neu laden"
-          />
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <FileText className="text-accent-primary" size={20} />
+          Ausgangsrechnungen
+        </h2>
+        <Button variant="ghost" size="sm" onClick={loadInvoices} icon={<RefreshCw size={16} />}>
+          Aktualisieren
+        </Button>
       </div>
 
-      {/* Sync Message */}
-      {syncMessage && (
-        <div className={`flex items-center gap-2 p-2 rounded-lg text-sm ${
-          syncMessage.startsWith('✓')
-            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-            : syncMessage.startsWith('✗')
-            ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-            : 'bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary'
-        }`}>
-          {syncMessage.startsWith('✓') && <CheckCircle size={16} />}
-          {syncMessage.startsWith('✗') && <AlertTriangle size={16} />}
-          {!syncMessage.startsWith('✓') && !syncMessage.startsWith('✗') && <Loader2 size={16} className="animate-spin" />}
-          <span>{syncMessage}</span>
-        </div>
-      )}
+      {/* Search */}
+      <div className="relative">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Suchen..."
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+        />
+      </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
-          <AlertTriangle size={18} />
-          <span className="text-sm">{error}</span>
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+          {error}
         </div>
       )}
 
-      {/* Document Type Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-dark-border overflow-x-auto">
-        <Button
-          variant="ghost"
-          onClick={() => setActiveDocType('invoices')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
-            activeDocType === 'invoices'
-              ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
-          }`}
-          icon={<Receipt size={18} />}
-        >
-          Rechnungen ({invoices.length})
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => setActiveDocType('quotes')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
-            activeDocType === 'quotes'
-              ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
-          }`}
-          icon={<FileText size={18} />}
-        >
-          Angebote ({quotes.length})
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => setActiveDocType('vouchers')}
-          className={`flex items-center gap-2 px-4 py-2 border-b-2 rounded-none transition-colors whitespace-nowrap ${
-            activeDocType === 'vouchers'
-              ? 'border-accent-primary text-accent-primary'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-dark-400'
-          }`}
-          icon={<CreditCard size={18} />}
-        >
-          Belege ({vouchers.length})
-        </Button>
-      </div>
-
-      {/* Search with Mode Toggle */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={searchMode === 'cached'
-              ? "Volltextsuche im Cache..."
-              : "Suchen..."
-            }
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
-          />
-          {searching && (
-            <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
-          )}
-        </div>
-        {/* Search Mode Toggle */}
-        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden flex-shrink-0">
-          <Button
-            variant={searchMode === 'live' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => { setSearchMode('live'); setSearchResults([]); }}
-            className={`rounded-none ${
-              searchMode !== 'live'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Live
-          </Button>
-          <Button
-            variant={searchMode === 'cached' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setSearchMode('cached')}
-            icon={<Database size={14} />}
-            className={`rounded-none ${
-              searchMode !== 'cached'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Cache
-          </Button>
-        </div>
-      </div>
-
-      {/* Content */}
+      {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-accent-primary" size={32} />
+          <Loader2 size={24} className="animate-spin text-accent-primary" />
         </div>
-      ) : searchMode === 'cached' && searchQuery.length >= 2 ? (
-        /* Cached Search Results */
-        <div className="space-y-2">
-          {searchResults.length === 0 ? (
-            <div className="text-center py-8">
-              <Database size={32} className="mx-auto mb-2 text-gray-400" />
-              <p className="text-gray-500 dark:text-dark-400">
-                {searching ? 'Suche...' : 'Keine Ergebnisse im Cache gefunden'}
-              </p>
-              {!syncStatus?.lastSync && (
-                <p className="text-sm text-gray-400 mt-2">
-                  Klicke auf "Sync" um Dokumente zu indexieren
-                </p>
-              )}
-            </div>
-          ) : (
-            searchResults.map((result) => (
-              <div
-                key={result.id}
-                onClick={() => {
-                  const doc = result.documentType === 'invoice'
-                    ? {
-                        id: result.sevdeskId,
-                        invoiceNumber: result.documentNumber,
-                        contact: { id: result.contactId || '', name: result.contactName },
-                        invoiceDate: result.documentDate,
-                        status: result.status,
-                        statusName: result.statusName,
-                        sumNet: result.sumNet,
-                        sumGross: result.sumGross,
-                        sumTax: result.sumTax || 0,
-                        header: result.header,
-                      } as SevdeskInvoice
-                    : {
-                        id: result.sevdeskId,
-                        quoteNumber: result.documentNumber,
-                        contact: { id: result.contactId || '', name: result.contactName },
-                        quoteDate: result.documentDate,
-                        status: result.status,
-                        statusName: result.statusName,
-                        sumNet: result.sumNet,
-                        sumGross: result.sumGross,
-                        header: result.header,
-                      } as SevdeskQuote;
-                  setSelectedDocument({
-                    type: result.documentType === 'invoice' ? 'invoices' : 'quotes',
-                    doc,
-                  });
-                }}
-                className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
-                  {result.documentType === 'invoice' ? (
-                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
-                  ) : (
-                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                    <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                      {result.documentNumber}
-                    </span>
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(result.status, result.documentType === 'invoice' ? 'invoices' : 'quotes')}`}>
-                      {result.statusName}
-                    </span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary hidden sm:inline">
-                      {result.documentType === 'invoice' ? 'Rechnung' : 'Angebot'}
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
-                    {result.contactName}
-                  </p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                    {formatCurrency(result.sumGross)}
-                  </p>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
-                    {formatDate(result.documentDate)}
-                  </p>
-                </div>
-                <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
-              </div>
-            ))
-          )}
-        </div>
-      ) : searchMode === 'cached' ? (
-        <div className="text-center py-8">
-          <Database size={32} className="mx-auto mb-2 text-gray-400" />
-          <p className="text-gray-500 dark:text-dark-400">
-            Mindestens 2 Zeichen eingeben für Volltextsuche
-          </p>
-          {syncStatus && (
-            <p className="text-sm text-gray-400 mt-2">
-              {syncStatus.invoiceCount} Rechnungen & {syncStatus.quoteCount} Angebote im Cache
-            </p>
-          )}
+      ) : filteredInvoices.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+          Keine Rechnungen gefunden
         </div>
       ) : (
-        /* Live Mode - Direct from sevDesk */
         <div className="space-y-2">
-          {/* Invoices Tab */}
-          {activeDocType === 'invoices' && (
-            filteredInvoices.length === 0 ? (
-              <p className="text-center py-8 text-gray-500 dark:text-dark-400">
-                Keine Rechnungen gefunden
-              </p>
-            ) : (
-              filteredInvoices.map((invoice) => (
-                <div
-                  key={invoice.id}
-                  onClick={() => setSelectedDocument({ type: 'invoices', doc: invoice })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
-                    <Receipt size={20} className="text-gray-500 dark:text-dark-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                        {invoice.invoiceNumber}
-                      </span>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(invoice.status, 'invoices')}`}>
-                        {invoice.statusName}
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
-                      {invoice.contact.name}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                      {formatCurrency(invoice.sumGross)}
-                    </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
-                      {formatDate(invoice.invoiceDate)}
-                    </p>
-                  </div>
-                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
-                </div>
-              ))
-            )
-          )}
-
-          {/* Quotes Tab */}
-          {activeDocType === 'quotes' && (
-            filteredQuotes.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-gray-500 dark:text-dark-400">Keine Angebote gefunden</p>
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowQuoteEditor(true)}
-                  className="mt-4 text-accent-primary hover:underline"
-                >
-                  Erstes Angebot erstellen
-                </Button>
+          {filteredInvoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              onClick={() => setSelectedInvoice(invoice)}
+              className="flex items-center gap-3 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+            >
+              <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                <FileText size={20} className="text-gray-500 dark:text-dark-400" />
               </div>
-            ) : (
-              filteredQuotes.map((quote) => (
-                <div
-                  key={quote.id}
-                  onClick={() => setSelectedDocument({ type: 'quotes', doc: quote })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
-                    <FileText size={20} className="text-gray-500 dark:text-dark-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                        {quote.quoteNumber}
-                      </span>
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(quote.status, 'quotes')}`}>
-                        {quote.statusName}
-                      </span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
-                      {quote.contact.name}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                      {formatCurrency(quote.sumGross)}
-                    </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
-                      {formatDate(quote.quoteDate)}
-                    </p>
-                  </div>
-                  {/* Edit Button - only for draft quotes */}
-                  {quote.status === 100 && (
-                    <IconButton
-                      icon={<Pencil size={16} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingQuoteId(quote.id);
-                        setShowQuoteEditor(true);
-                      }}
-                      variant="primary"
-                      tooltip="Angebot bearbeiten"
-                    />
-                  )}
-                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {invoice.invoiceNumber || 'Entwurf'}
+                  </span>
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(invoice.status)}`}>
+                    {invoice.statusName}
+                  </span>
                 </div>
-              ))
-            )
-          )}
-
-          {/* Vouchers Tab */}
-          {activeDocType === 'vouchers' && (
-            filteredVouchers.length === 0 ? (
-              <div className="text-center py-8">
-                <CreditCard size={32} className="mx-auto mb-2 text-gray-400" />
-                <p className="text-gray-500 dark:text-dark-400">Keine Belege gefunden</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
+                  {invoice.contact?.name || 'Kein Kunde'}
+                </p>
               </div>
-            ) : (
-              filteredVouchers.map((voucher) => (
-                <div
-                  key={voucher.id}
-                  onClick={() => setSelectedDocument({ type: 'vouchers', doc: voucher })}
-                  className="flex items-center gap-3 p-3 sm:p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                >
-                  <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg flex-shrink-0 hidden sm:block">
-                    <CreditCard size={20} className="text-gray-500 dark:text-dark-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
-                        {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id}`}
-                      </span>
-                      <SourceBadge source={voucher.source} />
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
-                        {voucher.statusName}
-                      </span>
-                      {voucher.creditDebit === 'C' && (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary">
-                          Gutschrift
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 truncate">
-                      {voucher.supplier?.name || voucher.description || 'Kein Lieferant'}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`font-medium text-sm sm:text-base ${voucher.creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                      {voucher.creditDebit === 'C' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
-                    </p>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400">
-                      {formatDate(voucher.voucherDate)}
-                    </p>
-                  </div>
-                  <ChevronRight size={18} className="text-gray-400 flex-shrink-0 hidden sm:block" />
-                </div>
-              ))
-            )
-          )}
+              <div className="text-right">
+                <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(invoice.sumGross)}</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">{formatDate(invoice.invoiceDate)}</p>
+              </div>
+              <ChevronRight size={18} className="text-gray-400" />
+            </div>
+          ))}
         </div>
       )}
 
       {/* Detail Modal */}
-      {selectedDocument && (
+      {selectedInvoice && (
         <DocumentDetail
-          type={selectedDocument.type}
-          document={selectedDocument.doc}
-          onClose={() => setSelectedDocument(null)}
-        />
-      )}
-
-      {/* Quote Editor Modal */}
-      {showQuoteEditor && (
-        <QuoteEditor
-          quoteId={editingQuoteId || undefined}
-          onClose={() => {
-            setShowQuoteEditor(false);
-            setEditingQuoteId(null);
-          }}
-          onSuccess={() => {
-            setShowQuoteEditor(false);
-            setEditingQuoteId(null);
-            loadDocuments();
-            loadSyncStatus();
-          }}
-        />
-      )}
-
-      {/* Voucher Upload Modal */}
-      {showVoucherUpload && (
-        <VoucherUploadDialog
-          onClose={() => setShowVoucherUpload(false)}
-          onSuccess={() => {
-            setShowVoucherUpload(false);
-            loadDocuments();
-          }}
+          type="invoices"
+          document={selectedInvoice}
+          onClose={() => setSelectedInvoice(null)}
         />
       )}
     </div>
   );
 };
 
-// ==================== Voucher Upload Dialog ====================
-interface VoucherUploadDialogProps {
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-const VoucherUploadDialog = ({ onClose, onSuccess }: VoucherUploadDialogProps) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+// ==================== Quotes Tab ====================
+const QuotesTab = () => {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'upload' | 'details'>('upload');
+  const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedQuote, setSelectedQuote] = useState<SevdeskQuote | null>(null);
+  const [showQuoteEditor, setShowQuoteEditor] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
 
-  // Form fields
-  const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
-  const [description, setDescription] = useState('');
-  const [supplierName, setSupplierName] = useState('');
-  const [sumGross, setSumGross] = useState('');
-  const [taxRate, setTaxRate] = useState('19');
-  const [creditDebit, setCreditDebit] = useState<'C' | 'D'>('D');
+  useEffect(() => {
+    loadQuotes();
+  }, []);
 
-  const handleFileSelect = (selectedFile: File) => {
-    if (!selectedFile.type.match(/^(image\/(jpeg|png|gif|webp)|application\/pdf)$/)) {
-      setError('Nur Bilder (JPG, PNG, GIF, WebP) oder PDF-Dateien sind erlaubt');
-      return;
-    }
-
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setError('Datei darf maximal 10 MB groß sein');
-      return;
-    }
-
-    setFile(selectedFile);
-    setError(null);
-
-    // Create preview for images
-    if (selectedFile.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target?.result as string);
-      reader.readAsDataURL(selectedFile);
-    } else {
-      setPreview(null);
-    }
-
-    setStep('details');
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      handleFileSelect(droppedFile);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      handleFileSelect(selectedFile);
-    }
-  };
-
-  const calculateNet = () => {
-    const gross = parseFloat(sumGross) || 0;
-    const tax = parseFloat(taxRate) || 0;
-    return gross / (1 + tax / 100);
-  };
-
-  const handleSubmit = async () => {
-    if (!file) return;
-
+  const loadQuotes = async () => {
     try {
-      setUploading(true);
-      setError(null);
-
-      // Convert file to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data:mimetype;base64, prefix
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const fileData = await base64Promise;
-
-      // Upload file to sevDesk
-      const uploadResult = await sevdeskApi.uploadVoucherFile(fileData, file.name, file.type);
-
-      if (!uploadResult.success || !uploadResult.data.id) {
-        throw new Error('Datei konnte nicht hochgeladen werden');
-      }
-
-      // Create voucher with the uploaded file
-      const createResult = await sevdeskApi.createVoucher({
-        fileId: uploadResult.data.id,
-        voucherDate,
-        description: description || file.name,
-        supplierName: supplierName || undefined,
-        sumNet: calculateNet(),
-        sumGross: parseFloat(sumGross) || undefined,
-        taxRate: parseFloat(taxRate) || 19,
-        creditDebit,
-      });
-
-      if (!createResult.success) {
-        throw new Error('Beleg konnte nicht erstellt werden');
-      }
-
-      onSuccess();
+      setLoading(true);
+      const res = await sevdeskApi.getQuotes({ limit: 500 });
+      setQuotes(res.data || []);
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Hochladen');
+      setError(err.message);
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+  const filteredQuotes = quotes.filter(q =>
+    !searchQuery ||
+    q.quoteNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    q.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getStatusColor = (status: number) => {
+    if (status >= 1000) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    if (status >= 500) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400';
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-dark-100 rounded-xl max-w-lg w-full max-h-[90vh] overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {step === 'upload' ? 'Beleg hochladen' : 'Beleg-Details'}
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Send className="text-accent-primary" size={20} />
+          Angebote
+        </h2>
+        <div className="flex gap-2">
+          <Button variant="primary" size="sm" onClick={() => { setEditingQuoteId(null); setShowQuoteEditor(true); }} icon={<Plus size={16} />}>
+            Neues Angebot
+          </Button>
+          <Button variant="ghost" size="sm" onClick={loadQuotes} icon={<RefreshCw size={16} />}>
+            Aktualisieren
+          </Button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Suchen..."
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+        />
+      </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-accent-primary" />
+        </div>
+      ) : filteredQuotes.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+          Keine Angebote gefunden
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredQuotes.map((quote) => (
+            <div
+              key={quote.id}
+              onClick={() => setSelectedQuote(quote)}
+              className="flex items-center gap-3 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+            >
+              <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                <Send size={20} className="text-gray-500 dark:text-dark-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {quote.quoteNumber || 'Entwurf'}
+                  </span>
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusColor(quote.status)}`}>
+                    {quote.statusName}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
+                  {quote.contact?.name || 'Kein Kunde'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(quote.sumGross)}</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">{formatDate(quote.quoteDate)}</p>
+              </div>
+              <IconButton
+                icon={<Pencil size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingQuoteId(quote.id);
+                  setShowQuoteEditor(true);
+                }}
+                tooltip="Bearbeiten"
+              />
+              <ChevronRight size={18} className="text-gray-400" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Quote Editor */}
+      {showQuoteEditor && (
+        <QuoteEditor
+          quoteId={editingQuoteId || undefined}
+          onClose={() => { setShowQuoteEditor(false); setEditingQuoteId(null); }}
+          onSuccess={() => { setShowQuoteEditor(false); setEditingQuoteId(null); loadQuotes(); }}
+        />
+      )}
+
+      {/* Detail Modal */}
+      {selectedQuote && !showQuoteEditor && (
+        <DocumentDetail
+          type="quotes"
+          document={selectedQuote}
+          onClose={() => setSelectedQuote(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ==================== Incoming Receipts Tab ====================
+const IncomingReceiptsTab = () => {
+  const [showInbox, setShowInbox] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [vouchers, setVouchers] = useState<VoucherWithSource[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    loadVouchers();
+  }, []);
+
+  const loadVouchers = async () => {
+    try {
+      setLoading(true);
+      const res = await microsoft365Api.getProcessedInvoices({
+        status: 'processed,imported',
+        source: 'email,manual,sevdesk_import',
+        limit: 500,
+      });
+      setVouchers((res.data || []).map(mapProcessedInvoiceToVoucher));
+    } catch (err: any) {
+      console.error('Error loading vouchers:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredVouchers = vouchers.filter(v =>
+    !searchQuery ||
+    v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.supplier?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getVoucherStatusColor = (status: number) => {
+    if (status >= 1000) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    if (status >= 100) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+    return 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400';
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Inbox Toggle */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Receipt className="text-accent-primary" size={20} />
+          Eingangsbelege
+        </h2>
+        <Button
+          variant={showInbox ? 'primary' : 'outline'}
+          size="sm"
+          onClick={() => setShowInbox(!showInbox)}
+          icon={showInbox ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        >
+          {showInbox ? 'Inbox ausblenden' : 'Inbox einblenden'}
+        </Button>
+      </div>
+
+      {/* Invoice Draft Queue (Inbox) */}
+      {showInbox && (
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden" style={{ maxHeight: '500px' }}>
+          <InvoiceDraftQueue />
+        </div>
+      )}
+
+      {/* Processed Vouchers Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+            <CheckCircle size={18} className="text-green-500" />
+            Verarbeitete Belege ({vouchers.length})
           </h3>
-          <IconButton
-            icon={<X size={20} />}
-            onClick={onClose}
-            tooltip="Schließen"
+          <Button variant="ghost" size="sm" onClick={loadVouchers} icon={<RefreshCw size={16} />}>
+            Aktualisieren
+          </Button>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Belege durchsuchen..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
           />
         </div>
 
-        <div className="p-4 overflow-y-auto max-h-[70vh]">
-          {error && (
-            <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-              <AlertTriangle size={16} />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {step === 'upload' ? (
-            /* Upload Step */
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-8 text-center hover:border-accent-primary transition-colors cursor-pointer"
-            >
-              <input
-                type="file"
-                accept="image/*,.pdf"
-                onChange={handleFileInput}
-                className="hidden"
-                id="voucher-file-input"
-              />
-              <label htmlFor="voucher-file-input" className="cursor-pointer">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="p-4 bg-gray-100 dark:bg-dark-200 rounded-full">
-                    <Camera size={32} className="text-gray-400" />
+        {/* List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={24} className="animate-spin text-accent-primary" />
+          </div>
+        ) : filteredVouchers.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-dark-400">
+            <CreditCard size={32} className="mx-auto mb-2 opacity-50" />
+            Keine verarbeiteten Belege
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredVouchers.map((voucher) => (
+              <div
+                key={voucher.id}
+                className="flex items-center gap-3 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg"
+              >
+                <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
+                  <CreditCard size={20} className="text-gray-500 dark:text-dark-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id.slice(0, 8)}`}
+                    </span>
+                    <SourceBadge source={voucher.source} />
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
+                      {voucher.statusName}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-gray-900 dark:text-white font-medium">
-                      Foto aufnehmen oder Datei auswählen
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-                      Oder per Drag & Drop hier ablegen
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    JPG, PNG, GIF, WebP oder PDF • Max. 10 MB
+                  <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
+                    {voucher.supplier?.name || 'Kein Lieferant'}
                   </p>
                 </div>
-              </label>
-            </div>
-          ) : (
-            /* Details Step */
-            <div className="space-y-4">
-              {/* File Preview */}
-              {file && (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-50 rounded-lg">
-                  {preview ? (
-                    <img src={preview} alt="Vorschau" className="w-16 h-16 object-cover rounded" />
-                  ) : (
-                    <div className="w-16 h-16 bg-gray-200 dark:bg-dark-200 rounded flex items-center justify-center">
-                      <FileText size={24} className="text-gray-400" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {(file.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
-                  <IconButton
-                    icon={<X size={16} />}
-                    onClick={() => {
-                      setFile(null);
-                      setPreview(null);
-                      setStep('upload');
-                    }}
-                    variant="danger"
-                    tooltip="Entfernen"
-                  />
+                <div className="text-right">
+                  <p className={`font-medium ${voucher.creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                    {voucher.creditDebit === 'C' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    {formatDate(voucher.voucherDate)}
+                  </p>
                 </div>
-              )}
-
-              {/* Form Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Belegdatum *
-                  </label>
-                  <input
-                    type="date"
-                    value={voucherDate}
-                    onChange={(e) => setVoucherDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Beschreibung
-                  </label>
-                  <input
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="z.B. Büromaterial, Tankquittung..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Lieferant
-                  </label>
-                  <input
-                    type="text"
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
-                    placeholder="Name des Lieferanten"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Brutto-Betrag *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={sumGross}
-                      onChange={(e) => setSumGross(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 pr-8 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    MwSt-Satz
-                  </label>
-                  <select
-                    value={taxRate}
-                    onChange={(e) => setTaxRate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
+                {voucher.source === 'sevdesk_import' && (
+                  <a
+                    href={`https://my.sevdesk.de/voucher/${voucher.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <option value="19">19%</option>
-                    <option value="7">7%</option>
-                    <option value="0">0%</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Art
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={creditDebit === 'D'}
-                        onChange={() => setCreditDebit('D')}
-                        className="text-accent-primary"
-                      />
-                      <span className="text-gray-900 dark:text-white">Ausgabe</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        checked={creditDebit === 'C'}
-                        onChange={() => setCreditDebit('C')}
-                        className="text-accent-primary"
-                      />
-                      <span className="text-gray-900 dark:text-white">Gutschrift</span>
-                    </label>
-                  </div>
-                </div>
+                    <ExternalLink size={16} className="text-gray-400" />
+                  </a>
+                )}
               </div>
-
-              {/* Summary */}
-              {sumGross && (
-                <div className="p-3 bg-gray-50 dark:bg-dark-50 rounded-lg space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Netto:</span>
-                    <span className="text-gray-900 dark:text-white">{formatCurrency(calculateNet())}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">MwSt ({taxRate}%):</span>
-                    <span className="text-gray-900 dark:text-white">
-                      {formatCurrency((parseFloat(sumGross) || 0) - calculateNet())}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold pt-1 border-t border-gray-200 dark:border-dark-border">
-                    <span className="text-gray-900 dark:text-white">Brutto:</span>
-                    <span className={creditDebit === 'C' ? 'text-green-600' : 'text-gray-900 dark:text-white'}>
-                      {creditDebit === 'C' ? '+' : '-'}{formatCurrency(parseFloat(sumGross) || 0)}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        {step === 'details' && (
-          <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setStep('upload')}
-            >
-              Zurück
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSubmit}
-              disabled={uploading || !file || !sumGross || !voucherDate}
-              loading={uploading}
-              icon={<Upload size={16} />}
-            >
-              {uploading ? 'Wird hochgeladen...' : 'Beleg erstellen'}
-            </Button>
+            ))}
           </div>
         )}
       </div>

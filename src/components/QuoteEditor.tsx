@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   X,
   Search,
-  Plus,
   Trash2,
   FileText,
   Receipt,
@@ -39,6 +38,7 @@ interface QuoteEditorProps {
   onClose: () => void;
   onSuccess?: (quoteNumber: string) => void;
   quoteId?: string; // If provided, edit existing quote instead of creating new one
+  preselectedContactId?: string; // sevDesk contact ID to pre-select
 }
 
 // Text templates with variable support
@@ -96,7 +96,7 @@ const FOOT_TEXT_TEMPLATES = [
   },
 ];
 
-export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) => {
+export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId }: QuoteEditorProps) => {
   const isEditing = !!quoteId;
   const { currentUser } = useAuth();
 
@@ -104,7 +104,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
   const [contacts, setContacts] = useState<SevdeskContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContact, setSelectedContact] = useState<SevdeskContact | null>(null);
-  const [loadingQuote, setLoadingQuote] = useState(isEditing);
+  const [_loadingQuote, setLoadingQuote] = useState(isEditing);
 
   // Quote details
   const [header, setHeader] = useState('');
@@ -175,7 +175,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
   const [generatingDescription, setGeneratingDescription] = useState<string | null>(null); // position id being generated
 
   // Margin settings
-  const [showMarginSettings, setShowMarginSettings] = useState(false);
+  const [_showMarginSettings, _setShowMarginSettings] = useState(false);
   const [defaultMargin, setDefaultMargin] = useState(30); // 30% default margin
 
   // Load contacts on mount and check AI config
@@ -352,6 +352,13 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId }: QuoteEditorProps) =
       const response = await sevdeskApi.getCustomers();
       if (response.success) {
         setContacts(response.data);
+        // Pre-select contact if preselectedContactId is provided
+        if (preselectedContactId && !selectedContact) {
+          const contact = response.data.find(c => c.id === preselectedContactId);
+          if (contact) {
+            setSelectedContact(contact);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load contacts:', err);

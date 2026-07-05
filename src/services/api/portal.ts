@@ -6,6 +6,36 @@
 import { API_BASE_URL, authFetch, handleResponse } from './base';
 import { TrustedDevice } from './auth';
 
+// Portal License Data (for MSP/reseller customers)
+export interface PortalLicenseProduct {
+  description: string;
+  productSku: string | null;
+  contractId: string | null;
+  contractName: string | null;
+  totalQuantity: number;
+  totalAmount: number;
+  lineCount: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  vendors: string[];
+  isIncluded: boolean;
+}
+
+export interface PortalLicenseData {
+  products: PortalLicenseProduct[];
+  monthlyBreakdown: Array<{
+    month: string;
+    totalAmount: number;
+    itemCount: number;
+  }>;
+  summary: {
+    uniqueProducts: number;
+    billedAmount: number;
+    includedAmount: number;
+    totalAmount: number;
+  };
+}
+
 // Portal Settings (canonical interface - single source of truth)
 export interface PortalSettings {
   id: string;
@@ -558,6 +588,10 @@ export const customerPortalApi = {
     notes: string | null;
   } | null }> => {
     return portalAuthFetch('/customer-portal/contract');
+  },
+
+  getLicenses: async (): Promise<{ success: boolean; data: PortalLicenseData }> => {
+    return portalAuthFetch('/customer-portal/licenses');
   },
 };
 

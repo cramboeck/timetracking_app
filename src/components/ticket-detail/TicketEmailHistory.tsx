@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Mail, ChevronRight, Paperclip } from 'lucide-react';
-import { TicketEmail, formatEmailDate } from './types';
+import { Mail, ChevronRight, Paperclip, Download } from 'lucide-react';
+import { TicketEmail, formatEmailDate, formatFileSize } from './types';
 import { sanitizeEmailHtml } from '../../utils/sanitize';
+import { getAbsoluteFileUrl } from '../../utils/fileUrls';
 
 interface TicketEmailHistoryProps {
   emails: TicketEmail[];
@@ -120,6 +121,42 @@ export const TicketEmailHistory = ({
                           <pre className="whitespace-pre-wrap font-sans text-gray-700 dark:text-dark-500">
                             {email.body_text}
                           </pre>
+                        )}
+                        {email.attachments && email.attachments.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
+                            <p className="text-xs font-medium text-gray-500 dark:text-dark-400 mb-2">
+                              Anhänge ({email.attachments.length})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {email.attachments.map((att) =>
+                                att.storedLocally && att.localPath ? (
+                                  <a
+                                    key={att.id}
+                                    href={getAbsoluteFileUrl(att.localPath)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border rounded hover:border-accent-primary hover:text-accent-primary transition-colors"
+                                    title={`${att.name} herunterladen`}
+                                  >
+                                    <Download size={12} />
+                                    <span className="max-w-[180px] truncate">{att.name}</span>
+                                    {att.size != null && (
+                                      <span className="text-gray-400">({formatFileSize(att.size)})</span>
+                                    )}
+                                  </a>
+                                ) : (
+                                  <span
+                                    key={att.id}
+                                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border rounded text-gray-400"
+                                    title="Anhang wurde nicht lokal gespeichert"
+                                  >
+                                    <Paperclip size={12} />
+                                    <span className="max-w-[180px] truncate">{att.name}</span>
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>

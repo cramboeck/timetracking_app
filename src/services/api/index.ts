@@ -42,6 +42,7 @@ export type {
   TicketTag,
   TicketActivity,
   TicketAttachment,
+  TicketTemplate,
   KbCategory,
   KbArticle,
 } from './tickets';
@@ -61,6 +62,8 @@ export type {
   PushSubscription,
   NotificationPreferences,
   DeviceSubscription,
+  PortalLicenseData,
+  PortalLicenseProduct,
 } from './portal';
 
 // Integrations API (sevDesk, NinjaRMM, Microsoft 365)
@@ -88,6 +91,15 @@ export type {
   ProcessedInvoice,
   InvoiceDocument,
   InvoiceLineItem,
+  LineItemWithMatch,
+  LineItemStats,
+  UnmatchedLineItem,
+  CustomerAlias,
+  PendingLineItem,
+  CustomerLicenseData,
+  CustomerLicenseProduct,
+  CustomerLicenseMonthly,
+  CustomerLicenseSummary,
   ExtractedInvoiceData,
   SupportEmail,
   TicketEmail,

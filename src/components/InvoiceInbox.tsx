@@ -2,12 +2,15 @@ import { useState, useEffect, Fragment, useRef } from 'react';
 import {
   FileText, RefreshCw, Loader2, Eye, Download, Check, Trash2,
   ChevronDown, ChevronUp, File, Undo2, CheckCircle, XCircle,
-  Mail, AlertTriangle, X, Edit2, Search, Upload
+  Mail, AlertTriangle, X, Search, Upload, FileSearch
 } from 'lucide-react';
-import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData } from '../services/api';
+import { microsoft365Api, ProcessedInvoice, InvoiceDocument, ExtractedInvoiceData, sevdeskApi, SevdeskCustomer } from '../services/api';
 import { Button, IconButton } from './ui/Button';
 import { SourceBadge } from './ui/SourceBadge';
 import { useConfirm } from '../contexts/UIContext';
+import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
+import { LineItemReview } from './LineItemReview';
+import { InvoiceReviewView } from './InvoiceReviewView';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -40,12 +43,27 @@ export const InvoiceInbox = () => {
   const [invoiceMailbox, setInvoiceMailbox] = useState<string>('');
   const [isConfigured, setIsConfigured] = useState(false);
 
-  // Confirmation modal state
+  // Full-screen review view state (new UX)
+  const [reviewingInvoice, setReviewingInvoice] = useState<ProcessedInvoice | null>(null);
+
+  // Confirmation modal state (legacy, still used for some flows)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmingInvoice, setConfirmingInvoice] = useState<ProcessedInvoice | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
   const [extractingData, setExtractingData] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  // PDF field extractor state
+  const [showPdfExtractor, setShowPdfExtractor] = useState(false);
+  const [pdfExtractorUrl, setPdfExtractorUrl] = useState<string | null>(null);
+
+  // sevDesk supplier search state
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [supplierResults, setSupplierResults] = useState<SevdeskCustomer[]>([]);
+  const [searchingSuppliers, setSearchingSuppliers] = useState(false);
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const [selectedSevdeskContact, setSelectedSevdeskContact] = useState<SevdeskCustomer | null>(null);
+  const supplierInputRef = useRef<HTMLInputElement | null>(null);
 
   // Manual-Upload state (Phase 2): hidden file input + uploading flag.
   // Nach erfolgreichem Upload oeffnet das Bestaetigungs-Modal direkt mit
@@ -100,6 +118,31 @@ export const InvoiceInbox = () => {
     }, 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // Debounced sevDesk supplier search
+  useEffect(() => {
+    const q = supplierSearch.trim();
+    if (q.length < 2) {
+      setSupplierResults([]);
+      setSearchingSuppliers(false);
+      return;
+    }
+    setSearchingSuppliers(true);
+    const t = setTimeout(async () => {
+      try {
+        const response = await sevdeskApi.getContacts({ type: 'all', search: q });
+        if (response.success) {
+          setSupplierResults(response.data);
+        }
+      } catch (err: any) {
+        console.error('Supplier search failed:', err);
+        setSupplierResults([]);
+      } finally {
+        setSearchingSuppliers(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [supplierSearch]);
 
   useEffect(() => {
     loadData();
@@ -212,54 +255,12 @@ export const InvoiceInbox = () => {
   };
 
   const handleApproveDraft = async (invoiceId: string) => {
-    // Find the invoice
+    // Find the invoice and open the full-screen review view
     const invoice = processedInvoices.find(inv => inv.id === invoiceId);
     if (!invoice) return;
 
-    setConfirmingInvoice(invoice);
-    setExtractedData(null);
-    setShowConfirmModal(true);
-    setExtractingData(true);
-    setError('');
-
-    try {
-      // Extract invoice data from PDF
-      const response = await microsoft365Api.extractInvoiceData(invoiceId);
-      if (response.success && response.data) {
-        setExtractedData(response.data);
-      } else {
-        // Set empty data if extraction fails
-        setExtractedData({
-          supplierName: invoice.senderName || null,
-          invoiceNumber: null,
-          invoiceDate: null,
-          dueDate: null,
-          netAmount: null,
-          grossAmount: null,
-          vatAmount: null,
-          vatRate: 19,
-          currency: 'EUR',
-          confidence: 0,
-        });
-      }
-    } catch (err: any) {
-      console.error('Data extraction failed:', err);
-      // Set default data on error
-      setExtractedData({
-        supplierName: invoice.senderName || null,
-        invoiceNumber: null,
-        invoiceDate: null,
-        dueDate: null,
-        netAmount: null,
-        grossAmount: null,
-        vatAmount: null,
-        vatRate: 19,
-        currency: 'EUR',
-        confidence: 0,
-      });
-    } finally {
-      setExtractingData(false);
-    }
+    // Open the new full-screen review view
+    setReviewingInvoice(invoice);
   };
 
   // Manual-Upload-Flow: User klickt "Beleg hochladen" -> hidden file input
@@ -277,9 +278,7 @@ export const InvoiceInbox = () => {
         throw new Error(response.error || 'Upload fehlgeschlagen');
       }
       await loadProcessedInvoices();
-      // Modal direkt mit den extrahierten Daten oeffnen. Wir bauen ein
-      // minimales ProcessedInvoice-Pseudo-Objekt aus dem upload-Response,
-      // weil der echte Datensatz erst nach loadProcessedInvoices() im State ist.
+      // Open the new review view with the uploaded invoice
       const pseudo: ProcessedInvoice = {
         id: response.data.processedInvoiceId,
         emailId: '',
@@ -294,9 +293,7 @@ export const InvoiceInbox = () => {
         processedAt: null,
         vendorId: null,
       };
-      setConfirmingInvoice(pseudo);
-      setExtractedData(response.data.extracted);
-      setShowConfirmModal(true);
+      setReviewingInvoice(pseudo);
       setSuccess(`Beleg "${file.name}" erfolgreich hochgeladen.`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -334,7 +331,12 @@ export const InvoiceInbox = () => {
     setError('');
 
     try {
-      const response = await microsoft365Api.approveInvoiceDraft(confirmingInvoice.id, extractedData);
+      // Include sevDesk contact ID if selected
+      const dataWithContact = {
+        ...extractedData,
+        sevdeskContactId: selectedSevdeskContact?.id || null,
+      };
+      const response = await microsoft365Api.approveInvoiceDraft(confirmingInvoice.id, dataWithContact);
       if (response.success) {
         setShowConfirmModal(false);
         setConfirmingInvoice(null);
@@ -360,6 +362,53 @@ export const InvoiceInbox = () => {
   const updateExtractedField = (field: keyof ExtractedInvoiceData, value: any) => {
     if (!extractedData) return;
     setExtractedData({ ...extractedData, [field]: value });
+  };
+
+  // Open PDF extractor with the first document
+  const handleOpenPdfExtractor = async () => {
+    if (!confirmingInvoice) return;
+
+    // Get documents for this invoice
+    let docs = invoiceDocuments[confirmingInvoice.id];
+    if (!docs) {
+      const result = await microsoft365Api.getInvoiceDocuments(confirmingInvoice.id);
+      if (result.success && result.data.length > 0) {
+        docs = result.data;
+        setInvoiceDocuments(prev => ({ ...prev, [confirmingInvoice.id]: docs }));
+      }
+    }
+
+    if (docs && docs.length > 0) {
+      const pdfDoc = docs.find(d => d.mimeType === 'application/pdf') || docs[0];
+      const url = microsoft365Api.getDocumentDownloadUrl(pdfDoc.id, true);
+      setPdfExtractorUrl(url);
+      setShowPdfExtractor(true);
+    }
+  };
+
+  // Handle field extraction from PDF
+  const handlePdfExtract = (field: ExtractableField, value: string | number | null) => {
+    if (!extractedData) return;
+
+    // Map ExtractableField to ExtractedInvoiceData fields
+    const fieldMapping: Record<ExtractableField, keyof ExtractedInvoiceData> = {
+      supplierName: 'supplierName',
+      invoiceNumber: 'invoiceNumber',
+      customerNumber: 'customerNumber',
+      invoiceDate: 'invoiceDate',
+      dueDate: 'dueDate',
+      netAmount: 'netAmount',
+      vatAmount: 'vatAmount',
+      grossAmount: 'grossAmount',
+      iban: 'iban',
+      bic: 'bic',
+      taxId: 'taxId',
+    };
+
+    const dataField = fieldMapping[field];
+    if (dataField) {
+      updateExtractedField(dataField, value);
+    }
   };
 
   const formatAmount = (amount: number | null): string => {
@@ -441,7 +490,7 @@ export const InvoiceInbox = () => {
     if (!ok) return;
 
     try {
-      const response = await microsoft365Api.deleteDraft(invoiceId);
+      const response = await microsoft365Api.deleteInvoiceDraft(invoiceId);
       if (response.success) {
         await loadProcessedInvoices();
         setSuccess('Entwurf gelöscht');
@@ -453,7 +502,7 @@ export const InvoiceInbox = () => {
 
   const handleRevertToDraft = async (invoiceId: string) => {
     try {
-      const response = await microsoft365Api.revertToDraft(invoiceId);
+      const response = await microsoft365Api.revertInvoiceToDraft(invoiceId);
       if (response.success) {
         await loadProcessedInvoices();
         setSuccess('Zurück zu Entwurf');
@@ -487,6 +536,20 @@ export const InvoiceInbox = () => {
           </p>
         </div>
       </div>
+    );
+  }
+
+  // Full-screen review view
+  if (reviewingInvoice) {
+    return (
+      <InvoiceReviewView
+        invoice={reviewingInvoice}
+        onClose={() => setReviewingInvoice(null)}
+        onApproved={() => {
+          setReviewingInvoice(null);
+          loadProcessedInvoices();
+        }}
+      />
     );
   }
 
@@ -1030,6 +1093,12 @@ export const InvoiceInbox = () => {
                 </h3>
                 <div className="flex items-center gap-1">
                   <IconButton
+                    icon={<FileSearch size={18} />}
+                    onClick={handleOpenPdfExtractor}
+                    disabled={extractingData}
+                    tooltip="PDF öffnen & Felder manuell markieren"
+                  />
+                  <IconButton
                     icon={<RefreshCw size={18} className={extractingData ? 'animate-spin' : ''} />}
                     onClick={handleReExtract}
                     disabled={extractingData}
@@ -1076,18 +1145,79 @@ export const InvoiceInbox = () => {
 
                     {/* Extracted Fields - Basic Info */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Supplier Name */}
-                      <div className="col-span-2">
+                      {/* Supplier Name with sevDesk Search */}
+                      <div className="col-span-2 relative">
                         <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                           Lieferant / Anbieter
+                          {selectedSevdeskContact && (
+                            <span className="ml-2 text-xs text-green-600 dark:text-green-400">
+                              ✓ sevDesk verknüpft
+                            </span>
+                          )}
                         </label>
-                        <input
-                          type="text"
-                          value={extractedData.supplierName || ''}
-                          onChange={(e) => updateExtractedField('supplierName', e.target.value || null)}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
-                          placeholder="Name des Lieferanten"
-                        />
+                        <div className="relative">
+                          <input
+                            ref={supplierInputRef}
+                            type="text"
+                            value={extractedData.supplierName || ''}
+                            onChange={(e) => {
+                              updateExtractedField('supplierName', e.target.value || null);
+                              setSupplierSearch(e.target.value);
+                              setShowSupplierDropdown(true);
+                              // Clear sevDesk link if user types
+                              if (selectedSevdeskContact && e.target.value !== selectedSevdeskContact.name) {
+                                setSelectedSevdeskContact(null);
+                              }
+                            }}
+                            onFocus={() => {
+                              if (supplierSearch.length >= 2 || supplierResults.length > 0) {
+                                setShowSupplierDropdown(true);
+                              }
+                            }}
+                            onBlur={() => {
+                              // Delay hiding to allow click on results
+                              setTimeout(() => setShowSupplierDropdown(false), 200);
+                            }}
+                            className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent"
+                            placeholder="Suche in sevDesk oder freie Eingabe..."
+                          />
+                          {searchingSuppliers && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <Loader2 size={16} className="animate-spin text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* sevDesk Search Results Dropdown */}
+                        {showSupplierDropdown && supplierResults.length > 0 && (
+                          <div className="absolute z-20 mt-1 w-full bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {supplierResults.map((contact) => (
+                              <button
+                                key={contact.id}
+                                type="button"
+                                className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-dark-300 flex items-center justify-between"
+                                onClick={() => {
+                                  updateExtractedField('supplierName', contact.name);
+                                  setSelectedSevdeskContact(contact);
+                                  setSupplierSearch('');
+                                  setShowSupplierDropdown(false);
+                                }}
+                              >
+                                <div>
+                                  <div className="font-medium text-gray-900 dark:text-white">{contact.name}</div>
+                                  {contact.customerNumber && (
+                                    <div className="text-xs text-gray-500 dark:text-dark-400">
+                                      Nr: {contact.customerNumber}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                  sevDesk
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Recipient Name (if extracted) */}
@@ -1301,83 +1431,13 @@ export const InvoiceInbox = () => {
                       </div>
                     )}
 
-                    {/* Line Items Section */}
-                    {extractedData.lineItems && extractedData.lineItems.length > 0 && (
-                      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-dark-300">
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                          <span>Rechnungspositionen ({extractedData.lineItems.length})</span>
-                          {extractedData.lineItems.some(item => item.customerName) && (
-                            <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
-                              MSP/Reseller
-                            </span>
-                          )}
-                        </h4>
-                        <div className="space-y-2 max-h-80 overflow-y-auto scroll-touch touch-manipulation">
-                          {extractedData.lineItems.map((item, index) => (
-                            <div
-                              key={index}
-                              className="bg-gray-50 dark:bg-dark-200 rounded-lg p-3 text-sm"
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    {item.position !== null && (
-                                      <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded">
-                                        #{item.position}
-                                      </span>
-                                    )}
-                                    <span className="font-medium text-gray-900 dark:text-white truncate">
-                                      {item.description}
-                                    </span>
-                                  </div>
-                                  {item.articleNumber && (
-                                    <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 font-mono">
-                                      Art.-Nr.: {item.articleNumber}
-                                    </div>
-                                  )}
-                                  {item.customerName && (
-                                    <div className="text-xs text-accent-primary dark:text-accent-primary mt-1 font-medium">
-                                      → Kunde: {item.customerName}
-                                    </div>
-                                  )}
-                                  <div className="flex flex-wrap gap-2 mt-1">
-                                    {item.productType && (
-                                      <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-1.5 py-0.5 rounded">
-                                        {item.productType}
-                                      </span>
-                                    )}
-                                    {item.period && (
-                                      <span className="text-xs text-gray-500 dark:text-dark-400">
-                                        {item.period}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  {item.quantity !== null && (
-                                    <div className="text-xs text-gray-500 dark:text-dark-400">
-                                      {item.quantity} {item.unit || 'x'} {item.unitPrice !== null ? `à ${formatAmount(item.unitPrice)} €` : ''}
-                                    </div>
-                                  )}
-                                  {item.totalPrice !== null && (
-                                    <div className="font-medium text-gray-900 dark:text-white">
-                                      {formatAmount(item.totalPrice)} €
-                                    </div>
-                                  )}
-                                  {item.vatRate !== null && item.vatRate !== extractedData.vatRate && (
-                                    <div className="text-xs text-amber-600 dark:text-amber-400">
-                                      {item.vatRate}% MwSt.
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500 dark:text-dark-400">
-                          Diese Positionen können später für die Weiterverrechnung verwendet werden.
-                        </div>
-                      </div>
+                    {/* Line Items Section with Customer Matching */}
+                    {confirmingInvoice && (extractedData.lineItems?.length ?? 0) > 0 && (
+                      <LineItemReview
+                        invoiceId={confirmingInvoice.id}
+                        lineItems={extractedData.lineItems}
+                        customers={[]}
+                      />
                     )}
                   </>
                 ) : null}
@@ -1405,6 +1465,31 @@ export const InvoiceInbox = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PDF Field Extractor Modal */}
+      {showPdfExtractor && pdfExtractorUrl && extractedData && (
+        <PdfFieldExtractor
+          pdfUrl={pdfExtractorUrl}
+          onExtract={handlePdfExtract}
+          onClose={() => {
+            setShowPdfExtractor(false);
+            setPdfExtractorUrl(null);
+          }}
+          currentValues={{
+            supplierName: extractedData.supplierName,
+            invoiceNumber: extractedData.invoiceNumber,
+            customerNumber: extractedData.customerNumber,
+            invoiceDate: extractedData.invoiceDate,
+            dueDate: extractedData.dueDate,
+            netAmount: extractedData.netAmount,
+            vatAmount: extractedData.vatAmount,
+            grossAmount: extractedData.grossAmount,
+            iban: extractedData.iban,
+            bic: extractedData.bic,
+            taxId: extractedData.taxId,
+          }}
+        />
       )}
     </div>
   );

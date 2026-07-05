@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { AreaNavigation, SubView } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
@@ -12,6 +12,7 @@ import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
 import { DevicesView } from './components/DevicesView';
 import { AlertsView } from './components/AlertsView';
+import { VulnerabilitiesDashboard } from './components/VulnerabilitiesDashboard';
 import MaintenanceView from './components/MaintenanceView';
 import TaskHub from './components/TaskHub';
 import Contracts from './components/Contracts';
@@ -45,6 +46,7 @@ import { useSwipeNavigation } from './hooks/useSwipeNavigation';
 import { useOfflineEntrySync } from './hooks/useOfflineEntrySync';
 import { useIsDesktop } from './hooks/useMediaQuery';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useSSE } from './hooks/useSSE';
 import { haptics } from './utils/haptics';
 import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
@@ -84,6 +86,10 @@ function App() {
     handleRetryFailedEntry,
     handleDiscardFailedEntry,
   } = useOfflineEntrySync({ isOnline, wasOffline, setEntries });
+
+  // Server-Sent Events for real-time updates (alerts, tickets, etc.)
+  // Automatically invalidates TanStack Query caches when events arrive
+  useSSE({ enabled: isAuthenticated && isOnline });
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1084,6 +1090,13 @@ function App() {
         )}
         {currentSubView === 'alerts' && (
           <AlertsView />
+        )}
+        {currentSubView === 'vulnerabilities' && (
+          <VulnerabilitiesDashboard
+            onNavigateToTicket={() => {
+              navigateToSubView('tickets');
+            }}
+          />
         )}
         {currentSubView === 'maintenance' && (
           <MaintenanceView />

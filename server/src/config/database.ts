@@ -1125,10 +1125,13 @@ export async function initializeDatabase() {
         title TEXT NOT NULL,
         description TEXT,
         status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
-        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
+        -- 'critical' (not 'urgent') is the app-wide ticket priority set: frontend
+        -- TicketPriority, ticketPrioritySchema and the live production constraint
+        -- all use low/normal/high/critical. Tasks use 'urgent' — tickets do not.
+        priority TEXT DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'critical')),
         category TEXT,
         assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
-        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert')),
+        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert', 'ninja_webhook')),
         ninja_alert_id TEXT,
         due_date TIMESTAMP,
         resolved_at TIMESTAMP,
@@ -1175,6 +1178,32 @@ export async function initializeDatabase() {
         ALTER TABLE tickets ADD COLUMN source TEXT DEFAULT 'manual';
       EXCEPTION
         WHEN duplicate_column THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: normalize ticket priority values to the app-wide set
+    // low/normal/high/critical. Older installs may carry a constraint with
+    // 'urgent', which no code path writes for tickets (tasks use 'urgent',
+    // tickets use 'critical'). Atomic: on any failure the block rolls back.
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_priority_check;
+        ALTER TABLE tickets ADD CONSTRAINT tickets_priority_check
+          CHECK(priority IN ('low', 'normal', 'high', 'critical'));
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    // Migration: allow 'ninja_webhook' as ticket source (written by the
+    // NinjaRMM webhook auto-ticket path) alongside the original values.
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_source_check;
+        ALTER TABLE tickets ADD CONSTRAINT tickets_source_check
+          CHECK(source IN ('manual', 'portal', 'email', 'ninja_alert', 'ninja_webhook'));
+      EXCEPTION
         WHEN others THEN NULL;
       END $$;
     `);
@@ -1386,6 +1415,29 @@ export async function initializeDatabase() {
     `);
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_ninjarmm_alerts_ticket ON ninjarmm_alerts(ticket_id)');
+
+    // ============================================
+    // Ticket Templates (for quick ticket creation)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_templates (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        title_template TEXT,
+        description_template TEXT,
+        default_priority TEXT CHECK(default_priority IN ('low', 'normal', 'high', 'critical')),
+        default_customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        default_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        category TEXT,
+        is_active BOOLEAN DEFAULT true,
+        usage_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_templates_org ON ticket_templates(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_templates_category ON ticket_templates(category)');
 
     // ============================================
     // Canned Responses (for quick ticket replies)
@@ -1879,6 +1931,64 @@ export async function initializeDatabase() {
     logger.info('✅ Internal user push subscriptions and notification preferences tables created');
 
     // ============================================
+    // Push Subscriptions Unification Migration
+    // Merge portal_push_subscriptions into push_subscriptions
+    // ============================================
+
+    // Add subscription_type column to push_subscriptions
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'push_subscriptions' AND column_name = 'subscription_type'
+        ) THEN
+          ALTER TABLE push_subscriptions ADD COLUMN subscription_type TEXT DEFAULT 'user' CHECK(subscription_type IN ('user', 'contact'));
+        END IF;
+      END $$;
+    `);
+
+    // Add contact_id column to push_subscriptions
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'push_subscriptions' AND column_name = 'contact_id'
+        ) THEN
+          ALTER TABLE push_subscriptions ADD COLUMN contact_id TEXT REFERENCES customer_contacts(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // Make user_id nullable (for contact subscriptions)
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE push_subscriptions ALTER COLUMN user_id DROP NOT NULL;
+      EXCEPTION
+        WHEN others THEN NULL;
+      END $$;
+    `);
+
+    // Create index on contact_id
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_contact ON push_subscriptions(contact_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_push_subs_type ON push_subscriptions(subscription_type)');
+
+    // Migrate data from portal_push_subscriptions to push_subscriptions
+    // Only copy records where contact_id still exists (skip orphaned records)
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'portal_push_subscriptions') THEN
+          INSERT INTO push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name, created_at, last_used_at, subscription_type)
+          SELECT pps.id, pps.contact_id, pps.endpoint, pps.p256dh, pps.auth, pps.device_name, pps.created_at, pps.last_used_at, 'contact'
+          FROM portal_push_subscriptions pps
+          WHERE EXISTS (SELECT 1 FROM customer_contacts cc WHERE cc.id = pps.contact_id)
+          ON CONFLICT (endpoint) DO NOTHING;
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Push subscriptions unified (user + portal contact in one table)');
+
+    // ============================================
     // Security Alerts Table
     // ============================================
 
@@ -2294,6 +2404,34 @@ export async function initializeDatabase() {
         WHEN others THEN NULL;
       END $$;
     `);
+
+    // ============================================
+    // Add organization_id to canned_responses and ticket_tags (migration for existing DBs)
+    // ============================================
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'canned_responses' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE canned_responses ADD COLUMN organization_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_canned_responses_org ON canned_responses(organization_id);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_tags' AND column_name = 'organization_id'
+        ) THEN
+          ALTER TABLE ticket_tags ADD COLUMN organization_id TEXT;
+          CREATE INDEX IF NOT EXISTS idx_ticket_tags_org ON ticket_tags(organization_id);
+        END IF;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN others THEN NULL;
+      END $$;
+    `);
+    logger.info('✅ canned_responses and ticket_tags organization_id columns ensured');
 
     // ============================================
     // Fix ticket_sequences - migrate from user_id to organization_id based
@@ -4003,7 +4141,12 @@ export async function initializeDatabase() {
     await client.query(`
       DO $$
       BEGIN
-        -- Drop old constraint if it exists
+        -- Step 1: Fix any non-compliant status values before adding constraint
+        UPDATE processed_invoices
+        SET status = 'processed'
+        WHERE status IS NULL OR status NOT IN ('pending', 'draft', 'processed', 'failed', 'skipped');
+
+        -- Step 2: Drop old constraint if it exists
         IF EXISTS (
           SELECT 1 FROM information_schema.table_constraints
           WHERE constraint_name = 'processed_invoices_status_check'
@@ -4011,7 +4154,7 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
         END IF;
-        -- Add new constraint with all status values including 'draft'
+        -- Step 3: Add new constraint with all status values including 'draft'
         ALTER TABLE processed_invoices
           ADD CONSTRAINT processed_invoices_status_check
           CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped'));
@@ -4136,9 +4279,17 @@ export async function initializeDatabase() {
 
     // Erweitere status-Check-Constraint um 'imported' (= sevDesk-Sync-Rows,
     // die nie durch den Inbox-Workflow gingen).
+    // WICHTIG: Zuerst alle nicht-konformen Zeilen auf 'processed' setzen,
+    // DANN die Constraint hinzufügen.
     await client.query(`
       DO $$
       BEGIN
+        -- Step 1: Fix any non-compliant status values before adding constraint
+        UPDATE processed_invoices
+        SET status = 'processed'
+        WHERE status IS NULL OR status NOT IN ('pending', 'draft', 'processed', 'failed', 'skipped', 'imported');
+
+        -- Step 2: Drop old constraint if exists
         IF EXISTS (
           SELECT 1 FROM information_schema.table_constraints
           WHERE constraint_name = 'processed_invoices_status_check'
@@ -4146,6 +4297,8 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE processed_invoices DROP CONSTRAINT processed_invoices_status_check;
         END IF;
+
+        -- Step 3: Add new constraint with all status values
         ALTER TABLE processed_invoices
           ADD CONSTRAINT processed_invoices_status_check
           CHECK (status IN ('pending', 'draft', 'processed', 'failed', 'skipped', 'imported'));
@@ -4255,6 +4408,24 @@ export async function initializeDatabase() {
         UNIQUE(organization_id, message_id)
       )
     `);
+
+    // Ticket attachments (UI/portal uploads). The table predates this schema
+    // file on the production DB — IF NOT EXISTS makes fresh installs work
+    // without touching existing data.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_attachments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        file_url TEXT NOT NULL,
+        file_size BIGINT,
+        mime_type TEXT,
+        uploaded_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_by_contact_id TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id)');
 
     // Ticket email attachments
     await client.query(`
@@ -4784,6 +4955,229 @@ export async function initializeDatabase() {
       `);
     }
     logger.info('✅ Multi-tenancy: indexes created on organization_id columns');
+
+    // ========================================
+    // Epic G: Invoice Line Items & License Management
+    // ========================================
+
+    // Enable pg_trgm extension for fuzzy matching
+    await client.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    logger.info('✅ pg_trgm extension enabled for fuzzy matching');
+
+    // Invoice Line Items table - individual positions from distributor invoices
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoice_line_items (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        processed_invoice_id TEXT NOT NULL REFERENCES processed_invoices(id) ON DELETE CASCADE,
+
+        -- Position from invoice
+        position_number INTEGER,
+        description TEXT NOT NULL,
+        article_number TEXT,
+
+        -- Quantities and prices
+        quantity NUMERIC(12,4),
+        unit TEXT,
+        unit_price NUMERIC(12,4),
+        total_price NUMERIC(12,4),
+        vat_rate NUMERIC(5,2),
+
+        -- Period
+        period_start DATE,
+        period_end DATE,
+        period_text TEXT,
+
+        -- Product categorization
+        product_type TEXT,
+        product_sku TEXT,
+
+        -- Customer detection (AI-extracted)
+        extracted_customer_name TEXT,
+        extracted_customer_domain TEXT,
+        extracted_customer_number TEXT,
+
+        -- Customer assignment (after matching/manual)
+        customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
+        match_confidence NUMERIC(3,2),
+        match_method TEXT CHECK(match_method IN (
+          'exact_name', 'fuzzy_name', 'domain', 'alias',
+          'distributor_number', 'manual', 'unmatched'
+        )),
+
+        -- Rebilling workflow status
+        rebilling_status TEXT DEFAULT 'pending' CHECK(rebilling_status IN (
+          'pending', 'included', 'billed', 'skipped'
+        )),
+        rebilling_invoice_id TEXT,
+        rebilling_markup_percent NUMERIC(5,2),
+        rebilling_notes TEXT,
+
+        -- Audit
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        reviewed_at TIMESTAMP
+      )
+    `);
+
+    // Indexes for invoice_line_items
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_invoice ON invoice_line_items(processed_invoice_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_org ON invoice_line_items(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_customer ON invoice_line_items(customer_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_rebilling ON invoice_line_items(rebilling_status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_period ON invoice_line_items(period_start, period_end)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_extracted_name ON invoice_line_items USING gin(extracted_customer_name gin_trgm_ops)');
+
+    logger.info('✅ invoice_line_items table created');
+
+    // Migration: Add primary_domain and distributor_identifiers to customers
+    await client.query(`
+      DO $$
+      BEGIN
+        -- primary_domain for domain-based matching
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'primary_domain'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN primary_domain TEXT;
+        END IF;
+
+        -- distributor_identifiers for matching by distributor-specific IDs
+        -- Schema: { "microsoft_tenant_id": "...", "hornetsecurity_id": "...", "elovade_number": "..." }
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customers' AND column_name = 'distributor_identifiers'
+        ) THEN
+          ALTER TABLE customers ADD COLUMN distributor_identifiers JSONB DEFAULT '{}';
+        END IF;
+      END $$;
+    `);
+
+    // Index for domain matching
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customers_primary_domain') THEN
+          CREATE INDEX idx_customers_primary_domain ON customers(primary_domain);
+        END IF;
+      END $$;
+    `);
+
+    // GIN index for fuzzy name matching on customers
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customers_name_trgm') THEN
+          CREATE INDEX idx_customers_name_trgm ON customers USING gin(name gin_trgm_ops);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ Customer matching columns added (primary_domain, distributor_identifiers)');
+
+    // Customer aliases table for matching invoice names to customers
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_aliases (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        alias TEXT NOT NULL,
+        source TEXT DEFAULT 'manual' CHECK(source IN ('manual', 'invoice_assignment')),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, alias)
+      )
+    `);
+
+    // Index for fast alias lookup
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customer_aliases_lookup') THEN
+          CREATE INDEX idx_customer_aliases_lookup ON customer_aliases(organization_id, LOWER(TRIM(alias)));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_customer_aliases_customer') THEN
+          CREATE INDEX idx_customer_aliases_customer ON customer_aliases(customer_id);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ customer_aliases table created');
+
+    // Migration: Add contract_id to invoice_line_items for contract linking
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'invoice_line_items' AND column_name = 'contract_id'
+        ) THEN
+          ALTER TABLE invoice_line_items ADD COLUMN contract_id TEXT REFERENCES contracts(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_line_items_contract') THEN
+          CREATE INDEX idx_line_items_contract ON invoice_line_items(contract_id);
+        END IF;
+      END $$;
+    `);
+
+    logger.info('✅ invoice_line_items.contract_id column added');
+
+    // NinjaRMM Vulnerabilities table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ninjarmm_vulnerabilities (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        device_id TEXT NOT NULL REFERENCES ninjarmm_devices(id) ON DELETE CASCADE,
+
+        -- CVE Information
+        cve_id TEXT NOT NULL,
+        cve_description TEXT,
+        cve_published_date TIMESTAMP,
+
+        -- Vulnerability details
+        severity TEXT CHECK(severity IN ('NONE', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+        cvss_score NUMERIC(3,1),
+        cvss_vector TEXT,
+
+        -- Affected software
+        software_name TEXT,
+        software_vendor TEXT,
+        software_version TEXT,
+
+        -- Status tracking
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'patched', 'ignored', 'false_positive')),
+        first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        patched_at TIMESTAMP,
+        ignored_at TIMESTAMP,
+        ignored_reason TEXT,
+
+        -- References
+        ninja_vulnerability_id TEXT,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+
+        UNIQUE(device_id, cve_id)
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_user ON ninjarmm_vulnerabilities(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_org ON ninjarmm_vulnerabilities(organization_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_device ON ninjarmm_vulnerabilities(device_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_cve ON ninjarmm_vulnerabilities(cve_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_severity ON ninjarmm_vulnerabilities(severity)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vuln_status ON ninjarmm_vulnerabilities(status)');
+
+    logger.info('✅ ninjarmm_vulnerabilities table created');
 
     await client.query('COMMIT');
     logger.info('✅ Database schema initialized successfully');

@@ -956,7 +956,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     }
   };
 
-  const useTemplate = (template: SocialMediaTemplate) => {
+  const applyTemplate = (template: SocialMediaTemplate) => {
     setPostContent(template.content);
     setPostHashtags(template.hashtags || []);
     setShowPostEditor(true);
@@ -2652,7 +2652,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                       </div>
                       <p className="text-sm text-gray-600 dark:text-dark-400 line-clamp-3 mb-3">{template.content}</p>
                       <button
-                        onClick={() => useTemplate(template)}
+                        onClick={() => applyTemplate(template)}
                         className="text-sm text-accent-primary hover:underline"
                       >
                         Vorlage verwenden
@@ -2749,7 +2749,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   {template.content}
                 </p>
                 <button
-                  onClick={() => useTemplate(template)}
+                  onClick={() => applyTemplate(template)}
                   className="text-sm text-accent-primary hover:underline"
                 >
                   Vorlage verwenden

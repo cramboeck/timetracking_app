@@ -2419,15 +2419,15 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
 
     // Check if subscription already exists
     const existing = await pool.query(
-      'SELECT id FROM portal_push_subscriptions WHERE endpoint = $1',
+      'SELECT id FROM push_subscriptions WHERE endpoint = $1',
       [subscription.endpoint]
     );
 
     if (existing.rows.length > 0) {
       // Update existing subscription
       await pool.query(
-        `UPDATE portal_push_subscriptions
-         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW()
+        `UPDATE push_subscriptions
+         SET contact_id = $1, p256dh = $2, auth = $3, device_name = $4, last_used_at = NOW(), subscription_type = 'contact'
          WHERE endpoint = $5`,
         [contactId, subscription.keys.p256dh, subscription.keys.auth, deviceName, subscription.endpoint]
       );
@@ -2437,8 +2437,8 @@ router.post('/push/subscribe', authenticateCustomerToken, async (req: CustomerAu
     // Create new subscription
     const id = crypto.randomUUID();
     await pool.query(
-      `INSERT INTO portal_push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO push_subscriptions (id, contact_id, endpoint, p256dh, auth, device_name, subscription_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'contact')`,
       [id, contactId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, deviceName]
     );
 
@@ -2464,7 +2464,10 @@ router.post('/push/unsubscribe', authenticateCustomerToken, async (req: Customer
       return res.status(400).json({ error: 'Endpoint is required' });
     }
 
-    await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [endpoint]);
+    await pool.query(
+      `DELETE FROM push_subscriptions WHERE endpoint = $1 AND subscription_type = 'contact'`,
+      [endpoint]
+    );
 
     res.json({ success: true });
   } catch (error) {
@@ -2478,7 +2481,8 @@ router.get('/push/subscriptions', authenticateCustomerToken, async (req: Custome
   try {
     const result = await pool.query(
       `SELECT id, endpoint, device_name, created_at, last_used_at
-       FROM portal_push_subscriptions WHERE contact_id = $1
+       FROM push_subscriptions
+       WHERE contact_id = $1 AND subscription_type = 'contact'
        ORDER BY last_used_at DESC NULLS LAST`,
       [req.contactId]
     );
@@ -2497,7 +2501,8 @@ router.delete('/push/subscriptions/:id', authenticateCustomerToken, async (req: 
 
     // Verify subscription belongs to this contact
     const result = await pool.query(
-      'DELETE FROM portal_push_subscriptions WHERE id = $1 AND contact_id = $2',
+      `DELETE FROM push_subscriptions
+       WHERE id = $1 AND contact_id = $2 AND subscription_type = 'contact'`,
       [id, req.contactId]
     );
 
@@ -2576,7 +2581,8 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
     const result = await pool.query(
-      'SELECT endpoint, p256dh, auth FROM portal_push_subscriptions WHERE contact_id = $1',
+      `SELECT endpoint, p256dh, auth FROM push_subscriptions
+       WHERE contact_id = $1 AND subscription_type = 'contact'`,
       [req.contactId]
     );
 
@@ -2601,7 +2607,10 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
       } catch (error: any) {
         if (error.statusCode === 404 || error.statusCode === 410) {
           // Remove expired subscription
-          await pool.query('DELETE FROM portal_push_subscriptions WHERE endpoint = $1', [row.endpoint]);
+          await pool.query(
+            `DELETE FROM push_subscriptions WHERE endpoint = $1 AND subscription_type = 'contact'`,
+            [row.endpoint]
+          );
         }
         failed++;
       }
@@ -2947,6 +2956,102 @@ router.get('/contract', authenticateCustomerToken, async (req: CustomerAuthReque
     });
   } catch (error) {
     logger.error('Get portal contract error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ========================================================================
+// License / Subscription Overview (for MSP/reseller customers)
+// ========================================================================
+
+// Get licenses/subscriptions for customer (from invoice line items)
+router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const customerId = req.customerId;
+
+    // Get all line items assigned to this customer (billed and included)
+    // grouped by product description, with contract info
+    const productsResult = await pool.query(`
+      SELECT
+        li.description,
+        li.product_sku,
+        li.contract_id,
+        c.name AS contract_name,
+        SUM(li.quantity) AS total_quantity,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS line_count,
+        MIN(pi.received_at) AS first_seen,
+        MAX(pi.received_at) AS last_seen,
+        ARRAY_AGG(DISTINCT pi.sender_name) FILTER (WHERE pi.sender_name IS NOT NULL) AS vendors,
+        MAX(li.rebilling_status) AS status
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      LEFT JOIN contracts c ON c.id = li.contract_id
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+      GROUP BY li.description, li.product_sku, li.contract_id, c.name
+      ORDER BY MAX(pi.received_at) DESC
+    `, [customerId]);
+
+    // Get monthly totals for last 6 months
+    const monthlyResult = await pool.query(`
+      SELECT
+        DATE_TRUNC('month', pi.received_at) AS month,
+        SUM(li.total_price) AS total_amount,
+        COUNT(DISTINCT li.id) AS item_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+        AND pi.received_at >= NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', pi.received_at)
+      ORDER BY month DESC
+    `, [customerId]);
+
+    // Summary stats
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(DISTINCT li.description) AS unique_products,
+        SUM(CASE WHEN li.rebilling_status = 'billed' THEN li.total_price ELSE 0 END) AS billed_amount,
+        SUM(CASE WHEN li.rebilling_status = 'included' THEN li.total_price ELSE 0 END) AS included_amount
+      FROM invoice_line_items li
+      WHERE li.customer_id = $1
+        AND li.rebilling_status IN ('billed', 'included')
+    `, [customerId]);
+
+    const summary = summaryResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        products: productsResult.rows.map(row => ({
+          description: row.description,
+          productSku: row.product_sku,
+          contractId: row.contract_id,
+          contractName: row.contract_name,
+          totalQuantity: parseInt(row.total_quantity) || 0,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          lineCount: parseInt(row.line_count) || 0,
+          firstSeen: row.first_seen,
+          lastSeen: row.last_seen,
+          vendors: row.vendors || [],
+          isIncluded: row.status === 'included',
+        })),
+        monthlyBreakdown: monthlyResult.rows.map(row => ({
+          month: row.month,
+          totalAmount: parseFloat(row.total_amount) || 0,
+          itemCount: parseInt(row.item_count) || 0,
+        })),
+        summary: {
+          uniqueProducts: parseInt(summary.unique_products) || 0,
+          billedAmount: parseFloat(summary.billed_amount) || 0,
+          includedAmount: parseFloat(summary.included_amount) || 0,
+          totalAmount: (parseFloat(summary.billed_amount) || 0) + (parseFloat(summary.included_amount) || 0),
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Get portal licenses error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -9,6 +9,8 @@ import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
+import { startContractHoursJob } from './jobs/contractHoursCron';
+import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
@@ -42,6 +44,7 @@ import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
 import slaPoliciesRoutes from './routes/sla-policies';
 import customerMetricsRoutes from './routes/customer-metrics';
+import sseRoutes from './routes/sse';
 import { apiLimiter } from './middleware/rateLimiter';
 
 // Load environment variables
@@ -124,13 +127,19 @@ app.use('/api/interactions', interactionsRoutes);
 app.use('/api/opportunities', opportunitiesRoutes);
 app.use('/api/sla-policies', slaPoliciesRoutes);
 app.use('/api/customer-metrics', customerMetricsRoutes);
+app.use('/api/sse', sseRoutes);
 
 // Static file serving for uploads
 const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/api/uploads', express.static(uploadsDir));
+// Nur das tickets-Unterverzeichnis wird unauthentifiziert ausgeliefert
+// (<img>-Previews und Portal-Zugriff laden die nicht erratbaren
+// UUID-Dateinamen ohne Auth-Header — Capability-URLs). Rechnungs-PDFs unter
+// uploads/invoices laufen ausschließlich über den authentifizierten Endpoint
+// GET /api/microsoft365/documents/:id/download.
+app.use('/api/uploads/tickets', express.static(path.join(uploadsDir, 'tickets')));
 
 // Health check - Basic liveness probe (is the server running?)
 // Available at both /health (direct) and /api/health (via nginx)
@@ -203,6 +212,14 @@ startHealthScoreJobs();
 // in processed_invoices, damit Belege aus dem sevDesk-WebUI auch in der
 // RamboFlow-Inbox/Suche erscheinen.
 startSevdeskVoucherSyncJob();
+
+// Start Contract Hours Check job (daily at 6:00 AM)
+// Warns when customers approach/exceed their included monthly hours
+startContractHoursJob();
+
+// Start Invoice Inbox Cron (every 15 minutes)
+// Polls invoice mailbox, extracts attachments, runs OCR, creates draft entries
+startInvoiceInboxJob();
 
 // Start server
 app.listen(PORT, () => {

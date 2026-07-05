@@ -1,6 +1,6 @@
 # RamboFlow - Vollständige Architektur-Dokumentation
 
-**Stand:** 2025-12-25
+**Stand:** 2026-07-05 (Middleware/M365-Sektion aktualisiert; Modul-Details siehe CLAUDE.md als Single Source of Truth)
 **Version:** 1.0.0
 **Zweck:** Grundlage für zukünftiges Refactoring
 
@@ -268,7 +268,11 @@ requireOrgRole('admin')   // Rollenprüfung (owner/admin/member/viewer)
 authenticateCustomerToken // Portal-spezifische Auth
 
 // Sicherheit
-authLimiter              // Rate Limiting für Auth-Endpoints
+authLimiter              // Rate Limiting Login/Register (5 Fehlversuche/15min)
+refreshLimiter           // Rate Limiting /auth/refresh (60/15min — bewusst
+                         // lockerer, sonst loggt ein Büro hinter NAT sich
+                         // gegenseitig aus; Token-Refresh nutzt zudem
+                         // Web Locks als Cross-Tab-Mutex im Frontend)
 helmet                   // Security Headers
 cors                     // CORS-Konfiguration
 
@@ -368,7 +372,7 @@ auditLog                 // Aktivitätsprotokollierung
 │ customer_portal_sessions │ Sessions                            │
 │ customer_portal_activity_log │ Aktivitätslog                   │
 │ portal_trusted_devices     │ Vertrauenswürdige Geräte          │
-│ portal_push_subscriptions  │ Push-Abonnements                  │
+│ (push_subscriptions)       │ Push-Abonnements (unified table)  │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -513,6 +517,11 @@ Funktionen:
 - E-Mail-Versand über Microsoft 365
 - CC, BCC, Reply-To Support
 - Dateianhänge
+- Support-Mailbox → Ticket: eingehende Mails werden zu Tickets;
+  Anhänge werden beim Verknüpfen von Graph geholt, lokal gespeichert
+  (uploads/tickets) und in ticket_email_attachments registriert
+- Invoice-Mailbox → Belege: PDF-Anhänge + OCR-Extraktion,
+  Download nur über authentifizierten Endpoint
 ```
 
 ### 6.4 KI-Integration (OpenAI / Anthropic)

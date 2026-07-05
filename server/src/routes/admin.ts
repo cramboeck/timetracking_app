@@ -575,52 +575,9 @@ router.get('/maintenance/stats', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/maintenance/:id - Delete maintenance announcement (admin)
-router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-
-    // Get announcement details before deleting
-    const announcementResult = await pool.query(
-      `SELECT a.*, u.username as user_name
-       FROM maintenance_announcements a
-       LEFT JOIN users u ON a.user_id = u.id
-       WHERE a.id = $1`,
-      [id]
-    );
-
-    if (announcementResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Announcement not found' });
-    }
-
-    const announcement = announcementResult.rows[0];
-
-    // Delete the announcement (cascades to customers and devices)
-    await pool.query('DELETE FROM maintenance_announcements WHERE id = $1', [id]);
-
-    // Log action
-    await auditLog.log({
-      userId: req.user!.id,
-      action: 'maintenance.admin_delete',
-      details: JSON.stringify({
-        announcementId: id,
-        title: announcement.title,
-        status: announcement.status,
-        ownerId: announcement.user_id,
-        ownerName: announcement.user_name
-      }),
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
-  } catch (error) {
-    logger.error('Error deleting maintenance announcement:', error);
-    res.status(500).json({ error: 'Failed to delete maintenance announcement' });
-  }
-});
-
-// DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements
+// DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements.
+// MUSS vor DELETE /maintenance/:id registriert sein, sonst matcht Express
+// 'bulk' als id und die Route ist unerreichbar.
 router.delete('/maintenance/bulk', validate(bulkUpdateSchema), async (req: AuthRequest, res) => {
   try {
     const { ids, status, olderThan } = req.body;
@@ -674,6 +631,51 @@ router.delete('/maintenance/bulk', validate(bulkUpdateSchema), async (req: AuthR
   } catch (error) {
     logger.error('Error bulk deleting maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcements' });
+  }
+});
+
+// DELETE /api/admin/maintenance/:id - Delete maintenance announcement (admin)
+router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get announcement details before deleting
+    const announcementResult = await pool.query(
+      `SELECT a.*, u.username as user_name
+       FROM maintenance_announcements a
+       LEFT JOIN users u ON a.user_id = u.id
+       WHERE a.id = $1`,
+      [id]
+    );
+
+    if (announcementResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+
+    const announcement = announcementResult.rows[0];
+
+    // Delete the announcement (cascades to customers and devices)
+    await pool.query('DELETE FROM maintenance_announcements WHERE id = $1', [id]);
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'maintenance.admin_delete',
+      details: JSON.stringify({
+        announcementId: id,
+        title: announcement.title,
+        status: announcement.status,
+        ownerId: announcement.user_id,
+        ownerName: announcement.user_name
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
+  } catch (error) {
+    logger.error('Error deleting maintenance announcement:', error);
+    res.status(500).json({ error: 'Failed to delete maintenance announcement' });
   }
 });
 
@@ -1975,6 +1977,377 @@ router.get('/email/types', async (req, res) => {
       logger.error('Error fetching email types:', error);
       res.status(500).json({ error: 'Failed to fetch email types' });
     }
+  }
+});
+
+// GET /api/admin/email/diagnose - Diagnose ticket notification issues
+router.get('/email/diagnose', async (req: AuthRequest, res) => {
+  try {
+    const { emailService } = await import('../services/emailService');
+
+    // 1. Email provider status
+    const providerTest = await emailService.testConnection();
+
+    // 2. Recent tickets without contact_id
+    const ticketsWithoutContact = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM tickets
+      WHERE contact_id IS NULL
+      AND created_at > NOW() - INTERVAL '30 days'
+    `);
+
+    // 3. Contacts without email
+    const contactsWithoutEmail = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM customer_contacts
+      WHERE email IS NULL OR email = ''
+    `);
+
+    // 4. Contacts with notifications disabled
+    const contactsWithDisabledNotifications = await pool.query(`
+      SELECT
+        COUNT(CASE WHEN notify_ticket_created = false THEN 1 END) as disabled_created,
+        COUNT(CASE WHEN notify_ticket_status_changed = false THEN 1 END) as disabled_status,
+        COUNT(CASE WHEN notify_ticket_reply = false THEN 1 END) as disabled_reply,
+        COUNT(*) as total
+      FROM customer_contacts
+    `);
+
+    // 5. Recent email_logs for ticket notifications
+    const recentTicketEmails = await pool.query(`
+      SELECT email_type, status, COUNT(*) as count, MAX(created_at) as last_sent
+      FROM email_logs
+      WHERE email_type LIKE 'ticket_%' OR email_type IN ('status_change', 'ticket_reply', 'ticket_created')
+      AND created_at > NOW() - INTERVAL '7 days'
+      GROUP BY email_type, status
+      ORDER BY last_sent DESC NULLS LAST
+    `);
+
+    // 6. Recent failed emails
+    const recentFailures = await pool.query(`
+      SELECT email_type, recipient_email, error_message, created_at
+      FROM email_logs
+      WHERE status = 'failed'
+      AND created_at > NOW() - INTERVAL '7 days'
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    // 7. Sample ticket with contact check
+    const sampleTicket = await pool.query(`
+      SELECT
+        t.id, t.ticket_number, t.contact_id,
+        cc.email as contact_email,
+        cc.notify_ticket_status_changed,
+        cc.notify_ticket_reply,
+        cc.notify_ticket_created
+      FROM tickets t
+      LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+      ORDER BY t.created_at DESC
+      LIMIT 5
+    `);
+
+    res.json({
+      emailProvider: {
+        provider: providerTest.provider,
+        connected: providerTest.success,
+        error: providerTest.error,
+        testMode: process.env.EMAIL_TEST_MODE === 'true',
+        testRecipient: process.env.EMAIL_TEST_RECIPIENT || null,
+      },
+      issues: {
+        ticketsWithoutContact: parseInt(ticketsWithoutContact.rows[0].count),
+        contactsWithoutEmail: parseInt(contactsWithoutEmail.rows[0].count),
+        notificationsDisabled: {
+          created: parseInt(contactsWithDisabledNotifications.rows[0].disabled_created || '0'),
+          statusChange: parseInt(contactsWithDisabledNotifications.rows[0].disabled_status || '0'),
+          reply: parseInt(contactsWithDisabledNotifications.rows[0].disabled_reply || '0'),
+          totalContacts: parseInt(contactsWithDisabledNotifications.rows[0].total),
+        },
+      },
+      recentTicketEmails: recentTicketEmails.rows,
+      recentFailures: recentFailures.rows,
+      sampleTickets: sampleTicket.rows.map(t => ({
+        ticketNumber: t.ticket_number,
+        hasContact: !!t.contact_id,
+        contactEmail: t.contact_email || null,
+        notifyStatusChange: t.notify_ticket_status_changed,
+        notifyReply: t.notify_ticket_reply,
+        notifyCreated: t.notify_ticket_created,
+      })),
+      recommendations: generateEmailRecommendations(
+        providerTest,
+        parseInt(ticketsWithoutContact.rows[0].count),
+        parseInt(contactsWithoutEmail.rows[0].count),
+        sampleTicket.rows
+      ),
+    });
+  } catch (error: any) {
+    logger.error('Error diagnosing email issues:', error);
+    res.status(500).json({ error: 'Failed to diagnose email issues' });
+  }
+});
+
+function generateEmailRecommendations(
+  providerTest: { success: boolean; provider: string; error?: string },
+  ticketsWithoutContact: number,
+  contactsWithoutEmail: number,
+  sampleTickets: any[]
+): string[] {
+  const recommendations: string[] = [];
+
+  if (!providerTest.success) {
+    if (providerTest.provider === 'none') {
+      recommendations.push('KRITISCH: Kein E-Mail-Provider konfiguriert. Setze EMAIL_HOST/USER/PASSWORD für SMTP oder AZURE_CLIENT_ID/GRAPH_MAIL_FROM für Graph API.');
+    } else {
+      recommendations.push(`KRITISCH: E-Mail-Provider (${providerTest.provider}) nicht verbunden: ${providerTest.error}`);
+    }
+  }
+
+  if (process.env.EMAIL_TEST_MODE === 'true') {
+    recommendations.push(`INFO: Test-Modus aktiv - alle E-Mails gehen an ${process.env.EMAIL_TEST_RECIPIENT || 'nicht konfiguriert'}`);
+  }
+
+  if (ticketsWithoutContact > 0) {
+    recommendations.push(`WARNUNG: ${ticketsWithoutContact} Tickets der letzten 30 Tage haben keinen Kundenkontakt verknüpft.`);
+  }
+
+  if (contactsWithoutEmail > 0) {
+    recommendations.push(`WARNUNG: ${contactsWithoutEmail} Kontakte haben keine E-Mail-Adresse.`);
+  }
+
+  const ticketsWithIssues = sampleTickets.filter(t => !t.contact_id || !t.contact_email);
+  if (ticketsWithIssues.length > 0) {
+    recommendations.push(`INFO: Beispiel-Tickets ohne E-Mail-Empfänger: ${ticketsWithIssues.map(t => t.ticket_number).join(', ')}`);
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('OK: E-Mail-Konfiguration scheint in Ordnung zu sein.');
+  }
+
+  return recommendations;
+}
+
+// ============================================
+// STORAGE MONITORING
+// ============================================
+
+interface StorageStats {
+  category: string;
+  path: string;
+  fileCount: number;
+  totalSizeBytes: number;
+  totalSizeFormatted: string;
+  oldestFile?: string;
+  newestFile?: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
+function getDirectoryStats(dirPath: string, category: string): StorageStats {
+  const stats: StorageStats = {
+    category,
+    path: dirPath,
+    fileCount: 0,
+    totalSizeBytes: 0,
+    totalSizeFormatted: '0 B',
+  };
+
+  if (!fs.existsSync(dirPath)) {
+    return stats;
+  }
+
+  const getAllFiles = (dir: string): string[] => {
+    const files: string[] = [];
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...getAllFiles(fullPath));
+        } else if (entry.isFile()) {
+          files.push(fullPath);
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+    }
+    return files;
+  };
+
+  const files = getAllFiles(dirPath);
+  let oldest: { path: string; mtime: number } | null = null;
+  let newest: { path: string; mtime: number } | null = null;
+
+  for (const file of files) {
+    try {
+      const fileStat = fs.statSync(file);
+      stats.fileCount++;
+      stats.totalSizeBytes += fileStat.size;
+
+      if (!oldest || fileStat.mtimeMs < oldest.mtime) {
+        oldest = { path: file, mtime: fileStat.mtimeMs };
+      }
+      if (!newest || fileStat.mtimeMs > newest.mtime) {
+        newest = { path: file, mtime: fileStat.mtimeMs };
+      }
+    } catch {
+      // Skip files we can't stat
+    }
+  }
+
+  stats.totalSizeFormatted = formatBytes(stats.totalSizeBytes);
+  if (oldest) stats.oldestFile = new Date(oldest.mtime).toISOString();
+  if (newest) stats.newestFile = new Date(newest.mtime).toISOString();
+
+  return stats;
+}
+
+// GET /api/admin/storage - Get storage usage statistics
+router.get('/storage', async (req: AuthRequest, res) => {
+  try {
+    const uploadsDir = path.resolve(process.cwd(), 'uploads');
+    const backupsDir = BACKUP_DIR;
+    const invoiceDocsDir = path.resolve(uploadsDir, 'invoice-documents');
+    const ticketAttachmentsDir = path.resolve(uploadsDir, 'ticket-attachments');
+    const knowledgeDocsDir = path.resolve(uploadsDir, 'knowledge-documents');
+    const socialMediaDir = path.resolve(uploadsDir, 'social-media');
+    const tempDir = path.resolve(uploadsDir, 'temp');
+
+    const categories: StorageStats[] = [
+      getDirectoryStats(invoiceDocsDir, 'Belege & Rechnungen'),
+      getDirectoryStats(ticketAttachmentsDir, 'Ticket-Anhänge'),
+      getDirectoryStats(knowledgeDocsDir, 'Wissensdatenbank'),
+      getDirectoryStats(socialMediaDir, 'Social Media'),
+      getDirectoryStats(backupsDir, 'Backups'),
+      getDirectoryStats(tempDir, 'Temporäre Dateien'),
+    ];
+
+    // Get total uploads directory stats (everything else)
+    const allUploadsStats = getDirectoryStats(uploadsDir, 'Gesamt Uploads');
+
+    // Calculate "Sonstige" (other files not in categorized directories)
+    const categorizedSize = categories.reduce((sum, cat) => sum + cat.totalSizeBytes, 0);
+    const otherSize = allUploadsStats.totalSizeBytes - categorizedSize;
+    const categorizedCount = categories.reduce((sum, cat) => sum + cat.fileCount, 0);
+    const otherCount = allUploadsStats.fileCount - categorizedCount;
+
+    if (otherSize > 0 || otherCount > 0) {
+      categories.push({
+        category: 'Sonstige',
+        path: uploadsDir,
+        fileCount: Math.max(0, otherCount),
+        totalSizeBytes: Math.max(0, otherSize),
+        totalSizeFormatted: formatBytes(Math.max(0, otherSize)),
+      });
+    }
+
+    // Database storage stats
+    const dbStats = await pool.query(`
+      SELECT
+        relname as table_name,
+        pg_total_relation_size(relid) as total_bytes,
+        pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+        n_live_tup as row_count
+      FROM pg_stat_user_tables
+      WHERE schemaname = 'public'
+      ORDER BY pg_total_relation_size(relid) DESC
+      LIMIT 20
+    `);
+
+    const dbTotalResult = await pool.query(`
+      SELECT pg_database_size(current_database()) as size
+    `);
+    const dbTotalSize = dbTotalResult.rows[0]?.size || 0;
+
+    // Invoice documents from DB
+    const invoiceDocCount = await pool.query(`
+      SELECT COUNT(*) as count, COALESCE(SUM(size), 0) as total_size
+      FROM invoice_documents
+    `);
+
+    res.json({
+      fileStorage: {
+        categories: categories.filter(c => c.fileCount > 0 || c.totalSizeBytes > 0),
+        total: {
+          fileCount: allUploadsStats.fileCount,
+          totalSizeBytes: allUploadsStats.totalSizeBytes,
+          totalSizeFormatted: allUploadsStats.totalSizeFormatted,
+        },
+      },
+      database: {
+        totalSizeBytes: dbTotalSize,
+        totalSizeFormatted: formatBytes(dbTotalSize),
+        tables: dbStats.rows.map(row => ({
+          name: row.table_name,
+          sizeBytes: parseInt(row.total_bytes),
+          sizeFormatted: row.total_size,
+          rowCount: parseInt(row.row_count),
+        })),
+      },
+      invoiceDocuments: {
+        count: parseInt(invoiceDocCount.rows[0]?.count || '0'),
+        totalSizeBytes: parseInt(invoiceDocCount.rows[0]?.total_size || '0'),
+        totalSizeFormatted: formatBytes(parseInt(invoiceDocCount.rows[0]?.total_size || '0')),
+      },
+    });
+  } catch (error) {
+    logger.error('Error getting storage stats:', error);
+    res.status(500).json({ error: 'Failed to get storage statistics' });
+  }
+});
+
+// DELETE /api/admin/storage/cleanup - Clean up temporary files
+router.delete('/storage/cleanup', async (req: AuthRequest, res) => {
+  try {
+    const tempDir = path.resolve(process.cwd(), 'uploads', 'temp');
+    const maxAgeHours = parseInt(req.query.maxAgeHours as string) || 24;
+    const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+    const now = Date.now();
+
+    let deletedCount = 0;
+    let deletedBytes = 0;
+
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir);
+      for (const file of files) {
+        const filePath = path.join(tempDir, file);
+        try {
+          const stat = fs.statSync(filePath);
+          if (now - stat.mtimeMs > maxAgeMs) {
+            deletedBytes += stat.size;
+            fs.unlinkSync(filePath);
+            deletedCount++;
+          }
+        } catch {
+          // Skip files we can't delete
+        }
+      }
+    }
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'storage.cleanup',
+      details: JSON.stringify({ deletedCount, deletedBytes: formatBytes(deletedBytes), maxAgeHours }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({
+      success: true,
+      deletedCount,
+      deletedBytes,
+      deletedBytesFormatted: formatBytes(deletedBytes),
+    });
+  } catch (error) {
+    logger.error('Error cleaning up storage:', error);
+    res.status(500).json({ error: 'Failed to clean up storage' });
   }
 });
 

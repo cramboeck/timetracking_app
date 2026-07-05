@@ -1811,6 +1811,355 @@ export async function markAlertResolved(
   );
 }
 
+// ============================================
+// Vulnerabilities
+// ============================================
+
+export interface NinjaRMMVulnerability {
+  id: string;
+  cveId: string;
+  cveDescription: string | null;
+  cvePublishedDate: string | null;
+  severity: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  cvssScore: number | null;
+  cvssVector: string | null;
+  softwareName: string | null;
+  softwareVendor: string | null;
+  softwareVersion: string | null;
+  status: 'open' | 'patched' | 'ignored' | 'false_positive';
+  firstSeenAt: string;
+  lastSeenAt: string;
+  patchedAt: string | null;
+  deviceId: string;
+  deviceName: string | null;
+  organizationName: string | null;
+  ticketId: string | null;
+}
+
+export interface VulnerabilitySummary {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  open: number;
+  patched: number;
+  affectedDevices: number;
+}
+
+// Candidate public-API v2 endpoints for native CVE/vulnerability data.
+// NinjaOne's web UI reads these from the internal /swb/s4/vulnerability-mgmt/* API
+// (session-auth, org-scoped) which is NOT reachable via our OAuth2 token. The public
+// API surface is uncertain, so we probe known/plausible paths and report which (if any)
+// actually responds. Order matters: first non-404 wins.
+const VULN_ENDPOINT_CANDIDATES = (deviceId: number): string[] => [
+  `/device/${deviceId}/software/cves`,
+  `/device/${deviceId}/cves`,
+  `/device/${deviceId}/vulnerabilities`,
+];
+
+// Fetch vulnerabilities from NinjaRMM API for a device.
+// Returns the data plus a diagnostic so the sync can distinguish "endpoint not found"
+// (wrong/missing public-API path) from "endpoint OK but device has 0 CVEs".
+export async function fetchDeviceVulnerabilities(
+  userId: string,
+  deviceId: number
+): Promise<{ data: any[]; endpoint?: string; error?: string }> {
+  const config = await getConfig(userId);
+  if (!config) {
+    throw new Error('NinjaRMM not configured');
+  }
+
+  let lastError = '';
+  for (const endpoint of VULN_ENDPOINT_CANDIDATES(deviceId)) {
+    try {
+      const data = await ninjaFetch(config, endpoint);
+      // Endpoint responded — this is the working path.
+      console.log(`[Vuln] device ${deviceId}: endpoint ${endpoint} OK, ${Array.isArray(data) ? data.length : 0} item(s)`);
+      return { data: Array.isArray(data) ? data : (data ? [data] : []), endpoint };
+    } catch (error: any) {
+      lastError = error.message || String(error);
+      const is404 = /\b404\b/.test(lastError);
+      console.error(`[Vuln] device ${deviceId}: endpoint ${endpoint} failed${is404 ? ' (404)' : ''}: ${lastError}`);
+      // On 404 keep probing the next candidate; on other errors stop (e.g. 401/403/500).
+      if (!is404) break;
+    }
+  }
+  return { data: [], error: lastError };
+}
+
+// Sync vulnerabilities for all devices
+export async function syncVulnerabilities(userId: string): Promise<{
+  synced: number;
+  errors: number;
+  newVulnerabilities: number;
+  workingEndpoint: string | null;
+  fetchErrors: string[];
+}> {
+  const config = await getConfig(userId);
+  if (!config) {
+    throw new Error('NinjaRMM not configured');
+  }
+
+  // Get organization_id for the user
+  const orgResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  const organizationId = orgResult.rows[0]?.organization_id || null;
+
+  // Get all devices
+  const devicesResult = await query(
+    'SELECT id, ninja_id, display_name FROM ninjarmm_devices WHERE user_id = $1',
+    [userId]
+  );
+
+  let synced = 0;
+  let errors = 0;
+  let newVulnerabilities = 0;
+  let workingEndpoint: string | null = null;
+  const fetchErrors = new Set<string>();
+
+  for (const device of devicesResult.rows) {
+    try {
+      const { data: vulnerabilities, endpoint, error } = await fetchDeviceVulnerabilities(userId, device.ninja_id);
+      if (endpoint) workingEndpoint = endpoint;
+      if (error) fetchErrors.add(error);
+
+      for (const vuln of vulnerabilities) {
+        // Map severity from CVSS score
+        let severity: string = 'NONE';
+        const cvssScore = vuln.cvssScore || vuln.cvss?.baseScore || 0;
+        if (cvssScore >= 9.0) severity = 'CRITICAL';
+        else if (cvssScore >= 7.0) severity = 'HIGH';
+        else if (cvssScore >= 4.0) severity = 'MEDIUM';
+        else if (cvssScore > 0) severity = 'LOW';
+
+        // Upsert vulnerability
+        const result = await query(`
+          INSERT INTO ninjarmm_vulnerabilities (
+            user_id, organization_id, device_id, cve_id, cve_description,
+            cve_published_date, severity, cvss_score, cvss_vector,
+            software_name, software_vendor, software_version,
+            ninja_vulnerability_id, last_seen_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+          ON CONFLICT (device_id, cve_id) DO UPDATE SET
+            cve_description = EXCLUDED.cve_description,
+            severity = EXCLUDED.severity,
+            cvss_score = EXCLUDED.cvss_score,
+            cvss_vector = EXCLUDED.cvss_vector,
+            software_name = EXCLUDED.software_name,
+            software_version = EXCLUDED.software_version,
+            last_seen_at = NOW(),
+            updated_at = NOW()
+          RETURNING (xmax = 0) AS is_new
+        `, [
+          userId,
+          organizationId,
+          device.id,
+          vuln.cveId || vuln.cve?.id || 'UNKNOWN',
+          vuln.cveDescription || vuln.cve?.description || null,
+          vuln.cvePublishedDate || vuln.cve?.publishedDate || null,
+          severity,
+          cvssScore || null,
+          vuln.cvssVector || vuln.cvss?.vector || null,
+          vuln.softwareName || vuln.product?.name || null,
+          vuln.softwareVendor || vuln.product?.vendor || null,
+          vuln.softwareVersion || vuln.product?.version || null,
+          vuln.id || null,
+        ]);
+
+        if (result.rows[0]?.is_new) {
+          newVulnerabilities++;
+        }
+      }
+      synced++;
+    } catch (error: any) {
+      console.error(`Error syncing vulnerabilities for device ${device.id}:`, error.message);
+      errors++;
+    }
+  }
+
+  if (!workingEndpoint && fetchErrors.size > 0) {
+    console.error(`[Vuln] No working vulnerability endpoint found across ${synced} device(s). Errors: ${[...fetchErrors].join(' | ')}`);
+  }
+
+  return { synced, errors, newVulnerabilities, workingEndpoint, fetchErrors: [...fetchErrors] };
+}
+
+// Get vulnerabilities from local database
+export async function getLocalVulnerabilities(
+  userId: string,
+  options: {
+    status?: string;
+    severity?: string;
+    deviceId?: string;
+    organizationId?: string;
+    cveId?: string;
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ vulnerabilities: NinjaRMMVulnerability[]; total: number }> {
+  const conditions: string[] = ['v.user_id = $1'];
+  const params: any[] = [userId];
+  let paramCount = 2;
+
+  if (options.status) {
+    conditions.push(`v.status = $${paramCount++}`);
+    params.push(options.status);
+  }
+  if (options.severity) {
+    conditions.push(`v.severity = $${paramCount++}`);
+    params.push(options.severity);
+  }
+  if (options.deviceId) {
+    conditions.push(`v.device_id = $${paramCount++}`);
+    params.push(options.deviceId);
+  }
+  if (options.organizationId) {
+    conditions.push(`v.organization_id = $${paramCount++}`);
+    params.push(options.organizationId);
+  }
+  if (options.cveId) {
+    conditions.push(`v.cve_id ILIKE $${paramCount++}`);
+    params.push(`%${options.cveId}%`);
+  }
+
+  const whereClause = conditions.join(' AND ');
+  const limit = Math.min(options.limit || 50, 200);
+  const offset = options.offset || 0;
+
+  // Get total count
+  const countResult = await query(
+    `SELECT COUNT(*) FROM ninjarmm_vulnerabilities v WHERE ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0]?.count) || 0;
+
+  // Get vulnerabilities with device info
+  const result = await query(`
+    SELECT
+      v.id, v.cve_id, v.cve_description, v.cve_published_date,
+      v.severity, v.cvss_score, v.cvss_vector,
+      v.software_name, v.software_vendor, v.software_version,
+      v.status, v.first_seen_at, v.last_seen_at, v.patched_at,
+      v.device_id, v.ticket_id,
+      d.display_name AS device_name,
+      o.name AS organization_name
+    FROM ninjarmm_vulnerabilities v
+    LEFT JOIN ninjarmm_devices d ON d.id = v.device_id
+    LEFT JOIN ninjarmm_organizations o ON o.id = d.organization_id
+    WHERE ${whereClause}
+    ORDER BY
+      CASE v.severity
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'HIGH' THEN 2
+        WHEN 'MEDIUM' THEN 3
+        WHEN 'LOW' THEN 4
+        ELSE 5
+      END,
+      v.cvss_score DESC NULLS LAST,
+      v.last_seen_at DESC
+    LIMIT $${paramCount++} OFFSET $${paramCount}
+  `, [...params, limit, offset]);
+
+  return {
+    vulnerabilities: result.rows.map(row => ({
+      id: row.id,
+      cveId: row.cve_id,
+      cveDescription: row.cve_description,
+      cvePublishedDate: row.cve_published_date,
+      severity: row.severity,
+      cvssScore: row.cvss_score ? parseFloat(row.cvss_score) : null,
+      cvssVector: row.cvss_vector,
+      softwareName: row.software_name,
+      softwareVendor: row.software_vendor,
+      softwareVersion: row.software_version,
+      status: row.status,
+      firstSeenAt: row.first_seen_at,
+      lastSeenAt: row.last_seen_at,
+      patchedAt: row.patched_at,
+      deviceId: row.device_id,
+      deviceName: row.device_name,
+      organizationName: row.organization_name,
+      ticketId: row.ticket_id,
+    })),
+    total,
+  };
+}
+
+// Get vulnerability summary/statistics
+export async function getVulnerabilitySummary(userId: string): Promise<VulnerabilitySummary> {
+  const result = await query(`
+    SELECT
+      COUNT(*) AS total,
+      COUNT(*) FILTER (WHERE severity = 'CRITICAL') AS critical,
+      COUNT(*) FILTER (WHERE severity = 'HIGH') AS high,
+      COUNT(*) FILTER (WHERE severity = 'MEDIUM') AS medium,
+      COUNT(*) FILTER (WHERE severity = 'LOW') AS low,
+      COUNT(*) FILTER (WHERE status = 'open') AS open,
+      COUNT(*) FILTER (WHERE status = 'patched') AS patched,
+      COUNT(DISTINCT device_id) AS affected_devices
+    FROM ninjarmm_vulnerabilities
+    WHERE user_id = $1
+  `, [userId]);
+
+  const row = result.rows[0];
+  return {
+    total: parseInt(row?.total) || 0,
+    critical: parseInt(row?.critical) || 0,
+    high: parseInt(row?.high) || 0,
+    medium: parseInt(row?.medium) || 0,
+    low: parseInt(row?.low) || 0,
+    open: parseInt(row?.open) || 0,
+    patched: parseInt(row?.patched) || 0,
+    affectedDevices: parseInt(row?.affected_devices) || 0,
+  };
+}
+
+// Update vulnerability status
+export async function updateVulnerabilityStatus(
+  userId: string,
+  vulnerabilityId: string,
+  status: 'open' | 'patched' | 'ignored' | 'false_positive',
+  reason?: string
+): Promise<void> {
+  const updates: string[] = ['status = $1', 'updated_at = NOW()'];
+  const params: any[] = [status];
+  let paramCount = 2;
+
+  if (status === 'patched') {
+    updates.push(`patched_at = NOW()`);
+  } else if (status === 'ignored' || status === 'false_positive') {
+    updates.push(`ignored_at = NOW()`);
+    if (reason) {
+      updates.push(`ignored_reason = $${paramCount++}`);
+      params.push(reason);
+    }
+  }
+
+  params.push(vulnerabilityId, userId);
+
+  await query(`
+    UPDATE ninjarmm_vulnerabilities
+    SET ${updates.join(', ')}
+    WHERE id = $${paramCount++} AND user_id = $${paramCount}
+  `, params);
+}
+
+// Link vulnerability to ticket
+export async function linkVulnerabilityToTicket(
+  userId: string,
+  vulnerabilityId: string,
+  ticketId: string
+): Promise<void> {
+  await query(`
+    UPDATE ninjarmm_vulnerabilities
+    SET ticket_id = $1, updated_at = NOW()
+    WHERE id = $2 AND user_id = $3
+  `, [ticketId, vulnerabilityId, userId]);
+}
+
 // Get sync status
 export async function getSyncStatus(userId: string): Promise<{
   lastSync: Date | null;
@@ -1818,6 +2167,8 @@ export async function getSyncStatus(userId: string): Promise<{
   deviceCount: number;
   alertCount: number;
   unresolvedAlertCount: number;
+  vulnerabilityCount: number;
+  criticalVulnerabilityCount: number;
 }> {
   const config = await getConfig(userId);
 
@@ -1826,7 +2177,9 @@ export async function getSyncStatus(userId: string): Promise<{
       (SELECT COUNT(*) FROM ninjarmm_organizations WHERE user_id = $1) as org_count,
       (SELECT COUNT(*) FROM ninjarmm_devices WHERE user_id = $1) as device_count,
       (SELECT COUNT(*) FROM ninjarmm_alerts WHERE user_id = $1) as alert_count,
-      (SELECT COUNT(*) FROM ninjarmm_alerts WHERE user_id = $1 AND resolved = false) as unresolved_count`,
+      (SELECT COUNT(*) FROM ninjarmm_alerts WHERE user_id = $1 AND resolved = false) as unresolved_count,
+      (SELECT COUNT(*) FROM ninjarmm_vulnerabilities WHERE user_id = $1 AND status = 'open') as vuln_count,
+      (SELECT COUNT(*) FROM ninjarmm_vulnerabilities WHERE user_id = $1 AND status = 'open' AND severity IN ('CRITICAL', 'HIGH')) as critical_vuln_count`,
     [userId]
   );
 
@@ -1838,5 +2191,7 @@ export async function getSyncStatus(userId: string): Promise<{
     deviceCount: parseInt(row?.device_count) || 0,
     alertCount: parseInt(row?.alert_count) || 0,
     unresolvedAlertCount: parseInt(row?.unresolved_count) || 0,
+    vulnerabilityCount: parseInt(row?.vuln_count) || 0,
+    criticalVulnerabilityCount: parseInt(row?.critical_vuln_count) || 0,
   };
 }

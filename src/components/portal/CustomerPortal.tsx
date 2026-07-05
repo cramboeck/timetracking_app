@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings } from '../../services/api';
 import { PortalLogin } from './PortalLogin';
 import { PortalLayout } from './PortalLayout';
@@ -12,10 +12,11 @@ import { PortalDevices } from './PortalDevices';
 import { PortalInvoices } from './PortalInvoices';
 import { PortalTimeReport } from './PortalTimeReport';
 import { PortalContract } from './PortalContract';
+import { PortalLicenses } from './PortalLicenses';
 import { PortalWelcomeGuide } from './PortalWelcomeGuide';
 import { PortalDashboard } from './PortalDashboard';
 
-type PortalView = 'dashboard' | 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract';
+type PortalView = 'dashboard' | 'tickets' | 'ticket-detail' | 'profile' | 'kb' | 'devices' | 'invoices' | 'time-report' | 'contract' | 'licenses';
 
 // LocalStorage key for welcome guide preference
 const WELCOME_GUIDE_KEY = 'portal_welcome_guide_seen';
@@ -210,6 +211,11 @@ export const CustomerPortal = () => {
     setSelectedTicketId(null);
   };
 
+  const handleShowLicenses = () => {
+    setCurrentView('licenses');
+    setSelectedTicketId(null);
+  };
+
   const handleShowTickets = () => {
     setCurrentView('tickets');
     setSelectedTicketId(null);
@@ -264,6 +270,7 @@ export const CustomerPortal = () => {
       onShowDashboard={handleShowDashboard}
       onShowTimeReport={contact.canViewTimeReport && portalSettings?.showTimeReport ? handleShowTimeReport : undefined}
       onShowContract={contact.canViewContract && portalSettings?.showContractInfo ? handleShowContract : undefined}
+      onShowLicenses={handleShowLicenses}
       onShowTickets={handleShowTickets}
       onShowHelp={handleShowWelcomeGuide}
       currentView={currentView}
@@ -287,6 +294,8 @@ export const CustomerPortal = () => {
         <PortalTimeReport />
       ) : currentView === 'contract' ? (
         <PortalContract />
+      ) : currentView === 'licenses' ? (
+        <PortalLicenses />
       ) : currentView === 'ticket-detail' && selectedTicketId ? (
         <PortalTicketDetail
           ticketId={selectedTicketId}

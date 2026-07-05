@@ -6,6 +6,7 @@ import { validate } from '../middleware/validation';
 import { query } from '../config/database';
 import * as ninjaService from '../services/ninjarmmService';
 import { sendPushToUser } from '../services/pushNotifications';
+import { emitSSEEvent } from './sse';
 
 const router = express.Router();
 
@@ -380,7 +381,58 @@ router.get('/devices', authenticateToken, requireNinjaFeature, async (req: AuthR
   }
 });
 
-// GET /api/ninjarmm/devices/:id - Get device details (live from NinjaRMM)
+// GET /api/ninjarmm/devices/:id - Get cached device by local ID
+router.get('/devices/:id', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT d.id, d.ninja_id, d.system_name, d.display_name, d.node_class, d.os_name,
+              d.last_contact_time, d.offline, d.last_logged_in_user, d.private_ip, d.public_ip,
+              d.processor_name, d.processor_cores, d.memory_gb, d.synced_at,
+              o.name as organization_name, c.name as customer_name
+       FROM ninjarmm_devices d
+       LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE d.id = $1 AND d.user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        ninjaId: row.ninja_id,
+        systemName: row.system_name,
+        displayName: row.display_name,
+        nodeClass: row.node_class,
+        osName: row.os_name,
+        lastContactTime: row.last_contact_time,
+        offline: row.offline,
+        lastLoggedInUser: row.last_logged_in_user,
+        privateIp: row.private_ip,
+        publicIp: row.public_ip,
+        processorName: row.processor_name,
+        processorCores: row.processor_cores,
+        memoryGb: row.memory_gb,
+        syncedAt: row.synced_at,
+        organizationName: row.organization_name,
+        customerName: row.customer_name,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get device error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/devices/:id/details - Get device details (live from NinjaRMM)
 router.get('/devices/:id/details', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -839,7 +891,7 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
         alert.device_id,
         `[${severity}] ${alert.message.substring(0, 100)}`,
         `Alert from NinjaRMM:\n\nGerät: ${deviceName}\nSeverity: ${severity}\nPriorität: ${priority}\nQuelle: ${alert.source_name || 'N/A'}\n\nNachricht:\n${alert.message}`,
-        severity === 'CRITICAL' ? 'urgent' : severity === 'MAJOR' ? 'high' : 'normal',
+        severity === 'CRITICAL' ? 'critical' : severity === 'MAJOR' ? 'high' : 'normal',
         'open',
         'ninja_alert',
         alert.ninja_uid,
@@ -1322,6 +1374,35 @@ async function handleNewAlert(
       console.error('Failed to send push notification for alert:', pushError);
     }
   }
+
+  // Emit SSE event for real-time update
+  if (isNew) {
+    try {
+      // Get organization ID for the user
+      const orgResult = await query(
+        `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgResult.rows[0]?.organization_id;
+
+      if (organizationId) {
+        emitSSEEvent({
+          type: 'ninja_alert',
+          data: {
+            alertId: finalAlertId,
+            severity,
+            message,
+            deviceName,
+            ticketId,
+            action: 'created',
+          },
+          organizationId,
+        });
+      }
+    } catch (sseError) {
+      console.error('Failed to emit SSE event for alert:', sseError);
+    }
+  }
 }
 
 // Helper function to handle alert reset from webhook
@@ -1370,6 +1451,31 @@ async function handleAlertReset(
      WHERE id = $4`,
     [alertResult.rows[0]?.id, ticketId, Date.now() - startTime, webhookEventId]
   );
+
+  // Emit SSE event for resolved alert
+  if (alertResult.rows.length > 0) {
+    try {
+      const orgResult = await query(
+        `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgResult.rows[0]?.organization_id;
+
+      if (organizationId) {
+        emitSSEEvent({
+          type: 'ninja_alert',
+          data: {
+            alertId: alertResult.rows[0].id,
+            ticketId,
+            action: 'resolved',
+          },
+          organizationId,
+        });
+      }
+    } catch (sseError) {
+      console.error('Failed to emit SSE event for resolved alert:', sseError);
+    }
+  }
 }
 
 // Helper function to create ticket from webhook alert
@@ -1416,7 +1522,7 @@ async function createTicketFromWebhook(
 
     // Determine priority based on severity
     let priority = 'normal';
-    if (severity.toUpperCase() === 'CRITICAL') priority = 'urgent';
+    if (severity.toUpperCase() === 'CRITICAL') priority = 'critical';
     else if (severity.toUpperCase() === 'MAJOR') priority = 'high';
     else if (severity.toUpperCase() === 'MINOR' || severity.toUpperCase() === 'INFO') priority = 'low';
 
@@ -2128,6 +2234,229 @@ router.get('/devices/:id/ip-history', authenticateToken, requireNinjaFeature, as
     });
   } catch (error: any) {
     console.error('Get IP history error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// Vulnerabilities
+// ============================================
+
+const vulnerabilityStatusSchema = z.object({
+  status: z.enum(['open', 'patched', 'ignored', 'false_positive']),
+  reason: z.string().max(500).optional(),
+});
+
+const vulnerabilityTicketSchema = z.object({
+  ticketId: z.string().uuid().optional(),
+});
+
+// GET /api/ninjarmm/vulnerabilities - Get all vulnerabilities
+router.get('/vulnerabilities', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      status,
+      severity,
+      deviceId,
+      organizationId,
+      cveId,
+      page = '1',
+      limit = '50',
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const result = await ninjaService.getLocalVulnerabilities(userId, {
+      status: status as string,
+      severity: severity as string,
+      deviceId: deviceId as string,
+      organizationId: organizationId as string,
+      cveId: cveId as string,
+      limit: limitNum,
+      offset,
+    });
+
+    res.json({
+      success: true,
+      data: result.vulnerabilities,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: result.total,
+        totalPages: Math.ceil(result.total / limitNum),
+      },
+    });
+  } catch (error: any) {
+    console.error('Get vulnerabilities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/vulnerabilities/summary - Get vulnerability summary/stats
+router.get('/vulnerabilities/summary', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const summary = await ninjaService.getVulnerabilitySummary(userId);
+    res.json({ success: true, data: summary });
+  } catch (error: any) {
+    console.error('Get vulnerability summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/vulnerabilities/sync - Sync vulnerabilities from NinjaRMM
+router.post('/vulnerabilities/sync', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const result = await ninjaService.syncVulnerabilities(userId);
+    // Surface WHY a sync returned 0: a missing/wrong endpoint (no working path + fetch
+    // errors) is very different from "all devices genuinely have 0 CVEs".
+    let message = `Synced ${result.synced} devices, found ${result.newVulnerabilities} new vulnerabilities`;
+    if (!result.workingEndpoint && result.fetchErrors.length > 0) {
+      message += ` — WARNUNG: kein funktionierender Vulnerability-Endpoint gefunden (${result.fetchErrors.join(' | ')})`;
+    } else if (result.workingEndpoint) {
+      message += ` (Endpoint: ${result.workingEndpoint})`;
+    }
+    res.json({
+      success: true,
+      data: result,
+      message,
+    });
+  } catch (error: any) {
+    console.error('Sync vulnerabilities error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/ninjarmm/vulnerabilities/:id/status - Update vulnerability status
+router.patch('/vulnerabilities/:id/status', authenticateToken, requireNinjaFeature, validate(vulnerabilityStatusSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { status, reason } = req.body;
+
+    await ninjaService.updateVulnerabilityStatus(userId, id, status, reason);
+    res.json({ success: true, message: 'Vulnerability status updated' });
+  } catch (error: any) {
+    console.error('Update vulnerability status error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/vulnerabilities/:id/ticket - Create or link ticket for vulnerability
+router.post('/vulnerabilities/:id/ticket', authenticateToken, requireNinjaFeature, validate(vulnerabilityTicketSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    let { ticketId } = req.body;
+
+    // Get vulnerability details
+    const vulnResult = await query(
+      `SELECT v.*, d.display_name as device_name, d.system_name, o.customer_id
+       FROM ninjarmm_vulnerabilities v
+       LEFT JOIN ninjarmm_devices d ON v.device_id = d.id
+       LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id
+       WHERE v.id = $1 AND v.user_id = $2`,
+      [id, userId]
+    );
+
+    if (vulnResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Vulnerability not found' });
+    }
+
+    const vuln = vulnResult.rows[0];
+
+    // If no ticketId provided, create a new ticket
+    if (!ticketId) {
+      // Get organization_id for this user
+      const orgIdResult = await query(
+        `SELECT o.id FROM organizations o
+         JOIN organization_members om ON o.id = om.organization_id
+         WHERE om.user_id = $1 ORDER BY om.role = 'owner' DESC LIMIT 1`,
+        [userId]
+      );
+      const organizationId = orgIdResult.rows[0]?.id;
+      if (!organizationId) {
+        throw new Error(`Keine Organisation für User ${userId} gefunden`);
+      }
+
+      // Get or create ticket sequence
+      await query(
+        'INSERT INTO ticket_sequences (organization_id, last_number) VALUES ($1, 0) ON CONFLICT (organization_id) DO NOTHING',
+        [organizationId]
+      );
+
+      // Increment and get next ticket number
+      const seqResult = await query(
+        'UPDATE ticket_sequences SET last_number = last_number + 1 WHERE organization_id = $1 RETURNING last_number',
+        [organizationId]
+      );
+      const ticketNumber = `TKT-${String(seqResult.rows[0].last_number).padStart(6, '0')}`;
+
+      // Create ticket
+      ticketId = uuidv4();
+      const deviceName = vuln.device_name || vuln.system_name || 'Unbekanntes Gerät';
+      const severityLabel = vuln.severity === 'CRITICAL' ? 'Kritisch' : vuln.severity === 'HIGH' ? 'Hoch' : vuln.severity === 'MEDIUM' ? 'Mittel' : 'Niedrig';
+
+      await query(
+        `INSERT INTO tickets (
+          id, ticket_number, user_id, organization_id, customer_id, device_id, title, description,
+          priority, status, source, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+        [
+          ticketId,
+          ticketNumber,
+          userId,
+          organizationId,
+          vuln.customer_id,
+          vuln.device_id,
+          `[${severityLabel}] ${vuln.cve_id}: ${vuln.software_name || 'Schwachstelle'}`,
+          `Schwachstelle aus NinjaRMM:\n\nCVE: ${vuln.cve_id}\nSchweregrad: ${severityLabel}\nCVSS Score: ${vuln.cvss_score || 'N/A'}\nGerät: ${deviceName}\nSoftware: ${vuln.software_name || 'N/A'} ${vuln.software_version || ''}\n\nBeschreibung:\n${vuln.cve_description || 'Keine Beschreibung verfügbar'}`,
+          vuln.severity === 'CRITICAL' ? 'critical' : vuln.severity === 'HIGH' ? 'high' : 'normal',
+          'open',
+          'ninja_alert',
+        ]
+      );
+    }
+
+    await ninjaService.linkVulnerabilityToTicket(userId, id, ticketId);
+    res.json({ success: true, data: { ticketId }, message: 'Ticket erstellt und verknüpft' });
+  } catch (error: any) {
+    console.error('Create/link vulnerability ticket error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/devices/:id/vulnerabilities - Get vulnerabilities for a specific device
+router.get('/devices/:id/vulnerabilities', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const { status, severity } = req.query;
+
+    // Verify device belongs to user
+    const deviceResult = await query(
+      'SELECT id FROM ninjarmm_devices WHERE id = $1 AND user_id = $2',
+      [id, userId]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
+    }
+
+    const result = await ninjaService.getLocalVulnerabilities(userId, {
+      deviceId: id,
+      status: status as string,
+      severity: severity as string,
+      limit: 100,
+    });
+
+    res.json({ success: true, data: result.vulnerabilities });
+  } catch (error: any) {
+    console.error('Get device vulnerabilities error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

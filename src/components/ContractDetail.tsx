@@ -3,16 +3,9 @@ import {
   ArrowLeft,
   Save,
   Trash2,
-  FileText,
-  Building2,
-  Calendar,
-  Euro,
   Timer,
-  Clock,
   Plus,
-  X,
   AlertTriangle,
-  CheckCircle,
   Settings,
   History,
   Package,
@@ -228,19 +221,6 @@ const ContractDetail: React.FC<ContractDetailProps> = ({ contractId, onBack, onS
   const formatCurrency = (amount: number | null) => {
     if (amount === null) return '-';
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: formData.currency || 'EUR' }).format(amount);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'text-green-600 bg-green-50 dark:text-green-400 dark:bg-green-900/30';
-      case 'expiring':
-        return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30';
-      case 'expired':
-        return 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/30';
-      default:
-        return `text-gray-600 bg-gray-100`;
-    }
   };
 
   if (loading) {

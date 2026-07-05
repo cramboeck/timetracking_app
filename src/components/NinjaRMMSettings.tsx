@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Settings, Save, RefreshCw, Link2, Unlink, CheckCircle, XCircle,
-  AlertTriangle, Server, Building, Clock, ExternalLink, Shield, Monitor,
-  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, User, Search,
-  Webhook, Copy, Key, Eye, EyeOff, Zap, Filter, Plus, Trash2, Edit3,
+  AlertTriangle, Building, Clock, ExternalLink, Shield, Monitor,
+  Wifi, WifiOff, Bell, Ticket, X, Cpu, HardDrive, Globe, Search,
+  Webhook, Copy, Key, Zap, Filter, Plus, Trash2, Edit3,
   ToggleLeft, ToggleRight, Ban
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
@@ -54,7 +54,7 @@ export const NinjaRMMSettings = () => {
   const [loadingWebhook, setLoadingWebhook] = useState(false);
   const [savingWebhook, setSavingWebhook] = useState(false);
   const [generatingSecret, setGeneratingSecret] = useState(false);
-  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const [_showWebhookSecret, _setShowWebhookSecret] = useState(false);
   const [webhookCopied, setWebhookCopied] = useState(false);
   const [selectedPayload, setSelectedPayload] = useState<{ id: string; eventType: string; payload: any; createdAt: string } | null>(null);
   const [loadingPayload, setLoadingPayload] = useState(false);

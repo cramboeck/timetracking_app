@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -20,6 +20,8 @@ import {
   TicketEmailHistory,
   TicketAIPanel,
   TicketMetaInfo,
+  TicketDeviceLink,
+  TicketNinjaInfo,
   SolutionModal,
 } from './ticket-detail';
 
@@ -98,6 +100,21 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     queryFn: async () => (await ticketsApi.getTicketTags(ticketId)).data as TicketTag[],
   });
   const ticketTags = ticketTagsQuery.data ?? [];
+
+  // Fetch customer contracts (for maintenance contract display)
+  const customerContractsQuery = useQuery({
+    queryKey: ['contracts', 'customer', ticket?.customerId],
+    queryFn: async () => {
+      if (!ticket?.customerId) return [];
+      const res = await contractsApi.getContractsByCustomer(ticket.customerId);
+      return res.success ? res.data : [];
+    },
+    enabled: !!ticket?.customerId,
+    staleTime: 5 * 60_000,
+  });
+  const activeContract = (customerContractsQuery.data ?? []).find(
+    (c: Contract) => c.status === 'active'
+  );
 
   const userRoleQuery = useQuery({
     queryKey: ['org', 'current'],
@@ -256,10 +273,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const saveSolutionMutation = useMutation({
     mutationFn: () =>
       ticketsApi.update(ticketId, {
-        title: editTitle,
-        description: editDescription,
         status: 'closed',
-        priority: editPriority,
         solution: solutionText.trim(),
         resolutionType: resolutionType,
       }),
@@ -269,10 +283,12 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       setIsEditing(false);
       setShowSolutionModal(false);
       setSolutionText('');
+      showToast('Ticket erfolgreich geschlossen', 'success');
     },
-    onError: (err) => {
+    onError: (err: any) => {
       console.error('Failed to save solution:', err);
-      showToast('Fehler beim Speichern der Loesung', 'error');
+      const errorMessage = err?.message || 'Fehler beim Speichern der Lösung';
+      showToast(errorMessage, 'error');
     },
   });
   const savingSolution = saveSolutionMutation.isPending;
@@ -336,6 +352,28 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const handleArchive = () => archiveMutation.mutate('archived');
   const handleRestore = () => archiveMutation.mutate('open');
 
+  // Quick status change (without entering edit mode)
+  const handleQuickStatusChange = (newStatus: TicketStatus) => {
+    if (!ticket || newStatus === ticket.status) return;
+
+    // If closing, require solution
+    if (newStatus === 'closed' && ticket.status !== 'closed') {
+      setSolutionText(ticket.solution || '');
+      setResolutionType(ticket.resolutionType || 'solved');
+      setShowSolutionModal(true);
+      setEditStatus('closed');
+      return;
+    }
+
+    updateTicketMutation.mutate({ status: newStatus });
+  };
+
+  // Quick priority change (without entering edit mode)
+  const handleQuickPriorityChange = (newPriority: TicketPriority) => {
+    if (!ticket || newPriority === ticket.priority) return;
+    updateTicketMutation.mutate({ priority: newPriority });
+  };
+
   // Task handlers — write through setQueryData so the UI stays instant; also
   // invalidate the global ['tasks'] key so TasksOverview picks up changes.
   const tasksKey = ['ticket', ticketId, 'tasks'] as const;
@@ -344,8 +382,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const invalidateTasksOverview = () =>
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
-  const handleAddTask = async (title: string, visible: boolean) => {
-    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible });
+  const handleAddTask = async (title: string, visible: boolean, dueDate?: string | null) => {
+    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible, dueDate });
     writeTasks((prev) => [...prev, response.data]);
     invalidateTasksOverview();
   };
@@ -364,8 +402,8 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     invalidateTasksOverview();
   };
 
-  const handleUpdateTask = async (taskId: string, title: string) => {
-    const response = await ticketsApi.updateTask(ticketId, taskId, { title });
+  const handleUpdateTask = async (taskId: string, title: string, dueDate?: string | null) => {
+    const response = await ticketsApi.updateTask(ticketId, taskId, { title, dueDate });
     writeTasks((prev) => prev.map((t) => (t.id === taskId ? response.data : t)));
     invalidateTasksOverview();
   };
@@ -395,9 +433,11 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
       });
       const result = await ticketsApi.uploadAttachments(ticketId, formData);
       writeAttachments((prev) => [...prev, ...result.data]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to upload files:', err);
-      showToast('Fehler beim Hochladen der Dateien', 'error');
+      // Server liefert konkrete Gründe (Datei zu groß, Dateityp nicht
+      // erlaubt, zu viele Dateien) — die sollen beim User ankommen.
+      showToast(err?.message || 'Fehler beim Hochladen der Dateien', 'error');
     } finally {
       setUploadingFiles(false);
     }
@@ -422,6 +462,16 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
     });
     if (!ok) return;
     await deleteAttachmentMutation.mutateAsync(attachmentId);
+  };
+
+  // Device link handler
+  const handleDeviceChange = async (deviceId: string | null) => {
+    try {
+      await updateTicketMutation.mutateAsync({ deviceId });
+      showToast(deviceId ? 'Gerät verknüpft' : 'Geräteverknüpfung entfernt', 'success');
+    } catch {
+      showToast('Fehler beim Ändern der Geräteverknüpfung', 'error');
+    }
   };
 
   // AI handlers
@@ -534,6 +584,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         editStatus={editStatus}
         editPriority={editPriority}
         archiving={archiving}
+        saving={updateTicketMutation.isPending}
         onBack={onBack}
         onToggleEdit={() => setIsEditing(!isEditing)}
         onEditTitleChange={setEditTitle}
@@ -549,115 +600,146 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
         onAddTag={handleAddTag}
         onRemoveTag={handleRemoveTag}
         onCreateTag={handleCreateTag}
+        onQuickStatusChange={handleQuickStatusChange}
+        onQuickPriorityChange={handleQuickPriorityChange}
       />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-        {/* Metadata (info cards, SLA, timer button) */}
-        <TicketMetadata
-          ticket={ticket}
-          customers={customers}
-          timeEntries={timeEntries}
-          onStartTimer={onStartTimer}
-        />
+      {/* Content - Desktop: Two columns, Mobile: Single column */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-6 lg:flex lg:gap-6">
 
-        {/* AI Assistant Button */}
-        {aiConfigured && (
-          <button
-            onClick={() => {
-              if (!showAiPanel) {
-                aiSuggestionsQuery.refetch();
-              }
-              setShowAiPanel(!showAiPanel);
-            }}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
-              showAiPanel
-                ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300'
-            }`}
-          >
-            <Bot size={20} />
-            KI-Assistent {showAiPanel ? 'ausblenden' : 'anzeigen'}
-          </button>
-        )}
+          {/* Main Content Column */}
+          <div className="lg:flex-1 lg:min-w-0 space-y-6">
+            {/* Description and Solution */}
+            <TicketDescription
+              ticket={ticket}
+              isEditing={isEditing}
+              editDescription={editDescription}
+              onEditDescriptionChange={setEditDescription}
+            />
 
-        {/* AI Assistant Panel */}
-        {showAiPanel && aiConfigured && (
-          <TicketAIPanel
-            suggestions={aiSuggestions}
-            loading={loadingAiSuggestion}
-            error={aiError}
-            onGenerateSuggestion={generateAiSuggestion}
-            onFeedback={handleSuggestionFeedback}
-            onApplyResponse={applyResponseSuggestion}
-            onApplyPriority={applyPrioritySuggestion}
-            onApplySolution={(content) => {
-              setSolutionText(content);
-              setShowSolutionModal(true);
-            }}
-            onCopy={copySuggestionToClipboard}
-          />
-        )}
+            {/* Attachments */}
+            <TicketAttachments
+              attachments={attachments}
+              uploadingFiles={uploadingFiles}
+              onUploadFiles={handleUploadFiles}
+              onDeleteAttachment={handleDeleteAttachment}
+            />
 
-        {/* Description and Solution */}
-        <TicketDescription
-          ticket={ticket}
-          isEditing={isEditing}
-          editDescription={editDescription}
-          onEditDescriptionChange={setEditDescription}
-        />
+            {/* Comments */}
+            <TicketComments
+              ticket={ticket}
+              comments={comments}
+              customers={customers}
+              cannedResponses={cannedResponses}
+              onAddComment={handleAddComment}
+            />
 
-        {/* Tasks */}
-        <TicketTasks
-          ticketId={ticketId}
-          tasks={tasks}
-          loadingTasks={loadingTasks}
-          onAddTask={handleAddTask}
-          onToggleTask={handleToggleTask}
-          onToggleTaskVisibility={handleToggleTaskVisibility}
-          onUpdateTask={handleUpdateTask}
-          onDeleteTask={handleDeleteTask}
-          onReorderTasks={handleReorderTasks}
-        />
+            {/* Time Entries */}
+            <TicketTimeEntries timeEntries={timeEntries} />
+          </div>
 
-        {/* Attachments */}
-        <TicketAttachments
-          attachments={attachments}
-          uploadingFiles={uploadingFiles}
-          onUploadFiles={handleUploadFiles}
-          onDeleteAttachment={handleDeleteAttachment}
-        />
+          {/* Sidebar - Desktop only sticky, Mobile shows at top */}
+          <div className="lg:w-80 xl:w-96 lg:flex-shrink-0 space-y-4 mb-6 lg:mb-0 order-first lg:order-last">
+            <div className="lg:sticky lg:top-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              {/* Metadata (info cards, SLA, timer button) */}
+              <TicketMetadata
+                ticket={ticket}
+                customers={customers}
+                timeEntries={timeEntries}
+                activeContract={activeContract}
+                onStartTimer={onStartTimer}
+              />
 
-        {/* Time Entries */}
-        <TicketTimeEntries timeEntries={timeEntries} />
+              {/* NinjaRMM Alert Info - for tickets from NinjaRMM */}
+              {ticket.source === 'ninja_alert' && ticket.deviceId && (
+                <TicketNinjaInfo
+                  deviceId={ticket.deviceId}
+                  ninjaAlertId={ticket.ninjaAlertId}
+                  deviceName={ticket.deviceName}
+                />
+              )}
 
-        {/* Comments */}
-        <TicketComments
-          ticket={ticket}
-          comments={comments}
-          customers={customers}
-          cannedResponses={cannedResponses}
-          onAddComment={handleAddComment}
-        />
+              {/* Tasks - now in sidebar, collapsible */}
+              <TicketTasks
+                ticketId={ticketId}
+                tasks={tasks}
+                loadingTasks={loadingTasks}
+                onAddTask={handleAddTask}
+                onToggleTask={handleToggleTask}
+                onToggleTaskVisibility={handleToggleTaskVisibility}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onReorderTasks={handleReorderTasks}
+              />
 
-        {/* Meta Info */}
-        <TicketMetaInfo ticket={ticket} />
+              {/* Activity Timeline - collapsible */}
+              <TicketTimeline
+                activities={activities}
+                loading={loadingActivities}
+                onLoad={loadActivities}
+              />
 
-        {/* Activity Timeline */}
-        <TicketTimeline
-          activities={activities}
-          loading={loadingActivities}
-          onLoad={loadActivities}
-        />
+              {/* Email History - collapsible */}
+              {ticket.source === 'email' && (
+                <TicketEmailHistory
+                  emails={ticketEmails}
+                  loading={loadingEmails}
+                  onLoad={loadTicketEmails}
+                />
+              )}
 
-        {/* Email History */}
-        {ticket.source === 'email' && (
-          <TicketEmailHistory
-            emails={ticketEmails}
-            loading={loadingEmails}
-            onLoad={loadTicketEmails}
-          />
-        )}
+              {/* Device Link - for NinjaRMM integration */}
+              <TicketDeviceLink
+                ticketId={ticketId}
+                customerId={ticket.customerId}
+                linkedDeviceId={ticket.deviceId}
+                onDeviceChange={handleDeviceChange}
+              />
+
+              {/* AI Assistant Button */}
+              {aiConfigured && (
+                <button
+                  onClick={() => {
+                    if (!showAiPanel) {
+                      aiSuggestionsQuery.refetch();
+                    }
+                    setShowAiPanel(!showAiPanel);
+                  }}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors ${
+                    showAiPanel
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                      : 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300'
+                  }`}
+                >
+                  <Bot size={20} />
+                  KI-Assistent {showAiPanel ? 'ausblenden' : 'anzeigen'}
+                </button>
+              )}
+
+              {/* AI Assistant Panel */}
+              {showAiPanel && aiConfigured && (
+                <TicketAIPanel
+                  suggestions={aiSuggestions}
+                  loading={loadingAiSuggestion}
+                  error={aiError}
+                  onGenerateSuggestion={generateAiSuggestion}
+                  onFeedback={handleSuggestionFeedback}
+                  onApplyResponse={applyResponseSuggestion}
+                  onApplyPriority={applyPrioritySuggestion}
+                  onApplySolution={(content) => {
+                    setSolutionText(content);
+                    setShowSolutionModal(true);
+                  }}
+                  onCopy={copySuggestionToClipboard}
+                />
+              )}
+
+              {/* Meta Info */}
+              <TicketMetaInfo ticket={ticket} />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Dialogs */}

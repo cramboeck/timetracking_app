@@ -1,5 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
+import { MulterError } from 'multer';
 import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
@@ -38,6 +39,7 @@ const updateTicketSchema = z.object({
   assignedToUserId: z.string().uuid().optional().nullable(),
   solution: z.string().max(50_000).optional().nullable(),
   resolutionType: z.string().max(100).optional().nullable(),
+  deviceId: z.string().max(200).optional().nullable(),
 });
 
 const mergeTicketsSchema = z.object({
@@ -104,6 +106,44 @@ const reorderTasksSchema = z.object({
   taskIds: z.array(z.string().uuid()).min(1).max(500),
 });
 
+// Bulk action schemas
+const bulkStatusSchema = z.object({
+  ticketIds: z.array(z.string().uuid()).min(1).max(100),
+  status: ticketStatusSchema,
+});
+
+const bulkPrioritySchema = z.object({
+  ticketIds: z.array(z.string().uuid()).min(1).max(100),
+  priority: ticketPrioritySchema,
+});
+
+const bulkAssignSchema = z.object({
+  ticketIds: z.array(z.string().uuid()).min(1).max(100),
+  assignedToUserId: z.string().uuid().nullable(),
+});
+
+const bulkArchiveSchema = z.object({
+  ticketIds: z.array(z.string().uuid()).min(1).max(100),
+});
+
+const bulkDeleteSchema = z.object({
+  ticketIds: z.array(z.string().uuid()).min(1).max(100),
+});
+
+// Ticket Template schemas
+const ticketTemplateSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  titleTemplate: z.string().max(500).optional().nullable(),
+  descriptionTemplate: z.string().max(50_000).optional().nullable(),
+  defaultPriority: ticketPrioritySchema.optional().nullable(),
+  defaultCustomerId: z.string().uuid().optional().nullable(),
+  defaultProjectId: z.string().uuid().optional().nullable(),
+  category: z.string().trim().max(100).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+const updateTicketTemplateSchema = ticketTemplateSchema.partial();
+
 // ============================================================================
 // Explicit column lists (no SELECT *)
 // ============================================================================
@@ -122,6 +162,11 @@ const TICKET_ATTACHMENT_COLUMNS = `
 
 const CANNED_RESPONSE_COLUMNS = `
   id, user_id, organization_id, title, content, shortcut, category, usage_count, created_at, updated_at
+`;
+
+const TICKET_TEMPLATE_COLUMNS = `
+  id, organization_id, name, title_template, description_template, default_priority,
+  default_customer_id, default_project_id, category, is_active, usage_count, created_at, updated_at
 `;
 
 const SLA_POLICY_COLUMNS = `
@@ -208,11 +253,15 @@ function transformTicket(row: any) {
     emailConversationId: row.email_conversation_id,
     emailFrom: row.email_from,
     contactId: row.contact_id,
+    // NinjaRMM fields
+    deviceId: row.device_id,
+    ninjaAlertId: row.ninja_alert_id,
     // Include related data if joined
     customerName: row.customer_name,
     projectName: row.project_name,
     creatorName: row.creator_name,
     assigneeName: row.assignee_name,
+    deviceName: row.device_name,
   };
 }
 
@@ -288,10 +337,13 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
              t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
              t.sla_response_breached, t.sla_resolution_breached,
              t.created_at, t.updated_at, t.created_by_contact_id,
-             c.name as customer_name, p.name as project_name
+             t.device_id, t.ninja_alert_id,
+             c.name as customer_name, p.name as project_name,
+             d.display_name as device_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
       ${whereClause}
       ORDER BY t.created_at DESC`;
 
@@ -552,6 +604,43 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
   }
 });
 
+// GET /api/tickets/templates - Get all templates for organization.
+// MUSS vor GET /:id registriert sein, sonst matcht Express 'templates' als
+// Ticket-ID und die Template-Liste liefert immer 404 (war der Grund, warum
+// die Ticket-Templates nie im Frontend ankamen).
+router.get('/templates', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { category, activeOnly } = req.query;
+
+    let queryText = `
+      SELECT ${TICKET_TEMPLATE_COLUMNS} FROM ticket_templates
+      WHERE organization_id = $1
+    `;
+    const params: any[] = [organizationId];
+    let paramIndex = 2;
+
+    if (activeOnly === 'true') {
+      queryText += ` AND is_active = true`;
+    }
+
+    if (category) {
+      queryText += ` AND category = $${paramIndex}`;
+      params.push(category);
+      paramIndex++;
+    }
+
+    queryText += ' ORDER BY usage_count DESC, name ASC';
+
+    const result = await query(queryText, params);
+    res.json({ success: true, data: result.rows.map(transformTemplate) });
+  } catch (error) {
+    logger.error('Error fetching ticket templates:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch ticket templates' });
+  }
+});
+
 // GET /api/tickets/:id - Get single ticket with comments
 router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
   try {
@@ -563,12 +652,14 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
     const ticketResult = await query(`
       SELECT t.*, c.name as customer_name, p.name as project_name,
              COALESCE(creator.display_name, creator.username) as creator_name,
-             COALESCE(assignee.display_name, assignee.username) as assignee_name
+             COALESCE(assignee.display_name, assignee.username) as assignee_name,
+             d.display_name as device_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users creator ON t.user_id = creator.id
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
+      LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
       WHERE t.id = $1 AND t.organization_id = $2
     `, [id, organizationId]);
 
@@ -716,7 +807,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
-    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType } = req.body;
+    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
@@ -798,6 +889,11 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       params.push(assignedToUserId || null);
       paramIndex++;
     }
+    if (deviceId !== undefined) {
+      updates.push(`device_id = $${paramIndex}`);
+      params.push(deviceId || null);
+      paramIndex++;
+    }
 
     params.push(id, organizationId);
 
@@ -832,28 +928,43 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
       // Send email and push notification for status change (except archived)
       if (status !== 'archived') {
+        // Try direct contact first, then fallback to customer's primary contact
         const contactInfo = await query(`
-          SELECT t.title, t.ticket_number, t.contact_id, cc.email, COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name, cc.notify_ticket_status_changed
+          SELECT t.title, t.ticket_number, t.contact_id, t.customer_id,
+                 COALESCE(cc.email, primary_contact.email) as email,
+                 COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as name,
+                 COALESCE(cc.notify_ticket_status_changed, primary_contact.notify_ticket_status_changed, true) as notify_ticket_status_changed,
+                 COALESCE(cc.id, primary_contact.id) as resolved_contact_id
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+          LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
           WHERE t.id = $1
         `, [id]);
 
-        if (contactInfo.rows.length > 0 && contactInfo.rows[0].email && contactInfo.rows[0].notify_ticket_status_changed !== false) {
-          const ticket = contactInfo.rows[0];
+        const contactData = contactInfo.rows[0];
+        logger.info(`[Ticket ${id}] Status change notification check:`, {
+          hasRow: contactInfo.rows.length > 0,
+          hasDirectContactId: contactData?.contact_id || null,
+          hasResolvedContactId: contactData?.resolved_contact_id || null,
+          hasEmail: !!contactData?.email,
+          notifyEnabled: contactData?.notify_ticket_status_changed,
+        });
+
+        if (contactInfo.rows.length > 0 && contactData.email && contactData.notify_ticket_status_changed !== false) {
           const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${id}`;
+          logger.info(`[Ticket ${id}] Sending status change email to: ${contactData.email}`);
           emailService.sendTicketStatusChangeNotification({
-            to: ticket.email,
-            customerName: ticket.name || 'Kunde',
-            ticketNumber: ticket.ticket_number,
-            ticketTitle: ticket.title,
+            to: contactData.email,
+            customerName: contactData.name || 'Kunde',
+            ticketNumber: contactData.ticket_number,
+            ticketTitle: contactData.title,
             oldStatus: oldValues.status,
             newStatus: status,
             portalUrl: portalTicketUrl,
           }).catch(err => logger.error('Failed to send status change notification:', err));
 
           // Send push notification for status change
-          if (ticket.contact_id) {
+          if (contactData.resolved_contact_id) {
             const statusNames: Record<string, string> = {
               'open': 'Offen',
               'in_progress': 'In Bearbeitung',
@@ -862,12 +973,18 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
               'closed': 'Geschlossen',
             };
             sendPortalTicketNotification(
-              ticket.contact_id,
-              { id, ticketNumber: ticket.ticket_number, title: ticket.title },
+              contactData.resolved_contact_id,
+              { id, ticketNumber: contactData.ticket_number, title: contactData.title },
               'push_on_status_change',
               `Status geändert: ${statusNames[status] || status}`
             ).catch(err => logger.error('Failed to send portal status change push:', err));
           }
+        } else {
+          logger.info(`[Ticket ${id}] Skipping status change notification:`, {
+            reason: !contactInfo.rows.length ? 'no_ticket_found' :
+                    !contactData?.email ? 'no_contact_email' :
+                    contactData?.notify_ticket_status_changed === false ? 'notification_disabled' : 'unknown',
+          });
         }
       }
     }
@@ -991,6 +1108,50 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
   } catch (error) {
     logger.error('Error updating ticket:', error);
     res.status(500).json({ success: false, error: 'Failed to update ticket' });
+  }
+});
+
+// DELETE /api/tickets/bulk - Delete multiple tickets (requires admin role).
+// MUSS vor DELETE /:id registriert sein, sonst matcht Express 'bulk' als
+// Ticket-ID und die Route ist unerreichbar (war der Grund, warum Bulk-Delete
+// nie funktioniert hat).
+router.delete('/bulk', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(bulkDeleteSchema), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketIds } = req.body;
+
+    // Verify all tickets belong to organization
+    const verification = await verifyTicketsInOrganization(ticketIds, organizationId);
+    if (!verification.valid) {
+      return res.status(404).json({
+        success: false,
+        error: `Tickets not found: ${verification.notFoundIds.join(', ')}`
+      });
+    }
+
+    // Get ticket info for audit log before deleting
+    const ticketInfo = await query(
+      'SELECT id, ticket_number, title FROM tickets WHERE id = ANY($1)',
+      [ticketIds]
+    );
+    const deletedTickets = ticketInfo.rows.map(r => ({ id: r.id, ticketNumber: r.ticket_number, title: r.title }));
+
+    await query('DELETE FROM tickets WHERE id = ANY($1) AND organization_id = $2', [ticketIds, organizationId]);
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.bulk_delete',
+      details: JSON.stringify({ deletedTickets, count: ticketIds.length }),
+    });
+
+    logger.info(`Bulk delete: ${ticketIds.length} tickets`);
+    res.json({ success: true, message: `${ticketIds.length} Tickets geloescht`, count: ticketIds.length });
+  } catch (error) {
+    logger.error('Error bulk deleting tickets:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete tickets' });
   }
 });
 
@@ -1248,6 +1409,259 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
     res.status(500).json({ success: false, error: 'Failed to merge tickets' });
   } finally {
     client.release();
+  }
+});
+
+// ============================================================================
+// BULK ACTION ROUTES
+// ============================================================================
+
+// Helper function to verify tickets belong to organization
+async function verifyTicketsInOrganization(ticketIds: string[], organizationId: string): Promise<{ valid: boolean; foundIds: string[]; notFoundIds: string[] }> {
+  const result = await query(
+    'SELECT id FROM tickets WHERE id = ANY($1) AND organization_id = $2',
+    [ticketIds, organizationId]
+  );
+  const foundIds = result.rows.map(r => r.id);
+  const notFoundIds = ticketIds.filter(id => !foundIds.includes(id));
+  return { valid: notFoundIds.length === 0, foundIds, notFoundIds };
+}
+
+// POST /api/tickets/bulk/status - Update status for multiple tickets (requires member role)
+router.post('/bulk/status', authenticateToken, attachOrganization, requireOrgRole('member'), validate(bulkStatusSchema), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketIds, status } = req.body;
+
+    // Verify all tickets belong to organization
+    const verification = await verifyTicketsInOrganization(ticketIds, organizationId);
+    if (!verification.valid) {
+      return res.status(404).json({
+        success: false,
+        error: `Tickets not found: ${verification.notFoundIds.join(', ')}`
+      });
+    }
+
+    // Get current statuses for activity logging
+    const currentTickets = await query(
+      'SELECT id, status FROM tickets WHERE id = ANY($1)',
+      [ticketIds]
+    );
+    const oldStatuses = new Map(currentTickets.rows.map(r => [r.id, r.status]));
+
+    // Build update query with timestamps
+    let updateQuery = `
+      UPDATE tickets SET
+        status = $1,
+        updated_at = NOW()
+    `;
+    if (status === 'resolved') {
+      updateQuery += ', resolved_at = NOW()';
+    } else if (status === 'closed') {
+      updateQuery += ', closed_at = NOW()';
+    }
+    updateQuery += ' WHERE id = ANY($2) AND organization_id = $3';
+
+    await query(updateQuery, [status, ticketIds, organizationId]);
+
+    // Log activities for each ticket
+    for (const ticketId of ticketIds) {
+      const oldStatus = oldStatuses.get(ticketId);
+      if (oldStatus !== status) {
+        let actionType = 'status_changed';
+        if (status === 'resolved') actionType = 'resolved';
+        else if (status === 'closed') actionType = 'closed';
+        else if (status === 'archived') actionType = 'archived';
+        else if (oldStatus === 'closed' || oldStatus === 'resolved') actionType = 'reopened';
+        await logTicketActivity(ticketId, userId, null, actionType, oldStatus, status, { bulk: true });
+      }
+    }
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.bulk_status',
+      details: JSON.stringify({ ticketIds, newStatus: status, count: ticketIds.length }),
+    });
+
+    logger.info(`Bulk status update: ${ticketIds.length} tickets to ${status}`);
+    res.json({ success: true, message: `${ticketIds.length} Tickets aktualisiert`, count: ticketIds.length });
+  } catch (error) {
+    logger.error('Error bulk updating ticket status:', error);
+    res.status(500).json({ success: false, error: 'Failed to update tickets' });
+  }
+});
+
+// POST /api/tickets/bulk/priority - Update priority for multiple tickets (requires member role)
+router.post('/bulk/priority', authenticateToken, attachOrganization, requireOrgRole('member'), validate(bulkPrioritySchema), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketIds, priority } = req.body;
+
+    // Verify all tickets belong to organization
+    const verification = await verifyTicketsInOrganization(ticketIds, organizationId);
+    if (!verification.valid) {
+      return res.status(404).json({
+        success: false,
+        error: `Tickets not found: ${verification.notFoundIds.join(', ')}`
+      });
+    }
+
+    // Get current priorities for activity logging
+    const currentTickets = await query(
+      'SELECT id, priority FROM tickets WHERE id = ANY($1)',
+      [ticketIds]
+    );
+    const oldPriorities = new Map(currentTickets.rows.map(r => [r.id, r.priority]));
+
+    await query(
+      'UPDATE tickets SET priority = $1, updated_at = NOW() WHERE id = ANY($2) AND organization_id = $3',
+      [priority, ticketIds, organizationId]
+    );
+
+    // Log activities for each ticket
+    for (const ticketId of ticketIds) {
+      const oldPriority = oldPriorities.get(ticketId);
+      if (oldPriority !== priority) {
+        await logTicketActivity(ticketId, userId, null, 'priority_changed', oldPriority, priority, { bulk: true });
+      }
+    }
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.bulk_priority',
+      details: JSON.stringify({ ticketIds, newPriority: priority, count: ticketIds.length }),
+    });
+
+    logger.info(`Bulk priority update: ${ticketIds.length} tickets to ${priority}`);
+    res.json({ success: true, message: `${ticketIds.length} Tickets aktualisiert`, count: ticketIds.length });
+  } catch (error) {
+    logger.error('Error bulk updating ticket priority:', error);
+    res.status(500).json({ success: false, error: 'Failed to update tickets' });
+  }
+});
+
+// POST /api/tickets/bulk/assign - Assign multiple tickets (requires member role)
+router.post('/bulk/assign', authenticateToken, attachOrganization, requireOrgRole('member'), validate(bulkAssignSchema), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketIds, assignedToUserId } = req.body;
+
+    // Verify all tickets belong to organization
+    const verification = await verifyTicketsInOrganization(ticketIds, organizationId);
+    if (!verification.valid) {
+      return res.status(404).json({
+        success: false,
+        error: `Tickets not found: ${verification.notFoundIds.join(', ')}`
+      });
+    }
+
+    // If assigning to someone, verify they're in the organization
+    if (assignedToUserId) {
+      const memberCheck = await query(
+        'SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id = $2',
+        [organizationId, assignedToUserId]
+      );
+      if (memberCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, error: 'User is not a member of this organization' });
+      }
+    }
+
+    // Get current assignees for activity logging
+    const currentTickets = await query(
+      'SELECT id, assigned_to FROM tickets WHERE id = ANY($1)',
+      [ticketIds]
+    );
+    const oldAssignees = new Map(currentTickets.rows.map(r => [r.id, r.assigned_to]));
+
+    await query(
+      'UPDATE tickets SET assigned_to = $1, updated_at = NOW() WHERE id = ANY($2) AND organization_id = $3',
+      [assignedToUserId, ticketIds, organizationId]
+    );
+
+    // Log activities for each ticket
+    for (const ticketId of ticketIds) {
+      const oldAssignee = oldAssignees.get(ticketId);
+      if (oldAssignee !== assignedToUserId) {
+        if (assignedToUserId) {
+          await logTicketActivity(ticketId, userId, null, 'assigned', oldAssignee, assignedToUserId, { bulk: true });
+        } else {
+          await logTicketActivity(ticketId, userId, null, 'unassigned', oldAssignee, null, { bulk: true });
+        }
+      }
+    }
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.bulk_assign',
+      details: JSON.stringify({ ticketIds, assignedToUserId, count: ticketIds.length }),
+    });
+
+    logger.info(`Bulk assign: ${ticketIds.length} tickets to ${assignedToUserId || 'unassigned'}`);
+    res.json({ success: true, message: `${ticketIds.length} Tickets zugewiesen`, count: ticketIds.length });
+  } catch (error) {
+    logger.error('Error bulk assigning tickets:', error);
+    res.status(500).json({ success: false, error: 'Failed to assign tickets' });
+  }
+});
+
+// POST /api/tickets/bulk/archive - Archive multiple tickets (requires member role)
+router.post('/bulk/archive', authenticateToken, attachOrganization, requireOrgRole('member'), validate(bulkArchiveSchema), async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketIds } = req.body;
+
+    // Verify all tickets belong to organization
+    const verification = await verifyTicketsInOrganization(ticketIds, organizationId);
+    if (!verification.valid) {
+      return res.status(404).json({
+        success: false,
+        error: `Tickets not found: ${verification.notFoundIds.join(', ')}`
+      });
+    }
+
+    // Get current statuses for activity logging
+    const currentTickets = await query(
+      'SELECT id, status FROM tickets WHERE id = ANY($1)',
+      [ticketIds]
+    );
+    const oldStatuses = new Map(currentTickets.rows.map(r => [r.id, r.status]));
+
+    await query(
+      "UPDATE tickets SET status = 'archived', updated_at = NOW() WHERE id = ANY($1) AND organization_id = $2",
+      [ticketIds, organizationId]
+    );
+
+    // Log activities for each ticket
+    for (const ticketId of ticketIds) {
+      const oldStatus = oldStatuses.get(ticketId);
+      if (oldStatus !== 'archived') {
+        await logTicketActivity(ticketId, userId, null, 'archived', oldStatus, 'archived', { bulk: true });
+      }
+    }
+
+    // Audit log
+    await auditLog.log({
+      userId,
+      action: 'ticket.bulk_archive',
+      details: JSON.stringify({ ticketIds, count: ticketIds.length }),
+    });
+
+    logger.info(`Bulk archive: ${ticketIds.length} tickets`);
+    res.json({ success: true, message: `${ticketIds.length} Tickets archiviert`, count: ticketIds.length });
+  } catch (error) {
+    logger.error('Error bulk archiving tickets:', error);
+    res.status(500).json({ success: false, error: 'Failed to archive tickets' });
   }
 });
 
@@ -1513,18 +1927,75 @@ router.get('/:ticketId/attachments', authenticateToken, attachOrganization, asyn
       mimeType: a.mime_type,
       uploadedByName: a.uploaded_by_name || 'Unbekannt',
       uploadedByType: a.uploaded_by_type,
+      source: 'upload' as const,
       createdAt: a.created_at?.toISOString(),
     }));
 
-    res.json({ success: true, data: attachments });
+    // Locally stored attachments from inbound emails belong to the ticket
+    // too — surface them alongside the uploads (read-only, no delete route).
+    const emailAttachmentsResult = await query(`
+      SELECT
+        tea.id,
+        tea.name,
+        tea.local_path,
+        tea.size,
+        tea.content_type,
+        tea.created_at,
+        COALESCE(te.from_name, te.from_email) AS sender_name
+      FROM ticket_email_attachments tea
+      JOIN ticket_emails te ON te.id = tea.ticket_email_id
+      WHERE te.ticket_id = $1 AND te.organization_id = $2
+        AND tea.stored_locally = true AND tea.local_path IS NOT NULL
+      ORDER BY tea.created_at ASC
+    `, [ticketId, organizationId]);
+
+    const emailAttachments = emailAttachmentsResult.rows.map(a => ({
+      id: a.id,
+      filename: a.name,
+      fileUrl: a.local_path,
+      fileSize: a.size,
+      mimeType: a.content_type,
+      uploadedByName: a.sender_name || 'E-Mail',
+      uploadedByType: 'customer' as const,
+      source: 'email' as const,
+      createdAt: a.created_at?.toISOString(),
+    }));
+
+    const combined = [...attachments, ...emailAttachments].sort(
+      (a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')
+    );
+
+    res.json({ success: true, data: combined });
   } catch (error) {
     logger.error('Get attachments error:', error);
     res.status(500).json({ success: false, error: 'Failed to get attachments' });
   }
 });
 
+// Multer wrapper that turns upload rejections (file too large, too many
+// files, disallowed MIME type) into a 400 with a readable German message —
+// previously these bubbled to a generic 500 "Failed to upload attachments".
+const uploadTicketFiles = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  upload.array('files', 10)(req, res, (err: any) => {
+    if (!err) return next();
+
+    let message = 'Upload fehlgeschlagen';
+    if (err instanceof MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') message = 'Datei zu groß — maximal 10 MB pro Datei';
+      else if (err.code === 'LIMIT_FILE_COUNT') message = 'Zu viele Dateien — maximal 10 pro Upload';
+      else message = `Upload fehlgeschlagen (${err.code})`;
+    } else if (err?.message) {
+      // fileFilter rejection ("Dateityp ... ist nicht erlaubt")
+      message = err.message;
+    }
+
+    logger.warn(`Attachment upload rejected: ${message}`);
+    return res.status(400).json({ success: false, error: message });
+  });
+};
+
 // POST /api/tickets/:ticketId/attachments - Upload attachments (requires member role)
-router.post('/:ticketId/attachments', authenticateToken, attachOrganization, requireOrgRole('member'), upload.array('files', 10), async (req, res) => {
+router.post('/:ticketId/attachments', authenticateToken, attachOrganization, requireOrgRole('member'), uploadTicketFiles, async (req, res) => {
   try {
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
@@ -1726,12 +2197,12 @@ router.get('/contacts/:customerId', authenticateToken, attachOrganization, async
     }
 
     const result = await query(`
-      SELECT id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      SELECT id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
              notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
              last_login, created_at
       FROM customer_contacts
       WHERE customer_id = $1
-      ORDER BY is_primary DESC, name ASC
+      ORDER BY is_primary DESC, last_name ASC
     `, [customerId]);
 
     res.json({ success: true, data: result.rows });
@@ -1818,7 +2289,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, validate(upda
 
     const result = await query(`
       UPDATE customer_contacts SET
-        name = COALESCE($1, name),
+        last_name = COALESCE($1, last_name),
         email = COALESCE($2, email),
         can_create_tickets = COALESCE($3, can_create_tickets),
         can_view_all_tickets = COALESCE($4, can_view_all_tickets),
@@ -1826,7 +2297,7 @@ router.put('/contacts/:id', authenticateToken, attachOrganization, validate(upda
         notify_ticket_status_changed = COALESCE($6, notify_ticket_status_changed),
         notify_ticket_reply = COALESCE($7, notify_ticket_reply)
       WHERE id = $8
-      RETURNING id, customer_id, name, email, is_primary, can_create_tickets, can_view_all_tickets,
+      RETURNING id, customer_id, last_name as name, email, is_primary, can_create_tickets, can_view_all_tickets,
                 notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
     `, [name, email, canCreateTickets, canViewAllTickets,
         notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply, id]);
@@ -2188,6 +2659,173 @@ Mit freundlichen Grüßen`,
   } catch (error) {
     logger.error('Error seeding canned responses:', error);
     res.status(500).json({ success: false, error: 'Failed to seed canned responses' });
+  }
+});
+
+// ============================================================================
+// TICKET TEMPLATES ROUTES
+// ============================================================================
+
+// Helper function to transform template row to API response
+function transformTemplate(row: any) {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    titleTemplate: row.title_template,
+    descriptionTemplate: row.description_template,
+    defaultPriority: row.default_priority,
+    defaultCustomerId: row.default_customer_id,
+    defaultProjectId: row.default_project_id,
+    category: row.category,
+    isActive: row.is_active,
+    usageCount: row.usage_count,
+    createdAt: row.created_at?.toISOString(),
+    updatedAt: row.updated_at?.toISOString(),
+  };
+}
+
+// GET /api/tickets/templates/:id - Get single template
+router.get('/templates/:id', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const result = await query(
+      `SELECT ${TICKET_TEMPLATE_COLUMNS} FROM ticket_templates WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: transformTemplate(result.rows[0]) });
+  } catch (error) {
+    logger.error('Error fetching ticket template:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch ticket template' });
+  }
+});
+
+// POST /api/tickets/templates - Create template
+router.post('/templates', authenticateToken, attachOrganization, validate(ticketTemplateSchema), async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const {
+      name, titleTemplate, descriptionTemplate, defaultPriority,
+      defaultCustomerId, defaultProjectId, category, isActive
+    } = req.body;
+
+    const id = crypto.randomUUID();
+
+    const result = await query(`
+      INSERT INTO ticket_templates (
+        id, organization_id, name, title_template, description_template,
+        default_priority, default_customer_id, default_project_id, category, is_active
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING ${TICKET_TEMPLATE_COLUMNS}
+    `, [
+      id, organizationId, name, titleTemplate || null, descriptionTemplate || null,
+      defaultPriority || null, defaultCustomerId || null, defaultProjectId || null,
+      category || null, isActive !== false
+    ]);
+
+    res.status(201).json({ success: true, data: transformTemplate(result.rows[0]) });
+  } catch (error) {
+    logger.error('Error creating ticket template:', error);
+    res.status(500).json({ success: false, error: 'Failed to create ticket template' });
+  }
+});
+
+// PUT /api/tickets/templates/:id - Update template
+router.put('/templates/:id', authenticateToken, attachOrganization, validate(updateTicketTemplateSchema), async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const {
+      name, titleTemplate, descriptionTemplate, defaultPriority,
+      defaultCustomerId, defaultProjectId, category, isActive
+    } = req.body;
+
+    const result = await query(`
+      UPDATE ticket_templates
+      SET name = COALESCE($1, name),
+          title_template = COALESCE($2, title_template),
+          description_template = COALESCE($3, description_template),
+          default_priority = COALESCE($4, default_priority),
+          default_customer_id = $5,
+          default_project_id = $6,
+          category = $7,
+          is_active = COALESCE($8, is_active),
+          updated_at = NOW()
+      WHERE id = $9 AND organization_id = $10
+      RETURNING ${TICKET_TEMPLATE_COLUMNS}
+    `, [
+      name || null, titleTemplate, descriptionTemplate, defaultPriority,
+      defaultCustomerId || null, defaultProjectId || null, category || null,
+      isActive, id, organizationId
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: transformTemplate(result.rows[0]) });
+  } catch (error) {
+    logger.error('Error updating ticket template:', error);
+    res.status(500).json({ success: false, error: 'Failed to update ticket template' });
+  }
+});
+
+// DELETE /api/tickets/templates/:id - Delete template
+router.delete('/templates/:id', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const result = await query(
+      'DELETE FROM ticket_templates WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, message: 'Template deleted' });
+  } catch (error) {
+    logger.error('Error deleting ticket template:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete ticket template' });
+  }
+});
+
+// POST /api/tickets/templates/:id/use - Increment usage count
+router.post('/templates/:id/use', authenticateToken, attachOrganization, async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const result = await query(`
+      UPDATE ticket_templates
+      SET usage_count = usage_count + 1
+      WHERE id = $1 AND organization_id = $2
+      RETURNING ${TICKET_TEMPLATE_COLUMNS}
+    `, [id, organizationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+
+    res.json({ success: true, data: transformTemplate(result.rows[0]) });
+  } catch (error) {
+    logger.error('Error updating template usage:', error);
+    res.status(500).json({ success: false, error: 'Failed to update usage count' });
   }
 });
 
@@ -3118,6 +3756,51 @@ router.post('/:id/tasks', authenticateToken, attachOrganization, requireOrgRole(
   }
 });
 
+// PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks (requires member role).
+// MUSS vor PUT /:ticketId/tasks/:taskId registriert sein, sonst matcht Express
+// 'reorder' als Task-ID und das Drag&Drop-Sortieren der Tasks schlägt fehl.
+router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), validate(reorderTasksSchema), async (req, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ticketId } = req.params;
+    const { taskIds } = req.body; // Array of task IDs in new order
+
+    if (!Array.isArray(taskIds)) {
+      return res.status(400).json({ success: false, error: 'taskIds array is required' });
+    }
+
+    // Verify ticket belongs to organization
+    const ticketCheck = await query(
+      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
+      [ticketId, organizationId]
+    );
+
+    if (ticketCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ticket not found' });
+    }
+
+    // Update sort_order for each task
+    for (let i = 0; i < taskIds.length; i++) {
+      await query(
+        'UPDATE ticket_tasks SET sort_order = $1 WHERE id = $2 AND ticket_id = $3',
+        [i, taskIds[i], ticketId]
+      );
+    }
+
+    // Get updated tasks
+    const result = await query(
+      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC`,
+      [ticketId]
+    );
+
+    res.json({ success: true, data: result.rows.map(transformTask) });
+  } catch (error) {
+    logger.error('Error reordering ticket tasks:', error);
+    res.status(500).json({ success: false, error: 'Failed to reorder tasks' });
+  }
+});
+
 // PUT /api/tickets/:ticketId/tasks/:taskId - Update a task (requires member role)
 router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTicketTaskSchema), async (req, res) => {
   try {
@@ -3264,49 +3947,6 @@ router.put('/:ticketId/tasks/:taskId', authenticateToken, attachOrganization, re
   } catch (error) {
     logger.error('Error updating ticket task:', error);
     res.status(500).json({ success: false, error: 'Failed to update task' });
-  }
-});
-
-// PUT /api/tickets/:ticketId/tasks/reorder - Reorder tasks (requires member role)
-router.put('/:ticketId/tasks/reorder', authenticateToken, attachOrganization, requireOrgRole('member'), validate(reorderTasksSchema), async (req, res) => {
-  try {
-    const orgReq = req as unknown as OrganizationRequest;
-    const organizationId = orgReq.organization.id;
-    const { ticketId } = req.params;
-    const { taskIds } = req.body; // Array of task IDs in new order
-
-    if (!Array.isArray(taskIds)) {
-      return res.status(400).json({ success: false, error: 'taskIds array is required' });
-    }
-
-    // Verify ticket belongs to organization
-    const ticketCheck = await query(
-      'SELECT id FROM tickets WHERE id = $1 AND organization_id = $2',
-      [ticketId, organizationId]
-    );
-
-    if (ticketCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Ticket not found' });
-    }
-
-    // Update sort_order for each task
-    for (let i = 0; i < taskIds.length; i++) {
-      await query(
-        'UPDATE ticket_tasks SET sort_order = $1 WHERE id = $2 AND ticket_id = $3',
-        [i, taskIds[i], ticketId]
-      );
-    }
-
-    // Get updated tasks
-    const result = await query(
-      `SELECT ${TICKET_TASK_COLUMNS} FROM ticket_tasks WHERE ticket_id = $1 ORDER BY sort_order ASC`,
-      [ticketId]
-    );
-
-    res.json({ success: true, data: result.rows.map(transformTask) });
-  } catch (error) {
-    logger.error('Error reordering ticket tasks:', error);
-    res.status(500).json({ success: false, error: 'Failed to reorder tasks' });
   }
 });
 

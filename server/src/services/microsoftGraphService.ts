@@ -392,6 +392,203 @@ class MicrosoftGraphService {
       return [];
     }
   }
+
+  // ============================================
+  // SharePoint / OneDrive Document Storage
+  // ============================================
+
+  /**
+   * Upload a file to SharePoint document library
+   * Uses the default drive (OneDrive for Business or SharePoint)
+   */
+  async uploadToSharePoint(
+    userPrincipalName: string,
+    folderPath: string,
+    filename: string,
+    content: Buffer,
+    contentType: string = 'application/pdf'
+  ): Promise<{ success: boolean; driveItemId?: string; webUrl?: string; error?: string }> {
+    if (!this.client) {
+      return { success: false, error: 'Microsoft Graph API not initialized' };
+    }
+
+    try {
+      // Ensure folder path starts with /
+      const normalizedPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
+
+      // Create folder structure if it doesn't exist
+      await this.ensureSharePointFolder(userPrincipalName, normalizedPath);
+
+      // Upload file using PUT (works for files up to 4MB)
+      // For larger files, use upload session
+      const fullPath = `${normalizedPath}/${filename}`.replace(/\/+/g, '/');
+
+      let uploadResponse;
+      if (content.length > 4 * 1024 * 1024) {
+        // Large file upload using upload session
+        uploadResponse = await this.uploadLargeFile(userPrincipalName, fullPath, content, contentType);
+      } else {
+        // Small file upload
+        uploadResponse = await this.client
+          .api(`/users/${userPrincipalName}/drive/root:${fullPath}:/content`)
+          .header('Content-Type', contentType)
+          .put(content);
+      }
+
+      console.log(`📁 File uploaded to SharePoint: ${fullPath}`);
+
+      return {
+        success: true,
+        driveItemId: uploadResponse.id,
+        webUrl: uploadResponse.webUrl,
+      };
+    } catch (error: any) {
+      console.error('❌ SharePoint upload failed:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Upload large file (>4MB) using upload session
+   */
+  private async uploadLargeFile(
+    userPrincipalName: string,
+    path: string,
+    content: Buffer,
+    _contentType: string
+  ): Promise<any> {
+    if (!this.client) {
+      throw new Error('Microsoft Graph API not initialized');
+    }
+
+    // Create upload session
+    const session = await this.client
+      .api(`/users/${userPrincipalName}/drive/root:${path}:/createUploadSession`)
+      .post({
+        item: {
+          '@microsoft.graph.conflictBehavior': 'replace',
+        },
+      });
+
+    const uploadUrl = session.uploadUrl;
+    const fileSize = content.length;
+    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+
+    let uploadedBytes = 0;
+    let result;
+
+    while (uploadedBytes < fileSize) {
+      const chunkEnd = Math.min(uploadedBytes + chunkSize, fileSize);
+      const chunk = content.slice(uploadedBytes, chunkEnd);
+
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Length': String(chunk.length),
+          'Content-Range': `bytes ${uploadedBytes}-${chunkEnd - 1}/${fileSize}`,
+        },
+        body: chunk,
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        result = await response.json();
+      }
+
+      uploadedBytes = chunkEnd;
+    }
+
+    return result;
+  }
+
+  /**
+   * Ensure folder exists in SharePoint, create if not
+   */
+  private async ensureSharePointFolder(userPrincipalName: string, folderPath: string): Promise<void> {
+    if (!this.client || folderPath === '/' || folderPath === '') {
+      return;
+    }
+
+    const parts = folderPath.split('/').filter(p => p);
+    let currentPath = '';
+
+    for (const part of parts) {
+      currentPath += `/${part}`;
+
+      try {
+        // Check if folder exists
+        await this.client
+          .api(`/users/${userPrincipalName}/drive/root:${currentPath}`)
+          .get();
+      } catch {
+        // Folder doesn't exist, create it
+        try {
+          const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
+          await this.client
+            .api(`/users/${userPrincipalName}/drive/root:${parentPath}:/children`)
+            .post({
+              name: part,
+              folder: {},
+              '@microsoft.graph.conflictBehavior': 'fail',
+            });
+          console.log(`📁 Created SharePoint folder: ${currentPath}`);
+        } catch (createError: any) {
+          // Folder might have been created by another process, continue
+          if (!createError.message?.includes('nameAlreadyExists')) {
+            console.error(`⚠️ Could not create folder ${currentPath}:`, createError.message);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Get a sharing link for a SharePoint file
+   */
+  async getSharePointDownloadUrl(
+    userPrincipalName: string,
+    driveItemId: string
+  ): Promise<string | null> {
+    if (!this.client) {
+      return null;
+    }
+
+    try {
+      // Get download URL directly from drive item
+      const item = await this.client
+        .api(`/users/${userPrincipalName}/drive/items/${driveItemId}`)
+        .select('@microsoft.graph.downloadUrl,webUrl')
+        .get();
+
+      return item['@microsoft.graph.downloadUrl'] || item.webUrl;
+    } catch (error: any) {
+      console.error('❌ Failed to get SharePoint download URL:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Delete a file from SharePoint
+   */
+  async deleteFromSharePoint(
+    userPrincipalName: string,
+    driveItemId: string
+  ): Promise<boolean> {
+    if (!this.client) {
+      return false;
+    }
+
+    try {
+      await this.client
+        .api(`/users/${userPrincipalName}/drive/items/${driveItemId}`)
+        .delete();
+
+      console.log(`🗑️ Deleted from SharePoint: ${driveItemId}`);
+      return true;
+    } catch (error: any) {
+      console.error('❌ Failed to delete from SharePoint:', error.message);
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
