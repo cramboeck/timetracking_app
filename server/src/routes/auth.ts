@@ -8,7 +8,7 @@ import { emailService } from '../services/emailService';
 import { auditLog } from '../services/auditLog';
 import { securityService } from '../services/securityService';
 import { refreshTokenService } from '../services/refreshTokenService';
-import { authLimiter } from '../middleware/rateLimiter';
+import { authLimiter, refreshLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { checkTrustedDevice } from './mfa';
@@ -350,7 +350,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
 // POST /api/auth/refresh — exchange a valid refresh token for a fresh
 // access token (and a rotated refresh token). Issued refresh tokens are
 // single-use; the response contains the new one to store.
-router.post('/refresh', authLimiter, validate(refreshSchema), async (req, res) => {
+router.post('/refresh', refreshLimiter, validate(refreshSchema), async (req, res) => {
   try {
     const { refreshToken } = req.body as { refreshToken: string };
 

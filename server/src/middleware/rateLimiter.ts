@@ -19,6 +19,22 @@ export const authLimiter = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful requests
 });
 
+// Token-refresh rate limiter. Deliberately looser than authLimiter: refresh
+// tokens are 256-bit random values, so brute-forcing them is not a realistic
+// threat the way password guessing is — but a whole office behind one NAT IP
+// easily produces >5 failed refreshes in 15 minutes (token rotation races
+// when machines wake from sleep), and with the strict limit those 429s were
+// logging everyone out. Failed attempts still count, so enumeration attempts
+// stay bounded.
+export const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 60,
+  message: 'Too many token refresh attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
+
 // Data export rate limiter (prevent abuse)
 export const exportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour

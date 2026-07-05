@@ -2321,6 +2321,41 @@ router.post('/line-items/:invoiceId/auto-match', authenticateToken, requireBilli
   }
 });
 
+// PATCH /api/sevdesk/line-items/bulk-contract - Bulk link line items to contract.
+// MUSS vor PATCH /line-items/:id registriert sein, sonst matcht Express
+// 'bulk-contract' als id und die Bulk-Vertragszuordnung schlägt fehl.
+router.patch('/line-items/bulk-contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { lineItemIds, contractId, includeInContract } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'lineItemIds is required' });
+    }
+
+    const rebillingStatus = includeInContract ? 'included' : 'pending';
+
+    const result = await query(`
+      UPDATE invoice_line_items
+      SET contract_id = $1,
+          rebilling_status = $2,
+          updated_at = NOW()
+      WHERE id = ANY($3) AND organization_id = $4
+      RETURNING id
+    `, [contractId || null, rebillingStatus, lineItemIds, organizationId]);
+
+    res.json({ success: true, data: { updatedCount: result.rowCount } });
+  } catch (error: any) {
+    logger.error('Bulk link line items to contract error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // PATCH /api/sevdesk/line-items/:id - Update line item (assign customer, change status)
 router.patch('/line-items/:id', authenticateToken, requireBillingFeature, validate(assignLineItemSchema), async (req: AuthRequest, res: Response) => {
   try {
@@ -2659,39 +2694,6 @@ router.patch('/line-items/:id/contract', authenticateToken, requireBillingFeatur
     res.json({ success: true, data: result.rows[0] });
   } catch (error: any) {
     logger.error('Link line item to contract error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// PATCH /api/sevdesk/line-items/bulk-contract - Bulk link line items to contract
-router.patch('/line-items/bulk-contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const organizationId = await getOrgIdForUser(userId);
-    const { lineItemIds, contractId, includeInContract } = req.body;
-
-    if (!organizationId) {
-      return res.status(400).json({ success: false, error: 'No organization found' });
-    }
-
-    if (!Array.isArray(lineItemIds) || lineItemIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'lineItemIds is required' });
-    }
-
-    const rebillingStatus = includeInContract ? 'included' : 'pending';
-
-    const result = await query(`
-      UPDATE invoice_line_items
-      SET contract_id = $1,
-          rebilling_status = $2,
-          updated_at = NOW()
-      WHERE id = ANY($3) AND organization_id = $4
-      RETURNING id
-    `, [contractId || null, rebillingStatus, lineItemIds, organizationId]);
-
-    res.json({ success: true, data: { updatedCount: result.rowCount } });
-  } catch (error: any) {
-    logger.error('Bulk link line items to contract error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

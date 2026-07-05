@@ -60,7 +60,7 @@ const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(`File type ${file.mimetype} is not allowed`));
+    cb(new Error(`Dateityp ${file.mimetype} ist nicht erlaubt`));
   }
 };
 
@@ -70,7 +70,7 @@ export const upload = multer({
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max file size
-    files: 5, // Max 5 files per upload
+    files: 10, // Must match the route's upload.array('files', 10)
   }
 });
 
@@ -79,10 +79,31 @@ export function getFileUrl(filename: string): string {
   return `/api/uploads/tickets/${filename}`;
 }
 
-// Helper to delete file
-export async function deleteFile(filename: string): Promise<void> {
+// Helper to delete file. Accepts either a bare filename or a stored file URL
+// (`/api/uploads/tickets/<name>`) — DB rows store the URL, so basename() keeps
+// the delete working for both shapes instead of silently missing the file.
+export async function deleteFile(filenameOrUrl: string): Promise<void> {
+  const filename = path.basename(filenameOrUrl);
+  if (!filename) return;
   const filePath = path.join(uploadsDir, 'tickets', filename);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
+}
+
+// Persist an in-memory buffer (e.g. an email attachment fetched from
+// Microsoft Graph) into the tickets upload directory, mirroring the multer
+// naming scheme (random UUID + original extension).
+export function saveTicketFileFromBuffer(
+  buffer: Buffer,
+  originalName: string
+): { storedFilename: string; fileUrl: string } {
+  const ticketUploadsDir = path.join(uploadsDir, 'tickets');
+  if (!fs.existsSync(ticketUploadsDir)) {
+    fs.mkdirSync(ticketUploadsDir, { recursive: true });
+  }
+  const ext = path.extname(originalName).slice(0, 20);
+  const storedFilename = `${crypto.randomUUID()}${ext}`;
+  fs.writeFileSync(path.join(ticketUploadsDir, storedFilename), buffer);
+  return { storedFilename, fileUrl: getFileUrl(storedFilename) };
 }

@@ -104,7 +104,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Support & NinjaRMM Integration
 - Backend-Webhook `/webhook/:userId` ist solide (Secret-Validierung, Auto-Ticket aus Alerts, Exclusion-Rules mit Regex, OAuth2 Token-Refresh, 5-Min Auto-Sync via Cron) ✅
-- **Lücken:** Tickets ohne Bulk-Actions; SLA-Warnungen nur im Detail-View. (~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
+- **Lücken:** SLA-Warnungen nur im Detail-View. (~~Tickets ohne Bulk-Actions~~ — waren komplett gebaut, nur route-geshadowed; reaktiviert in b895df0. ~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
 
 ### CRM
 - Fragmentiert: `CustomerHub.tsx` ist sehr umfangreich (360°), aber `Leads.tsx` und `SalesPipeline.tsx` wirken wie separate Apps
@@ -115,7 +115,22 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 10.6.2026)
+## Aktueller Stand (Stand 5.7.2026)
+
+### Stabilitäts-Sprint Anfang Juli 2026 — ✅ abgeschlossen
+
+| Task | Commit |
+|---|---|
+| **NinjaRMM: Kritische Alerts erzeugten keine Tickets** (Priority-Check-Bug) | 65e9a4d |
+| Vulnerability-Sync: Endpoint-Diagnose im Toast, Typisierung statt `any` | b6d53ab, b1d49f6 |
+| **NinjaOne-API-Limitierung verifiziert** (offizielle OpenAPI-Spec 2.0.9): kein Lese-Endpoint für native CVEs — Details siehe Hinweis-Box in der NinjaRMM-Sektion. Dashboard zeigt Hinweis-Banner | 3ac440b |
+| **React #310 Crash auf /support/tickets** — `useCallback` nach Early-Return in TicketKanban; App-weiter `rules-of-hooks`-Sweep fand + fixte 2 weitere (PortalInvoices `useEffect`, SocialMediaManager `useTemplate`→`applyTemplate`) | cc16ba9 |
+| **Sleep-Mode-Logout behoben** (3 Ursachen): (1) Frontend wertete JEDE Nicht-OK-Antwort vom Refresh als Session-Tod inkl. 429/5xx → jetzt nur 401/403 fatal. (2) `/auth/refresh` hing am 5/15min-Login-Brute-Force-Limiter → eigener `refreshLimiter` (60/15min). (3) Multi-Tab-Rotation-Race → Web-Locks Cross-Tab-Mutex in `tryRefreshAccessToken` | 45fc233 |
+| **Deploy-Script** `scripts/deploy.sh` — git pull + `docker compose -f docker-compose.production.yml --env-file .env.production up -d --build` + Health-Checks; `--no-pull`-Option; Preflight für root-owned `.git` | e12758b, 80de596 |
+| **E-Mail-Anhänge → Ticket** + Attachment-Handling-Fixes (Details siehe Bug-Tabelle „Tickets") | 1603e4d |
+| **Static-Serving eingeschränkt** auf `uploads/tickets` — Rechnungs-PDFs nur noch über den authentifizierten Download-Endpoint | a7604e8 |
+| **Route-Shadowing-Sweep: 6 tote Routen reaktiviert** — Bulk Actions, Ticket Templates, Task-Reorder, Maintenance-Bulk-Delete, Pipeline-Stage-Reorder, Line-Items-Bulk-Contract (Details siehe Tabelle „Ticket System Verbesserungen") | b895df0 |
+| **TanStack Query: TimeEntriesList + Stopwatch** — damit Zeiterfassung komplett migriert | f01807f |
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -335,6 +350,25 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 > **Für Claude Code:** Sprints der Reihe nach abarbeiten. Nach jedem PR die Checkbox in der jeweiligen Tabelle auf ✅ setzen und PR-Nummer eintragen. Branch-Konvention beachten (immer von `claude/next-version-roadmap-ks0D0` abzweigen, PR gegen denselben Branch).
 
+### 🎯 Offene Punkte auf einen Blick (Stand 5.7.2026 — Basis für nächste Planungsrunde)
+
+> Konsolidierte Sicht über alle Sprints/Epics hinweg. Sprints 1–4, A–F, G1–G5 und der Juli-Stabilitäts-Sprint sind komplett ✅ — das hier ist ALLES, was noch offen ist, sortiert nach empfohlener Priorität.
+
+| Prio | Task | Aufwand | Kontext |
+|---|---|---|---|
+| 1 | **NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler** | 3-4h | `GET /api/ninjarmm/diagnose` (analog E-Mail-Diagnose) probiert Endpoints mit gespeichertem OAuth-Token durch; Vulnerability-Zähler (`criticalVulnerabilityCount` etc.) aus `/v2/queries/device-health` syncen → Dashboard zeigt echte Zahlen pro Gerät statt Hinweis-Banner. CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
+| 2 | **SocialMediaManager.tsx splitten** (6482 Zeilen) | 1 Tag | In PostsTab/TemplatesTab/AnalyticsTab/CalendarTab; lazy-Import. Größter Einzelbrocken Tech-Debt, blockiert auch TS-Fehler-Abbau (40 Fehler in der Datei). |
+| 3 | **TS-Fehler 374 → 0** | 6h+ | ~135 unbenutzte Imports (mechanisch), ~239 fehlende Interface-Properties (TicketDashboard 47, SocialMediaManager 40, CustomerHub 38). Nach dem Split (Punkt 2) leichter. |
+| 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
+| 5 | **text-gray-* Cleanup** (~495 Stellen) | 4-6h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: SocialMediaManager (118, nach Split), Finanzen (29), MaintenanceView (26). |
+| 6 | **React Router v7 Upgrade** + echte `<Routes>`-Definitionen | 1 Tag | Von v6.22; danach Pass 5 (App.tsx switch → `<Route>`-Elemente). |
+| 7 | **Epic G Rest: Distributor-Integrationen** | je 1-3 Tage | ADN-Lizenzimport, Infinigate, Lywand-Security-Audits im Portal, Microsoft Security Center Scores. Reihenfolge nach Business-Priorität festlegen. |
+| 8 | **Social Media: echtes Posten an Plattformen** | 3-5 Tage | Aktuell nur DB-Einträge. Meta/LinkedIn-APIs, OAuth-Flows, Fehlerbehandlung. |
+| 9 | **database.ts splitten** (4400+ Zeilen) | 1 Tag | In nummerierte Migrationsdateien; reine Hygiene, kein Featuregewinn. |
+| 10 | **Schichtenarchitektur-Pilot** (`tickets.ts` → Controller/Repository) | 2-3 Tage | Langfristig; tickets.ts ist mit ~4000 Zeilen die größte Route-Datei. |
+
+**Verschoben/bewusst offen:** Authentifiziertes Attachment-Serving (Capability-URLs reichen vorerst, siehe Hinweis-Box bei den Ticket-Bugs) · Offline-Sync für andere Aktionen als Zeiteinträge · React 19 Upgrade (Abhängigkeiten prüfen).
+
 ### 🔴 Sprint 1 — Sicherheit (kritisch, sofort umsetzen)
 
 Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben behoben werden.
@@ -381,9 +415,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| 🟡 | **TS-Fehler reduzieren** (~379 verbleibend, 73 gefixt) | diverse | 6h+ | Commits 8817b47–4992d7b. Unbenutzte Imports bereinigt. Verbleibend: ~135 TS6133 (Imports), ~244 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). **Nächster Sprint H.** |
+| 🟡 | **TS-Fehler reduzieren** (374 verbleibend, Stand 5.7.2026) | diverse | 6h+ | Commits 8817b47–4992d7b + Nebeneffekte des Juli-Sprints (379→374). Verbleibend: ~135 TS6133 (Imports), ~239 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
 | ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
-| ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ migriert. TimeEntriesList + Stopwatch: offen (nächster Sprint). |
+| ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ (efbb042). TimeEntriesList + Stopwatch ✅ (f01807f): Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key (TicketDetail/Stopwatch/TimeEntriesList teilen einen Request). |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
 | ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
@@ -458,7 +492,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Bekannte Probleme (pre-existing)
 
-- **TS-Fehler-Baseline: ~379 Fehler** (~135 TS6133, ~244 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b.
+- **TS-Fehler-Baseline: 374 Fehler** (Stand 5.7.2026; ~135 TS6133, ~239 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b, 379→374 als Nebeneffekt des Juli-Sprints.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
@@ -470,8 +504,10 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
 | ~~🟠 Mittel~~ | ~~**Ticket-Darstellung optimieren**~~ | ✅ Gelöst in Commit 3541f1a. Sidebar-Layout mit Tasks, Activities, Email-History. Collapsible Sections. |
 | ~~🟡 Normal~~ | ~~**Schnittstellen-Optimierung**~~ | ✅ Gelöst in Commit 3541f1a. NinjaRMM Device-Linking im Ticket. E-Mail-Diagnose im Admin-Bereich. |
-| 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
-| 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
+| ~~🟠 Mittel~~ | ~~**Attachment-Handling verbessern**~~ | ✅ Gelöst in Commit 1603e4d. Delete-File-Leak gefixt (basename statt URL-Join), Multer-Limit 5→10 (Route versprach 10), Upload-Fehler (zu groß/zu viele/Dateityp) als 400 mit deutscher Meldung bis in den Toast, `uploadAttachments` via `authFetchMultipart`, `CREATE TABLE ticket_attachments` nachgerüstet, accept-Liste an Backend-Whitelist angeglichen. |
+| ~~🟠 Mittel~~ | ~~**E-Mail-Anhänge verarbeiten**~~ | ✅ Gelöst in Commit 1603e4d. `saveEmailToTicket` holt Anhänge von MS Graph (solange die Mail noch im Postfach liegt), speichert sie lokal + in `ticket_email_attachments` (hatte vorher **null Schreiber**). E-Mail-Verlauf zeigt Download-Chips, Attachment-Liste des Tickets zeigt E-Mail-Anhänge read-only mit Badge. |
+
+> **Verbleibende bekannte Schwäche (Attachments):** `/api/uploads/tickets` wird via `express.static` **ohne Auth** ausgeliefert (`server/src/index.ts`) — seit Commit a7604e8 ist das Serving auf das tickets-Unterverzeichnis beschränkt, Rechnungs-PDFs (`uploads/invoices`) laufen ausschließlich über den authentifizierten Download-Endpoint. Schutz der Ticket-Dateien ist die Nicht-Erratbarkeit der UUID-Dateinamen (Capability-URLs). Ein authentifizierter Streaming-Endpoint würde `<img>`-Previews und Portal-Zugriff brechen und braucht ein eigenes Konzept (z.B. signierte Kurzzeit-URLs). Bewusst zurückgestellt.
 
 ### Ticket System Verbesserungen (14.6.2026)
 
@@ -483,8 +519,9 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | **Aufgaben mit Fälligkeitsdatum** — Datepicker, überfällige Tasks rot, heute orange, aufklappbar | 3541f1a |
 | **NinjaRMM Geräteverknüpfung** — Gerät mit Ticket verknüpfen, Status-Anzeige, Dropdown zur Auswahl | 3541f1a |
 | **Quick Status/Priority Change** — Status und Priorität direkt per Dropdown ändern ohne Edit-Modus | f961f2e |
-| **Ticket Templates** — Vorlagen für häufige Ticket-Typen | ✅ Commit (ticket_templates Tabelle + UI) |
-| **Bulk Actions** — Mehrfachauswahl + Massenaktionen für Tickets | ✅ Commit (Multi-Select, Status/Prio/Assign/Delete) |
+| **Ticket Templates** — Vorlagen für häufige Ticket-Typen. UI (CreateTicketDialog, TicketSettings) und Backend waren komplett — `GET /tickets/templates` wurde aber von `GET /:id` geschluckt (Route-Order), die Liste lieferte immer 404 | b895df0 |
+| **Bulk Actions** — Mehrfachauswahl + Massenaktionen (Status/Priorität/Zuweisen/Archivieren/Löschen) in TicketList. War komplett gebaut — nur `DELETE /tickets/bulk` wurde von `DELETE /:id` geschluckt | b895df0 |
+| **Route-Shadowing-Sweep** — Scanner über alle Route-Dateien fand 6 tote Routen (Express-Registrierungsreihenfolge): tickets bulk-delete/templates/task-reorder, admin maintenance-bulk-delete, opportunities stages-reorder, sevdesk line-items bulk-contract. Alle vor die param-Routen verschoben | b895df0 |
 
 ### ✅ Sicherheitslücken — Alle behoben
 
@@ -594,7 +631,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 2.7.2026 — Epic G (Lizenz-Management) komplett ✅. NinjaRMM Vulnerability-Tracking ✅. Sprints 1–4 + A–F + G ✅. Sprint 5 (Tech-Debt) teilweise offen: TS-Fehler (~379), SocialMediaManager splitten, React Router v7, TanStack Query für TimeEntriesList/Stopwatch. Nächste Sprints: H (Tech-Debt-Abschluss), I (Attachment-Handling), J (Distributor-Integrationen). Verhaltensregel 7 um SELECT*-Warnung erweitert.*
+*Zuletzt aktualisiert: 5.7.2026 — Stabilitäts-Sprint komplett ✅: Sleep-Mode-Logout behoben (Refresh-Limiter, Web-Locks, 429≠Session-Tod), React-#310-Kanban-Crash + rules-of-hooks-Sweep, E-Mail-Anhänge → Ticket (Tabelle hatte null Schreiber), Route-Shadowing-Sweep reaktivierte 6 tote Features (u.a. Bulk Actions + Ticket Templates), Static-Serving auf tickets/ beschränkt, TanStack-Migration der Zeiterfassung abgeschlossen, Deploy-Script. NinjaOne-API-Limitierung für CVE-Details gegen offizielle Spec verifiziert. TS-Fehler: 374. **Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
 
 ---
 
@@ -702,6 +739,10 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | ✅ | **Vulnerability-Tracking Backend** | Commit 6c3676d. Tabelle `ninjarmm_vulnerabilities`, Sync-Service, API-Endpoints (GET/PATCH/POST). Schweregrade, CVSS-Scores, Status-Management. |
 | ✅ | **Ninja-Ticket-Darstellung verbessert** | Commit 16fa38b. Source-Badges in TicketList (NinjaRMM/E-Mail/Portal/Manuell), Geräte-Name, TicketNinjaInfo-Komponente in Sidebar mit Device-Details. |
 | ✅ | **Vulnerability-Frontend** | Commit 3969549. `VulnerabilitiesDashboard.tsx` mit Summary-Cards, Filter, Status-Management. Neuer SubView "Schwachstellen" unter Support. Ticket-Erstellung aus Vulnerability. NVD-Links für CVE-Details. |
+
+> **⚠️ API-Limitierung Vulnerability-Sync (verifiziert 3.7.2026 gegen die offizielle NinjaOne Public API 2.0 OpenAPI-Spec, v2.0.9-draft):**
+> Die Public API bietet **keinen Lese-Endpoint für native Software-Scanning-CVEs pro Gerät**. Vulnerability-Management existiert dort nur als `GET /v2/vulnerability/scan-groups`, `GET /v2/vulnerability/scan-groups/{id}` und `POST /v2/vulnerability/scan-groups/{id}/upload` — d.h. ausschließlich **CSV-Import** von Drittanbieter-Scannern (Mapping via Hostname/IP/MAC + CVE-ID, max 200 MB). Lesbar sind nur **aggregierte Zähler** pro Gerät via `GET /v2/queries/device-health` (`criticalVulnerabilityCount`, `highVulnerabilityCount`, …). Die im NinjaOne-Portal sichtbaren CVE-Details laufen über die interne `/swb/s4/vulnerability-mgmt/*`-API (Session-Auth, nicht per OAuth2-Token erreichbar).
+> **Konsequenz:** Der Probe-Mechanismus in `ninjarmmService.ts` (`VULN_ENDPOINT_CANDIDATES`) findet erwartungsgemäß keinen funktionierenden Endpoint (alle 404). `VulnerabilitiesDashboard.tsx` zeigt bei 0 Einträgen einen Hinweis-Banner mit Deep-Link ins NinjaOne-Portal. Sobald NinjaOne einen Read-Endpoint veröffentlicht, kann er in `VULN_ENDPOINT_CANDIDATES` ergänzt werden — Rest der Pipeline (DB, Sync, UI) funktioniert dann unverändert. Alternative bis dahin: Aggregat-Zähler aus `device-health` syncen (nur Counts, keine CVE-Details).
 
 ### Geplant: Distributor- & Sicherheits-Integrationen
 

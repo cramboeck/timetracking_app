@@ -134,7 +134,12 @@ const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/api/uploads', express.static(uploadsDir));
+// Nur das tickets-Unterverzeichnis wird unauthentifiziert ausgeliefert
+// (<img>-Previews und Portal-Zugriff laden die nicht erratbaren
+// UUID-Dateinamen ohne Auth-Header — Capability-URLs). Rechnungs-PDFs unter
+// uploads/invoices laufen ausschließlich über den authentifizierten Endpoint
+// GET /api/microsoft365/documents/:id/download.
+app.use('/api/uploads/tickets', express.static(path.join(uploadsDir, 'tickets')));
 
 // Health check - Basic liveness probe (is the server running?)
 // Available at both /health (direct) and /api/health (via nginx)

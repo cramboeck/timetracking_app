@@ -65,7 +65,19 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
     mutationFn: () => ninjaApi.syncVulnerabilities(),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['vulnerabilities'] });
-      showToast(`${data.data.synced} Geräte synchronisiert, ${data.data.newVulnerabilities} neue Schwachstellen`, 'success');
+      // The backend reports which vulnerability endpoint (if any) actually
+      // responded. Without a working endpoint "0 Schwachstellen" is a fetch
+      // failure, not a clean result — show that as an error, not a success.
+      const d = data.data;
+      if (!d.workingEndpoint && d.fetchErrors?.length) {
+        showToast(
+          `Sync fehlgeschlagen: kein funktionierender Vulnerability-Endpoint (${d.fetchErrors[0]})`,
+          'error',
+          10000
+        );
+      } else {
+        showToast(`${d.synced} Geräte synchronisiert, ${d.newVulnerabilities} neue Schwachstellen`, 'success');
+      }
     },
     onError: () => {
       showToast('Fehler beim Synchronisieren', 'error');
@@ -97,6 +109,14 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
       showToast('Fehler beim Erstellen des Tickets', 'error');
     },
   });
+
+  // instanceUrl for the portal deep-link in the API-limitation banner
+  const configQuery = useQuery({
+    queryKey: ['ninjarmm', 'config'],
+    queryFn: () => ninjaApi.getConfig(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const instanceUrl = configQuery.data?.data?.instanceUrl || 'https://eu.ninjarmm.com';
 
   const summary = summaryQuery.data;
   const vulnerabilities = vulnerabilitiesQuery.data || [];
@@ -133,6 +153,32 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
           Synchronisieren
         </Button>
       </div>
+
+      {/* API-limitation notice: NinjaOne's public API exposes vulnerability data
+          only as a CSV *import* (scan groups) — there is no read endpoint for the
+          native software-scanning CVEs shown in the NinjaOne portal. Without data
+          in our DB, an honest hint beats a misleading "0 Schwachstellen". */}
+      {summary && summary.total === 0 && !isLoading && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+          <div className="text-sm text-blue-800 dark:text-blue-200">
+            <p className="font-semibold mb-1">Native Schwachstellen-Daten sind über die NinjaOne-API nicht verfügbar</p>
+            <p>
+              Die NinjaOne Public API bietet aktuell keinen Lese-Endpoint für die im Portal angezeigten
+              Software-Scanning-CVEs (nur CSV-Import über Scan-Groups). Die vollständige Schwachstellen-Übersicht
+              findest du im NinjaOne-Portal unter <span className="font-medium">System&nbsp;Dashboard&nbsp;→&nbsp;Schwachstellen</span>.
+            </p>
+            <a
+              href={instanceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-2 font-medium text-blue-700 dark:text-blue-300 hover:underline"
+            >
+              NinjaOne-Portal öffnen <ExternalLink size={14} />
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       {summary && (

@@ -15,7 +15,7 @@ import {
   CustomerContact,
   TimeEntry,
 } from '../../types';
-import { API_BASE_URL, authFetch, handleResponse } from './base';
+import { API_BASE_URL, authFetch, authFetchMultipart, handleResponse } from './base';
 
 // Ticket Dashboard type
 export interface TicketDashboardData {
@@ -79,6 +79,9 @@ export interface TicketAttachment {
   mimeType: string;
   uploadedByName?: string;
   uploadedByType?: 'user' | 'customer';
+  // 'upload' = via UI/Portal hochgeladen, 'email' = aus eingehender E-Mail
+  // übernommen (read-only, kein Delete-Endpoint)
+  source?: 'upload' | 'email';
   createdAt: string;
 }
 
@@ -394,14 +397,9 @@ export const ticketsApi = {
   },
 
   uploadAttachments: async (ticketId: string, formData: FormData): Promise<{ success: boolean; data: TicketAttachment[] }> => {
-    const token = localStorage.getItem('auth_token');
-    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/attachments`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
-      body: formData,
-    });
-    if (!response.ok) throw new Error('Failed to upload attachments');
-    return response.json();
+    // authFetchMultipart handles the 401→refresh→replay flow and surfaces
+    // the server's error message (e.g. "Datei zu groß — maximal 10 MB").
+    return authFetchMultipart(`/tickets/${ticketId}/attachments`, formData);
   },
 
   deleteAttachment: async (ticketId: string, attachmentId: string): Promise<{ success: boolean }> => {

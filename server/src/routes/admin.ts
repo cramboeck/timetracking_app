@@ -575,52 +575,9 @@ router.get('/maintenance/stats', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/maintenance/:id - Delete maintenance announcement (admin)
-router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-
-    // Get announcement details before deleting
-    const announcementResult = await pool.query(
-      `SELECT a.*, u.username as user_name
-       FROM maintenance_announcements a
-       LEFT JOIN users u ON a.user_id = u.id
-       WHERE a.id = $1`,
-      [id]
-    );
-
-    if (announcementResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Announcement not found' });
-    }
-
-    const announcement = announcementResult.rows[0];
-
-    // Delete the announcement (cascades to customers and devices)
-    await pool.query('DELETE FROM maintenance_announcements WHERE id = $1', [id]);
-
-    // Log action
-    await auditLog.log({
-      userId: req.user!.id,
-      action: 'maintenance.admin_delete',
-      details: JSON.stringify({
-        announcementId: id,
-        title: announcement.title,
-        status: announcement.status,
-        ownerId: announcement.user_id,
-        ownerName: announcement.user_name
-      }),
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
-    });
-
-    res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
-  } catch (error) {
-    logger.error('Error deleting maintenance announcement:', error);
-    res.status(500).json({ error: 'Failed to delete maintenance announcement' });
-  }
-});
-
-// DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements
+// DELETE /api/admin/maintenance/bulk - Bulk delete maintenance announcements.
+// MUSS vor DELETE /maintenance/:id registriert sein, sonst matcht Express
+// 'bulk' als id und die Route ist unerreichbar.
 router.delete('/maintenance/bulk', validate(bulkUpdateSchema), async (req: AuthRequest, res) => {
   try {
     const { ids, status, olderThan } = req.body;
@@ -674,6 +631,51 @@ router.delete('/maintenance/bulk', validate(bulkUpdateSchema), async (req: AuthR
   } catch (error) {
     logger.error('Error bulk deleting maintenance announcements:', error);
     res.status(500).json({ error: 'Failed to delete maintenance announcements' });
+  }
+});
+
+// DELETE /api/admin/maintenance/:id - Delete maintenance announcement (admin)
+router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get announcement details before deleting
+    const announcementResult = await pool.query(
+      `SELECT a.*, u.username as user_name
+       FROM maintenance_announcements a
+       LEFT JOIN users u ON a.user_id = u.id
+       WHERE a.id = $1`,
+      [id]
+    );
+
+    if (announcementResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Announcement not found' });
+    }
+
+    const announcement = announcementResult.rows[0];
+
+    // Delete the announcement (cascades to customers and devices)
+    await pool.query('DELETE FROM maintenance_announcements WHERE id = $1', [id]);
+
+    // Log action
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'maintenance.admin_delete',
+      details: JSON.stringify({
+        announcementId: id,
+        title: announcement.title,
+        status: announcement.status,
+        ownerId: announcement.user_id,
+        ownerName: announcement.user_name
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, message: 'Wartungsankündigung gelöscht' });
+  } catch (error) {
+    logger.error('Error deleting maintenance announcement:', error);
+    res.status(500).json({ error: 'Failed to delete maintenance announcement' });
   }
 });
 
