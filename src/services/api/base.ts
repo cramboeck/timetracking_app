@@ -46,9 +46,32 @@ const notifySessionExpired = () => {
   window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 };
 
-export const tryRefreshAccessToken = async (): Promise<string | null> => {
+// Cross-tab mutex around the refresh call. All tabs share one refresh token
+// in localStorage, and rotation makes concurrent refreshes a logout hazard:
+// the server treats a badly raced token chain as theft and revokes every
+// session (the "wake from sleep with several tabs open" scenario). Web Locks
+// serialize the refresh across tabs; browsers without the API fall back to
+// the per-tab single-flight, which the server's lost-response retry absorbs.
+const withRefreshLock = <T>(fn: () => Promise<T>): Promise<T> => {
+  if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+    return navigator.locks.request('ramboflow-token-refresh', fn) as Promise<T>;
+  }
+  return fn();
+};
+
+export const tryRefreshAccessToken = async (
+  // The access token that just got a 401, if known. Lets us detect that
+  // another tab already refreshed while we waited for the cross-tab lock.
+  staleAccessToken?: string | null
+): Promise<string | null> => {
   if (pendingRefresh) return pendingRefresh;
-  pendingRefresh = (async () => {
+  pendingRefresh = withRefreshLock(async () => {
+    // Another tab may have rotated the tokens while we held back — if the
+    // stored access token differs from the one that failed, just use it.
+    const currentAccess = localStorage.getItem('auth_token');
+    if (staleAccessToken && currentAccess && currentAccess !== staleAccessToken) {
+      return currentAccess;
+    }
     const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
       notifySessionExpired();
@@ -61,7 +84,13 @@ export const tryRefreshAccessToken = async (): Promise<string | null> => {
         body: JSON.stringify({ refreshToken }),
       });
       if (!response.ok) {
-        notifySessionExpired();
+        // Only a definitive rejection of the refresh token ends the session.
+        // Transient failures (429 rate limit, 5xx, proxy errors — typical
+        // right after the machine wakes from sleep) keep the tokens so a
+        // later attempt can still succeed.
+        if (response.status === 401 || response.status === 403) {
+          notifySessionExpired();
+        }
         return null;
       }
       const result = await response.json();
@@ -74,7 +103,7 @@ export const tryRefreshAccessToken = async (): Promise<string | null> => {
       // Network error — keep the tokens; a later attempt may still succeed.
       return null;
     }
-  })();
+  });
   try {
     return await pendingRefresh;
   } finally {
@@ -102,7 +131,7 @@ export const authFetch = async (url: string, options: RequestInit = {}): Promise
 
   // Access token expired — try a single transparent refresh + replay.
   if (response.status === 401) {
-    const fresh = await tryRefreshAccessToken();
+    const fresh = await tryRefreshAccessToken(token);
     if (fresh) {
       response = await fetch(`${API_BASE_URL}${url}`, {
         ...options,
@@ -133,7 +162,7 @@ export const authFetchMultipart = async (url: string, formData: FormData): Promi
   });
 
   if (response.status === 401) {
-    const fresh = await tryRefreshAccessToken();
+    const fresh = await tryRefreshAccessToken(token);
     if (fresh) {
       response = await fetch(`${API_BASE_URL}${url}`, {
         method: 'POST',
