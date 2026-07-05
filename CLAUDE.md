@@ -470,8 +470,10 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | ~~🔴 Hoch~~ | ~~**KI-generierter Text nicht lesbar**~~ | ✅ Gelöst in Commit 8a08304. Dark-Mode-Kontrast verbessert: `purple-400` → `purple-200`, `prose-invert` → explizite `gray-100`. |
 | ~~🟠 Mittel~~ | ~~**Ticket-Darstellung optimieren**~~ | ✅ Gelöst in Commit 3541f1a. Sidebar-Layout mit Tasks, Activities, Email-History. Collapsible Sections. |
 | ~~🟡 Normal~~ | ~~**Schnittstellen-Optimierung**~~ | ✅ Gelöst in Commit 3541f1a. NinjaRMM Device-Linking im Ticket. E-Mail-Diagnose im Admin-Bereich. |
-| 🟠 Mittel | **Attachment-Handling verbessern** | Upload/Download/Vorschau von Anhängen bei Tickets unzureichend |
-| 🟠 Mittel | **E-Mail-Anhänge verarbeiten** | Anhänge aus eingehenden E-Mails werden nicht korrekt ans Ticket gehängt |
+| ~~🟠 Mittel~~ | ~~**Attachment-Handling verbessern**~~ | ✅ Gelöst in Commit 1603e4d. Delete-File-Leak gefixt (basename statt URL-Join), Multer-Limit 5→10 (Route versprach 10), Upload-Fehler (zu groß/zu viele/Dateityp) als 400 mit deutscher Meldung bis in den Toast, `uploadAttachments` via `authFetchMultipart`, `CREATE TABLE ticket_attachments` nachgerüstet, accept-Liste an Backend-Whitelist angeglichen. |
+| ~~🟠 Mittel~~ | ~~**E-Mail-Anhänge verarbeiten**~~ | ✅ Gelöst in Commit 1603e4d. `saveEmailToTicket` holt Anhänge von MS Graph (solange die Mail noch im Postfach liegt), speichert sie lokal + in `ticket_email_attachments` (hatte vorher **null Schreiber**). E-Mail-Verlauf zeigt Download-Chips, Attachment-Liste des Tickets zeigt E-Mail-Anhänge read-only mit Badge. |
+
+> **Verbleibende bekannte Schwäche (Attachments):** `/api/uploads` wird via `express.static` **ohne Auth** ausgeliefert (`server/src/index.ts`). Schutz ist aktuell nur die Nicht-Erratbarkeit der UUID-Dateinamen (Capability-URLs). Ein authentifizierter Streaming-Endpoint würde `<img>`-Previews und Portal-Zugriff brechen und braucht ein eigenes Konzept (z.B. signierte Kurzzeit-URLs). Bewusst zurückgestellt.
 
 ### Ticket System Verbesserungen (14.6.2026)
 
