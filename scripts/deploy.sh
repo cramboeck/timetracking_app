@@ -38,6 +38,15 @@ fi
 # Schritt 1: Neuesten Stand holen
 # -----------------------------------------------------------------------------
 if [ "$1" != "--no-pull" ]; then
+    # Häufige Falle: Repo wurde als root geklont, dann scheitert git fetch mit
+    # "cannot open '.git/FETCH_HEAD': Permission denied".
+    if [ ! -w ".git" ]; then
+        print_error "Keine Schreibrechte auf .git — das Repo gehört einem anderen Benutzer."
+        print_info  "Einmalig beheben mit:"
+        echo "        sudo chown -R $(whoami):$(whoami) $(pwd)"
+        print_info  "(Unbedenklich: alle Produktionsdaten liegen in Docker-Volumes, nicht im Repo.)"
+        exit 1
+    fi
     print_info "Hole neuesten Stand von origin/${BRANCH}..."
     git fetch origin "$BRANCH"
     git checkout "$BRANCH"
