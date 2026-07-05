@@ -104,7 +104,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ### Support & NinjaRMM Integration
 - Backend-Webhook `/webhook/:userId` ist solide (Secret-Validierung, Auto-Ticket aus Alerts, Exclusion-Rules mit Regex, OAuth2 Token-Refresh, 5-Min Auto-Sync via Cron) ✅
-- **Lücken:** Tickets ohne Bulk-Actions; SLA-Warnungen nur im Detail-View. (~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
+- **Lücken:** SLA-Warnungen nur im Detail-View. (~~Tickets ohne Bulk-Actions~~ — waren komplett gebaut, nur route-geshadowed; reaktiviert in b895df0. ~~`AlertsView` muss manuell refreshed werden~~ — gelöst in PR #81: TanStack Query mit `refetchInterval: 30 s` polled jetzt automatisch.)
 
 ### CRM
 - Fragmentiert: `CustomerHub.tsx` ist sehr umfangreich (360°), aber `Leads.tsx` und `SalesPipeline.tsx` wirken wie separate Apps
@@ -115,7 +115,22 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 10.6.2026)
+## Aktueller Stand (Stand 5.7.2026)
+
+### Stabilitäts-Sprint Anfang Juli 2026 — ✅ abgeschlossen
+
+| Task | Commit |
+|---|---|
+| **NinjaRMM: Kritische Alerts erzeugten keine Tickets** (Priority-Check-Bug) | 65e9a4d |
+| Vulnerability-Sync: Endpoint-Diagnose im Toast, Typisierung statt `any` | b6d53ab, b1d49f6 |
+| **NinjaOne-API-Limitierung verifiziert** (offizielle OpenAPI-Spec 2.0.9): kein Lese-Endpoint für native CVEs — Details siehe Hinweis-Box in der NinjaRMM-Sektion. Dashboard zeigt Hinweis-Banner | 3ac440b |
+| **React #310 Crash auf /support/tickets** — `useCallback` nach Early-Return in TicketKanban; App-weiter `rules-of-hooks`-Sweep fand + fixte 2 weitere (PortalInvoices `useEffect`, SocialMediaManager `useTemplate`→`applyTemplate`) | cc16ba9 |
+| **Sleep-Mode-Logout behoben** (3 Ursachen): (1) Frontend wertete JEDE Nicht-OK-Antwort vom Refresh als Session-Tod inkl. 429/5xx → jetzt nur 401/403 fatal. (2) `/auth/refresh` hing am 5/15min-Login-Brute-Force-Limiter → eigener `refreshLimiter` (60/15min). (3) Multi-Tab-Rotation-Race → Web-Locks Cross-Tab-Mutex in `tryRefreshAccessToken` | 45fc233 |
+| **Deploy-Script** `scripts/deploy.sh` — git pull + `docker compose -f docker-compose.production.yml --env-file .env.production up -d --build` + Health-Checks; `--no-pull`-Option; Preflight für root-owned `.git` | e12758b, 80de596 |
+| **E-Mail-Anhänge → Ticket** + Attachment-Handling-Fixes (Details siehe Bug-Tabelle „Tickets") | 1603e4d |
+| **Static-Serving eingeschränkt** auf `uploads/tickets` — Rechnungs-PDFs nur noch über den authentifizierten Download-Endpoint | a7604e8 |
+| **Route-Shadowing-Sweep: 6 tote Routen reaktiviert** — Bulk Actions, Ticket Templates, Task-Reorder, Maintenance-Bulk-Delete, Pipeline-Stage-Reorder, Line-Items-Bulk-Contract (Details siehe Tabelle „Ticket System Verbesserungen") | b895df0 |
+| **TanStack Query: TimeEntriesList + Stopwatch** — damit Zeiterfassung komplett migriert | f01807f |
 
 ### Sprint „Kurzfristig" — ✅ abgeschlossen
 
@@ -335,6 +350,25 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 > **Für Claude Code:** Sprints der Reihe nach abarbeiten. Nach jedem PR die Checkbox in der jeweiligen Tabelle auf ✅ setzen und PR-Nummer eintragen. Branch-Konvention beachten (immer von `claude/next-version-roadmap-ks0D0` abzweigen, PR gegen denselben Branch).
 
+### 🎯 Offene Punkte auf einen Blick (Stand 5.7.2026 — Basis für nächste Planungsrunde)
+
+> Konsolidierte Sicht über alle Sprints/Epics hinweg. Sprints 1–4, A–F, G1–G5 und der Juli-Stabilitäts-Sprint sind komplett ✅ — das hier ist ALLES, was noch offen ist, sortiert nach empfohlener Priorität.
+
+| Prio | Task | Aufwand | Kontext |
+|---|---|---|---|
+| 1 | **NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler** | 3-4h | `GET /api/ninjarmm/diagnose` (analog E-Mail-Diagnose) probiert Endpoints mit gespeichertem OAuth-Token durch; Vulnerability-Zähler (`criticalVulnerabilityCount` etc.) aus `/v2/queries/device-health` syncen → Dashboard zeigt echte Zahlen pro Gerät statt Hinweis-Banner. CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
+| 2 | **SocialMediaManager.tsx splitten** (6482 Zeilen) | 1 Tag | In PostsTab/TemplatesTab/AnalyticsTab/CalendarTab; lazy-Import. Größter Einzelbrocken Tech-Debt, blockiert auch TS-Fehler-Abbau (40 Fehler in der Datei). |
+| 3 | **TS-Fehler 374 → 0** | 6h+ | ~135 unbenutzte Imports (mechanisch), ~239 fehlende Interface-Properties (TicketDashboard 47, SocialMediaManager 40, CustomerHub 38). Nach dem Split (Punkt 2) leichter. |
+| 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
+| 5 | **text-gray-* Cleanup** (~495 Stellen) | 4-6h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: SocialMediaManager (118, nach Split), Finanzen (29), MaintenanceView (26). |
+| 6 | **React Router v7 Upgrade** + echte `<Routes>`-Definitionen | 1 Tag | Von v6.22; danach Pass 5 (App.tsx switch → `<Route>`-Elemente). |
+| 7 | **Epic G Rest: Distributor-Integrationen** | je 1-3 Tage | ADN-Lizenzimport, Infinigate, Lywand-Security-Audits im Portal, Microsoft Security Center Scores. Reihenfolge nach Business-Priorität festlegen. |
+| 8 | **Social Media: echtes Posten an Plattformen** | 3-5 Tage | Aktuell nur DB-Einträge. Meta/LinkedIn-APIs, OAuth-Flows, Fehlerbehandlung. |
+| 9 | **database.ts splitten** (4400+ Zeilen) | 1 Tag | In nummerierte Migrationsdateien; reine Hygiene, kein Featuregewinn. |
+| 10 | **Schichtenarchitektur-Pilot** (`tickets.ts` → Controller/Repository) | 2-3 Tage | Langfristig; tickets.ts ist mit ~4000 Zeilen die größte Route-Datei. |
+
+**Verschoben/bewusst offen:** Authentifiziertes Attachment-Serving (Capability-URLs reichen vorerst, siehe Hinweis-Box bei den Ticket-Bugs) · Offline-Sync für andere Aktionen als Zeiteinträge · React 19 Upgrade (Abhängigkeiten prüfen).
+
 ### 🔴 Sprint 1 — Sicherheit (kritisch, sofort umsetzen)
 
 Diese Punkte sind **Sicherheitslücken** und müssen vor allen anderen Aufgaben behoben werden.
@@ -381,7 +415,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| 🟡 | **TS-Fehler reduzieren** (~379 verbleibend, 73 gefixt) | diverse | 6h+ | Commits 8817b47–4992d7b. Unbenutzte Imports bereinigt. Verbleibend: ~135 TS6133 (Imports), ~244 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
+| 🟡 | **TS-Fehler reduzieren** (374 verbleibend, Stand 5.7.2026) | diverse | 6h+ | Commits 8817b47–4992d7b + Nebeneffekte des Juli-Sprints (379→374). Verbleibend: ~135 TS6133 (Imports), ~239 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
 | ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
 | ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ (efbb042). TimeEntriesList + Stopwatch ✅ (f01807f): Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key (TicketDetail/Stopwatch/TimeEntriesList teilen einen Request). |
 | ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
@@ -458,7 +492,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Bekannte Probleme (pre-existing)
 
-- **TS-Fehler-Baseline: ~379 Fehler** (~135 TS6133, ~244 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b.
+- **TS-Fehler-Baseline: 374 Fehler** (Stand 5.7.2026; ~135 TS6133, ~239 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b, 379→374 als Nebeneffekt des Juli-Sprints.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
@@ -597,7 +631,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 15.6.2026 — Epic G (Lizenz-Management) komplett ✅: Sprints G1–G5 inkl. Vertragsverknüpfung. NinjaRMM komplett erweitert: Vulnerability-Tracking (Backend + Frontend Dashboard), Ninja-Ticket-Darstellung verbessert. CRM + Portal Lizenzen-Tabs, Rebilling-Workflow. Geplant: ADN/Infinigate, Lywand, Microsoft Security. Sprints 1–4 + A–F ✅.*
+*Zuletzt aktualisiert: 5.7.2026 — Stabilitäts-Sprint komplett ✅: Sleep-Mode-Logout behoben (Refresh-Limiter, Web-Locks, 429≠Session-Tod), React-#310-Kanban-Crash + rules-of-hooks-Sweep, E-Mail-Anhänge → Ticket (Tabelle hatte null Schreiber), Route-Shadowing-Sweep reaktivierte 6 tote Features (u.a. Bulk Actions + Ticket Templates), Static-Serving auf tickets/ beschränkt, TanStack-Migration der Zeiterfassung abgeschlossen, Deploy-Script. NinjaOne-API-Limitierung für CVE-Details gegen offizielle Spec verifiziert. TS-Fehler: 374. **Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
 
 ---
 
