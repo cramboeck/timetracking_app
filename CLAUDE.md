@@ -659,13 +659,16 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ### 🟠 Sprint I — Attachment-Handling & E-Mail-Anhänge
 
-**Abhängigkeit:** keine | **Geschätzter Aufwand:** 3–4 Tage
+**Abhängigkeit:** keine | **Status:** Kern erledigt im Juli-Stabilitäts-Sprint (5.7.2026), nur zwei Ausbaustufen offen
+
+> **Hinweis (5.7.2026):** Dieser Sprint wurde am 2.7. geplant, bevor der Juli-Stabilitäts-Sprint lief. Die drei Kernpunkte (E-Mail-Anhänge persistieren, Attachment-Handling reparieren, Größenlimit) sind seither erledigt (Commit 1603e4d + a7604e8). Es bleiben zwei optionale Ausbaustufen offen.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **Ticket-Attachments: Upload/Download/Vorschau** | `src/components/ticket-detail/TicketAttachments.tsx`, `server/src/routes/tickets.ts` | 2–3h | Aktueller Stand: Upload funktioniert, Download/Vorschau unzureichend. Ziel: Bild-Vorschau im Modal (lightbox-style), PDF-Vorschau via `<iframe>`, Download-Button mit korrektem Content-Disposition Header. Max 10 MB, erlaubte Typen: Bilder, PDF, Word, Excel, Text. |
-| ⬜ | **E-Mail-Anhänge ans Ticket hängen** | `server/src/routes/tickets.ts`, E-Mail-Verarbeitungs-Service | 3–4h | Eingehende E-Mails mit Anhängen: Anhänge werden aktuell nicht persistiert. Ziel: Bei E-Mail-Ticket-Erstellung Anhänge in `ticket_email_attachments` speichern, in TicketDetail anzeigen. Basis: vorhandene `ticket_email_attachments`-Tabelle nutzen. |
-| ⬜ | **Attachment-Größenlimit serverseitig** | `server/src/routes/tickets.ts` | 30min | Multer-Konfiguration: `limits: { fileSize: 10 * 1024 * 1024 }`. Fehler-Response mit klarer Meldung. |
+| ✅ | **E-Mail-Anhänge ans Ticket hängen** | `server/src/routes/microsoft365.ts` | 3–4h | Commit 1603e4d. `saveEmailToTicket` holt Anhänge von MS Graph, speichert lokal + in `ticket_email_attachments` (hatte vorher null Schreiber). E-Mail-Verlauf zeigt Download-Chips, Attachment-Liste zeigt E-Mail-Anhänge read-only. |
+| ✅ | **Ticket-Attachments: Handling reparieren** | `src/components/ticket-detail/TicketAttachments.tsx`, `server/src/routes/tickets.ts`, `server/src/middleware/upload.ts` | 2–3h | Commit 1603e4d. Delete-File-Leak (basename), Multer-Limit 5→10, Upload-Fehler als 400 mit deutscher Meldung, `authFetchMultipart`, `CREATE TABLE ticket_attachments`, accept-Liste angeglichen. Static-Serving auf `uploads/tickets` beschränkt (a7604e8). |
+| ✅ | **Attachment-Größenlimit serverseitig** | `server/src/middleware/upload.ts` | 30min | War bereits `fileSize: 10 MB`; Commit 1603e4d ergänzte MulterError-Handling (LIMIT_FILE_SIZE/COUNT/Dateityp) mit klarer Fehler-Response bis in den Toast. |
+| ⬜ | **Attachment-Vorschau ausbauen** (optional) | `src/components/ticket-detail/TicketAttachments.tsx` | 2–3h | Aktuell: Bilder als `<img>`-Grid, sonstige als Download-Link. Ausbau: Bild-Lightbox im Modal, PDF-Vorschau via `<iframe>`. Reines UX-Nice-to-have. |
 | ⬜ | **Offline-Sync für weitere Aktionen** | `src/hooks/useOfflineEntrySync.ts` | 2–3h | Aktuell nur Zeiteinträge. Erweiterung: Ticket-Kommentare und Task-Updates offline puffern. Gleiche `clientId`-Idempotenz-Strategie wie bei Einträgen. |
 
 ---
