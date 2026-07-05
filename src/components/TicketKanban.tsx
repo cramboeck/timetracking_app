@@ -473,14 +473,6 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
     setPriorityFilter('');
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
-      </div>
-    );
-  }
-
   // Render function using memoized TicketCard component
   const renderTicketCard = useCallback((ticket: Ticket) => {
     const tags = ticketTags[ticket.id] || [];
@@ -504,6 +496,14 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
       />
     );
   }, [ticketTags, draggedTicket, getAssigneeInitials, getAssigneeName, getCustomerName, getCustomerColor, handleDragStart, handleDragEnd, onTicketSelect]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
