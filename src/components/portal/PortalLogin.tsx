@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Ticket, Lock, Mail, AlertCircle, ArrowRight, Shield, Info, X, Smartphone, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, AlertCircle, ArrowRight, Shield, Info, X, Smartphone, ArrowLeft } from 'lucide-react';
 import { customerPortalApi, PortalContact } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
+import logoRamboeck from '../../logo/logo-ramboeckit.png';
 
 interface PortalLoginProps {
   onLoginSuccess: (contact: PortalContact) => void;
@@ -142,25 +143,32 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent-light to-indigo-100 dark:from-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-accent-light via-white to-indigo-100 dark:from-dark-50 dark:via-dark-50 dark:to-dark-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-primary text-white mb-4">
-            {mfaRequired ? <Smartphone size={32} /> : <Ticket size={32} />}
-          </div>
+          <img
+            src={logoRamboeck}
+            alt="Ramboeck IT"
+            className="h-12 mx-auto mb-6 object-contain dark:brightness-0 dark:invert"
+          />
+          {mfaRequired && (
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent-primary/10 text-accent-primary mb-4">
+              <Smartphone size={28} />
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {mfaRequired ? 'Zwei-Faktor-Authentifizierung' : 'Kundenportal'}
+            {mfaRequired ? 'Zwei-Faktor-Authentifizierung' : 'Willkommen im Kundenportal'}
           </h1>
           <p className="text-gray-600 dark:text-dark-400 mt-2">
             {mfaRequired
               ? 'Geben Sie den Code aus Ihrer Authenticator-App ein'
-              : 'Melden Sie sich an, um Ihre Tickets zu verwalten'}
+              : 'Melden Sie sich an, um Ihre Tickets, Geräte und Rechnungen einzusehen'}
           </p>
         </div>
 
         {/* Login Form or MFA Form */}
-        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl p-8">
+        <div className="bg-white dark:bg-dark-100 rounded-2xl shadow-xl ring-1 ring-gray-100 dark:ring-dark-border p-8">
           {mfaRequired ? (
             <div className="space-y-5">
               {error && (
@@ -325,6 +333,9 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
               Impressum
             </Button>
           </div>
+          <p className="mt-4 text-xs text-gray-400 dark:text-dark-400">
+            Betrieben von Ramboeck IT
+          </p>
         </div>
       </div>
 
