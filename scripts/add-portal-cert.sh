@@ -42,10 +42,16 @@ print_success "DNS aufgelöst: $(getent hosts portal.ramboeck.it | awk '{print $
 # Zertifikat erweitern. --cert-name app.ramboeck.it hält die bestehende
 # Lineage (nginx zeigt auf /etc/letsencrypt/live/app.ramboeck.it/), --expand
 # fügt den neuen Namen additiv hinzu — bestehende Namen bleiben erhalten.
+#
+# WICHTIG: Die Volumes müssen mit ihren ECHTEN Namen referenziert werden
+# (timetracking_app_*), NICHT den Compose-Kurznamen — sonst schreibt certbot
+# die Challenge-Dateien in frische, leere Volumes, die der laufende nginx
+# nicht ausliefert (→ ACME-Challenge 404). Die Namen stehen in
+# docker-compose.production.yml unter volumes: … name:.
 print_info "Erweitere Zertifikat um portal.ramboeck.it..."
 sudo docker run --rm \
-  -v certbot_data:/var/www/certbot \
-  -v letsencrypt:/etc/letsencrypt \
+  -v timetracking_app_certbot_data:/var/www/certbot \
+  -v timetracking_app_letsencrypt:/etc/letsencrypt \
   certbot/certbot:arm64v8-latest \
   certonly \
   --webroot \
@@ -53,6 +59,7 @@ sudo docker run --rm \
   --email "$EMAIL" \
   --agree-tos \
   --no-eff-email \
+  --non-interactive \
   --expand \
   --cert-name app.ramboeck.it \
   -d app.ramboeck.it \
