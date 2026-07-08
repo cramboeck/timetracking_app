@@ -163,12 +163,18 @@ const createQuoteSchema = z.object({
 
 const updateQuoteSchema = createQuoteSchema.partial();
 
+// Per-item payload for POST /import/execute. Matches what the frontend
+// actually sends (SevdeskCustomerImport → executeImport) and what
+// batchImportSevdeskCustomers consumes: the action plus optional link target
+// and import options. name/email/address are NOT sent — the service re-fetches
+// the full contact from sevDesk by sevdeskId. (The previous schema required
+// `name` and a valid `email`, so EVERY import failed with "Validation failed".)
 const importCustomerSchema = z.object({
   sevdeskId: z.string().min(1).max(100),
-  name: z.string().min(1).max(500),
-  customerNumber: z.string().max(100).optional(),
-  email: z.string().email().max(500).optional().nullable(),
-  address: z.string().max(1000).optional(),
+  action: z.enum(['import', 'link', 'skip']),
+  linkToCustomerId: z.string().min(1).max(100).optional().nullable(),
+  color: z.string().max(50).optional(),
+  hourlyRate: z.number().min(0).max(10000).optional().nullable(),
 });
 
 const importCustomersSchema = z.object({
