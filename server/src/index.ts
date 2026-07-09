@@ -9,6 +9,7 @@ import { startNotificationJobs } from './jobs/notificationJobs';
 import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
+import { startSevdeskCustomerSyncJob } from './jobs/sevdeskCustomerSync';
 import { startContractHoursJob } from './jobs/contractHoursCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import authRoutes from './routes/auth';
@@ -212,6 +213,11 @@ startHealthScoreJobs();
 // in processed_invoices, damit Belege aus dem sevDesk-WebUI auch in der
 // RamboFlow-Inbox/Suche erscheinen.
 startSevdeskVoucherSyncJob();
+
+// Start sevDesk-Kunden-Auto-Sync (täglich 06:15) - importiert neue sevDesk-
+// Kunden automatisch für User mit aktiviertem Toggle „Kunden automatisch
+// synchronisieren" und benachrichtigt sie per E-Mail.
+startSevdeskCustomerSyncJob();
 
 // Start Contract Hours Check job (daily at 6:00 AM)
 // Warns when customers approach/exceed their included monthly hours

@@ -12,6 +12,7 @@ import * as aiService from '../services/aiService';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { customerMatchingService } from '../services/customerMatchingService';
 import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
+import { runCustomerSyncForUser } from '../jobs/sevdeskCustomerSync';
 import { logger } from '../utils/logger';
 
 const router = express.Router();
@@ -1473,6 +1474,20 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
     });
   } catch (error: any) {
     console.error('Single import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/sevdesk/customers/sync-now - Manually run the customer auto-sync
+// for the current user (imports new sevDesk customers + sends the same email
+// notification). Ignores the auto_sync toggle since it's an explicit action.
+router.post('/customers/sync-now', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const summary = await runCustomerSyncForUser(userId);
+    res.json({ success: true, data: summary });
+  } catch (error: any) {
+    console.error('Manual customer sync error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

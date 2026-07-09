@@ -499,6 +499,13 @@ export const sevdeskApi = {
     });
   },
 
+  syncCustomersNow: async (): Promise<{
+    success: boolean;
+    data: { newCount: number; imported: number; errors: number; nameMatchCount: number };
+  }> => {
+    return authFetch('/sevdesk/customers/sync-now', { method: 'POST' });
+  },
+
   importSingleCustomer: async (data: {
     sevdeskId: string;
     name: string;

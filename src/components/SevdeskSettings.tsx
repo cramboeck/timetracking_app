@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Info,
   Download,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from './ui';
 import { sevdeskApi, SevdeskConfig } from '../services/api';
@@ -26,6 +27,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [syncingCustomers, setSyncingCustomers] = useState(false);
 
   // Form state
   const [apiToken, setApiToken] = useState('');
@@ -111,6 +113,34 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
       setError(err.message || 'Verbindung fehlgeschlagen');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    try {
+      setSyncingCustomers(true);
+      setError(null);
+      setSuccess(null);
+
+      const res = await sevdeskApi.syncCustomersNow();
+      const { imported, nameMatchCount } = res.data;
+
+      if (imported > 0) {
+        let msg = `${imported} neue${imported === 1 ? 'r Kunde' : ' Kunden'} importiert.`;
+        if (nameMatchCount > 0) {
+          msg += ` ${nameMatchCount} Namenstreffer bitte im Import-Dialog prüfen.`;
+        }
+        setSuccess(msg);
+        onCustomersChanged?.();
+      } else if (nameMatchCount > 0) {
+        setSuccess(`Keine eindeutig neuen Kunden. ${nameMatchCount} Namenstreffer im Import-Dialog prüfen.`);
+      } else {
+        setSuccess('Keine neuen Kunden in sevDesk gefunden.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Synchronisierung fehlgeschlagen');
+    } finally {
+      setSyncingCustomers(false);
     }
   };
 
@@ -277,10 +307,23 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
                 Kunden automatisch synchronisieren
               </span>
               <p className="text-xs text-gray-500 dark:text-dark-400">
-                Neue Kunden werden automatisch mit sevDesk abgeglichen
+                Täglich um 06:15 Uhr werden neue sevDesk-Kunden automatisch importiert und du wirst per E-Mail benachrichtigt
               </p>
             </div>
           </label>
+
+          <div className="pl-8">
+            <Button
+              type="button"
+              onClick={handleSyncNow}
+              variant="secondary"
+              size="sm"
+              disabled={syncingCustomers}
+              icon={<RefreshCw size={16} className={syncingCustomers ? 'animate-spin' : ''} />}
+            >
+              {syncingCustomers ? 'Synchronisiere…' : 'Jetzt synchronisieren'}
+            </Button>
+          </div>
 
           <label className="flex items-center gap-3 cursor-pointer">
             <input
