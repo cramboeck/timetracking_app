@@ -69,6 +69,7 @@ const mapProcessedInvoiceToVoucher = (pi: ProcessedInvoice): VoucherWithSource =
 };
 import { QuoteEditor } from './QuoteEditor';
 import { SevdeskSettings } from './SevdeskSettings';
+import { InfinigateSettings } from './InfinigateSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 import { BillingOverview } from './BillingOverview';
 import { InvoiceDraftQueue } from './InvoiceDraftQueue';
@@ -1568,8 +1569,9 @@ const IncomingReceiptsTab = () => {
 // ==================== Settings Tab ====================
 const SettingsTab = () => {
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
       <SevdeskSettings />
+      <InfinigateSettings />
     </div>
   );
 };

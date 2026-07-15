@@ -66,8 +66,8 @@ export type {
   PortalLicenseProduct,
 } from './portal';
 
-// Integrations API (sevDesk, NinjaRMM, Microsoft 365)
-export { sevdeskApi, ninjaApi, microsoft365Api } from './integrations';
+// Integrations API (sevDesk, NinjaRMM, Microsoft 365, Infinigate)
+export { sevdeskApi, ninjaApi, microsoft365Api, infinigateApi } from './integrations';
 export type {
   SevdeskConfig,
   SevdeskCustomer,
@@ -103,6 +103,8 @@ export type {
   ExtractedInvoiceData,
   SupportEmail,
   TicketEmail,
+  InfinigateConfigStatus,
+  InfinigateSyncResult,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

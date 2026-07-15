@@ -661,6 +661,52 @@ export const sevdeskApi = {
 };
 
 // ============================================
+// Infinigate API (Distributor-Integration)
+// ============================================
+
+export interface InfinigateConfigStatus {
+  configured: boolean;
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasApiKey: boolean;
+  environment: 'production' | 'test';
+  autoSync: boolean;
+  lastSyncAt: string | null;
+}
+
+export interface InfinigateSyncResult {
+  invoicesFetched: number;
+  invoicesImported: number;
+  lineItemsCreated: number;
+  matchesApplied: number;
+  errors: string[];
+}
+
+export const infinigateApi = {
+  getConfig: async (): Promise<{ success: boolean; data: InfinigateConfigStatus }> => {
+    return authFetch('/infinigate/config');
+  },
+
+  saveConfig: async (data: {
+    clientId?: string;
+    clientSecret?: string;
+    apiKey?: string;
+    environment?: 'production' | 'test';
+    autoSync?: boolean;
+  }): Promise<{ success: boolean }> => {
+    return authFetch('/infinigate/config', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  testConnection: async (): Promise<{ success: boolean; message: string; invoiceCount?: number }> => {
+    return authFetch('/infinigate/test', { method: 'POST' });
+  },
+
+  syncNow: async (): Promise<{ success: boolean; data: InfinigateSyncResult }> => {
+    return authFetch('/infinigate/sync', { method: 'POST' });
+  },
+};
+
+// ============================================
 // NinjaRMM API Types
 // ============================================
 

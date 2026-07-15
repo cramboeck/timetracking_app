@@ -4249,6 +4249,44 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Infinigate-Integration: Config-Tabelle (per-User wie sevdesk_config),
+    // Dedup-Spalte für per API importierte Rechnungen und Lizenzfelder auf
+    // den Positionen (contractInformationDto der Infinigate-API).
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS infinigate_config (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        client_id TEXT,
+        client_secret TEXT,
+        api_key TEXT,
+        environment TEXT NOT NULL DEFAULT 'production' CHECK(environment IN ('production', 'test')),
+        auto_sync BOOLEAN DEFAULT FALSE,
+        last_sync_at TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='infinigate_document_guid') THEN
+          ALTER TABLE processed_invoices ADD COLUMN infinigate_document_guid TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='license_id') THEN
+          ALTER TABLE invoice_line_items ADD COLUMN license_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='serial_number') THEN
+          ALTER TABLE invoice_line_items ADD COLUMN serial_number TEXT;
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_processed_invoices_infinigate_guid
+      ON processed_invoices(organization_id, infinigate_document_guid)
+      WHERE infinigate_document_guid IS NOT NULL
+    `);
+    logger.info('✅ Infinigate integration tables/columns ready');
+
     // Migration: email_id nullable + partielle UNIQUE-Indexe. Der alte
     // UNIQUE(organization_id, email_id) blockiert sonst alle Manual-Upload-
     // und sevDesk-Sync-Rows (die haben email_id = NULL). Den Constraint dropen

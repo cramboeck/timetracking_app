@@ -10,6 +10,7 @@ import { startNinjaJobs } from './jobs/ninjaJobs';
 import { startHealthScoreJobs } from './jobs/healthScoreJobs';
 import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
 import { startSevdeskCustomerSyncJob } from './jobs/sevdeskCustomerSync';
+import { startInfinigateSyncJob } from './jobs/infinigateSync';
 import { startContractHoursJob } from './jobs/contractHoursCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import authRoutes from './routes/auth';
@@ -28,6 +29,7 @@ import customerPortalRoutes from './routes/customer-portal';
 import knowledgeBaseRoutes from './routes/knowledge-base';
 import pushRoutes from './routes/push';
 import sevdeskRoutes from './routes/sevdesk';
+import infinigateRoutes from './routes/infinigate';
 import ninjarmmRoutes from './routes/ninjarmm';
 import featuresRoutes from './routes/features';
 import maintenanceRoutes from './routes/maintenance';
@@ -111,6 +113,7 @@ app.use('/api/customer-portal', customerPortalRoutes);
 app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/sevdesk', sevdeskRoutes);
+app.use('/api/infinigate', infinigateRoutes);
 app.use('/api/ninjarmm', ninjarmmRoutes);
 app.use('/api/features', featuresRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
@@ -218,6 +221,10 @@ startSevdeskVoucherSyncJob();
 // Kunden automatisch für User mit aktiviertem Toggle „Kunden automatisch
 // synchronisieren" und benachrichtigt sie per E-Mail.
 startSevdeskCustomerSyncJob();
+
+// Start Infinigate-Sync (täglich 06:45) - importiert neue Distributor-
+// Rechnungen inkl. Lizenzdaten/Endkunden in invoice_line_items.
+startInfinigateSyncJob();
 
 // Start Contract Hours Check job (daily at 6:00 AM)
 // Warns when customers approach/exceed their included monthly hours
