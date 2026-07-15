@@ -680,7 +680,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
 | ⬜ | **ADN API-Anbindung** | `server/src/routes/sevdesk.ts` oder neue `server/src/routes/adn.ts` | 2–3 Tage | ADN Distributor-API: Lizenz-Import mit Preisen. Neue Tabelle `adn_licenses` (analog zu `invoice_line_items`). Matching über `CustomerMatchingService`. Cron-Job für täglichen Sync. |
-| ⬜ | **Infinigate-Integration** | `server/src/routes/infinigate.ts` (neu) | 2–3 Tage | Lizenz-Abfrage und Kundenzuordnung. Gleiche Architektur wie ADN. `distributor_identifiers` JSONB in `customers` nutzen. |
+| 🟡 | **Infinigate-Integration** | `server/src/routes/infinigate.ts`, `services/infinigateService.ts`, `jobs/infinigateSync.ts`, `InfinigateSettings.tsx` | 2–3 Tage | **Phase 1 ✅ (Commit 8df3259):** Rechnungs-/Lizenz-Sync gegen offizielle Reseller-API (StarterKit-OpenAPI verifiziert). Kein Lizenz-Endpoint in der API — PurchaseInvoice-Zeilen liefern `endCustomerDto` + `contractInformationDto` (licenseId, serialNumber, Laufzeiten) → `invoice_line_items` (source `infinigate_api`), Matching via CustomerMatchingService, täglicher Cron 06:45 + Settings-UI in Finanzen. **Offen (Phase 2):** Preislisten-/SKU-Suche mit EK-Preisen + Lagerbestand, Angebots-Abruf/-Annahme, Lizenz-Ablauf-Warnungen. |
 | ⬜ | **Lywand Security-Daten im Portal** | `server/src/routes/customer-portal.ts`, `src/components/portal/PortalSecurity.tsx` (neu) | 2–3 Tage | Security-Audit-Daten von Lywand-API abrufen, im Kundenportal als neuer Tab „Sicherheit" anzeigen. Score, offene Findings, Empfehlungen. Berechtigung: `can_view_security` (neue Spalte in `customer_portal_users`). |
 | ⬜ | **Microsoft Security Center** | `server/src/routes/microsoft365.ts` | 2 Tage | Security-Scores und Empfehlungen aus M365 Defender/Secure Score API abrufen. Neuer SubView unter Support → „M365 Security". |
 | ⬜ | **Portal: Lizenz-Self-Service** | `src/components/portal/PortalLicenses.tsx`, `server/src/routes/customer-portal.ts` | 3–4 Tage | Kunde kann Lizenzen bestellen/ändern. Genehmigungsworkflow: Anfrage → Admin-Benachrichtigung → Bestätigung → Provisionierung. Neue Tabelle `license_requests`. |
@@ -754,7 +754,7 @@ MSP/Reseller-Feature: Eingangsrechnungen von Distributoren (Microsoft CSP, Horne
 | Status | Task | Beschreibung |
 |---|---|---|
 | ⬜ | **ADN API-Anbindung** | Automatischer Lizenz-Import von ADN mit Preisen |
-| ⬜ | **Infinigate-Integration** | Lizenz-Abfrage und Kundenzuordnung |
+| 🟡 | **Infinigate-Integration** | Phase 1 ✅ (8df3259): Rechnungs-/Lizenz-Sync + Kundenzuordnung. Offen: Preisliste, Angebote, Ablauf-Warnungen |
 | ⬜ | **Lywand-Integration** | Security-Audit-Daten im Kundenportal anzeigen |
 | ⬜ | **Microsoft Security Center** | Security-Scores und Empfehlungen aus M365 abrufen |
 | ⬜ | **Portal: Lizenz-Self-Service** | Kunde kann Lizenzen bestellen/ändern (mit Genehmigungsworkflow) |
