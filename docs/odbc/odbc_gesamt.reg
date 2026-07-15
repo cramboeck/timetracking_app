@@ -1,0 +1,633 @@
+Windows Registry Editor Version 5.00
+
+; ============================================================================
+; Zusammengeführter ODBC-Registry-Export (64-Bit + 32-Bit/WOW6432Node)
+; Quelle: 2 Einzelexporte, zusammengefasst am 15.07.2026
+; Dokumentation der enthaltenen DSNs und Treiber: siehe README.md
+; ============================================================================
+
+; ----------------------------------------------------------------------------
+; TEIL 1: 64-Bit-ODBC (HKLM\SOFTWARE\ODBC)
+; ----------------------------------------------------------------------------
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBC.INI]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBC.INI\cwddb]
+"Driver"="C:\\WINNT\\System32\\sqlsrv32.dll"
+"Description"="cwddb"
+"Server"="SRVINNEUL"
+"Database"="cwddb"
+"LastUser"="cwduser"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBC.INI\ODBC Data Sources]
+"cwddb"="SQL Server"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Core]
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Driver 11 for SQL Server]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\system32\\msodbcsql11.dll"
+"Setup"="C:\\Windows\\system32\\msodbcsql11.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="03.80"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers]
+"SQL Server"="Installed"
+"SQL Server Native Client 11.0"="Installed"
+"ODBC Driver 11 for SQL Server"="Installed"
+"SQL Anywhere 17"="Installed"
+"UltraLite 17"="Installed"
+"SQL Server Native Client 10.0"="Installed"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Translators]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\SQL Anywhere 17]
+"Driver"="C:\\PROGRA~1\\SQLANY~1\\Bin64\\dbodbc17.dll"
+"Setup"="C:\\PROGRA~1\\SQLANY~1\\Bin64\\dbodbc17.dll"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\SQL Server]
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,53,00,51,00,4c,00,53,00,52,00,\
+  56,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="03.50"
+"FileUsage"="0"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,73,00,71,00,6c,00,73,00,72,00,\
+  76,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="1"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\SQL Server Native Client 10.0]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\system32\\sqlncli10.dll"
+"Setup"="C:\\Windows\\system32\\sqlncli10.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="10.00"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\SQL Server Native Client 11.0]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\system32\\sqlncli11.dll"
+"Setup"="C:\\Windows\\system32\\sqlncli11.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="03.80"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\UltraLite 17]
+"Driver"="C:\\PROGRA~1\\SQLANY~1\\Bin64\\ulodbc17.dll"
+"Setup"="C:\\PROGRA~1\\SQLANY~1\\Bin64\\ulodbc17.dll"
+
+; ----------------------------------------------------------------------------
+; TEIL 2: 32-Bit-ODBC (HKLM\SOFTWARE\WOW6432Node\ODBC)
+; ----------------------------------------------------------------------------
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\AMOR3]
+"Driver"="C:\\Windows\\system32\\SQLSRV32.dll"
+"Server"="SRVINNAMOR"
+"LastUser"="mwiusr"
+"Database"="AMOR3"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\CGMAMOR]
+"Driver"="C:\\Windows\\system32\\SQLSRV32.dll"
+"Server"="MSSQL-AMOR3.altoetting.innklinikum.de\\AMOR3,4458"
+"Database"="CGMAMOR"
+"LastUser"="CGMAMOR"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\CGMAMOR_Test]
+"Driver"="C:\\Windows\\system32\\SQLSRV32.dll"
+"Description"="CGMAMOR_Test"
+"Server"="MSSQL-AMOR3.altoetting.innklinikum.de\\AMOR3,4458"
+"Database"="CGMAMOR_Test"
+"LastUser"="CGMAMOR"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\CWDDB]
+"Driver"="C:\\Windows\\system32\\SQLSRV32.dll"
+"Description"="CWDDB"
+"Server"="SRVINNEUL"
+"LastUser"="cwduser"
+"Database"="CWDDB"
+"Language"="Deutsch"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\nt_hag]
+"Driver"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiiod35.dll"
+"Description"=""
+"Server"="SRVMED001"
+"Database"="nt_hag"
+"ServerType"="INGRES"
+"PromptUIDPWD"="N"
+"ReadOnly"="N"
+"RoleName"=""
+"RolePWD"=""
+"Group"=""
+"DisableCatUnderscore"="N"
+"AllowProcedureUpdate"="N"
+"MultibyteFillChar"=" "
+"ConvertInt8ToInt4"="N"
+"DefaultToChar"="N"
+"IngresDate"="N"
+"FetchWholeLob"="N"
+"StringTruncation"="N"
+"ServerMaxVchrColumnLen"="32000"
+"ServerMaxByteColumnLen"=""
+"ServerMaxVbytColumnLen"=""
+"ServerVersion"="11.00.0000"
+"ServerNameCase"="L"
+"ServerDelimitedCase"="L"
+"ServerMaxColumns"="1024"
+"ServerMaxSchemaNameLen"="32"
+"ServerMaxTableNameLen"="256"
+"ServerMaxColumnNameLen"="256"
+"ServerMaxRowLen"="2008"
+"ServerMaxCharColumnLen"="32000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\nt_mue]
+"Driver"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiiod35.dll"
+"Description"=""
+"Server"="SRVMED001"
+"Database"="nt_mue"
+"ServerType"="INGRES"
+"PromptUIDPWD"="N"
+"ReadOnly"="N"
+"RoleName"=""
+"RolePWD"=""
+"Group"=""
+"DisableCatUnderscore"="N"
+"AllowProcedureUpdate"="N"
+"MultibyteFillChar"=" "
+"ConvertInt8ToInt4"="N"
+"DefaultToChar"="N"
+"IngresDate"="N"
+"FetchWholeLob"="N"
+"StringTruncation"="N"
+"ServerMaxVchrColumnLen"="32000"
+"ServerMaxByteColumnLen"=""
+"ServerMaxVbytColumnLen"=""
+"SelectLoops"="Y"
+"ConvertThreePartNames"="N"
+"UseSysTables"="N"
+"BlankDate"=""
+"Date1582"=""
+"CatConnect"="N"
+"Numeric_overflow"=""
+"SupportIIDECIMAL"="N"
+"CatSchemaNULL"="N"
+"AllowUpdate"="N"
+"ServerVersion"="11.00.0000"
+"ServerNameCase"="L"
+"ServerDelimitedCase"="L"
+"ServerMaxColumns"="1024"
+"ServerMaxSchemaNameLen"="32"
+"ServerMaxTableNameLen"="256"
+"ServerMaxColumnNameLen"="256"
+"ServerMaxRowLen"="2008"
+"ServerMaxCharColumnLen"="32000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\nt_nsv]
+"Driver"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiiod35.dll"
+"Description"=""
+"Server"="SRVMED001"
+"Database"="nt_nsv"
+"ServerType"="INGRES"
+"PromptUIDPWD"="N"
+"ReadOnly"="N"
+"RoleName"=""
+"RolePWD"=""
+"Group"=""
+"DisableCatUnderscore"="N"
+"AllowProcedureUpdate"="N"
+"MultibyteFillChar"=" "
+"ConvertInt8ToInt4"="N"
+"DefaultToChar"="N"
+"IngresDate"="N"
+"FetchWholeLob"="N"
+"StringTruncation"="N"
+"ServerMaxVchrColumnLen"="32000"
+"ServerMaxByteColumnLen"=""
+"ServerMaxVbytColumnLen"=""
+"ServerVersion"="11.00.0000"
+"ServerNameCase"="L"
+"ServerDelimitedCase"="L"
+"ServerMaxColumns"="1024"
+"ServerMaxSchemaNameLen"="32"
+"ServerMaxTableNameLen"="256"
+"ServerMaxColumnNameLen"="256"
+"ServerMaxRowLen"="2008"
+"ServerMaxCharColumnLen"="32000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBC.INI\ODBC DATA Sources]
+"CWDDB"="SQL Server"
+"nt_mue"="Ingres"
+"nt_hag"="Ingres"
+"nt_nsv"="Ingres"
+"CGMAMOR_Test"="SQL Server"
+"CGMAMOR"="SQL Server"
+"AMOR3"="SQL Server"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Conversor de pagina de codigo MS]
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,58,00,\
+  4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"Translator"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,\
+  00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,\
+  58,00,4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Driver da Microsoft para arquivos texto (*.txt; *.csv)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.,*.asc,*.csv,*.tab,*.txt,*.csv"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,74,00,65,00,78,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Driver do Microsoft Access (*.mdb)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.mdb"
+"FileUsage"="2"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Driver do Microsoft dBase (*.dbf)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.dbf,*.ndx,*.mdx"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,64,00,62,00,73,00,\
+  65,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Driver do Microsoft Excel(*.xls)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.xls"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,65,00,78,00,6c,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Driver do Microsoft Paradox (*.db )]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.db"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,70,00,64,00,78,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Ingres]
+"Driver"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiiod35.dll"
+"Setup"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiioc35.dll"
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"DriverODBCVer"="03.50"
+"DriverReadOnly"="N"
+"DriverType"="Ingres"
+"FileUsage"="0"
+"SQLLevel"="0"
+"CPTimeout"="60"
+"UsageCount"=dword:00000001
+"Vendor"="Ingres Corporation"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Ingres 9.2]
+"Driver"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiiod35.dll"
+"Setup"="C:\\Program Files (x86)\\Ingres\\IngresII\\ingres\\bin\\caiioc35.dll"
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"DriverODBCVer"="03.50"
+"DriverReadOnly"="N"
+"DriverType"="Ingres"
+"FileUsage"="0"
+"SQLLevel"="0"
+"CPTimeout"="60"
+"UsageCount"=dword:00000001
+"Vendor"="Ingres Corporation"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Access Driver (*.mdb)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.mdb"
+"FileUsage"="2"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Access-Treiber (*.mdb)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.mdb"
+"FileUsage"="2"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft dBase Driver (*.dbf)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.dbf,*.ndx,*.mdx"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,64,00,62,00,73,00,\
+  65,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft dBase-Treiber (*.dbf)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.dbf,*.ndx,*.mdx"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,64,00,62,00,73,00,\
+  65,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Excel Driver (*.xls)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.xls"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,65,00,78,00,6c,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Excel-Treiber (*.xls)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.xls"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,65,00,78,00,6c,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft ODBC for Oracle]
+"APILevel"="1"
+"ConnectFunctions"="YYY"
+"CPTimeout"="120"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6d,00,73,00,6f,00,72,00,63,00,\
+  6c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileUsage"="0"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6d,00,73,00,6f,00,72,00,63,00,\
+  6c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="1"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Paradox Driver (*.db )]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.db"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,70,00,64,00,78,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Paradox-Treiber (*.db )]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.db"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,70,00,64,00,78,00,\
+  33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Text Driver (*.txt; *.csv)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.,*.asc,*.csv,*.tab,*.txt,*.csv"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,74,00,65,00,78,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\Microsoft Text-Treiber (*.txt; *.csv)]
+"APILevel"="1"
+"ConnectFunctions"="YYN"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,62,00,63,00,6a,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="02.50"
+"FileExtns"="*.,*.asc,*.csv,*.tab,*.txt,*.csv"
+"FileUsage"="1"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,6f,00,64,00,74,00,65,00,78,00,\
+  74,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="0"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\MS Code Page Translator]
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,58,00,\
+  4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"Translator"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,\
+  00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,\
+  58,00,4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\MS Code Page-Ubersetzer]
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,58,00,\
+  4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"Translator"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,\
+  00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,4d,00,53,00,43,00,50,00,\
+  58,00,4c,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\ODBC Core]
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\ODBC Driver 11 for SQL Server]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\SysWOW64\\msodbcsql11.dll"
+"Setup"="C:\\Windows\\SysWOW64\\msodbcsql11.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="03.80"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\ODBC Drivers]
+"Driver da Microsoft para arquivos texto (*.txt; *.csv)"="Installed"
+"Driver do Microsoft Access (*.mdb)"="Installed"
+"Driver do Microsoft dBase (*.dbf)"="Installed"
+"Driver do Microsoft Excel(*.xls)"="Installed"
+"Driver do Microsoft Paradox (*.db )"="Installed"
+"Microsoft Access Driver (*.mdb)"="Installed"
+"Microsoft Access-Treiber (*.mdb)"="Installed"
+"Microsoft dBase Driver (*.dbf)"="Installed"
+"Microsoft dBase-Treiber (*.dbf)"="Installed"
+"Microsoft Excel Driver (*.xls)"="Installed"
+"Microsoft Excel-Treiber (*.xls)"="Installed"
+"Microsoft ODBC for Oracle"="Installed"
+"Microsoft Paradox Driver (*.db )"="Installed"
+"Microsoft Paradox-Treiber (*.db )"="Installed"
+"Microsoft Text Driver (*.txt; *.csv)"="Installed"
+"Microsoft Text-Treiber (*.txt; *.csv)"="Installed"
+"SQL Server"="Installed"
+"Ingres 9.2"="Installed"
+"Ingres"="Installed"
+"SQL Server Native Client 11.0"="Installed"
+"ODBC Driver 11 for SQL Server"="Installed"
+"SQL Anywhere 17"="Installed"
+"UltraLite 17"="Installed"
+"SQL Server Native Client 10.0"="Installed"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\ODBC Translators]
+"Conversor de pagina de codigo MS"="Installed"
+"MS Code Page Translator"="Installed"
+"MS Code Page-Ubersetzer"="Installed"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\SQL Anywhere 17]
+"Driver"="C:\\PROGRA~1\\SQLANY~1\\Bin32\\dbodbc17.dll"
+"Setup"="C:\\PROGRA~1\\SQLANY~1\\Bin32\\dbodbc17.dll"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\SQL Server]
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"Driver"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,53,00,51,00,4c,00,53,00,52,00,\
+  56,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"DriverODBCVer"="03.50"
+"FileUsage"="0"
+"Setup"=hex(2):25,00,57,00,49,00,4e,00,44,00,49,00,52,00,25,00,5c,00,73,00,79,\
+  00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,73,00,71,00,6c,00,73,00,72,00,\
+  76,00,33,00,32,00,2e,00,64,00,6c,00,6c,00,00,00
+"SQLLevel"="1"
+"UsageCount"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\SQL Server Native Client 10.0]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\SysWOW64\\sqlncli10.dll"
+"Setup"="C:\\Windows\\SysWOW64\\sqlncli10.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="10.00"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\SQL Server Native Client 11.0]
+"UsageCount"=dword:00000001
+"Driver"="C:\\Windows\\SysWOW64\\sqlncli11.dll"
+"Setup"="C:\\Windows\\SysWOW64\\sqlncli11.dll"
+"APILevel"="2"
+"ConnectFunctions"="YYY"
+"CPTimeout"="60"
+"DriverODBCVer"="03.80"
+"FileUsage"="0"
+"SQLLevel"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI\UltraLite 17]
+"Driver"="C:\\PROGRA~1\\SQLANY~1\\Bin32\\ulodbc17.dll"
+"Setup"="C:\\PROGRA~1\\SQLANY~1\\Bin32\\ulodbc17.dll"
