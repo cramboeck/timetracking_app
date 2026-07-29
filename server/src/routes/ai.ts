@@ -36,9 +36,19 @@ const suggestionFeedbackSchema = z.object({
   feedback: z.string().max(2_000).optional(),
 });
 
+// context ist ein strukturiertes Objekt (siehe aiService.generateQuoteText) —
+// NICHT als String validieren, sonst schlägt jede Anfrage aus dem QuoteEditor
+// mit "Validation failed" fehl.
 const generateQuoteTextSchema = z.object({
   type: z.enum(['head', 'foot', 'header', 'footer']),
-  context: z.string().max(10_000).optional(),
+  context: z.object({
+    customerName: z.string().max(500).optional(),
+    header: z.string().max(2_000).optional(),
+    positions: z.array(z.object({
+      name: z.string().max(500),
+      price: z.number(),
+    })).max(200).optional(),
+  }).optional(),
 });
 
 const researchPriceSchema = z.object({
@@ -46,9 +56,14 @@ const researchPriceSchema = z.object({
   context: z.string().max(2_000).optional(),
 });
 
+// context ist auch hier ein Objekt (aiService.generatePositionDescription)
 const generatePositionDescriptionSchema = z.object({
   positionName: z.string().trim().min(1).max(500),
-  context: z.string().max(2_000).optional(),
+  context: z.object({
+    customerName: z.string().max(500).optional(),
+    quoteHeader: z.string().max(2_000).optional(),
+    otherPositions: z.array(z.string().max(500)).max(200).optional(),
+  }).optional(),
 });
 
 const kbFromTicketSchema = z.object({
