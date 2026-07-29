@@ -487,10 +487,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 11. **Lazy Loading beibehalten** — neue schwere Komponenten in `App.tsx` als `lazy()` importieren.
 12. **Rückwärtskompatibilität** — Legacy-Clients müssen weiterhin funktionieren (`?all=true` für entries, ältere Field-Defaults).
 13. **Branch-Konvention beachten** — Feature-/Fix-Branches IMMER von `claude/next-version-roadmap-ks0D0` ausgehen, PRs gegen denselben Branch eröffnen (= Hetzner-Stand). Niemals direkt gegen `main`. Details siehe Sektion „Branch-Konvention" oben.
-
----
-
-## Bekannte Probleme (pre-existing)
+14. **Zod-Schemas IMMER gegen den echten Frontend-Aufruf schreiben** — vor dem Definieren/Ändern eines Schemas zwingend den API-Client (`src/services/api/*.ts`) und die aufrufende Komponente lesen: exakte Feldnamen, String vs. Objekt, Enum-Wertemengen, Datumsformate (`<input type="date">` sendet `YYYY-MM-DD`, `datetime-local` ohne Sekunden — beides scheitert an `z.string().datetime()`!), und ob PUT-Routen Partial-Updates bekommen (`.partial()`). ⚠️ `users.id` ist TEXT, kein `.uuid()` erzwingen. Erfahrung vom 6.7.2026: Audit fand 16 Schemas, die gültige Frontend-Requests mit 400 ablehnten (u.a. MFA-Recovery-Codes, KI-Feedback, Clockodo-Import, SLA-Policies) — Commits 41933b2, 12f63cf, ec890b1.
 
 - **TS-Fehler-Baseline: 374 Fehler** (Stand 5.7.2026; ~135 TS6133, ~239 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b, 379→374 als Nebeneffekt des Juli-Sprints.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
