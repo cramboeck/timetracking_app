@@ -24,7 +24,8 @@ router.use(authenticateToken);
 // ============================================
 
 const contactRoleSchema = z.enum(['contact', 'decision_maker', 'technical', 'billing', 'other']);
-const preferredContactMethodSchema = z.enum(['email', 'phone', 'mobile']);
+// 'portal' ist der dritte Wert im Frontend-Typ (crm.ts PreferredContactMethod)
+const preferredContactMethodSchema = z.enum(['email', 'phone', 'mobile', 'portal']);
 
 const createContactSchema = z.object({
   customer_id: z.string().uuid('customer_id must be a valid UUID'),

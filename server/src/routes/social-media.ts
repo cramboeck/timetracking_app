@@ -20,7 +20,8 @@ const createPostSchema = z.object({
   content: z.string().min(1).max(5000),
   mediaUrls: z.array(z.string().url()).optional(),
   hashtags: z.array(z.string()).optional(),
-  scheduledAt: z.string().datetime().optional(),
+  // <input type="datetime-local"> liefert "YYYY-MM-DDTHH:MM" (ohne Sekunden/Zone)
+  scheduledAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/).optional(),
   customerId: z.string().uuid().optional(),
   platforms: z.array(z.string()).optional(),
   aiGenerated: z.boolean().optional(),
@@ -32,7 +33,7 @@ const updatePostSchema = z.object({
   content: z.string().min(1).max(5000).optional(),
   mediaUrls: z.array(z.string().url()).optional(),
   hashtags: z.array(z.string()).optional(),
-  scheduledAt: z.string().datetime().nullable().optional(),
+  scheduledAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/).nullable().optional(),
   status: z.enum(['draft', 'scheduled', 'published', 'failed']).optional()
 });
 
@@ -1580,7 +1581,7 @@ router.get('/analytics/performance', authenticateToken, attachOrganization, asyn
 const autopilotSettingsSchema = z.object({
   enabled: z.boolean(),
   postsPerWeek: z.number().min(1).max(21),
-  contentThemes: z.array(z.string()).min(1).max(10),
+  contentThemes: z.array(z.string()).max(10),
   targetAudience: z.string().optional(),
   brandVoice: z.string().optional(),
   approvalMode: z.enum(['auto', 'review']), // auto = publish directly, review = need approval
@@ -2443,7 +2444,8 @@ const createStorySchema = z.object({
   linkText: z.string().optional(),
   pollQuestion: z.string().optional(),
   pollOptions: z.array(z.string()).optional(),
-  scheduledAt: z.string().datetime().optional(),
+  // <input type="datetime-local"> liefert "YYYY-MM-DDTHH:MM" (ohne Sekunden/Zone)
+  scheduledAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/).optional(),
   platforms: z.array(z.string()).optional(),
   durationSeconds: z.number().min(1).max(60).optional(),
   aiGenerated: z.boolean().optional(),

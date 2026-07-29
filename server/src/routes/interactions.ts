@@ -22,13 +22,19 @@ router.use(authenticateToken);
 // VALIDATION SCHEMAS
 // ============================================
 
+// Wertemengen = DB-CHECK auf customer_interactions (siehe database.ts) —
+// inkl. der Frontend-Werte 'demo'/'followup' (InteractionsTimeline).
 const interactionTypeSchema = z.enum([
   'call', 'email', 'meeting', 'note', 'task', 'chat',
-  'support', 'sales', 'other',
+  'support', 'sales', 'demo', 'followup', 'ticket', 'quote',
+  'invoice', 'contract', 'visit', 'video_call', 'other',
 ]);
 const interactionDirectionSchema = z.enum(['inbound', 'outbound']);
+// Muss dem DB-CHECK entsprechen: ('positive','neutral','negative','pending').
+// Das alte Enum (successful/unsuccessful/...) hatte NULL Überschneidung mit
+// dem, was das Frontend sendet UND was die DB erlaubt.
 const interactionOutcomeSchema = z.enum([
-  'successful', 'unsuccessful', 'follow_up_needed', 'no_response', 'other',
+  'positive', 'neutral', 'negative', 'pending',
 ]);
 const isoDateOrTimestampSchema = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}/));
 

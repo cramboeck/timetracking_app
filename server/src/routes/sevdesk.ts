@@ -67,12 +67,19 @@ const linkCustomerSchema = z.object({
   sevdeskCustomerId: z.string().min(1).max(100),
 });
 
+// Felder entsprechen dem, was InvoiceCreationDialog tatsächlich sendet
+// (title/description/hours/amount/hourlyRate/isHeader); die alten
+// name/quantity/price/text bleiben für ältere Aufrufer erlaubt.
 const invoicePositionSchema = z.object({
   name: z.string().max(1000).optional(),
+  title: z.string().max(1000).optional(),
+  description: z.string().max(10000).optional(),
   quantity: z.number().min(0).optional(),
   price: z.number().optional(),
   hours: z.number().min(0).optional(),
   amount: z.number().optional(),
+  hourlyRate: z.number().min(0).optional(),
+  isHeader: z.boolean().optional(),
   text: z.string().max(10000).optional(),
   unity: z.any().optional(),
 });
@@ -102,11 +109,16 @@ const createVoucherSchema = z.object({
   totalAmount: z.number().min(0).max(10000000),
 });
 
+// Der KI-Rechnungstexte-Dialog sendet {description, hours, projectName} —
+// id/date/duration waren fälschlich Pflicht und blockierten jeden
+// "KI-Texte generieren"-Klick. Der Handler ist defensiv
+// (e.hours || e.duration/3600), daher alles optional.
 const entrySchema = z.object({
-  id: z.string().uuid(),
-  date: z.string(),
+  id: z.string().optional(),
+  date: z.string().optional(),
   description: z.string().max(10000).optional(),
-  duration: z.number().min(0),
+  duration: z.number().min(0).optional(),
+  hours: z.number().min(0).optional(),
   hourlyRate: z.number().min(0).optional(),
   amount: z.number().optional(),
   projectName: z.string().max(500).optional(),

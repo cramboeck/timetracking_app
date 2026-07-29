@@ -12,9 +12,12 @@ const router = express.Router();
 
 const aiProviderSchema = z.enum(['openai', 'anthropic', 'gemini', 'mistral', 'local']);
 
+// apiKey ist optional: AISettings sendet ihn absichtlich nur, wenn er neu
+// eingegeben wurde (saveAIConfig macht COALESCE) — als Pflichtfeld schlug
+// jede spätere Änderung (Modell, Temperatur, Prompts) mit 400 fehl.
 const aiConfigSchema = z.object({
   provider: aiProviderSchema,
-  apiKey: z.string().min(1).max(500),
+  apiKey: z.string().min(1).max(500).optional(),
   model: z.string().trim().min(1).max(200),
   enabled: z.boolean().optional(),
   maxTokens: z.number().int().positive().max(200_000).optional(),
@@ -31,8 +34,10 @@ const ticketSuggestParamsSchema = z.object({
   context: z.record(z.unknown()).optional(),
 }).passthrough();
 
+// Frontend + Handler verwenden `isHelpful` — das Schema verlangte `helpful`,
+// wodurch Daumen hoch/runter auf KI-Vorschlägen nie funktionierte.
 const suggestionFeedbackSchema = z.object({
-  helpful: z.boolean(),
+  isHelpful: z.boolean(),
   feedback: z.string().max(2_000).optional(),
 });
 

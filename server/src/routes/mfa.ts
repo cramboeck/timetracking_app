@@ -23,9 +23,12 @@ const passwordCodeSchema = z.object({
   code: z.string().min(6).max(6).regex(/^\d+$/, 'Code must be 6 digits'),
 });
 
+// Der Login akzeptiert neben dem 6-stelligen TOTP-Code auch 8-stellige
+// Wiederherstellungscodes (Handler: /^[A-Z0-9]{8}$/) — das 6-Ziffern-Schema
+// machte die Account-Wiederherstellung unmöglich.
 const verifyMfaSchema = z.object({
   mfaToken: z.string().min(1).max(1000),
-  code: z.string().min(6).max(6).regex(/^\d+$/, 'Code must be 6 digits'),
+  code: z.string().regex(/^(\d{6}|[A-Za-z0-9]{8})$/, 'Code muss 6 Ziffern (TOTP) oder 8 Zeichen (Wiederherstellungscode) haben'),
   trustDevice: z.boolean().optional(),
 });
 
@@ -450,8 +453,11 @@ router.post('/verify', validate(verifyMfaSchema), async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if this is a recovery code (8 uppercase alphanumeric characters)
-    const isRecoveryCode = /^[A-Z0-9]{8}$/.test(code);
+    // Check if this is a recovery code (8 alphanumeric characters). Codes
+    // werden in Großbuchstaben generiert — Nutzereingabe normalisieren,
+    // damit auch klein getippte Codes funktionieren.
+    const normalizedCode = code.toUpperCase();
+    const isRecoveryCode = /^[A-Z0-9]{8}$/.test(normalizedCode) && !/^\d{6}$/.test(code);
     let verificationSuccess = false;
 
     if (isRecoveryCode) {
@@ -460,7 +466,7 @@ router.post('/verify', validate(verifyMfaSchema), async (req, res) => {
       let usedCodeIndex = -1;
 
       for (let i = 0; i < recoveryCodes.length; i++) {
-        const isMatch = await bcrypt.compare(code, recoveryCodes[i]);
+        const isMatch = await bcrypt.compare(normalizedCode, recoveryCodes[i]);
         if (isMatch) {
           usedCodeIndex = i;
           break;

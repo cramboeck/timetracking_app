@@ -31,17 +31,20 @@ const resolveAlertSchema = z.object({
   resetInNinja: z.boolean().optional(),
 });
 
+// matchField-Werte = validMatchFields im POST-Handler + Matcher-Logik
+// (source_name/condition_name/severity fehlten — 3 von 5 UI-Optionen
+// wurden abgelehnt). 'source_type'/'all' bleiben für Altbestand erlaubt.
 const exclusionRuleSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional().nullable(),
   matchType: z.enum(['contains', 'equals', 'starts_with', 'ends_with', 'regex']).optional(),
-  matchField: z.enum(['message', 'device_name', 'source_type', 'all']).optional(),
+  matchField: z.enum(['message', 'device_name', 'source_name', 'condition_name', 'severity', 'source_type', 'all']).optional(),
   matchValue: z.string().min(1).max(500),
   isActive: z.boolean().optional(),
 });
 
 const testExclusionSchema = z.object({
-  matchField: z.enum(['message', 'device_name', 'source_type', 'all']).optional(),
+  matchField: z.enum(['message', 'device_name', 'source_name', 'condition_name', 'severity', 'source_type', 'all']).optional(),
   matchType: z.enum(['contains', 'equals', 'starts_with', 'ends_with', 'regex']).optional(),
 });
 
@@ -1983,7 +1986,9 @@ router.post('/exclusions', authenticateToken, requireNinjaFeature, validate(excl
 });
 
 // PUT /api/ninjarmm/exclusions/:id - Update exclusion
-router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, validate(exclusionRuleSchema), async (req: AuthRequest, res: Response) => {
+// .partial(): der Aktiv/Inaktiv-Toggle sendet nur { isActive } — mit dem
+// vollen Schema (name/matchValue Pflicht) war der Schalter dauerhaft kaputt.
+router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, validate(exclusionRuleSchema.partial()), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;

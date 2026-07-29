@@ -35,13 +35,28 @@ const unsubscribeSchema = z.object({
   endpoint: z.string().url().max(2000),
 });
 
+// Feldnamen = Spalten der push_notification_preferences-Tabelle (snake_case,
+// so sendet sie das Frontend). .strict() ist hier PFLICHT: der Service baut
+// SQL-Spaltennamen direkt aus den Body-Keys — unbekannte Keys dürfen den
+// Handler nie erreichen. (Das alte camelCase-Schema validierte effektiv
+// nichts, weil alle Felder optional waren und keiner je gesendet wurde.)
 const preferencesSchema = z.object({
-  ticketCreated: z.boolean().optional(),
-  ticketUpdated: z.boolean().optional(),
-  ticketCommented: z.boolean().optional(),
-  alertTriggered: z.boolean().optional(),
-  timerReminder: z.boolean().optional(),
-});
+  push_enabled: z.boolean().optional(),
+  push_on_new_ticket: z.boolean().optional(),
+  push_on_ticket_assigned: z.boolean().optional(),
+  push_on_ticket_comment: z.boolean().optional(),
+  push_on_status_change: z.boolean().optional(),
+  push_on_sla_warning: z.boolean().optional(),
+  push_on_mention: z.boolean().optional(),
+  email_enabled: z.boolean().optional(),
+  email_on_new_ticket: z.boolean().optional(),
+  email_on_ticket_assigned: z.boolean().optional(),
+  email_on_ticket_comment: z.boolean().optional(),
+  email_on_status_change: z.boolean().optional(),
+  email_on_sla_warning: z.boolean().optional(),
+  email_on_mention: z.boolean().optional(),
+  email_daily_digest: z.boolean().optional(),
+}).strict();
 
 // GET /api/push/vapid-public-key - Get VAPID public key for client subscription
 router.get('/vapid-public-key', (_req: Request, res: Response) => {

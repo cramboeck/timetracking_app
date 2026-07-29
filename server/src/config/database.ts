@@ -4287,6 +4287,28 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ Infinigate integration tables/columns ready');
 
+    // Migration: customer_interactions.type-CHECK um die Werte erweitern, die
+    // das Frontend (InteractionsTimeline) tatsächlich anbietet — 'demo' und
+    // 'support' etc. wurden bisher von der DB abgelehnt. Constraint neu
+    // aufbauen als Union aus altem CHECK + Frontend-/API-Werten.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.constraint_column_usage
+          WHERE table_name = 'customer_interactions' AND constraint_name = 'customer_interactions_type_check'
+        ) THEN
+          ALTER TABLE customer_interactions DROP CONSTRAINT customer_interactions_type_check;
+        END IF;
+        ALTER TABLE customer_interactions ADD CONSTRAINT customer_interactions_type_check
+          CHECK(type IN ('call', 'email', 'meeting', 'note', 'ticket', 'quote', 'invoice',
+                         'contract', 'visit', 'video_call', 'chat', 'task', 'support',
+                         'sales', 'demo', 'followup', 'other'));
+      EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'customer_interactions type check migration skipped: %', SQLERRM;
+      END $$;
+    `);
+
     // Migration: email_id nullable + partielle UNIQUE-Indexe. Der alte
     // UNIQUE(organization_id, email_id) blockiert sonst alle Manual-Upload-
     // und sevDesk-Sync-Rows (die haben email_id = NULL). Den Constraint dropen

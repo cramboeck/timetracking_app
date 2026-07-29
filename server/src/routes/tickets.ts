@@ -81,7 +81,8 @@ const tagSchema = z.object({
 const slaPolicySchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().max(2_000).optional().nullable(),
-  priority: ticketPrioritySchema,
+  // 'all' = Policy gilt für alle Prioritäten (Default im TicketSettings-Formular)
+  priority: z.enum(['all', 'low', 'normal', 'high', 'critical']),
   firstResponseMinutes: z.number().int().positive().max(525_600), // ≤ 1 year
   resolutionMinutes: z.number().int().positive().max(525_600),
   businessHoursOnly: z.boolean().optional(),
@@ -94,8 +95,11 @@ const ticketTaskSchema = z.object({
   title: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).optional().nullable(),
   visibleToCustomer: z.boolean().optional(),
-  assignedTo: z.string().uuid().optional().nullable(),
-  dueDate: z.string().datetime().optional().nullable(),
+  // users.id ist TEXT (nicht zwingend UUID-Format) — kein .uuid() erzwingen
+  assignedTo: z.string().min(1).max(100).optional().nullable(),
+  // Das Formular nutzt <input type="date"> → "YYYY-MM-DD"; volles ISO-Datetime
+  // bleibt erlaubt. z.string().datetime() allein lehnte jedes Fälligkeitsdatum ab.
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/).optional().nullable(),
 });
 
 const updateTicketTaskSchema = ticketTaskSchema.extend({

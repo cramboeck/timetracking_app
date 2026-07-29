@@ -56,7 +56,9 @@ const vacuumTableSchema = z.object({
 const maintenanceSchema = z.object({
   title: z.string().min(1).max(200),
   message: z.string().min(1).max(5000),
-  type: z.enum(['info', 'warning', 'critical']).optional(),
+  // AdminPortal bietet info/warning/error/success an; 'critical' bleibt für
+  // Altbestand erlaubt (DB-Spalte ist unbeschränktes VARCHAR).
+  type: z.enum(['info', 'warning', 'error', 'success', 'critical']).optional(),
   expiresAt: z.string().datetime().optional().nullable(),
 });
 

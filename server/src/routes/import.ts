@@ -17,10 +17,18 @@ const csvPreviewSchema = z.object({
   csvContent: z.string().min(1).max(10000000),
 });
 
+// Mapping-Selects haben eine leere Default-Option ("-- Zuordnen --") — der
+// Wert '' muss durchgelassen werden (Handler ignoriert leere Zuordnungen).
+const mappingRecordSchema = z.record(z.union([z.string().uuid(), z.literal('')]));
+
+// Das Frontend sendet "YYYY-MM-DD HH:MM:SS" (clockodoService.formatDateForApi
+// ist genau dafür gebaut) — die datumsschärfere Variante bleibt erlaubt.
+const clockodoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/);
+
 const csvImportSchema = z.object({
   csvContent: z.string().min(1).max(10000000),
-  customerMapping: z.record(z.string().uuid()).optional(),
-  projectMapping: z.record(z.string().uuid()).optional(),
+  customerMapping: mappingRecordSchema.optional(),
+  projectMapping: mappingRecordSchema.optional(),
   defaultProjectId: z.string().uuid().optional().nullable(),
   createMissingProjects: z.boolean().optional(),
   skipDuplicates: z.boolean().optional(),
@@ -34,17 +42,17 @@ const clockodoCredentialsSchema = z.object({
 const clockodoImportSchema = z.object({
   apiEmail: z.string().email().max(200),
   apiKey: z.string().min(1).max(200),
-  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timeSince: clockodoDateSchema,
+  timeUntil: clockodoDateSchema,
 });
 
 const clockodoExecuteSchema = z.object({
   apiEmail: z.string().email().max(200),
   apiKey: z.string().min(1).max(200),
-  timeSince: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  timeUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  customerMapping: z.record(z.string().uuid()).optional(),
-  projectMapping: z.record(z.string().uuid()).optional(),
+  timeSince: clockodoDateSchema.optional(),
+  timeUntil: clockodoDateSchema.optional(),
+  customerMapping: mappingRecordSchema.optional(),
+  projectMapping: mappingRecordSchema.optional(),
   importType: z.enum(['all', 'time_entries', 'customers', 'projects']).optional(),
 });
 
