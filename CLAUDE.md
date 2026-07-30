@@ -125,7 +125,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 |---|---|
 | **Rollenkonzept UI (D)**: zentrale Matrix in `AreaNavigation` (`ADMIN_ONLY_AREAS`/`ADMIN_ONLY_SUBVIEWS` + `isSubViewAllowed`), Desktop+Mobile+CommandPalette gefiltert, Deep-Link-Guard in App.tsx. Member sehen kein Finanzen/Inbox/CRM-Sales/Social-Media | ca57919 |
 | **Arbeitszeiterfassung (B)**: `work_sessions` (Kommen/Gehen/Pausen, max. 1 offene Session/User), Routen mit Audit-Log, `AttendanceBar` im Arbeiten-Bereich (ArbZG-Warnungen >6h ohne Pause / >10h), Admin-Tab „Arbeitszeit" unter Berichte mit CSV-Export | 4120fab, 7b9b3a8 |
-| **„Mein Bereich" (V3 Phase 1)**: neuer Nav-Bereich `personal` für alle Rollen — Arbeitszeitkonto (Soll aus `users.weekly_hours` inline editierbar, Ist, Überstunden-Saldo, Urlaubs-/Kranktage, Monats-Tagesliste, Stundenzettel-CSV) + Abwesenheits-Tab (AbsenceCalendar dorthin umgezogen, war für Member unsichtbar). **Phase 2 offen: Urlaubsanträge mit Genehmigungsworkflow** | 9f98bac |
+| **„Mein Bereich" (V3 Phase 1)**: neuer Nav-Bereich `personal` für alle Rollen — Arbeitszeitkonto (Soll aus `users.weekly_hours` inline editierbar, Ist, Überstunden-Saldo, Urlaubs-/Kranktage, Monats-Tagesliste, Stundenzettel-CSV) + Abwesenheits-Tab (AbsenceCalendar dorthin umgezogen, war für Member unsichtbar). Phase 2 ✅ (3bfe9e5): Urlaubsanträge — Antrag in „Mein Bereich“, Admin-Genehmigung unter Berichte → „Anträge“, genehmigt = automatische Abwesenheits-Einträge, E-Mail-Benachrichtigungen beidseitig | 9f98bac, 3bfe9e5 |
 | **Lückenlose Protokollierung (C)**: `auditTrail`-Middleware loggt JEDE Mutation (Methode/Pfad/Status/Params, nie Bodies) + 403-Versuche; vorher deckten manuelle Logs nur 14/35 Routen-Dateien ab | 3bbddac |
 | **Beleg-Kette Rechnungseingang komplett repariert** (5 Bugs, noch nie durchgelaufen): Token-Lookup (`sevdesk_config` hat keine `organization_id`!), Multipart-Upload (form-data npm ≠ undici fetch), Revert (processed_at NOT NULL), Anhang (uploadTempFile liefert filename, keine id), **C/D-Semantik: sevDesk `C`=Kreditor=AUSGABE** (auch Sync-Filter + Finanzen-Anzeige gedreht) | 1c8e7d2–9ac8be6 |
 | Beleg-Komfort: explizite `sumNet`/`sumGross` (Betrag stimmt ohne manuelles Umstellen), Buchungskategorie-Vorauswahl via Keyword-Matching gegen echte sevDesk-AccountingTypes, saubere Belegnummer | 572c217, e89b5ac |
@@ -649,7 +649,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 30.7.2026 — Team-Onboarding-Sprint ✅: Rollen-Gating im Frontend, Arbeitszeiterfassung (work_sessions + AttendanceBar + Admin-Auswertung), „Mein Bereich" mit Arbeitszeitkonto/Abwesenheit, globale Audit-Middleware. Außerdem: Beleg-Kette Rechnungseingang→sevDesk komplett repariert (5 Bugs), Zod-Audit (16 Schemas), Infinigate Phase 1, portal.ramboeck.it. Offen: Urlaubsanträge (V3 Phase 2), Infinigate Phase 2, NinjaRMM-Diagnose, TS-Fehler 374.**Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
+*Zuletzt aktualisiert: 30.7.2026 — Team-Onboarding-Sprint ✅: Rollen-Gating im Frontend, Arbeitszeiterfassung (work_sessions + AttendanceBar + Admin-Auswertung), „Mein Bereich" mit Arbeitszeitkonto/Abwesenheit, globale Audit-Middleware. Außerdem: Beleg-Kette Rechnungseingang→sevDesk komplett repariert (5 Bugs), Zod-Audit (16 Schemas), Infinigate Phase 1, portal.ramboeck.it. Offen: Infinigate Phase 2, NinjaRMM-Diagnose, TS-Fehler 374.**Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
 
 ---
 
