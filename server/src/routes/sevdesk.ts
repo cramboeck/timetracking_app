@@ -1861,14 +1861,14 @@ router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeat
         );
 
         // Create voucher from file
-        const voucherResult = await sevdeskService.createVoucherFromFile(config.apiToken, uploadResult.id, {
+        const voucherResult = await sevdeskService.createVoucherFromFile(config.apiToken, uploadResult.filename, {
           voucherDate: invoiceDate,
           description: description || `${supplierName} - ${invoiceNumber}`,
           supplierName,
           sumNet: netAmount,
           sumGross: grossAmount,
           taxRate,
-          creditDebit: 'D', // Debit = expense
+          creditDebit: 'C', // sevDesk: C = Kreditor = Ausgabe (verifiziert 30.7.2026)
         });
 
         sevdeskVoucherId = voucherResult.voucherId || null;

@@ -55,7 +55,7 @@ const mapProcessedInvoiceToVoucher = (pi: ProcessedInvoice): VoucherWithSource =
     status,
     statusName: status === 1000 ? 'Verbucht' : 'Entwurf',
     voucherType: 'VOU',
-    creditDebit: 'D',
+    creditDebit: 'C', // C = Kreditor = Ausgabe (sevDesk-Semantik)
     supplier,
     sumNet: pi.netAmount ?? 0,
     sumGross: pi.grossAmount ?? 0,
@@ -986,8 +986,8 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
                     </div>
                     <div>
                       <span className="text-gray-500 dark:text-dark-400">Betrag:</span>
-                      <p className={`font-medium ${(detail as SevdeskVoucher).creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                        {(detail as SevdeskVoucher).creditDebit === 'C' ? '+' : '-'}{formatCurrency(detail.sumGross)}
+                      <p className={`font-medium ${(detail as SevdeskVoucher).creditDebit === 'D' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                        {(detail as SevdeskVoucher).creditDebit === 'D' ? '+' : '-'}{formatCurrency(detail.sumGross)}
                       </p>
                     </div>
                     <div>
@@ -1539,8 +1539,8 @@ const IncomingReceiptsTab = () => {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className={`font-medium ${voucher.creditDebit === 'C' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                    {voucher.creditDebit === 'C' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
+                  <p className={`font-medium ${voucher.creditDebit === 'D' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                    {voucher.creditDebit === 'D' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-dark-400">
                     {formatDate(voucher.voucherDate)}

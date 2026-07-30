@@ -962,12 +962,15 @@ class InvoiceProcessorService {
           // Create voucher
           const voucherResult = await createVoucherFromFile(
             apiToken,
-            uploadResult.id,
+            // sevDesk referenziert die Temp-Datei über den zurückgegebenen
+            // Dateinamen — uploadTempFile liefert keine id (war leer, Beleg
+            // wurde ohne Anhang angelegt)
+            uploadResult.filename,
             {
               voucherDate: invoice.received_at || new Date().toISOString(),
               description: invoice.email_subject || 'Eingangsrechnung',
               supplierName: invoice.vendor_name || invoice.sender_name || undefined,
-              creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
+              creditDebit: 'C', // sevDesk: C = Kreditor = AUSGABE ('D' erzeugte Einnahme-Belege — empirisch verifiziert 30.7.2026)
             }
           );
 
@@ -2439,14 +2442,17 @@ MUSTER FÜR KUNDENERKENNUNG:
           // Create voucher with extracted amount - now including vatAmount and invoiceNumber
           const voucherResult = await createVoucherFromFile(
             apiToken,
-            uploadResult.id,
+            // sevDesk referenziert die Temp-Datei über den zurückgegebenen
+            // Dateinamen — uploadTempFile liefert keine id (war leer, Beleg
+            // wurde ohne Anhang angelegt)
+            uploadResult.filename,
             {
               voucherDate,
               description: invoice.email_subject || 'Eingangsrechnung',
               invoiceNumber: extractedData.invoiceNumber || undefined,
               supplierName,
               sevdeskContactId: extractedData.sevdeskContactId || undefined,
-              creditDebit: 'D', // Debit = Ausgabe (Eingangsrechnung)
+              creditDebit: 'C', // sevDesk: C = Kreditor = AUSGABE ('D' erzeugte Einnahme-Belege — empirisch verifiziert 30.7.2026)
               taxRate: validation.correctedData.vatRate ?? extractedData.vatRate ?? 19,
               sumGross: validation.correctedData.grossAmount ?? extractedData.grossAmount ?? undefined,
               sumNet: validation.correctedData.netAmount ?? extractedData.netAmount ?? undefined,
@@ -2544,7 +2550,7 @@ MUSTER FÜR KUNDENERKENNUNG:
 
     let vouchers: SevdeskVoucherDetail[];
     try {
-      vouchers = await getVouchers(apiToken, { creditDebit: 'D', limit: 500 });
+      vouchers = await getVouchers(apiToken, { creditDebit: 'C', limit: 500 }); // C = Kreditor = Ausgabe/Eingangsbelege
     } catch (err: any) {
       logger.error(`Org ${organizationId}: getVouchers failed: ${err.message}`);
       stats.errors++;

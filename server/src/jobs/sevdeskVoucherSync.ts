@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 
 /**
  * sevDesk-Voucher-Sync Background Job.
- * Spiegelt alle eingehenden Vouchers (creditDebit='D') aus sevDesk
+ * Spiegelt alle eingehenden Vouchers (creditDebit='C' = Kreditor/Ausgabe) aus sevDesk
  * in processed_invoices (mit source='sevdesk_import'), damit Belege
  * die direkt in sevDesk oder am System vorbei angelegt wurden
  * trotzdem in der Inbox, der globalen Suche und im Finanzen-Belege-
