@@ -49,11 +49,15 @@ export function useCurrentNavigation(
   const initialSyncedRef = useRef(false);
   useEffect(() => {
     if (initialSyncedRef.current) return;
+    initialSyncedRef.current = true;
+    // Auth-Flow-Pfade nie kanonisieren: /join/:code wird erst vom (später
+    // mountenden) Auth-Screen gelesen — ein replace hier würde den
+    // Einladungscode verwerfen, bevor er ankommt.
+    if (location.pathname.startsWith('/join/')) return;
     const canonical = areaSubViewToPath(currentArea, currentSubView);
     if (location.pathname !== canonical) {
       navigate(canonical, { replace: true });
     }
-    initialSyncedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

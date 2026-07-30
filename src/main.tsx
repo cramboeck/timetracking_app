@@ -6,6 +6,7 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
+import { ResetPasswordPage } from './components/ResetPasswordPage.tsx'
 import MaintenanceApproval from './components/MaintenanceApproval.tsx'
 import AdminPortal from './components/AdminPortal.tsx'
 import AdminRoute from './components/AdminRoute.tsx'
@@ -59,6 +60,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
                     {/* Public route for maintenance approval */}
                     <Route path="/maintenance/approve/:token" element={<MaintenanceApproval />} />
+
+                    {/* Password reset from email link — must NOT fall through
+                        to the App catch-all, which canonicalizes unknown paths
+                        and drops the ?token= query in the process */}
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                     {/* Customer Portal (separate from main app) */}
                     <Route path="/portal" element={<CustomerPortal />} />
