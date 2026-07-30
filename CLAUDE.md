@@ -133,6 +133,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | **Infinigate Phase 1** (siehe Sprint-J-Tabelle) | 8df3259 |
 | **portal.ramboeck.it**: eigener Portal-Host (isPortalHost, nginx server_name, Zertifikats-Script `add-portal-cert.sh`), Portal-Login mit Ramboeck-Logo | 9b66c7e, 22d595e |
 | sevDesk-Kunden-Auto-Sync-Job (Toggle war totes Feld) mit E-Mail-Benachrichtigung + „Jetzt synchronisieren"-Button | 1d46580 |
+| **Positions-Klassifizierung**: `item_type` (Lizenz/Abo/Hardware/Dienstleistung) auto-klassifiziert (Infinigate-Signale + Keywords), Status `internal` für Eigenbedarf, CRM-Tab „Lizenzen & Abos" + **Hardware-Käufe-Register** (Seriennummern), Auswertung „Interne Ausgaben" unter Berichte → Intern, Review-Endpoint liefert endlich camelCase | 94167f0 |
 
 ### Stabilitäts-Sprint Anfang Juli 2026 — ✅ abgeschlossen
 
