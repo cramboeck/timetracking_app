@@ -374,7 +374,7 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 | Prio | Task | Aufwand | Kontext |
 |---|---|---|---|
-| 1 | **NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler** | 3-4h | `GET /api/ninjarmm/diagnose` (analog E-Mail-Diagnose) probiert Endpoints mit gespeichertem OAuth-Token durch; Vulnerability-Zähler (`criticalVulnerabilityCount` etc.) aus `/v2/queries/device-health` syncen → Dashboard zeigt echte Zahlen pro Gerät statt Hinweis-Banner. CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
+| ~~1~~ ✅ | ~~**NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler**~~ | erledigt | **Commit ad0d5ca (30.7.2026):** `GET /api/ninjarmm/diagnose` probt 7 Endpoints mit gespeichertem OAuth-Token (Diagnose-Karte im Sync-Tab der NinjaRMM-Settings); `syncDeviceHealthCounts()` synct `critical/high/medium/low_vuln_count` + `health_status` aus `/v2/queries/device-health` (cursor-paginiert, non-fatal in syncAll, manuell via `POST /sync-health`); VulnerabilitiesDashboard zeigt Tabelle „Schwachstellen-Zähler pro Gerät". CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
 | 2 | **SocialMediaManager.tsx splitten** (6482 Zeilen) | 1 Tag | In PostsTab/TemplatesTab/AnalyticsTab/CalendarTab; lazy-Import. Größter Einzelbrocken Tech-Debt, blockiert auch TS-Fehler-Abbau (40 Fehler in der Datei). |
 | 3 | **TS-Fehler 374 → 0** | 6h+ | ~135 unbenutzte Imports (mechanisch), ~239 fehlende Interface-Properties (TicketDashboard 47, SocialMediaManager 40, CustomerHub 38). Nach dem Split (Punkt 2) leichter. |
 | 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
