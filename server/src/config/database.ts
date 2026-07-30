@@ -4338,6 +4338,10 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ work_sessions (Arbeitszeiterfassung) ready');
 
+    // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
+    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');
+
     // Migration: customer_interactions.type-CHECK um die Werte erweitern, die
     // das Frontend (InteractionsTimeline) tatsächlich anbietet — 'demo' und
     // 'support' etc. wurden bisher von der DB abgelehnt. Constraint neu

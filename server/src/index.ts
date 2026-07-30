@@ -50,6 +50,7 @@ import slaPoliciesRoutes from './routes/sla-policies';
 import customerMetricsRoutes from './routes/customer-metrics';
 import sseRoutes from './routes/sse';
 import { apiLimiter } from './middleware/rateLimiter';
+import { auditTrail } from './middleware/auditTrail';
 
 // Load environment variables
 dotenv.config();
@@ -90,6 +91,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
 app.use('/api/', apiLimiter);
+
+// Lückenlose Protokollierung: jede schreibende API-Anfrage landet im
+// Audit-Log (Details siehe middleware/auditTrail.ts)
+app.use('/api/', auditTrail);
 
 // Initialize database (async for PostgreSQL)
 initializeDatabase().catch(err => {
