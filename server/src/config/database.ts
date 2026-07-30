@@ -4287,6 +4287,18 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ Infinigate integration tables/columns ready');
 
+    // Migration: processed_at nullable machen. revertToDraft setzt beim
+    // Zurücksetzen auf Entwurf processed_at = NULL — mit dem NOT-NULL-
+    // Constraint aus dem CREATE TABLE schlug das Zurücksetzen immer fehl.
+    await client.query(`
+      DO $$
+      BEGIN
+        ALTER TABLE processed_invoices ALTER COLUMN processed_at DROP NOT NULL;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'processed_at DROP NOT NULL skipped: %', SQLERRM;
+      END $$;
+    `);
+
     // Migration: customer_interactions.type-CHECK um die Werte erweitern, die
     // das Frontend (InteractionsTimeline) tatsächlich anbietet — 'demo' und
     // 'support' etc. wurden bisher von der DB abgelehnt. Constraint neu
