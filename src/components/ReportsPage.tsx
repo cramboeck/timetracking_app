@@ -8,6 +8,7 @@ import { AbsenceCalendar } from './AbsenceCalendar';
 import { TeamAbsenceOverview } from './TeamAbsenceOverview';
 import { TeamAttendanceView } from './TeamAttendanceView';
 import { AbsenceRequestApprovals } from './AbsenceRequestApprovals';
+import { InternalExpenses } from './InternalExpenses';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -262,6 +263,10 @@ export const ReportsPage = ({
         {/* Internal Time Report Tab Content */}
         {activeTab === 'internal' && (
           <InternalTimeReport entries={entries} />
+        )}
+
+        {activeTab === 'internal' && isAdmin && (
+          <InternalExpenses />
         )}
 
         {/* Absence Calendar Tab Content */}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Package, TrendingUp, Building2, Loader2,
-  AlertCircle, CheckCircle, Clock, DollarSign, FileText
+  AlertCircle, CheckCircle, Clock, DollarSign, FileText, HardDrive
 } from 'lucide-react';
 import { sevdeskApi, CustomerLicenseData, CustomerLicenseProduct } from '../services/api';
 
@@ -89,7 +89,7 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
     );
   }
 
-  const { products, monthlyBreakdown, summary } = data;
+  const { products, hardware = [], monthlyBreakdown, summary } = data;
 
   return (
     <div className="space-y-6">
@@ -169,7 +169,7 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
         <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-300/50">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Package size={18} />
-            Produkte & Lizenzen ({products.length})
+            Lizenzen & Abos ({products.length})
           </h3>
         </div>
 
@@ -186,6 +186,58 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
           ))}
         </div>
       </div>
+
+      {/* Hardware-Käufe (Geräte-Register) */}
+      {hardware.length > 0 && (
+        <div className="bg-white dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-300/50">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <HardDrive size={18} />
+              Hardware-Käufe ({hardware.length})
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
+              Einmalige Anschaffungen — nicht in den monatlichen Kosten enthalten
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-gray-500 dark:text-dark-400 bg-gray-50 dark:bg-dark-300/30">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Datum</th>
+                  <th className="px-4 py-2 font-medium">Produkt</th>
+                  <th className="px-4 py-2 font-medium">Seriennummer</th>
+                  <th className="px-4 py-2 font-medium">Lieferant</th>
+                  <th className="px-4 py-2 font-medium text-right">Menge</th>
+                  <th className="px-4 py-2 font-medium text-right">Preis</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                {hardware.map((hw) => (
+                  <tr key={hw.id}>
+                    <td className="px-4 py-2 whitespace-nowrap text-gray-600 dark:text-dark-400">
+                      {hw.purchasedAt ? new Date(hw.purchasedAt).toLocaleDateString('de-DE') : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-gray-900 dark:text-white">
+                      {hw.description}
+                      {hw.productSku && (
+                        <span className="ml-2 text-xs text-gray-400">({hw.productSku})</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-dark-400">
+                      {hw.serialNumber || '—'}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-dark-400">{hw.vendor || '—'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{hw.quantity ?? '—'}</td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(hw.totalPrice)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* In Pauschale Info */}
       {summary.includedAmount > 0 && (

@@ -105,6 +105,9 @@ export type {
   TicketEmail,
   InfinigateConfigStatus,
   InfinigateSyncResult,
+  LineItemType,
+  CustomerHardwareItem,
+  InternalExpenseSummary,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

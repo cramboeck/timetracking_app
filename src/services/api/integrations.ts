@@ -557,7 +557,7 @@ export const sevdeskApi = {
     });
   },
 
-  updateLineItemStatus: async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped'): Promise<{
+  updateLineItemStatus: async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped' | 'internal'): Promise<{
     success: boolean;
     data: { message: string };
   }> => {
@@ -565,6 +565,20 @@ export const sevdeskApi = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+  },
+
+  updateLineItemType: async (lineItemId: string, itemType: LineItemType | null): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ itemType }),
+    });
+  },
+
+  getInternalExpenses: async (months = 12): Promise<{ success: boolean; data: InternalExpenseSummary }> => {
+    return authFetch(`/sevdesk/line-items/internal-summary?months=${months}`);
   },
 
   getLineItemStats: async (invoiceId: string): Promise<{
@@ -1322,6 +1336,7 @@ export interface InvoiceLineItem {
 export interface LineItemWithMatch {
   id: string;
   positionNumber: number | null;
+  itemType: LineItemType | null;
   description: string;
   quantity: number | null;
   unitPrice: number | null;
@@ -1396,9 +1411,38 @@ export interface PendingLineItem {
   invoiceDate: string | null;
 }
 
+export type LineItemType = 'license' | 'subscription' | 'hardware' | 'service' | 'other';
+
+export interface CustomerHardwareItem {
+  id: string;
+  description: string;
+  productSku: string | null;
+  serialNumber: string | null;
+  quantity: number | null;
+  totalPrice: number;
+  rebillingStatus: string;
+  purchasedAt: string | null;
+  vendor: string | null;
+}
+
+export interface InternalExpenseSummary {
+  monthly: Array<{ month: string; totalAmount: number; itemCount: number }>;
+  items: Array<{
+    id: string;
+    description: string;
+    productSku: string | null;
+    itemType: LineItemType | null;
+    quantity: number | null;
+    totalPrice: number;
+    receivedAt: string | null;
+    vendor: string | null;
+  }>;
+}
+
 export interface CustomerLicenseProduct {
   description: string;
   productSku: string | null;
+  itemType: LineItemType | null;
   rebillingStatus: string;
   contractId: string | null;
   contractName: string | null;
@@ -1428,6 +1472,7 @@ export interface CustomerLicenseSummary {
 
 export interface CustomerLicenseData {
   products: CustomerLicenseProduct[];
+  hardware: CustomerHardwareItem[];
   monthlyBreakdown: CustomerLicenseMonthly[];
   summary: CustomerLicenseSummary;
 }

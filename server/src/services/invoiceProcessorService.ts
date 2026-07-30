@@ -10,6 +10,7 @@
 
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
+import { classifyLineItemType } from './lineItemClassifier';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
@@ -1457,8 +1458,8 @@ class InvoiceProcessorService {
             extracted_customer_name, extracted_customer_domain, extracted_customer_number,
             quantity, unit, unit_price, total_price, vat_rate,
             period_text, period_start, period_end,
-            product_type, product_sku
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+            product_type, product_sku, item_type
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
           [
             organizationId,
             processedInvoiceId,
@@ -1478,6 +1479,11 @@ class InvoiceProcessorService {
             item.periodEnd,
             item.productType,
             item.productSku,
+            classifyLineItemType({
+              description: item.description,
+              sku: item.productSku || item.articleNumber,
+              hasPeriod: !!(item.periodStart && item.periodEnd),
+            }),
           ]
         );
       }

@@ -130,7 +130,7 @@ export const LineItemReview = ({
     }
   };
 
-  const handleStatusChange = async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped') => {
+  const handleStatusChange = async (lineItemId: string, status: 'pending' | 'included' | 'billed' | 'skipped' | 'internal') => {
     try {
       setUpdating(lineItemId);
       const result = await sevdeskApi.updateLineItemStatus(lineItemId, status);
@@ -140,6 +140,19 @@ export const LineItemReview = ({
       }
     } catch (err) {
       console.error('Status update failed:', err);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleTypeChange = async (lineItemId: string, itemType: 'license' | 'subscription' | 'hardware' | 'service' | 'other' | null) => {
+    try {
+      setUpdating(lineItemId);
+      await sevdeskApi.updateLineItemType(lineItemId, itemType);
+      await loadLineItems();
+      onUpdate?.();
+    } catch (err) {
+      console.error('Failed to update item type:', err);
     } finally {
       setUpdating(null);
     }
@@ -379,8 +392,23 @@ export const LineItemReview = ({
                       </div>
                     )}
 
-                    {/* Rebilling status */}
-                    {item.customerId && (
+                    {/* Typ + Rebilling-Status — auch ohne Kundenzuordnung
+                        sichtbar (interne Ausgaben haben keinen Kunden!) */}
+                    <div className="flex flex-col gap-1">
+                      <select
+                        value={item.itemType || ''}
+                        onChange={(e) => handleTypeChange(item.id, (e.target.value || null) as any)}
+                        disabled={updating === item.id}
+                        className="text-xs px-1.5 py-0.5 rounded border border-gray-200 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-700 dark:text-dark-400"
+                        title="Positions-Typ"
+                      >
+                        <option value="">Typ?</option>
+                        <option value="license">Lizenz</option>
+                        <option value="subscription">Abo</option>
+                        <option value="hardware">Hardware</option>
+                        <option value="service">Dienstleistung</option>
+                        <option value="other">Sonstiges</option>
+                      </select>
                       <select
                         value={item.rebillingStatus}
                         onChange={(e) => handleStatusChange(item.id, e.target.value as any)}
@@ -390,9 +418,10 @@ export const LineItemReview = ({
                         <option value="pending">Offen</option>
                         <option value="included">In Pauschale</option>
                         <option value="billed">Abgerechnet</option>
+                        <option value="internal">Interne Ausgabe</option>
                         <option value="skipped">Übersprungen</option>
                       </select>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { query } from '../config/database';
 import { customerMatchingService } from './customerMatchingService';
+import { classifyLineItemType } from './lineItemClassifier';
 import { logger } from '../utils/logger';
 
 /**
@@ -282,20 +283,28 @@ export async function syncInvoices(userId: string): Promise<InfinigateSyncResult
         const netUnit = Number(line?.netUnitPrice) || null;
 
         const lineItemId = crypto.randomUUID();
+        const itemDescription = [line?.itemDescription, line?.itemDescription2].filter(Boolean).join(' ') || line?.itemNumber || 'Position';
+        const itemType = classifyLineItemType({
+          description: itemDescription,
+          sku: line?.itemNumber,
+          licenseId: contract.licenseId,
+          serialNumber: contract.serialNumber,
+          hasPeriod: !!(contract.StartDate && contract.EndDate),
+        });
         await query(
           `INSERT INTO invoice_line_items (
             id, organization_id, processed_invoice_id, position_number,
             description, article_number, quantity, unit_price, total_price, vat_rate,
             period_start, period_end, product_sku,
             extracted_customer_name, extracted_customer_number,
-            license_id, serial_number
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+            license_id, serial_number, item_type
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
           [
             lineItemId,
             organizationId,
             invoiceId,
             Number(line?.lineNumber) || null,
-            [line?.itemDescription, line?.itemDescription2].filter(Boolean).join(' ') || line?.itemNumber || 'Position',
+            itemDescription,
             line?.vendorItemNumber || null,
             qty,
             netUnit,
@@ -308,6 +317,7 @@ export async function syncInvoices(userId: string): Promise<InfinigateSyncResult
             endCustomer.customerNumber || null,
             contract.licenseId || null,
             contract.serialNumber || null,
+            itemType,
           ]
         );
         result.lineItemsCreated++;

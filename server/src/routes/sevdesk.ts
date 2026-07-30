@@ -14,6 +14,7 @@ import { customerMatchingService } from '../services/customerMatchingService';
 import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
 import { runCustomerSyncForUser } from '../jobs/sevdeskCustomerSync';
 import { logger } from '../utils/logger';
+import { transformRows } from '../utils/dbTransform';
 
 const router = express.Router();
 
@@ -1490,6 +1491,67 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
   }
 });
 
+// GET /api/sevdesk/line-items/internal-summary - Interne Ausgaben (Monatssummen + Positionen)
+router.get('/line-items/internal-summary', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+    const months = Math.min(parseInt(req.query.months as string) || 12, 36);
+
+    const monthlyResult = await query(`
+      SELECT DATE_TRUNC('month', pi.received_at) AS month,
+             SUM(li.total_price) AS total_amount,
+             COUNT(DISTINCT li.id) AS item_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.rebilling_status = 'internal'
+        AND pi.received_at >= NOW() - ($2 || ' months')::interval
+      GROUP BY DATE_TRUNC('month', pi.received_at)
+      ORDER BY month DESC
+    `, [organizationId, months]);
+
+    const itemsResult = await query(`
+      SELECT li.id, li.description, li.product_sku, li.item_type, li.quantity,
+             li.total_price, pi.received_at, pi.supplier_name, pi.sender_name
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.rebilling_status = 'internal'
+        AND pi.received_at >= NOW() - ($2 || ' months')::interval
+      ORDER BY pi.received_at DESC
+      LIMIT 300
+    `, [organizationId, months]);
+
+    res.json({
+      success: true,
+      data: {
+        monthly: monthlyResult.rows.map((r: any) => ({
+          month: r.month,
+          totalAmount: parseFloat(r.total_amount) || 0,
+          itemCount: parseInt(r.item_count) || 0,
+        })),
+        items: itemsResult.rows.map((r: any) => ({
+          id: r.id,
+          description: r.description,
+          productSku: r.product_sku,
+          itemType: r.item_type,
+          quantity: r.quantity !== null ? Number(r.quantity) : null,
+          totalPrice: parseFloat(r.total_price) || 0,
+          receivedAt: r.received_at,
+          vendor: r.supplier_name || r.sender_name || null,
+        })),
+      },
+    });
+  } catch (error: any) {
+    logger.error('Internal summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/sevdesk/customers/sync-now - Manually run the customer auto-sync
 // for the current user (imports new sevDesk customers + sends the same email
 // notification). Ignores the auto_sync toggle since it's an explicit action.
@@ -2231,7 +2293,7 @@ router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, a
         li.id, li.position_number, li.description, li.quantity, li.unit_price, li.total_price,
         li.extracted_customer_name, li.extracted_customer_domain, li.extracted_customer_number,
         li.customer_id, li.match_confidence, li.match_method, li.rebilling_status,
-        li.period_start, li.period_end, li.product_sku, li.created_at,
+        li.period_start, li.period_end, li.product_sku, li.item_type, li.created_at,
         c.name as customer_name, c.customer_number as crm_customer_number
       FROM invoice_line_items li
       LEFT JOIN customers c ON c.id = li.customer_id
@@ -2241,7 +2303,9 @@ router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, a
 
     res.json({
       success: true,
-      data: result.rows,
+      // camelCase: die Review-UI liest item.positionNumber/rebillingStatus/
+      // itemType — raw snake_case ließ diese Felder undefined
+      data: transformRows(result.rows),
     });
   } catch (error: any) {
     logger.error('Get line items error:', error);
@@ -2444,22 +2508,32 @@ router.patch('/line-items/:id/status', authenticateToken, requireBillingFeature,
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, itemType } = req.body;
 
     if (!organizationId) {
       return res.status(400).json({ success: false, error: 'No organization found' });
     }
 
-    const validStatuses = ['pending', 'included', 'billed', 'skipped'];
-    if (!validStatuses.includes(status)) {
+    // 'internal' = interne Ausgabe/Bestellung ohne Endkunden-Bezug
+    const validStatuses = ['pending', 'included', 'billed', 'skipped', 'internal'];
+    if (status !== undefined && !validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: `Status muss einer von ${validStatuses.join(', ')} sein` });
+    }
+    const validTypes = ['license', 'subscription', 'hardware', 'service', 'other'];
+    if (itemType !== undefined && itemType !== null && !validTypes.includes(itemType)) {
+      return res.status(400).json({ success: false, error: `Typ muss einer von ${validTypes.join(', ')} sein` });
+    }
+    if (status === undefined && itemType === undefined) {
+      return res.status(400).json({ success: false, error: 'status oder itemType erforderlich' });
     }
 
     await query(`
       UPDATE invoice_line_items
-      SET rebilling_status = $1, updated_at = NOW()
-      WHERE id = $2 AND organization_id = $3
-    `, [status, id, organizationId]);
+      SET rebilling_status = COALESCE($1, rebilling_status),
+          item_type = CASE WHEN $4 THEN $2 ELSE item_type END,
+          updated_at = NOW()
+      WHERE id = $3 AND organization_id = $5
+    `, [status ?? null, itemType ?? null, id, itemType !== undefined, organizationId]);
 
     res.json({ success: true, data: { message: 'Status aktualisiert' } });
   } catch (error: any) {
@@ -2606,6 +2680,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
       SELECT
         li.description,
         li.product_sku,
+        li.item_type,
         li.rebilling_status,
         li.contract_id,
         c.name AS contract_name,
@@ -2622,7 +2697,8 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
       WHERE li.organization_id = $1
         AND li.customer_id = $2
         AND li.rebilling_status IN ('pending', 'billed', 'included')
-      GROUP BY li.description, li.product_sku, li.rebilling_status, li.contract_id, c.name, c.contract_number
+        AND (li.item_type IS DISTINCT FROM 'hardware')
+      GROUP BY li.description, li.product_sku, li.item_type, li.rebilling_status, li.contract_id, c.name, c.contract_number
       ORDER BY total_amount DESC
     `, [organizationId, customerId]);
 
@@ -2637,6 +2713,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
       WHERE li.organization_id = $1
         AND li.customer_id = $2
         AND li.rebilling_status IN ('pending', 'billed', 'included')
+        AND (li.item_type IS DISTINCT FROM 'hardware')
         AND pi.received_at >= NOW() - INTERVAL '6 months'
       GROUP BY DATE_TRUNC('month', pi.received_at)
       ORDER BY month DESC
@@ -2656,6 +2733,21 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
         AND li.customer_id = $2
     `, [organizationId, customerId]);
 
+    // Hardware-Käufe einzeln (Geräte-Register: Datum, Seriennummer, Preis)
+    const hardwareResult = await query(`
+      SELECT li.id, li.description, li.product_sku, li.serial_number,
+             li.quantity, li.total_price, li.rebilling_status,
+             pi.received_at, pi.supplier_name, pi.sender_name
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      WHERE li.organization_id = $1
+        AND li.customer_id = $2
+        AND li.item_type = 'hardware'
+        AND li.rebilling_status IN ('pending', 'billed', 'included')
+      ORDER BY pi.received_at DESC
+      LIMIT 200
+    `, [organizationId, customerId]);
+
     const stats = statsResult.rows[0] || {};
 
     res.json({
@@ -2664,6 +2756,7 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
         products: aggregatedResult.rows.map((row: any) => ({
           description: row.description,
           productSku: row.product_sku,
+          itemType: row.item_type,
           rebillingStatus: row.rebilling_status,
           contractId: row.contract_id,
           contractName: row.contract_name,
@@ -2674,6 +2767,17 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
           firstSeen: row.first_seen,
           lastSeen: row.last_seen,
           vendors: row.vendors || [],
+        })),
+        hardware: hardwareResult.rows.map((row: any) => ({
+          id: row.id,
+          description: row.description,
+          productSku: row.product_sku,
+          serialNumber: row.serial_number,
+          quantity: row.quantity !== null ? Number(row.quantity) : null,
+          totalPrice: parseFloat(row.total_price) || 0,
+          rebillingStatus: row.rebilling_status,
+          purchasedAt: row.received_at,
+          vendor: row.supplier_name || row.sender_name || null,
         })),
         monthlyBreakdown: monthlyResult.rows.map((row: any) => ({
           month: row.month,

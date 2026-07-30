@@ -4363,6 +4363,35 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_absence_requests_org_status ON absence_requests(organization_id, status)');
     logger.info('✅ absence_requests (Urlaubsanträge) ready');
 
+    // Positions-Klassifizierung: item_type (Lizenz/Abo/Hardware/Dienstleistung)
+    // + rebilling_status 'internal' für interne Ausgaben/Bestellungen ohne
+    // Endkunden-Bezug. Der alte CHECK kannte 'internal' nicht.
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='item_type') THEN
+          ALTER TABLE invoice_line_items ADD COLUMN item_type TEXT CHECK(item_type IN ('license', 'subscription', 'hardware', 'service', 'other'));
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.constraint_column_usage
+          WHERE table_name = 'invoice_line_items' AND constraint_name = 'invoice_line_items_rebilling_status_check'
+        ) THEN
+          ALTER TABLE invoice_line_items DROP CONSTRAINT invoice_line_items_rebilling_status_check;
+        END IF;
+        ALTER TABLE invoice_line_items ADD CONSTRAINT invoice_line_items_rebilling_status_check
+          CHECK(rebilling_status IN ('pending', 'included', 'billed', 'skipped', 'internal'));
+      EXCEPTION WHEN OTHERS THEN
+        RAISE NOTICE 'invoice_line_items rebilling_status check migration skipped: %', SQLERRM;
+      END $$;
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_type ON invoice_line_items(item_type)');
+    logger.info('✅ invoice_line_items item_type/internal ready');
+
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');
