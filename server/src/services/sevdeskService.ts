@@ -1565,10 +1565,16 @@ export async function createVoucherFromFile(
     sumTax = sumGross - sumNetInput;
   }
 
-  // Build description with invoice number if provided
-  let description = voucherData.description || 'Beleg';
+  // sevDesk zeigt das description-Feld als "Belegnummer" an — dort gehört
+  // NUR die Rechnungsnummer hin, nicht der E-Mail-Betreff ("Fwd: ...").
+  // Ohne Rechnungsnummer: bereinigter Betreff (Fwd:/AW:/Re: entfernt).
+  let description: string;
   if (voucherData.invoiceNumber) {
-    description = `${voucherData.invoiceNumber} - ${description}`;
+    description = voucherData.invoiceNumber;
+  } else {
+    description = (voucherData.description || 'Beleg')
+      .replace(/^((fwd|aw|re|wg)\s*:\s*)+/i, '')
+      .trim() || 'Beleg';
   }
 
   const voucherPayload: Record<string, unknown> = {
