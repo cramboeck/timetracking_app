@@ -4338,6 +4338,31 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ work_sessions (Arbeitszeiterfassung) ready');
 
+    // Urlaubsanträge mit Genehmigungsworkflow (Mein Bereich, V3 Phase 2).
+    // Genehmigte Anträge erzeugen automatisch time_entries-Abwesenheits-
+    // Einträge (entry_scope='absence') für jeden Werktag im Zeitraum.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS absence_requests (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        category TEXT NOT NULL CHECK(category IN ('vacation', 'sick', 'special_leave')),
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        note TEXT,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'cancelled')),
+        decided_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+        decided_at TIMESTAMP,
+        decision_note TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        CHECK (end_date >= start_date)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_absence_requests_user ON absence_requests(user_id, start_date DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_absence_requests_org_status ON absence_requests(organization_id, status)');
+    logger.info('✅ absence_requests (Urlaubsanträge) ready');
+
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');

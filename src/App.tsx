@@ -3,6 +3,7 @@ import { AreaNavigation, SubView, isSubViewAllowed } from './components/AreaNavi
 import { AttendanceBar } from './components/AttendanceBar';
 import { WorkTimeAccount } from './components/WorkTimeAccount';
 import { AbsenceCalendar } from './components/AbsenceCalendar';
+import { AbsenceRequests } from './components/AbsenceRequests';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -1009,6 +1010,7 @@ function App() {
         )}
         {currentSubView === 'abwesenheit' && (
           <div className="p-3 sm:p-6">
+            <AbsenceRequests />
             <AbsenceCalendar entries={entries} />
           </div>
         )}

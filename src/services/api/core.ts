@@ -622,3 +622,51 @@ export const workSessionsApi = {
     return authFetch(`/work-sessions/team${qs ? `?${qs}` : ''}`);
   },
 };
+
+// ============================================
+// Urlaubsanträge (Genehmigungsworkflow)
+// ============================================
+
+export type AbsenceRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type AbsenceCategory = 'vacation' | 'sick' | 'special_leave';
+
+export interface AbsenceRequest {
+  id: string;
+  userId: string;
+  category: AbsenceCategory;
+  startDate: string;   // YYYY-MM-DD
+  endDate: string;     // YYYY-MM-DD
+  note: string | null;
+  status: AbsenceRequestStatus;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+  userName?: string;       // Team-Ansicht
+  decidedByName?: string;
+}
+
+export const absenceRequestsApi = {
+  create: async (data: { category: AbsenceCategory; startDate: string; endDate: string; note?: string }): Promise<{ success: boolean; data: AbsenceRequest }> => {
+    return authFetch('/absence-requests', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  listMine: async (): Promise<{ success: boolean; data: AbsenceRequest[] }> => {
+    return authFetch('/absence-requests');
+  },
+
+  cancel: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/absence-requests/${id}/cancel`, { method: 'POST' });
+  },
+
+  listTeam: async (status?: AbsenceRequestStatus): Promise<{ success: boolean; data: AbsenceRequest[] }> => {
+    return authFetch(`/absence-requests/team${status ? `?status=${status}` : ''}`);
+  },
+
+  approve: async (id: string, decisionNote?: string): Promise<{ success: boolean; data: { createdEntries: number } }> => {
+    return authFetch(`/absence-requests/${id}/approve`, { method: 'POST', body: JSON.stringify(decisionNote ? { decisionNote } : {}) });
+  },
+
+  reject: async (id: string, decisionNote?: string): Promise<{ success: boolean }> => {
+    return authFetch(`/absence-requests/${id}/reject`, { method: 'POST', body: JSON.stringify(decisionNote ? { decisionNote } : {}) });
+  },
+};

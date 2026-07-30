@@ -6,7 +6,7 @@
 // Import APIs used in default export
 import { authApi, mfaApi, passwordResetApi } from './auth';
 import { userApi, teamsApi, organizationsApi, featuresApi } from './user';
-import { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi, workSessionsApi } from './core';
+import { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi, workSessionsApi, absenceRequestsApi } from './core';
 import { ticketsApi } from './tickets';
 import { customerPortalApi } from './portal';
 import { contractsApi, importApi, socialMediaApi } from './business';
@@ -31,8 +31,8 @@ export type {
 } from './user';
 
 // Core API (entries, projects, customers, activities, tasks, work sessions)
-export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi, workSessionsApi };
-export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters, TeamEntryFilters, TeamMember, TeamEntryStats, TeamEntriesResponse, WorkSession } from './core';
+export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi, workSessionsApi, absenceRequestsApi };
+export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters, TeamEntryFilters, TeamMember, TeamEntryStats, TeamEntriesResponse, WorkSession, AbsenceRequest, AbsenceRequestStatus, AbsenceCategory } from './core';
 
 // Tickets API
 export { ticketsApi, knowledgeBaseApi, publicKbApi } from './tickets';
