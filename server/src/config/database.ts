@@ -4392,6 +4392,24 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_type ON invoice_line_items(item_type)');
     logger.info('✅ invoice_line_items item_type/internal ready');
 
+    // NinjaRMM device-health Aggregatzähler (einzige per Public-API lesbare
+    // Vulnerability-Information — CVE-Details gibt die API nicht her, siehe
+    // Limitierungs-Box in CLAUDE.md)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='ninjarmm_devices' AND column_name='critical_vuln_count') THEN
+          ALTER TABLE ninjarmm_devices ADD COLUMN critical_vuln_count INTEGER;
+          ALTER TABLE ninjarmm_devices ADD COLUMN high_vuln_count INTEGER;
+          ALTER TABLE ninjarmm_devices ADD COLUMN medium_vuln_count INTEGER;
+          ALTER TABLE ninjarmm_devices ADD COLUMN low_vuln_count INTEGER;
+          ALTER TABLE ninjarmm_devices ADD COLUMN health_status TEXT;
+          ALTER TABLE ninjarmm_devices ADD COLUMN health_synced_at TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ ninjarmm_devices health counts ready');
+
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');

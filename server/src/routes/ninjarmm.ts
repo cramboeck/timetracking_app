@@ -96,6 +96,67 @@ async function requireNinjaFeature(req: AuthRequest, res: Response, next: Functi
 // ============================================
 
 // GET /api/ninjarmm/config - Get NinjaRMM configuration
+// GET /api/ninjarmm/diagnose - Public-API-Endpoints mit gespeichertem Token
+// durchproben (analog E-Mail-Diagnose). Zeigt auch, welche Vulnerability-
+// Endpoints laut Spec fehlen (Beleg der CVE-Limitierung).
+router.get('/diagnose', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const results = await ninjaService.runDiagnostics(req.user!.id);
+    res.json({ success: true, data: results });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ninjarmm/sync-health - device-health Zähler manuell syncen
+router.post('/sync-health', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await ninjaService.syncDeviceHealthCounts(req.user!.id);
+    res.json({ success: !result.error, data: result, error: result.error });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ninjarmm/device-health-summary - Geräte mit Vulnerability-Zählern (aus DB)
+router.get('/device-health-summary', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT d.id, d.system_name, d.dns_name, d.os_name, d.offline,
+              d.critical_vuln_count, d.high_vuln_count, d.medium_vuln_count, d.low_vuln_count,
+              d.health_status, d.health_synced_at,
+              o.name AS organization_name
+       FROM ninjarmm_devices d
+       LEFT JOIN ninjarmm_organizations o ON o.id = d.organization_id
+       WHERE d.user_id = $1
+         AND (COALESCE(d.critical_vuln_count,0) + COALESCE(d.high_vuln_count,0)
+            + COALESCE(d.medium_vuln_count,0) + COALESCE(d.low_vuln_count,0)) > 0
+       ORDER BY COALESCE(d.critical_vuln_count,0) DESC, COALESCE(d.high_vuln_count,0) DESC
+       LIMIT 500`,
+      [req.user!.id]
+    );
+    res.json({
+      success: true,
+      data: result.rows.map((r: any) => ({
+        id: r.id,
+        systemName: r.system_name,
+        dnsName: r.dns_name,
+        osName: r.os_name,
+        offline: r.offline,
+        organizationName: r.organization_name,
+        critical: r.critical_vuln_count ?? 0,
+        high: r.high_vuln_count ?? 0,
+        medium: r.medium_vuln_count ?? 0,
+        low: r.low_vuln_count ?? 0,
+        healthStatus: r.health_status,
+        syncedAt: r.health_synced_at,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.get('/config', authenticateToken, requireNinjaFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;

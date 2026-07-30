@@ -118,6 +118,23 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
   });
   const instanceUrl = configQuery.data?.data?.instanceUrl || 'https://eu.ninjarmm.com';
 
+  // Aggregatzähler pro Gerät aus /queries/device-health (einzige per Public
+  // API lesbare Vulnerability-Info; wird beim 5-Min-Auto-Sync mitgezogen)
+  const healthQuery = useQuery({
+    queryKey: ['ninjarmm', 'deviceHealth'],
+    queryFn: async () => (await ninjaApi.getDeviceHealthSummary()).data,
+    staleTime: 60_000,
+  });
+  const healthSyncMutation = useMutation({
+    mutationFn: () => ninjaApi.syncDeviceHealth(),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['ninjarmm', 'deviceHealth'] });
+      showToast(`${res.data.devicesUpdated} Geräte aktualisiert, ${res.data.devicesWithVulns} mit Schwachstellen`, 'success');
+    },
+    onError: (err: any) => showToast(err?.message || 'Health-Sync fehlgeschlagen', 'error'),
+  });
+  const healthDevices = healthQuery.data ?? [];
+
   const summary = summaryQuery.data;
   const vulnerabilities = vulnerabilitiesQuery.data || [];
   const isLoading = summaryQuery.isLoading || vulnerabilitiesQuery.isLoading;
@@ -179,6 +196,81 @@ export const VulnerabilitiesDashboard = ({ onNavigateToTicket }: Vulnerabilities
           </div>
         </div>
       )}
+
+      {/* Vulnerability-Zähler pro Gerät (device-health Aggregat) */}
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Schwachstellen-Zähler pro Gerät</h2>
+            <p className="text-xs text-gray-500 dark:text-dark-400">
+              Aggregat aus dem NinjaOne-Scan (device-health) — CVE-Details nur im NinjaOne-Portal
+            </p>
+          </div>
+          <Button
+            onClick={() => healthSyncMutation.mutate()}
+            disabled={healthSyncMutation.isPending}
+            variant="ghost"
+            size="sm"
+            icon={<RefreshCw size={14} className={healthSyncMutation.isPending ? 'animate-spin' : ''} />}
+          >
+            Zähler aktualisieren
+          </Button>
+        </div>
+        {healthQuery.isLoading ? (
+          <p className="text-sm text-gray-400 px-4 py-4">Lade…</p>
+        ) : healthDevices.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-dark-400 px-4 py-4">
+            Keine Geräte mit Schwachstellen-Zählern. Über „Zähler aktualisieren" jetzt aus NinjaOne laden —
+            bleibt es leer, liefert dein NinjaOne-Tarif keine Scan-Daten über die API.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-gray-500 dark:text-dark-400 bg-gray-50 dark:bg-dark-50">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Gerät</th>
+                  <th className="px-4 py-2 font-medium">Organisation</th>
+                  <th className="px-2 py-2 font-medium text-center">Kritisch</th>
+                  <th className="px-2 py-2 font-medium text-center">Hoch</th>
+                  <th className="px-2 py-2 font-medium text-center">Mittel</th>
+                  <th className="px-2 py-2 font-medium text-center">Niedrig</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+                {healthDevices.map(d => (
+                  <tr key={d.id}>
+                    <td className="px-4 py-2 text-gray-900 dark:text-white">
+                      {d.systemName}
+                      {d.offline && <span className="ml-2 text-xs text-red-500">offline</span>}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-dark-400">{d.organizationName || '—'}</td>
+                    <td className="px-2 py-2 text-center">
+                      {d.critical > 0
+                        ? <span className="inline-block min-w-[2rem] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-semibold">{d.critical}</span>
+                        : <span className="text-gray-300 dark:text-dark-300">0</span>}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {d.high > 0
+                        ? <span className="inline-block min-w-[2rem] px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 font-semibold">{d.high}</span>
+                        : <span className="text-gray-300 dark:text-dark-300">0</span>}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {d.medium > 0
+                        ? <span className="inline-block min-w-[2rem] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">{d.medium}</span>
+                        : <span className="text-gray-300 dark:text-dark-300">0</span>}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {d.low > 0
+                        ? <span className="inline-block min-w-[2rem] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400">{d.low}</span>
+                        : <span className="text-gray-300 dark:text-dark-300">0</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       {summary && (

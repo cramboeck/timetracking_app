@@ -1031,6 +1031,14 @@ export async function syncAll(userId: string): Promise<{
   const devices = await syncDevices(userId);
   const alerts = await syncAlerts(userId);
 
+  // Vulnerability-Aggregatzähler aus device-health mitziehen (non-fatal —
+  // die Zähler sind die einzige per Public API lesbare Vulnerability-Info)
+  try {
+    await syncDeviceHealthCounts(userId);
+  } catch (err: any) {
+    console.error('device-health sync (non-fatal):', err.message);
+  }
+
   // Update last sync time
   await saveConfig(userId, { lastSyncAt: new Date() });
 
@@ -2194,4 +2202,129 @@ export async function getSyncStatus(userId: string): Promise<{
     vulnerabilityCount: parseInt(row?.vuln_count) || 0,
     criticalVulnerabilityCount: parseInt(row?.critical_vuln_count) || 0,
   };
+}
+
+// ============================================
+// Diagnose & device-health Aggregatzähler
+// ============================================
+
+export interface DiagnosticResult {
+  endpoint: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+/**
+ * Probiert die wichtigsten Public-API-Endpoints mit dem gespeicherten
+ * OAuth-Token durch (analog zur E-Mail-Diagnose). Zeigt pro Endpoint, ob er
+ * erreichbar ist und was er liefert — inklusive der Vulnerability-Kandidaten,
+ * die laut offizieller Spec 404 liefern MÜSSEN (Beleg der API-Limitierung).
+ */
+export async function runDiagnostics(userId: string): Promise<DiagnosticResult[]> {
+  const config = await getConfig(userId);
+  if (!config?.accessToken) {
+    return [{ endpoint: '-', label: 'Konfiguration', ok: false, detail: 'NinjaRMM ist nicht verbunden (kein OAuth-Token)' }];
+  }
+
+  const probes: Array<{ endpoint: string; label: string; describe: (data: any) => string }> = [
+    { endpoint: '/organizations?pageSize=1', label: 'Organisationen', describe: (d) => `${Array.isArray(d) ? d.length : 0}+ Organisation(en) lesbar` },
+    { endpoint: '/devices?pageSize=1', label: 'Geräte', describe: (d) => `${Array.isArray(d) ? d.length : 0}+ Gerät(e) lesbar` },
+    { endpoint: '/alerts?pageSize=1', label: 'Alerts', describe: (d) => `${Array.isArray(d) ? d.length : 0}+ Alert(s) lesbar` },
+    {
+      endpoint: '/queries/device-health?pageSize=5',
+      label: 'Device-Health (Vulnerability-Zähler)',
+      describe: (d) => {
+        const results = d?.results || [];
+        const withCounts = results.filter((r: any) =>
+          r.criticalVulnerabilityCount != null || r.highVulnerabilityCount != null
+        ).length;
+        return `${results.length} Gerät(e) geliefert, ${withCounts} mit Vulnerability-Zählern`;
+      },
+    },
+    { endpoint: '/queries/antivirus-status?pageSize=1', label: 'Antivirus-Status', describe: () => 'lesbar' },
+    { endpoint: '/queries/os-patches?pageSize=1', label: 'OS-Patches', describe: () => 'lesbar' },
+    // Erwartete 404s — dokumentieren die API-Limitierung für CVE-Details
+    { endpoint: '/vulnerability/scan-groups', label: 'Vulnerability Scan-Groups (nur CSV-Import)', describe: (d) => `${Array.isArray(d) ? d.length : 0} Scan-Group(s)` },
+  ];
+
+  const results: DiagnosticResult[] = [];
+  for (const probe of probes) {
+    try {
+      const data = await ninjaFetch(config, probe.endpoint);
+      results.push({ endpoint: probe.endpoint, label: probe.label, ok: true, detail: probe.describe(data) });
+    } catch (error: any) {
+      results.push({
+        endpoint: probe.endpoint,
+        label: probe.label,
+        ok: false,
+        detail: (error.message || 'Fehler').slice(0, 200),
+      });
+    }
+  }
+  return results;
+}
+
+export interface HealthSyncResult {
+  devicesUpdated: number;
+  devicesWithVulns: number;
+  error?: string;
+}
+
+/**
+ * Synct die Vulnerability-Aggregatzähler pro Gerät aus /queries/device-health
+ * in ninjarmm_devices. Das ist die EINZIGE per Public API lesbare
+ * Vulnerability-Information (CVE-Details: nur im NinjaOne-Portal).
+ */
+export async function syncDeviceHealthCounts(userId: string): Promise<HealthSyncResult> {
+  const config = await getConfig(userId);
+  if (!config?.accessToken) {
+    return { devicesUpdated: 0, devicesWithVulns: 0, error: 'Nicht verbunden' };
+  }
+
+  let updated = 0;
+  let withVulns = 0;
+  let cursor: string | null = null;
+  let pages = 0;
+
+  try {
+    do {
+      const path = `/queries/device-health?pageSize=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const data: any = await ninjaFetch(config, path);
+      const results: any[] = data?.results || [];
+
+      for (const r of results) {
+        const deviceId = r.deviceId ?? r.id;
+        if (deviceId == null) continue;
+
+        const critical = r.criticalVulnerabilityCount ?? null;
+        const high = r.highVulnerabilityCount ?? null;
+        const medium = r.mediumVulnerabilityCount ?? null;
+        const low = r.lowVulnerabilityCount ?? null;
+        const health = r.healthStatus ?? r.health ?? null;
+
+        const res = await query(
+          `UPDATE ninjarmm_devices
+           SET critical_vuln_count = $1, high_vuln_count = $2,
+               medium_vuln_count = $3, low_vuln_count = $4,
+               health_status = $5, health_synced_at = NOW()
+           WHERE user_id = $6 AND ninja_device_id = $7`,
+          [critical, high, medium, low, health, userId, String(deviceId)]
+        );
+        if ((res.rowCount ?? 0) > 0) {
+          updated++;
+          if ((critical || 0) + (high || 0) + (medium || 0) + (low || 0) > 0) withVulns++;
+        }
+      }
+
+      cursor = data?.cursor?.name || data?.cursor || null;
+      pages++;
+    } while (cursor && pages < 50);
+
+    console.log(`NinjaRMM device-health sync (user ${userId}): ${updated} Geräte aktualisiert, ${withVulns} mit Schwachstellen`);
+    return { devicesUpdated: updated, devicesWithVulns: withVulns };
+  } catch (error: any) {
+    console.error(`NinjaRMM device-health sync fehlgeschlagen: ${error.message}`);
+    return { devicesUpdated: updated, devicesWithVulns: withVulns, error: error.message };
+  }
 }

@@ -108,6 +108,8 @@ export type {
   LineItemType,
   CustomerHardwareItem,
   InternalExpenseSummary,
+  NinjaDiagnosticResult,
+  NinjaDeviceHealth,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

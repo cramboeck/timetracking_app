@@ -7,7 +7,7 @@ import {
   ToggleLeft, ToggleRight, Ban
 } from 'lucide-react';
 import { Button, IconButton } from './ui/Button';
-import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion } from '../services/api';
+import { ninjaApi, NinjaRMMConfig, NinjaSyncStatus, NinjaOrganization, NinjaDevice, NinjaAlert, NinjaAlertExclusion, NinjaDiagnosticResult } from '../services/api';
 import { customersApi } from '../services/api';
 import { Customer } from '../types';
 import { useConfirm } from '../contexts/UIContext';
@@ -36,6 +36,11 @@ export const NinjaRMMSettings = () => {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [testing, setTesting] = useState(false);
+
+  // Diagnose state
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<NinjaDiagnosticResult[] | null>(null);
+  const [diagnoseError, setDiagnoseError] = useState('');
 
   // Active section
   const [activeSection, setActiveSection] = useState<'config' | 'organizations' | 'devices' | 'alerts' | 'sync' | 'webhook'>('config');
@@ -288,6 +293,24 @@ export const NinjaRMMSettings = () => {
       setError(err.message || 'Sync fehlgeschlagen');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleDiagnose = async () => {
+    try {
+      setDiagnosing(true);
+      setDiagnoseError('');
+      setDiagnostics(null);
+      const result = await ninjaApi.runDiagnostics();
+      if (result.success) {
+        setDiagnostics(result.data);
+      } else {
+        setDiagnoseError('Diagnose fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setDiagnoseError(err.message || 'Diagnose fehlgeschlagen');
+    } finally {
+      setDiagnosing(false);
     }
   };
 
@@ -1760,6 +1783,56 @@ export const NinjaRMMSettings = () => {
                   <p className="text-sm text-gray-500 dark:text-dark-400 mt-4">
                     Letzte Synchronisation: {new Date(syncStatus.lastSync).toLocaleString('de-DE')}
                   </p>
+                )}
+              </div>
+
+              {/* API-Diagnose */}
+              <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Zap size={18} className="text-accent-primary" />
+                    <h3 className="font-medium text-gray-900 dark:text-white">API-Diagnose</h3>
+                  </div>
+                  <Button
+                    onClick={handleDiagnose}
+                    loading={diagnosing}
+                    variant="secondary"
+                    icon={<Zap size={16} />}
+                  >
+                    {diagnosing ? 'Prüfe Endpoints...' : 'Diagnose ausführen'}
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-dark-400 mb-4">
+                  Prüft mit dem gespeicherten Zugangstoken, welche NinjaOne-API-Endpoints erreichbar sind
+                  (Organisationen, Geräte, Alerts, Device-Health, Antivirus, OS-Patches, Vulnerability-Scan-Groups).
+                </p>
+
+                {diagnoseError && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 mb-3">
+                    <XCircle size={16} className="shrink-0" />
+                    {diagnoseError}
+                  </div>
+                )}
+
+                {diagnostics && (
+                  <div className="divide-y divide-gray-100 dark:divide-dark-border rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+                    {diagnostics.map(d => (
+                      <div key={d.endpoint} className="flex items-start gap-3 p-3 bg-gray-50/50 dark:bg-dark-50/50">
+                        {d.ok ? (
+                          <CheckCircle size={18} className="text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle size={18} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{d.label}</p>
+                          <p className="text-xs text-gray-500 dark:text-dark-400 font-mono truncate">{d.endpoint}</p>
+                          <p className={`text-xs mt-0.5 ${d.ok ? 'text-gray-600 dark:text-dark-500' : 'text-red-600 dark:text-red-400'}`}>
+                            {d.detail}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </>

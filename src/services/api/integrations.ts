@@ -871,7 +871,41 @@ export interface VulnerabilitySummary {
 }
 
 // NinjaRMM API
+export interface NinjaDiagnosticResult {
+  endpoint: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface NinjaDeviceHealth {
+  id: string;
+  systemName: string;
+  dnsName: string | null;
+  osName: string | null;
+  offline: boolean;
+  organizationName: string | null;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  healthStatus: string | null;
+  syncedAt: string | null;
+}
+
 export const ninjaApi = {
+  runDiagnostics: async (): Promise<{ success: boolean; data: NinjaDiagnosticResult[] }> => {
+    return authFetch('/ninjarmm/diagnose');
+  },
+
+  syncDeviceHealth: async (): Promise<{ success: boolean; data: { devicesUpdated: number; devicesWithVulns: number }; error?: string }> => {
+    return authFetch('/ninjarmm/sync-health', { method: 'POST' });
+  },
+
+  getDeviceHealthSummary: async (): Promise<{ success: boolean; data: NinjaDeviceHealth[] }> => {
+    return authFetch('/ninjarmm/device-health-summary');
+  },
+
   getConfig: async (): Promise<{ success: boolean; data: NinjaRMMConfig | null }> => {
     return authFetch('/ninjarmm/config');
   },
