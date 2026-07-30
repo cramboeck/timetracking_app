@@ -1,7 +1,6 @@
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
-import FormData from 'form-data';
 
 // sevDesk API Base URL
 const SEVDESK_API_URL = 'https://my.sevdesk.de/api/v1';
@@ -1369,20 +1368,19 @@ export async function uploadVoucherFile(
 ): Promise<{ id: string; filename: string }> {
   logger.info(`Uploading voucher file: ${filename} (${mimeType}, ${file.length} bytes)`);
 
-  // Use form-data package for proper multipart handling in Node.js
-  const formData = new FormData();
-  formData.append('file', file, {
-    filename: filename,
-    contentType: mimeType,
-  });
+  // Natives undici-FormData/Blob verwenden: das npm-Paket 'form-data'
+  // (Node-Stream + getHeaders()) ist mit dem globalen fetch inkompatibel —
+  // der Body kam leer bei sevDesk an ("uploadTempFile(): Argument #1 ($file)
+  // not passed"). Mit undici-FormData setzt fetch Boundary + Body selbst.
+  const formData = new globalThis.FormData();
+  formData.append('file', new Blob([file], { type: mimeType }), filename);
 
   const response = await fetch(`${SEVDESK_API_URL}/Voucher/Factory/uploadTempFile`, {
     method: 'POST',
     headers: {
       'Authorization': apiToken,
-      ...formData.getHeaders(),
     },
-    body: formData as any,
+    body: formData,
   });
 
   if (!response.ok) {
