@@ -19,6 +19,7 @@ export const userApi = {
     timeRoundingInterval?: number;
     timeFormat?: string;
     heartbeatIntervalMinutes?: 1 | 5 | 15;
+    weeklyHours?: number;
     organizationName?: string;
   }) => {
     return authFetch('/user/settings', {

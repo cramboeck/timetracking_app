@@ -4327,6 +4327,15 @@ export async function initializeDatabase() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_work_sessions_one_open
       ON work_sessions(user_id) WHERE ended_at IS NULL
     `);
+    // Soll-Wochenstunden für das Arbeitszeitkonto (Mein Bereich)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='weekly_hours') THEN
+          ALTER TABLE users ADD COLUMN weekly_hours NUMERIC(4,1) DEFAULT 40;
+        END IF;
+      END $$;
+    `);
     logger.info('✅ work_sessions (Arbeitszeiterfassung) ready');
 
     // Migration: customer_interactions.type-CHECK um die Werte erweitern, die

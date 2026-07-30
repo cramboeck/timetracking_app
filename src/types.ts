@@ -109,6 +109,7 @@ export interface User {
   passwordHash: string;
   accountType: AccountType;
   role: UserRole; // Admin or regular user
+  weeklyHours?: number; // Soll-Wochenstunden (Arbeitszeitkonto)
   organizationName?: string; // For business/team accounts
   customerNumber?: string; // User's customer number (e.g., RBF-000001)
   displayName?: string; // User's display name

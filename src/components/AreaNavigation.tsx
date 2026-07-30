@@ -3,7 +3,8 @@ import {
   Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
-  Target, Users, LayoutDashboard, Building2, Receipt, Search
+  Target, Users, LayoutDashboard, Building2, Receipt, Search,
+  CircleUser, Clock3, Palmtree
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -11,7 +12,7 @@ import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
 
 // Area definitions - New structure for market-ready product
-export type Area = 'dashboard' | 'arbeiten' | 'support' | 'crm' | 'finanzen';
+export type Area = 'dashboard' | 'arbeiten' | 'personal' | 'support' | 'crm' | 'finanzen';
 
 // Globale Command Palette öffnen (Cmd+K Event)
 const openCommandPalette = () => {
@@ -22,6 +23,8 @@ export type SubView =
   | 'overview'
   // Arbeiten
   | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks' | 'grid' | 'zeiten'
+  // Mein Bereich (persönliche HR-Sicht)
+  | 'arbeitszeit' | 'abwesenheit'
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'vulnerabilities' | 'maintenance' | 'inbox'
   // CRM
@@ -53,6 +56,14 @@ const areaConfig = {
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
       { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
       { view: 'zeiten' as SubView, icon: CalendarClock, label: 'Zeiten' },
+    ],
+  },
+  personal: {
+    icon: CircleUser,
+    label: 'Mein Bereich',
+    subViews: [
+      { view: 'arbeitszeit' as SubView, icon: Clock3, label: 'Arbeitszeit' },
+      { view: 'abwesenheit' as SubView, icon: Palmtree, label: 'Abwesenheit' },
     ],
   },
   support: {
@@ -141,6 +152,7 @@ export const AreaNavigation = ({
   const visibleAreas: Area[] = ([
     'dashboard',
     'arbeiten',
+    'personal',
     ...(hasPackage('support') ? ['support' as Area] : []),
     ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
   ] as Area[]).filter(a => isAreaAllowed(a, role));
@@ -262,6 +274,7 @@ export const AreaNavigation = ({
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['overview'].includes(subView)) return 'dashboard';
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten'].includes(subView)) return 'arbeiten';
+  if (['arbeitszeit', 'abwesenheit'].includes(subView)) return 'personal';
   if (['tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
   if (['invoices', 'billing', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
@@ -273,6 +286,7 @@ export const getDefaultSubView = (area: Area): SubView => {
   switch (area) {
     case 'dashboard': return 'overview';
     case 'arbeiten': return 'stopwatch';
+    case 'personal': return 'arbeitszeit';
     case 'support': return 'tickets';
     case 'crm': return 'crm-dashboard';
     case 'finanzen': return 'invoices';
@@ -290,13 +304,14 @@ const STANDALONE_SUBVIEWS: SubView[] = ['settings', 'social-media'];
 const ALL_SUBVIEWS: SubView[] = [
   'overview',
   'stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten',
+  'arbeitszeit', 'abwesenheit',
   'tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
   'invoices', 'billing', 'reports', 'documents-search',
   'settings', 'admin', 'social-media',
 ];
 
-const ALL_AREAS: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
+const ALL_AREAS: Area[] = ['dashboard', 'arbeiten', 'personal', 'support', 'crm', 'finanzen'];
 
 const isSubView = (s: string): s is SubView => (ALL_SUBVIEWS as string[]).includes(s);
 const isArea = (s: string): s is Area => (ALL_AREAS as string[]).includes(s);

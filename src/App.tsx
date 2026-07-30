@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { AreaNavigation, SubView, isSubViewAllowed } from './components/AreaNavigation';
 import { AttendanceBar } from './components/AttendanceBar';
+import { WorkTimeAccount } from './components/WorkTimeAccount';
+import { AbsenceCalendar } from './components/AbsenceCalendar';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -1001,6 +1003,16 @@ function App() {
             activities={activities}
           />
         )}
+        {/* Mein Bereich */}
+        {currentSubView === 'arbeitszeit' && (
+          <WorkTimeAccount entries={entries} />
+        )}
+        {currentSubView === 'abwesenheit' && (
+          <div className="p-3 sm:p-6">
+            <AbsenceCalendar entries={entries} />
+          </div>
+        )}
+
         {(currentSubView === 'zeiten' || currentSubView === 'grid' || currentSubView === 'list' || currentSubView === 'calendar') && (
           <TimeViews
             entries={entries}

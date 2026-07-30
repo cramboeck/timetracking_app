@@ -5,7 +5,8 @@ import {
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   ChevronLeft, ChevronRight, Shield, Users, Target,
-  LayoutDashboard, Building2, Receipt
+  LayoutDashboard, Building2, Receipt,
+  CircleUser, Clock3, Palmtree
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +36,14 @@ const areaConfig = {
       { view: 'stopwatch' as SubView, icon: Clock, label: 'Timer' },
       { view: 'tasks' as SubView, icon: ListTodo, label: 'Aufgaben' },
       { view: 'zeiten' as SubView, icon: CalendarClock, label: 'Zeiten' },
+    ],
+  },
+  personal: {
+    icon: CircleUser,
+    label: 'Mein Bereich',
+    subViews: [
+      { view: 'arbeitszeit' as SubView, icon: Clock3, label: 'Arbeitszeit' },
+      { view: 'abwesenheit' as SubView, icon: Palmtree, label: 'Abwesenheit' },
     ],
   },
   support: {
@@ -110,6 +119,7 @@ export const DesktopSidebar = ({
   const visibleAreas: Area[] = ([
     'dashboard',
     'arbeiten',
+    'personal',
     ...(hasPackage('support') ? ['support' as Area] : []),
     ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
   ] as Area[]).filter(a => isAreaAllowed(a, currentUser?.role));

@@ -5,11 +5,12 @@ import { haptics } from '../utils/haptics';
 
 // Mobile gesture targets — the order here defines what "next" / "previous"
 // means for the user.
-const VISIBLE_AREAS: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
+const VISIBLE_AREAS: Area[] = ['dashboard', 'arbeiten', 'personal', 'support', 'crm', 'finanzen'];
 
 const SUBVIEW_CONFIG: Record<Area, SubView[]> = {
   dashboard: ['overview'],
   arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
+  personal: ['arbeitszeit', 'abwesenheit'],
   support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
   crm: ['customers', 'leads', 'pipeline', 'contracts'],
   finanzen: ['invoices', 'billing', 'reports'],
