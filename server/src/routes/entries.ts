@@ -304,12 +304,14 @@ router.get('/timeframes', authenticateToken, attachOrganization, async (req: Aut
 
 // Zod schema for team entries query params
 const teamEntriesQuerySchema = z.object({
-  userId: z.string().uuid().optional(),
+  // users.id ist TEXT (nicht zwingend UUID) — kein .uuid() erzwingen (Regel 14)
+  userId: z.string().min(1).max(100).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   entryScope: entryScopeSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(500).default(100)
+  // TeamAbsenceOverview lädt ein ganzes Jahr mit limit=1000 (Regel 14!)
+  limit: z.coerce.number().int().min(1).max(2000).default(100)
 });
 
 // GET /api/entries/team - Get all team members' time entries (admin/manager only)
