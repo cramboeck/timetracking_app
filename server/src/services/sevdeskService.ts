@@ -1399,6 +1399,75 @@ export async function uploadVoucherFile(
   return result;
 }
 
+// ============================================
+// Buchungskategorie (AccountingType) Vorauswahl
+// ============================================
+// Lädt die im sevDesk-Konto tatsächlich verfügbaren Buchungskategorien
+// (1h-Cache) und matcht sie per Keyword-Heuristik gegen Lieferant/
+// Beschreibung. Liefert null, wenn nichts überzeugend passt — dann greift
+// der bisherige Fallback (26 = Sonstige betriebliche Aufwendungen).
+
+interface AccountingTypeEntry { id: number; name: string }
+const accountingTypeCache = new Map<string, { list: AccountingTypeEntry[]; fetchedAt: number }>();
+
+async function getAccountingTypes(apiToken: string): Promise<AccountingTypeEntry[]> {
+  const cacheKey = apiToken.slice(0, 12);
+  const cached = accountingTypeCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < 60 * 60 * 1000) {
+    return cached.list;
+  }
+  const response = await sevdeskFetch(apiToken, '/AccountingType?limit=500');
+  const list: AccountingTypeEntry[] = (response.objects || [])
+    .filter((t: any) => t?.id && (t?.name || t?.translationCode))
+    .map((t: any) => ({ id: Number(t.id), name: String(t.name || t.translationCode) }));
+  accountingTypeCache.set(cacheKey, { list, fetchedAt: Date.now() });
+  return list;
+}
+
+// Hinweis-Keywords (aus Lieferant/Beschreibung) → Suchbegriffe für den
+// Kategorienamen. Reihenfolge = Priorität, erster Treffer gewinnt.
+const CATEGORY_RULES: Array<{ hints: RegExp; search: string[] }> = [
+  { hints: /telekom|vodafone|o2\b|1und1|1&1|festnetz|mobilfunk|telefon|drei\.at|magenta/i, search: ['telefon', 'telekommunikation', 'internet'] },
+  { hints: /microsoft|adobe|lizenz|subscription|abo\b|saas|cloud|hosting|domain|server|software|jetbrains|github|google\s*workspace/i, search: ['software', 'lizenzen', 'edv', 'it-kosten', 'internet'] },
+  { hints: /hardware|notebook|laptop|monitor|drucker|toner|server(?!vertrag)|switch|router|kabel/i, search: ['edv', 'hardware', 'geringwertige', 'büroausstattung'] },
+  { hints: /bahn|flug|hotel|übernachtung|mietwagen|taxi|uber\b/i, search: ['reisekosten', 'übernachtung', 'fahrtkosten'] },
+  { hints: /restaurant|bewirtung|catering|essen/i, search: ['bewirtung'] },
+  { hints: /tank|shell|aral|omv|jet\b|kfz|werkstatt|reifen|autobahn|vignette|maut/i, search: ['kfz', 'fahrzeug', 'laufende kfz'] },
+  { hints: /versicherung|allianz|axa|uniqa|generali/i, search: ['versicherung'] },
+  { hints: /miete|nebenkosten|strom|energie|gas\b|stadtwerke/i, search: ['miete', 'raumkosten', 'strom', 'nebenkosten'] },
+  { hints: /porto|post\b|dhl|ups\b|fedex|versand/i, search: ['porto', 'versand'] },
+  { hints: /büro|papier|stifte|ordner|amazon/i, search: ['bürobedarf', 'büromaterial'] },
+  { hints: /fortbildung|schulung|seminar|kurs|udemy|training/i, search: ['fortbildung', 'weiterbildung'] },
+  { hints: /werbung|marketing|anzeige|ads\b|linkedin|facebook|instagram/i, search: ['werbe', 'marketing'] },
+  { hints: /steuerberat|rechtsanwalt|notar|buchhaltung/i, search: ['rechts', 'beratung', 'abschluss'] },
+  { hints: /wareneinkauf|händler|distributor|infinigate|adn\b|also\b|ingram/i, search: ['waren', 'wareneingang', 'fremdleistung'] },
+];
+
+export async function findBestAccountingType(
+  apiToken: string,
+  hintText: string
+): Promise<number | null> {
+  try {
+    const rule = CATEGORY_RULES.find(r => r.hints.test(hintText));
+    if (!rule) return null;
+
+    const types = await getAccountingTypes(apiToken);
+    if (types.length === 0) return null;
+
+    for (const term of rule.search) {
+      const match = types.find(t => t.name.toLowerCase().includes(term));
+      if (match) {
+        logger.info(`Buchungskategorie vorausgewählt: "${match.name}" (id=${match.id}) für Hinweis "${hintText.slice(0, 80)}"`);
+        return match.id;
+      }
+    }
+    return null;
+  } catch (error: any) {
+    logger.warn(`AccountingType-Matching fehlgeschlagen (nutze Fallback): ${error.message}`);
+    return null;
+  }
+}
+
 // Create voucher from uploaded file
 export async function createVoucherFromFile(
   apiToken: string,
@@ -1414,6 +1483,7 @@ export async function createVoucherFromFile(
     sumTax?: number | string;
     taxRate?: number;
     creditDebit?: 'C' | 'D';
+    accountingTypeId?: number;  // sevDesk AccountingType (Buchungskategorie)
   }
 ): Promise<{ voucherId: string; validationWarnings?: string[] }> {
   const validationWarnings: string[] = [];
@@ -1517,10 +1587,13 @@ export async function createVoucherFromFile(
       objectName: 'VoucherPos',
       mapAll: true,
       taxRate: taxRate,
-      sum: sumNet,
-      net: true,
+      // Explizite Netto/Brutto-Felder: das alte `sum` + `net: true` wurde von
+      // sevDesk als BRUTTO interpretiert (Betrag musste manuell auf Netto
+      // umgestellt werden — verifiziert 30.7.2026).
+      sumNet: Math.round(sumNet * 100) / 100,
+      sumGross: Math.round(sumGross * 100) / 100,
       accountingType: {
-        id: 26, // Default: Sonstige betriebliche Aufwendungen
+        id: voucherData.accountingTypeId || 26, // Fallback: Sonstige betriebliche Aufwendungen
         objectName: 'AccountingType',
       },
     }],

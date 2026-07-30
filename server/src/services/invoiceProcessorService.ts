@@ -13,7 +13,7 @@ import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { mailboxMonitorService, EmailMessage, EmailAttachment } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
-import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherFile, SevdeskVoucherDetail } from './sevdeskService';
+import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherFile, findBestAccountingType, SevdeskVoucherDetail } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -971,6 +971,10 @@ class InvoiceProcessorService {
               description: invoice.email_subject || 'Eingangsrechnung',
               supplierName: invoice.vendor_name || invoice.sender_name || undefined,
               creditDebit: 'C', // sevDesk: C = Kreditor = AUSGABE ('D' erzeugte Einnahme-Belege — empirisch verifiziert 30.7.2026)
+              accountingTypeId: (await findBestAccountingType(
+                apiToken,
+                [invoice.vendor_name, invoice.sender_name, invoice.email_subject].filter(Boolean).join(' ')
+              )) ?? undefined,
             }
           );
 
@@ -2453,6 +2457,18 @@ MUSTER FÜR KUNDENERKENNUNG:
               supplierName,
               sevdeskContactId: extractedData.sevdeskContactId || undefined,
               creditDebit: 'C', // sevDesk: C = Kreditor = AUSGABE ('D' erzeugte Einnahme-Belege — empirisch verifiziert 30.7.2026)
+              // Buchungskategorie aus Lieferant/Betreff/Positionen ableiten und
+              // gegen die echten sevDesk-Kategorien matchen (Fallback: 26)
+              accountingTypeId: (await findBestAccountingType(
+                apiToken,
+                [
+                  supplierName,
+                  invoice.email_subject,
+                  ...(Array.isArray((extractedData as any).lineItems)
+                    ? (extractedData as any).lineItems.slice(0, 5).map((li: any) => li?.description)
+                    : []),
+                ].filter(Boolean).join(' ')
+              )) ?? undefined,
               taxRate: validation.correctedData.vatRate ?? extractedData.vatRate ?? 19,
               sumGross: validation.correctedData.grossAmount ?? extractedData.grossAmount ?? undefined,
               sumNet: validation.correctedData.netAmount ?? extractedData.netAmount ?? undefined,
