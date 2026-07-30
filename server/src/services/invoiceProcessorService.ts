@@ -929,9 +929,18 @@ class InvoiceProcessorService {
     // Try to create sevDesk voucher if we have a document
     if (docResult.rows.length > 0) {
       try {
-        // Get sevDesk API token for this organization
+        // Get sevDesk API token for this organization. sevdesk_config ist
+        // per-User (hat KEINE organization_id-Spalte!) — der Token muss über
+        // organization_members aufgelöst werden. Der alte Query warf
+        // "column organization_id does not exist", wurde im catch geschluckt
+        // und der Beleg landete nie in sevDesk.
         const configResult = await query(
-          `SELECT api_token FROM sevdesk_config WHERE organization_id = $1`,
+          `SELECT sc.api_token
+           FROM sevdesk_config sc
+           JOIN organization_members om ON om.user_id = sc.user_id
+           WHERE om.organization_id = $1
+             AND sc.api_token IS NOT NULL AND sc.api_token <> ''
+           LIMIT 1`,
           [organizationId]
         );
 
@@ -2387,9 +2396,18 @@ MUSTER FÜR KUNDENERKENNUNG:
     // Try to create sevDesk voucher if we have a document
     if (docResult.rows.length > 0) {
       try {
-        // Get sevDesk API token for this organization
+        // Get sevDesk API token for this organization. sevdesk_config ist
+        // per-User (hat KEINE organization_id-Spalte!) — der Token muss über
+        // organization_members aufgelöst werden. Der alte Query warf
+        // "column organization_id does not exist", wurde im catch geschluckt
+        // und der Beleg landete nie in sevDesk.
         const configResult = await query(
-          `SELECT api_token FROM sevdesk_config WHERE organization_id = $1`,
+          `SELECT sc.api_token
+           FROM sevdesk_config sc
+           JOIN organization_members om ON om.user_id = sc.user_id
+           WHERE om.organization_id = $1
+             AND sc.api_token IS NOT NULL AND sc.api_token <> ''
+           LIMIT 1`,
           [organizationId]
         );
 
