@@ -1,6 +1,11 @@
 import { pool } from '../config/database';
 
 export type AuditAction =
+  // Arbeitszeiterfassung (Kommen/Gehen/Pausen)
+  | 'work_session.clock_in'
+  | 'work_session.clock_out'
+  | 'work_session.break_start'
+  | 'work_session.break_end'
   // User actions
   | 'user.register'
   | 'user.login'

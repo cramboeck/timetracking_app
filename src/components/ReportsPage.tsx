@@ -6,10 +6,11 @@ import { InternalTimeReport } from './InternalTimeReport';
 import { AdminTeamTimeView } from './AdminTeamTimeView';
 import { AbsenceCalendar } from './AbsenceCalendar';
 import { TeamAbsenceOverview } from './TeamAbsenceOverview';
+import { TeamAttendanceView } from './TeamAttendanceView';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
-type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences';
+type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences' | 'attendance';
 
 interface ReportsPageProps {
   entries: TimeEntry[];
@@ -134,6 +135,18 @@ export const ReportsPage = ({
                     <span className="hidden sm:inline">Team-Urlaub</span>
                     <span className="sm:hidden">Urlaub</span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab('attendance')}
+                    className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      activeTab === 'attendance'
+                        ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                        : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Users size={18} />
+                    <span className="hidden sm:inline">Arbeitszeit</span>
+                    <span className="sm:hidden">AZ</span>
+                  </button>
                 </>
               )}
             </div>
@@ -249,6 +262,10 @@ export const ReportsPage = ({
         )}
 
         {/* Team Absence Overview Tab Content (Admin only) */}
+        {activeTab === 'attendance' && isAdmin && (
+          <TeamAttendanceView />
+        )}
+
         {activeTab === 'team-absences' && isAdmin && (
           <TeamAbsenceOverview />
         )}

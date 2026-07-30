@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { AreaNavigation, SubView, isSubViewAllowed } from './components/AreaNavigation';
+import { AttendanceBar } from './components/AttendanceBar';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -972,6 +973,12 @@ function App() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-primary" />
           </div>
         }>
+        {/* Arbeitszeit-Stempelleiste: im ganzen Bereich "Arbeiten" sichtbar */}
+        {currentArea === 'arbeiten' && (
+          <div className="px-3 sm:px-6 pt-3">
+            <AttendanceBar />
+          </div>
+        )}
         {currentSubView === 'stopwatch' && (
           <Stopwatch
             onSave={handleSaveEntry}

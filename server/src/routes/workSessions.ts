@@ -1,0 +1,265 @@
+import { Router, Response } from 'express';
+import crypto from 'crypto';
+import { z } from 'zod';
+import { query } from '../config/database';
+import { AuthRequest, authenticateToken } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
+import { validate } from '../middleware/validation';
+import { auditLog } from '../services/auditLog';
+import { logger } from '../utils/logger';
+
+/**
+ * Arbeitszeiterfassung (Kommen/Gehen/Pausen) — work_sessions.
+ * Getrennt von der Projektzeiterfassung (time_entries): hier geht es um die
+ * gesetzliche Aufzeichnung von Arbeitsbeginn, -ende und Pausen pro Tag.
+ *
+ * Alle Stempel-Aktionen werden im Audit-Log protokolliert.
+ */
+
+const router = Router();
+
+const rangeSchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+// <input type="date"> liefert YYYY-MM-DD (Regel 14!)
+const clockOutSchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+const WORK_SESSION_COLUMNS = `
+  id, user_id, organization_id, work_date, started_at, ended_at,
+  break_seconds, break_started_at, note, created_at, updated_at
+`;
+
+interface WorkSessionRow {
+  id: string;
+  user_id: string;
+  work_date: string;
+  started_at: Date;
+  ended_at: Date | null;
+  break_seconds: number;
+  break_started_at: Date | null;
+  note: string | null;
+}
+
+const toApi = (row: WorkSessionRow) => ({
+  id: row.id,
+  userId: row.user_id,
+  workDate: typeof row.work_date === 'string' ? row.work_date : new Date(row.work_date).toISOString().slice(0, 10),
+  startedAt: row.started_at?.toISOString?.() ?? row.started_at,
+  endedAt: row.ended_at ? (row.ended_at.toISOString?.() ?? row.ended_at) : null,
+  breakSeconds: row.break_seconds || 0,
+  breakStartedAt: row.break_started_at ? (row.break_started_at.toISOString?.() ?? row.break_started_at) : null,
+  note: row.note,
+});
+
+async function getOpenSession(userId: string): Promise<WorkSessionRow | null> {
+  const result = await query(
+    `SELECT ${WORK_SESSION_COLUMNS} FROM work_sessions WHERE user_id = $1 AND ended_at IS NULL LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+// GET /api/work-sessions/current — offene Session (oder null)
+router.get('/current', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const open = await getOpenSession(req.user!.id);
+    res.json({ success: true, data: open ? toApi(open) : null });
+  } catch (error: any) {
+    logger.error('Get current work session error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load current session' });
+  }
+});
+
+// POST /api/work-sessions/clock-in — Einstempeln
+router.post('/clock-in', authenticateToken, attachOrganization, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const orgReq = req as unknown as OrganizationRequest;
+
+    const existing = await getOpenSession(userId);
+    if (existing) {
+      return res.status(409).json({ success: false, error: 'Es läuft bereits eine Arbeitszeit', data: toApi(existing) });
+    }
+
+    const id = crypto.randomUUID();
+    const result = await query(
+      `INSERT INTO work_sessions (id, user_id, organization_id, work_date, started_at)
+       VALUES ($1, $2, $3, CURRENT_DATE, NOW())
+       RETURNING ${WORK_SESSION_COLUMNS}`,
+      [id, userId, orgReq.organization?.id || null]
+    );
+
+    await auditLog.log({
+      userId,
+      action: 'work_session.clock_in',
+      details: JSON.stringify({ sessionId: id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.status(201).json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Clock-in error:', error);
+    res.status(500).json({ success: false, error: 'Einstempeln fehlgeschlagen' });
+  }
+});
+
+// POST /api/work-sessions/clock-out — Ausstempeln (laufende Pause wird eingerechnet)
+router.post('/clock-out', authenticateToken, validate(clockOutSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { note } = req.body;
+
+    const open = await getOpenSession(userId);
+    if (!open) {
+      return res.status(409).json({ success: false, error: 'Keine laufende Arbeitszeit' });
+    }
+
+    const result = await query(
+      `UPDATE work_sessions
+       SET ended_at = NOW(),
+           break_seconds = break_seconds + COALESCE(EXTRACT(EPOCH FROM (NOW() - break_started_at))::int, 0),
+           break_started_at = NULL,
+           note = COALESCE($2, note),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING ${WORK_SESSION_COLUMNS}`,
+      [open.id, note ?? null]
+    );
+
+    await auditLog.log({
+      userId,
+      action: 'work_session.clock_out',
+      details: JSON.stringify({ sessionId: open.id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Clock-out error:', error);
+    res.status(500).json({ success: false, error: 'Ausstempeln fehlgeschlagen' });
+  }
+});
+
+// POST /api/work-sessions/break/start — Pause beginnen
+router.post('/break/start', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const open = await getOpenSession(userId);
+    if (!open) {
+      return res.status(409).json({ success: false, error: 'Keine laufende Arbeitszeit' });
+    }
+    if (open.break_started_at) {
+      return res.status(409).json({ success: false, error: 'Pause läuft bereits' });
+    }
+
+    const result = await query(
+      `UPDATE work_sessions SET break_started_at = NOW(), updated_at = NOW()
+       WHERE id = $1 RETURNING ${WORK_SESSION_COLUMNS}`,
+      [open.id]
+    );
+
+    await auditLog.log({
+      userId,
+      action: 'work_session.break_start',
+      details: JSON.stringify({ sessionId: open.id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Break start error:', error);
+    res.status(500).json({ success: false, error: 'Pause starten fehlgeschlagen' });
+  }
+});
+
+// POST /api/work-sessions/break/end — Pause beenden
+router.post('/break/end', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const open = await getOpenSession(userId);
+    if (!open || !open.break_started_at) {
+      return res.status(409).json({ success: false, error: 'Keine laufende Pause' });
+    }
+
+    const result = await query(
+      `UPDATE work_sessions
+       SET break_seconds = break_seconds + EXTRACT(EPOCH FROM (NOW() - break_started_at))::int,
+           break_started_at = NULL,
+           updated_at = NOW()
+       WHERE id = $1 RETURNING ${WORK_SESSION_COLUMNS}`,
+      [open.id]
+    );
+
+    await auditLog.log({
+      userId,
+      action: 'work_session.break_end',
+      details: JSON.stringify({ sessionId: open.id }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Break end error:', error);
+    res.status(500).json({ success: false, error: 'Pause beenden fehlgeschlagen' });
+  }
+});
+
+// GET /api/work-sessions?from=&to= — eigene Sessions
+router.get('/', authenticateToken, validate(rangeSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const from = (req.query.from as string) || new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
+
+    const result = await query(
+      `SELECT ${WORK_SESSION_COLUMNS} FROM work_sessions
+       WHERE user_id = $1 AND work_date BETWEEN $2 AND $3
+       ORDER BY started_at DESC`,
+      [userId, from, to]
+    );
+
+    res.json({ success: true, data: result.rows.map(toApi) });
+  } catch (error: any) {
+    logger.error('List work sessions error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load sessions' });
+  }
+});
+
+// GET /api/work-sessions/team?from=&to= — org-weite Auswertung (nur Admin/Owner)
+router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(rangeSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const from = (req.query.from as string) || new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
+
+    const result = await query(
+      `SELECT ws.id, ws.user_id, ws.work_date, ws.started_at, ws.ended_at,
+              ws.break_seconds, ws.break_started_at, ws.note, ws.created_at, ws.updated_at,
+              COALESCE(u.display_name, u.username) AS user_name
+       FROM work_sessions ws
+       JOIN users u ON u.id = ws.user_id
+       WHERE ws.organization_id = $1 AND ws.work_date BETWEEN $2 AND $3
+       ORDER BY ws.work_date DESC, user_name ASC, ws.started_at ASC`,
+      [organizationId, from, to]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map((r: any) => ({ ...toApi(r), userName: r.user_name })),
+    });
+  } catch (error: any) {
+    logger.error('Team work sessions error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load team sessions' });
+  }
+});
+
+export default router;

@@ -565,3 +565,60 @@ export const tasksApi = {
     });
   },
 };
+
+// ============================================
+// Arbeitszeiterfassung (Kommen/Gehen/Pausen)
+// ============================================
+
+export interface WorkSession {
+  id: string;
+  userId: string;
+  workDate: string;        // YYYY-MM-DD
+  startedAt: string;
+  endedAt: string | null;
+  breakSeconds: number;
+  breakStartedAt: string | null;
+  note: string | null;
+  userName?: string;       // nur in der Team-Auswertung befüllt
+}
+
+export const workSessionsApi = {
+  getCurrent: async (): Promise<{ success: boolean; data: WorkSession | null }> => {
+    return authFetch('/work-sessions/current');
+  },
+
+  clockIn: async (): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/clock-in', { method: 'POST' });
+  },
+
+  clockOut: async (note?: string): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/clock-out', {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {}),
+    });
+  },
+
+  startBreak: async (): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/break/start', { method: 'POST' });
+  },
+
+  endBreak: async (): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/break/end', { method: 'POST' });
+  },
+
+  list: async (from?: string, to?: string): Promise<{ success: boolean; data: WorkSession[] }> => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authFetch(`/work-sessions${qs ? `?${qs}` : ''}`);
+  },
+
+  listTeam: async (from?: string, to?: string): Promise<{ success: boolean; data: WorkSession[] }> => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authFetch(`/work-sessions/team${qs ? `?${qs}` : ''}`);
+  },
+};

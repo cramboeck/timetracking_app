@@ -4299,6 +4299,36 @@ export async function initializeDatabase() {
       END $$;
     `);
 
+    // Arbeitszeiterfassung (Kommen/Gehen/Pausen) — getrennt von time_entries:
+    // time_entries = Projekt-/Tätigkeitszeit, work_sessions = gesetzliche
+    // Arbeitszeit (ArbZG/EuGH: Beginn, Ende, Pausen pro Tag). Eine Row pro
+    // Kommen…Gehen-Block; mehrere Blöcke pro Tag möglich. Eine laufende Pause
+    // wird über break_started_at abgebildet und beim Fortsetzen/Ausstempeln
+    // in break_seconds aufsummiert.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS work_sessions (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        work_date DATE NOT NULL,
+        started_at TIMESTAMP NOT NULL,
+        ended_at TIMESTAMP,
+        break_seconds INTEGER NOT NULL DEFAULT 0,
+        break_started_at TIMESTAMP,
+        note TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_work_sessions_user_date ON work_sessions(user_id, work_date DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_work_sessions_org_date ON work_sessions(organization_id, work_date DESC)');
+    // Pro User maximal EINE offene Session (ended_at IS NULL)
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_work_sessions_one_open
+      ON work_sessions(user_id) WHERE ended_at IS NULL
+    `);
+    logger.info('✅ work_sessions (Arbeitszeiterfassung) ready');
+
     // Migration: customer_interactions.type-CHECK um die Werte erweitern, die
     // das Frontend (InteractionsTimeline) tatsächlich anbietet — 'demo' und
     // 'support' etc. wurden bisher von der DB abgelehnt. Constraint neu
