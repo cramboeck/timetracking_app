@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LogIn, LogOut, Coffee, Play, AlertTriangle } from 'lucide-react';
+import { LogIn, LogOut, Coffee, Play, AlertTriangle, ChevronDown, History } from 'lucide-react';
 import { workSessionsApi, WorkSession } from '../services/api';
 import { useToast } from '../contexts/UIContext';
 
@@ -54,6 +54,16 @@ export const AttendanceBar = () => {
   const isRunning = !!session;
   const onBreak = !!session?.breakStartedAt;
 
+  // Aufklappbare Historie: eigene Arbeitszeiten der letzten 14 Tage
+  const [showHistory, setShowHistory] = useState(false);
+  const historyFrom = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const historyQuery = useQuery({
+    queryKey: ['workSessions', 'history', historyFrom],
+    queryFn: async () => (await workSessionsApi.list(historyFrom, today)).data,
+    enabled: showHistory,
+    staleTime: 60_000,
+  });
+
   // Ticker nur bei laufender Session
   useEffect(() => {
     if (!isRunning) return;
@@ -84,8 +94,35 @@ export const AttendanceBar = () => {
   const needsBreakWarning = isRunning && daySeconds > 6 * 3600 && dayBreak < 30 * 60;
   const overTenHours = daySeconds > 10 * 3600;
 
+  // Historie pro Tag aggregieren (mehrere Stempel-Blöcke → eine Zeile)
+  const historyRows = (() => {
+    const byDate = new Map<string, WorkSession[]>();
+    for (const ws of historyQuery.data ?? []) {
+      if (!byDate.has(ws.workDate)) byDate.set(ws.workDate, []);
+      byDate.get(ws.workDate)!.push(ws);
+    }
+    return Array.from(byDate.entries())
+      .map(([date, sessions]) => {
+        sessions.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+        const open = sessions.some(ws => !ws.endedAt);
+        return {
+          date,
+          firstStart: sessions[0].startedAt,
+          lastEnd: open ? null : sessions[sessions.length - 1].endedAt,
+          breakSum: sessions.reduce((sum, ws) => sum + breakSecondsTotal(ws, now), 0),
+          netSum: sessions.reduce((sum, ws) => sum + netSeconds(ws, now), 0),
+          open,
+        };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  })();
+
+  const fmtClock = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
+
   return (
-    <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl">
+    <div className="px-3 sm:px-4 py-2.5 flex flex-wrap items-center gap-2 sm:gap-3">
       {/* Status + Zeiten */}
       <div className="flex items-center gap-2 min-w-0">
         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -154,7 +191,54 @@ export const AttendanceBar = () => {
             </button>
           </>
         )}
+        <button
+          onClick={() => setShowHistory(v => !v)}
+          className="flex items-center gap-1 px-2 py-1.5 text-sm text-gray-500 dark:text-dark-400 hover:text-accent-primary rounded-lg transition-colors"
+          title="Meine Arbeitszeiten der letzten 14 Tage"
+        >
+          <History size={16} />
+          <ChevronDown size={14} className={`transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+        </button>
       </div>
+      </div>
+
+      {/* Meine Arbeitszeiten (letzte 14 Tage) */}
+      {showHistory && (
+        <div className="border-t border-gray-100 dark:border-dark-border px-3 sm:px-4 py-2">
+          {historyQuery.isLoading ? (
+            <p className="text-sm text-gray-400 py-2">Lade…</p>
+          ) : historyRows.length === 0 ? (
+            <p className="text-sm text-gray-400 py-2">Noch keine Arbeitszeiten erfasst.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 dark:text-dark-400">
+                  <th className="py-1 font-medium">Tag</th>
+                  <th className="py-1 font-medium">Beginn</th>
+                  <th className="py-1 font-medium">Ende</th>
+                  <th className="py-1 font-medium text-right">Pause</th>
+                  <th className="py-1 font-medium text-right">Arbeitszeit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-dark-border/50">
+                {historyRows.map(r => (
+                  <tr key={r.date}>
+                    <td className="py-1.5 text-gray-900 dark:text-white whitespace-nowrap">
+                      {new Date(r.date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                    </td>
+                    <td className="py-1.5 tabular-nums text-gray-600 dark:text-dark-400">{fmtClock(r.firstStart)}</td>
+                    <td className="py-1.5 tabular-nums text-gray-600 dark:text-dark-400">
+                      {r.open ? <span className="text-green-600 dark:text-green-400">läuft</span> : fmtClock(r.lastEnd)}
+                    </td>
+                    <td className="py-1.5 tabular-nums text-right text-gray-600 dark:text-dark-400">{fmt(r.breakSum)}</td>
+                    <td className="py-1.5 tabular-nums text-right font-semibold text-gray-900 dark:text-white">{fmt(r.netSum)} h</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 };
