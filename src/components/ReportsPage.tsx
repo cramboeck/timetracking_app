@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, PieChart, TrendingUp, Calendar, Users, Coffee, Briefcase } from 'lucide-react';
+import { FileText, PieChart, TrendingUp, Calendar, Users, Coffee, Briefcase, History } from 'lucide-react';
 import { Button } from './ui';
 import { ReportAssistant } from './ReportAssistant';
 import { InternalTimeReport } from './InternalTimeReport';
@@ -9,10 +9,11 @@ import { TeamAbsenceOverview } from './TeamAbsenceOverview';
 import { TeamAttendanceView } from './TeamAttendanceView';
 import { AbsenceRequestApprovals } from './AbsenceRequestApprovals';
 import { InternalExpenses } from './InternalExpenses';
+import { TimeEntryChangeLog } from './TimeEntryChangeLog';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
-type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences' | 'attendance' | 'requests';
+type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences' | 'attendance' | 'requests' | 'changes';
 
 interface ReportsPageProps {
   entries: TimeEntry[];
@@ -161,6 +162,18 @@ export const ReportsPage = ({
                     <span className="hidden sm:inline">Anträge</span>
                     <span className="sm:hidden">Antr.</span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab('changes')}
+                    className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      activeTab === 'changes'
+                        ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                        : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <History size={18} />
+                    <span className="hidden sm:inline">Nachträge</span>
+                    <span className="sm:hidden">Nachtr.</span>
+                  </button>
                 </>
               )}
             </div>
@@ -290,6 +303,10 @@ export const ReportsPage = ({
 
         {activeTab === 'team-absences' && isAdmin && (
           <TeamAbsenceOverview />
+        )}
+
+        {activeTab === 'changes' && isAdmin && (
+          <TimeEntryChangeLog />
         )}
       </div>
 

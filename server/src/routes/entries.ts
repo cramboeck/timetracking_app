@@ -8,8 +8,116 @@ import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
 import { logTicketActivity } from './tickets';
 import { logger } from '../utils/logger';
+import { emailService } from '../services/emailService';
 
 const router = Router();
+
+// ============================================================================
+// Nachtrags-Protokoll
+// ----------------------------------------------------------------------------
+// Zeiteinträge dürfen jederzeit rückwirkend erfasst/geändert werden — aber
+// sobald das Eintragsdatum in einem abgeschlossenen (vergangenen) Monat
+// liegt, wird die Mutation mit Vorher/Nachher-Snapshot in
+// time_entry_changes protokolliert und die Org-Admins (außer dem Verursacher
+// selbst) per E-Mail informiert. Einsehbar unter Berichte → „Nachträge".
+// ============================================================================
+
+/** Datum liegt vor dem 1. des laufenden Monats (Server-Zeit). */
+function isRetroactive(dateInput: string | Date | null | undefined): boolean {
+  if (!dateInput) return false;
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return false;
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  return d < startOfMonth;
+}
+
+/** Relevante Felder eines (camelCase-transformierten) Eintrags als Snapshot. */
+function entrySnapshot(entry: Record<string, unknown>): Record<string, unknown> {
+  const { startTime, endTime, duration, description, projectId, activityId, ticketId, isBillable, entryScope, internalCategory } = entry as any;
+  return { startTime, endTime, duration, description, projectId, activityId, ticketId, isBillable, entryScope, internalCategory };
+}
+
+const RETRO_ACTION_LABELS: Record<string, string> = {
+  create: 'nachgetragen',
+  update: 'geändert',
+  delete: 'gelöscht',
+};
+
+function formatHours(seconds: number | null | undefined): string {
+  if (!seconds && seconds !== 0) return '—';
+  return `${(seconds / 3600).toFixed(2).replace('.', ',')} h`;
+}
+
+/**
+ * Protokolliert eine rückwirkende Mutation und informiert die Org-Admins.
+ * Fire-and-forget — darf die eigentliche Mutation nie scheitern lassen.
+ */
+async function logRetroChange(opts: {
+  organizationId: string;
+  entryId: string;
+  actorId: string;
+  actorName: string;
+  action: 'create' | 'update' | 'delete';
+  entryDate: string | Date;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}): Promise<void> {
+  try {
+    const entryDate = new Date(opts.entryDate);
+    await pool.query(
+      `INSERT INTO time_entry_changes (id, organization_id, entry_id, user_id, action, entry_date, before_data, after_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        crypto.randomUUID(),
+        opts.organizationId,
+        opts.entryId,
+        opts.actorId,
+        opts.action,
+        entryDate.toISOString().slice(0, 10),
+        opts.before ? JSON.stringify(opts.before) : null,
+        opts.after ? JSON.stringify(opts.after) : null,
+      ]
+    );
+
+    // Org-Admins benachrichtigen — außer dem Verursacher selbst
+    const admins = await pool.query(
+      `SELECT u.email
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       WHERE om.organization_id = $1 AND om.role IN ('owner', 'admin')
+         AND u.id != $2 AND u.email IS NOT NULL`,
+      [opts.organizationId, opts.actorId]
+    );
+    if (admins.rows.length === 0) return;
+
+    const dateStr = entryDate.toLocaleDateString('de-DE');
+    const dur = (snap: Record<string, unknown> | null) => formatHours(snap?.duration as number | undefined);
+    const desc = (opts.after?.description || opts.before?.description || '') as string;
+    const lines = [
+      `${opts.actorName} hat einen Zeiteintrag vom ${dateStr} (abgeschlossener Monat) ${RETRO_ACTION_LABELS[opts.action]}.`,
+      opts.action === 'update'
+        ? `Dauer: ${dur(opts.before)} → ${dur(opts.after)}`
+        : `Dauer: ${dur(opts.action === 'delete' ? opts.before : opts.after)}`,
+      desc ? `Beschreibung: ${desc}` : '',
+      '',
+      'Alle Nachträge findest du in RamboFlow unter Berichte → „Nachträge".',
+    ].filter(Boolean);
+    const text = lines.join('\n');
+    const link = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/finanzen/reports`;
+
+    for (const admin of admins.rows) {
+      emailService.sendEmail({
+        to: admin.email,
+        subject: `RamboFlow: Zeiteintrag im Vormonat ${RETRO_ACTION_LABELS[opts.action]} (${opts.actorName})`,
+        html: `<p>${text.replace(/\n/g, '<br>')}</p><p><a href="${link}">Nachtrags-Protokoll öffnen</a></p>`,
+        text: `${text}\n\n${link}`,
+      }).catch(err => logger.error(`Nachtrags-Mail fehlgeschlagen: ${err.message}`));
+    }
+  } catch (err: any) {
+    logger.error(`Nachtrags-Protokoll fehlgeschlagen: ${err.message}`);
+  }
+}
 
 // Explicit column lists (no SELECT *)
 const TIME_ENTRY_COLUMNS = `
@@ -550,6 +658,62 @@ router.get('/team/export', authenticateToken, attachOrganization, requireOrgRole
   }
 });
 
+// GET /api/entries/changes - Nachtrags-Protokoll (nur Admin/Owner)
+// Alle protokollierten rückwirkenden Mutationen der Organisation,
+// neueste zuerst. Optional ?userId= Filter, ?page=&limit= Paginierung.
+// WICHTIG: muss VOR GET /:id registriert bleiben (Route-Shadowing).
+router.get('/changes', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+    const filterUserId = (req.query.userId as string | undefined)?.trim();
+
+    const params: unknown[] = [organizationId];
+    let where = 'WHERE tec.organization_id = $1';
+    if (filterUserId) {
+      params.push(filterUserId);
+      where += ` AND tec.user_id = $${params.length}`;
+    }
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM time_entry_changes tec ${where}`,
+      params
+    );
+
+    params.push(limit, offset);
+    const result = await pool.query(
+      `SELECT tec.id, tec.entry_id, tec.user_id, tec.action, tec.entry_date,
+              tec.before_data, tec.after_data, tec.created_at,
+              COALESCE(u.display_name, u.username) AS user_name
+       FROM time_entry_changes tec
+       LEFT JOIN users u ON u.id = tec.user_id
+       ${where}
+       ORDER BY tec.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: transformRows(result.rows),
+      pagination: {
+        page,
+        limit,
+        total: countResult.rows[0].total,
+        totalPages: Math.ceil(countResult.rows[0].total / limit),
+        hasMore: page * limit < countResult.rows[0].total,
+      },
+    });
+  } catch (error) {
+    console.error('Get entry changes error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/entries/:id - Get single entry
 router.get('/:id', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
   try {
@@ -703,6 +867,20 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       userAgent: req.headers['user-agent']
     });
 
+    // Nachtrag in abgeschlossenem Monat → protokollieren + Admins informieren
+    if (!isRunning && isRetroactive(startTime)) {
+      logRetroChange({
+        organizationId,
+        entryId: id,
+        actorId: userId,
+        actorName: req.user!.username || 'Unbekannt',
+        action: 'create',
+        entryDate: startTime,
+        before: null,
+        after: entrySnapshot(newEntry),
+      });
+    }
+
     // Log ticket activity if time was logged to a ticket
     if (ticketId) {
       const hours = Math.floor(duration / 3600);
@@ -838,6 +1016,27 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       userAgent: req.headers['user-agent']
     });
 
+    // Änderung an einem Eintrag aus abgeschlossenem Monat (oder Verschieben
+    // dorthin) → protokollieren + Admins informieren. Reine No-op-Updates
+    // (identischer Snapshot) werden nicht gemeldet.
+    const originalEntry = transformRow(entryResult.rows[0]);
+    if (isRetroactive(originalEntry.startTime) || isRetroactive(updates.startTime)) {
+      const before = entrySnapshot(originalEntry);
+      const after = entrySnapshot(updatedEntry);
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
+        logRetroChange({
+          organizationId,
+          entryId: id,
+          actorId: userId,
+          actorName: req.user!.username || 'Unbekannt',
+          action: 'update',
+          entryDate: originalEntry.startTime,
+          before,
+          after,
+        });
+      }
+    }
+
     // Log ticket activity if time entry was newly linked to a ticket
     const originalTicketId = entryResult.rows[0].ticket_id;
     const newTicketId = updatedEntry.ticketId;
@@ -895,6 +1094,21 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('mem
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
       userAgent: req.headers['user-agent']
     });
+
+    // Löschung eines Eintrags aus abgeschlossenem Monat → protokollieren
+    const deletedEntry = transformRow(entryResult.rows[0]);
+    if (isRetroactive(deletedEntry.startTime)) {
+      logRetroChange({
+        organizationId,
+        entryId: id,
+        actorId: userId,
+        actorName: req.user!.username || 'Unbekannt',
+        action: 'delete',
+        entryDate: deletedEntry.startTime,
+        before: entrySnapshot(deletedEntry),
+        after: null,
+      });
+    }
 
     res.json({
       success: true,

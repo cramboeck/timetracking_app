@@ -82,8 +82,48 @@ export interface TeamEntriesResponse {
   pagination: PaginationMeta;
 }
 
+// Nachtrags-Protokoll (Berichte → „Nachträge", nur Admin/Owner)
+export interface TimeEntryChangeSnapshot {
+  startTime?: string | null;
+  endTime?: string | null;
+  duration?: number | null;
+  description?: string | null;
+  projectId?: string | null;
+  activityId?: string | null;
+  ticketId?: string | null;
+  isBillable?: boolean | null;
+  entryScope?: string | null;
+  internalCategory?: string | null;
+}
+
+export interface TimeEntryChange {
+  id: string;
+  entryId: string;
+  userId: string;
+  userName: string | null;
+  action: 'create' | 'update' | 'delete';
+  entryDate: string;
+  beforeData: TimeEntryChangeSnapshot | null;
+  afterData: TimeEntryChangeSnapshot | null;
+  createdAt: string;
+}
+
 // Time Entries API
 export const entriesApi = {
+  // Nachtrags-Protokoll: rückwirkende Mutationen (abgeschlossene Monate)
+  getChanges: async (filters: { page?: number; limit?: number; userId?: string } = {}): Promise<{
+    success: boolean;
+    data: TimeEntryChange[];
+    pagination: PaginationMeta;
+  }> => {
+    const params = new URLSearchParams();
+    if (filters.page)   params.set('page',   String(filters.page));
+    if (filters.limit)  params.set('limit',  String(filters.limit));
+    if (filters.userId) params.set('userId', filters.userId);
+    const qs = params.toString();
+    return authFetch(`/entries/changes${qs ? `?${qs}` : ''}`);
+  },
+
   // Legacy: fetch ALL entries without pagination (used by Dashboard, Calendar, etc.)
   // Internally passes ?all=true to the backend for backward compatibility.
   getAll: async (): Promise<{ success: boolean; data: TimeEntry[] }> => {

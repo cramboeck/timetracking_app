@@ -4410,6 +4410,28 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ ninjarmm_devices health counts ready');
 
+    // Nachtrags-Protokoll: jede Anlage/Änderung/Löschung von Zeiteinträgen,
+    // deren Datum in einem abgeschlossenen (vergangenen) Monat liegt, wird
+    // hier mit Vorher/Nachher-Snapshot festgehalten und den Org-Admins per
+    // E-Mail gemeldet. entry_id bewusst ohne FK — der Eintrag kann gelöscht
+    // sein, das Protokoll bleibt.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS time_entry_changes (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+        entry_id TEXT NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        action TEXT NOT NULL CHECK (action IN ('create', 'update', 'delete')),
+        entry_date DATE,
+        before_data JSONB,
+        after_data JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entry_changes_org_time ON time_entry_changes(organization_id, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_time_entry_changes_user ON time_entry_changes(user_id, created_at DESC)');
+    logger.info('✅ time_entry_changes ready');
+
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');

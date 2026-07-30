@@ -74,6 +74,23 @@ export const FeaturesProvider = ({ children }: FeaturesProviderProps) => {
 
   useEffect(() => {
     fetchFeatures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
+  // Features beim Fenster-Fokus nachladen: schaltet ein Admin einem bereits
+  // eingeloggten User ein Paket frei, erscheinen die Bereiche beim nächsten
+  // Tab-Wechsel — vorher war dafür ein Re-Login/Reload nötig.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let lastFetch = Date.now();
+    const onFocus = () => {
+      if (Date.now() - lastFetch < 60_000) return; // max. 1×/Minute
+      lastFetch = Date.now();
+      fetchFeatures();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const hasFeature = (feature: keyof UserFeatures): boolean => {

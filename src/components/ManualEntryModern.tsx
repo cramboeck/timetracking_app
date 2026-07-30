@@ -132,6 +132,14 @@ export const ManualEntryModern = ({
   // Duration percentage for visual bar (max 10 hours = 100%)
   const durationPercent = Math.min(100, (calculatedDuration / (10 * 3600)) * 100);
 
+  // Nachtrag in abgeschlossenem Monat? (Server protokolliert + informiert Admins)
+  const isRetroactiveDate = useMemo(() => {
+    if (!date) return false;
+    const d = new Date(`${date}T12:00`);
+    const ref = new Date();
+    return d < new Date(ref.getFullYear(), ref.getMonth(), 1);
+  }, [date]);
+
   const activeProjects = projects.filter(p => p.isActive);
 
   // Customers with active projects
@@ -336,6 +344,17 @@ export const ManualEntryModern = ({
           onChange={setDate}
           label="Datum"
         />
+
+        {/* Nachtrags-Hinweis: Datum liegt in einem abgeschlossenen Monat */}
+        {isRetroactiveDate && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200">
+            <Calendar size={16} className="shrink-0 mt-0.5" />
+            <span>
+              Nachtrag in einem abgeschlossenen Monat — die Buchung wird
+              protokolliert und die Admins werden benachrichtigt.
+            </span>
+          </div>
+        )}
 
         {/* Time Range */}
         <Card className="rounded-2xl p-4">
