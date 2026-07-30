@@ -5,7 +5,8 @@ import {
   Handshake, Share2, Settings, X, ArrowRight, Clock,
   CheckSquare, FileInput, History
 } from 'lucide-react';
-import { SubView } from './AreaNavigation';
+import { SubView, isSubViewAllowed } from './AreaNavigation';
+import { useAuth } from '../contexts/AuthContext';
 
 // LocalStorage key for command history
 const COMMAND_HISTORY_KEY = 'command_palette_history';
@@ -206,15 +207,19 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
     }
   }, [isOpen]);
 
+  // Rollen-Gating: nur Befehle anbieten, deren Ziel-View erlaubt ist
+  const { currentUser } = useAuth();
+  const allowedCommands = COMMANDS.filter(cmd => isSubViewAllowed(cmd.subView, currentUser?.role));
+
   // Get recent commands from history
   const recentCommands = history
-    .map(id => COMMANDS.find(cmd => cmd.id === id))
+    .map(id => allowedCommands.find(cmd => cmd.id === id))
     .filter((cmd): cmd is CommandItem => cmd !== undefined);
 
   // Filter commands based on query
   const filteredCommands = query.trim() === ''
-    ? COMMANDS
-    : COMMANDS.filter((cmd) => {
+    ? allowedCommands
+    : allowedCommands.filter((cmd) => {
         const q = query.toLowerCase();
         return (
           cmd.label.toLowerCase().includes(q) ||

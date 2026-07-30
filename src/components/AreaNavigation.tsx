@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
+import { useFeatures } from '../contexts/FeaturesContext';
+import { useAuth } from '../contexts/AuthContext';
 
 // Area definitions - New structure for market-ready product
 export type Area = 'dashboard' | 'arbeiten' | 'support' | 'crm' | 'finanzen';
@@ -88,6 +90,42 @@ const areaConfig = {
   },
 };
 
+// ============================================================================
+// Zentrales Rollen-Gating (Single Source of Truth für die Sichtbarkeit)
+// ----------------------------------------------------------------------------
+// users.role: 'admin' sieht alles; 'user' (interne Mitarbeiter) sieht nur die
+// operativen Bereiche. Paket-Gating (hasPackage) bleibt zusätzlich bestehen —
+// sichtbar ist ein Bereich nur, wenn Paket UND Rolle es erlauben.
+// Backend-Routen sind separat via requireOrgRole abgesichert; das hier ist
+// die UI-Schicht ("nur sehen, was man darf").
+// ============================================================================
+
+// Bereiche, die Nicht-Admins komplett verborgen bleiben
+const ADMIN_ONLY_AREAS: Area[] = ['finanzen'];
+
+// Einzelne SubViews, die Nicht-Admins verborgen bleiben (Bereich selbst sichtbar)
+const ADMIN_ONLY_SUBVIEWS: SubView[] = [
+  'inbox',          // Firmen-E-Mail-Postfach (Rechnungseingang etc.)
+  'crm-dashboard',  // Umsatz-/Pipeline-Kennzahlen
+  'leads',
+  'pipeline',
+  'contracts',
+  'social-media',   // Standalone: Marketing
+];
+
+export const isAreaAllowed = (area: Area, role: string | undefined): boolean =>
+  role === 'admin' || !ADMIN_ONLY_AREAS.includes(area);
+
+export const isSubViewAllowed = (subView: SubView, role: string | undefined): boolean => {
+  if (role === 'admin') return true;
+  if (ADMIN_ONLY_SUBVIEWS.includes(subView)) return false;
+  const area = getAreaFromSubView(subView);
+  return isAreaAllowed(area, role);
+};
+
+export const getVisibleSubViews = (area: Area, role: string | undefined) =>
+  areaConfig[area].subViews.filter(s => isSubViewAllowed(s.view, role));
+
 export const AreaNavigation = ({
   currentArea,
   currentSubView,
@@ -95,11 +133,20 @@ export const AreaNavigation = ({
   onSubViewChange
 }: AreaNavigationProps) => {
   const isDesktop = useIsDesktop();
+  const { hasPackage } = useFeatures();
+  const { currentUser } = useAuth();
+  const role = currentUser?.role;
 
-  // Show areas based on packages - dashboard always visible as entry point
-  const visibleAreas: Area[] = ['dashboard', 'arbeiten', 'support', 'crm', 'finanzen'];
+  // Areas nach Paket UND Rolle filtern — dashboard/arbeiten immer sichtbar
+  const visibleAreas: Area[] = ([
+    'dashboard',
+    'arbeiten',
+    ...(hasPackage('support') ? ['support' as Area] : []),
+    ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
+  ] as Area[]).filter(a => isAreaAllowed(a, role));
 
   const currentAreaConfig = areaConfig[currentArea];
+  const visibleSubViews = getVisibleSubViews(currentArea, role);
 
   // Desktop: Show sidebar instead of mobile navigation
   if (isDesktop) {
@@ -131,7 +178,7 @@ export const AreaNavigation = ({
 
           {/* Sub-View Tabs */}
           <div className="flex gap-1 flex-1 overflow-x-auto scrollbar-hide">
-            {currentAreaConfig.subViews.map(({ view, icon: Icon, label }) => (
+            {visibleSubViews.map(({ view, icon: Icon, label }) => (
               <button
                 key={view}
                 onClick={() => onSubViewChange(view)}

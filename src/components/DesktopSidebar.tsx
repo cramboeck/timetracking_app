@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Area, SubView } from './AreaNavigation';
+import { Area, SubView, isAreaAllowed, getVisibleSubViews } from './AreaNavigation';
 
 interface DesktopSidebarProps {
   currentArea: Area;
@@ -106,13 +106,13 @@ export const DesktopSidebar = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Determine which areas to show - dashboard always visible
-  const visibleAreas: Area[] = [
+  // Areas nach Paket UND Rolle filtern (zentrale Matrix in AreaNavigation)
+  const visibleAreas: Area[] = ([
     'dashboard',
     'arbeiten',
     ...(hasPackage('support') ? ['support' as Area] : []),
     ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
-  ];
+  ] as Area[]).filter(a => isAreaAllowed(a, currentUser?.role));
 
   return (
     <aside
@@ -164,7 +164,7 @@ export const DesktopSidebar = ({
 
               {/* SubViews */}
               <div className={`mt-1 space-y-0.5 ${collapsed ? 'px-1' : 'px-2'}`}>
-                {config.subViews.map(({ view, icon: Icon, label }) => {
+                {getVisibleSubViews(area, currentUser?.role).map(({ view, icon: Icon, label }) => {
                   const isActive = currentSubView === view;
 
                   return (

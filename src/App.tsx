@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { AreaNavigation, SubView } from './components/AreaNavigation';
+import { AreaNavigation, SubView, isSubViewAllowed } from './components/AreaNavigation';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
 // Core components loaded eagerly (always visible / needed on first render)
 import { Stopwatch } from './components/Stopwatch';
@@ -72,6 +72,16 @@ function App() {
     navigateToSubView,
     navigateTo,
   } = useCurrentNavigation('arbeiten', 'stopwatch');
+
+  // Rollen-Guard für Deep-Links: die Navigation blendet unerlaubte Views aus,
+  // aber eine direkt eingegebene URL (z.B. /finanzen/billing) muss ebenfalls
+  // abgefangen werden — sonst rendert die View und scheitert erst am Backend.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!isSubViewAllowed(currentSubView, currentUser.role)) {
+      navigateTo('dashboard', 'overview');
+    }
+  }, [currentUser, currentSubView, navigateTo]);
 
   const [entries, setEntries] = useState<TimeEntry[]>([]);
 
