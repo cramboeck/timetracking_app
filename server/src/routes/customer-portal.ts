@@ -2993,18 +2993,21 @@ router.get('/contract', authenticateCustomerToken, async (req: CustomerAuthReque
 
     const customerId = req.customerId;
 
-    // Get active contract for this customer
+    // Get active contract for this customer.
+    // ⚠️ Echte Spaltennamen (Regel 7): included_hours_monthly und
+    // sla_response_hours — die vorher selektierten monthly_hours/
+    // sla_response_time_hours/notes existieren nicht, die Query lief
+    // in einen SQL-Fehler und das Portal zeigte nie einen Vertrag.
     const contractResult = await pool.query(
       `SELECT
          c.id,
          c.name,
          c.start_date,
          c.end_date,
-         c.monthly_hours,
+         c.included_hours_monthly AS monthly_hours,
          c.hourly_rate,
          c.status,
-         c.sla_response_time_hours,
-         c.notes
+         c.sla_response_hours AS sla_response_time_hours
        FROM contracts c
        WHERE c.customer_id = $1
          AND c.status = 'active'

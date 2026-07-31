@@ -1990,11 +1990,12 @@ router.get('/email/diagnose', async (req: AuthRequest, res) => {
     // 1. Email provider status
     const providerTest = await emailService.testConnection();
 
-    // 2. Recent tickets without contact_id
+    // 2. Recent tickets without creating contact (tickets.contact_id
+    // existiert nicht — created_by_contact_id ist die echte Spalte)
     const ticketsWithoutContact = await pool.query(`
       SELECT COUNT(*) as count
       FROM tickets
-      WHERE contact_id IS NULL
+      WHERE created_by_contact_id IS NULL
       AND created_at > NOW() - INTERVAL '30 days'
     `);
 
@@ -2038,13 +2039,13 @@ router.get('/email/diagnose', async (req: AuthRequest, res) => {
     // 7. Sample ticket with contact check
     const sampleTicket = await pool.query(`
       SELECT
-        t.id, t.ticket_number, t.contact_id,
+        t.id, t.ticket_number, t.created_by_contact_id as contact_id,
         cc.email as contact_email,
         cc.notify_ticket_status_changed,
         cc.notify_ticket_reply,
         cc.notify_ticket_created
       FROM tickets t
-      LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+      LEFT JOIN customer_contacts cc ON (cc.id = t.created_by_contact_id OR cc.portal_user_id = t.created_by_contact_id)
       ORDER BY t.created_at DESC
       LIMIT 5
     `);
