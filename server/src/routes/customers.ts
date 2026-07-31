@@ -25,10 +25,14 @@ const CUSTOMER_COLUMNS = `
   created_at, deleted_at
 `;
 
+// ⚠️ Nur Spalten, die wirklich existieren (Regel 7): invitation_token/
+// invitation_expires_at/invitation_sent_at waren hier erfunden — die
+// Einladungs-Tokens liegen in password_reset_token/password_reset_expires.
+// Der Verify-SELECT in PUT/DELETE/send-invite/set-password crashte damit.
 const PORTAL_USER_COLUMNS = `
   id, organization_id, customer_id, email, name, password_hash,
   can_create_tickets, can_view_all_tickets, can_view_devices, can_view_invoices, can_view_quotes,
-  mfa_enabled, mfa_secret, invitation_token, invitation_expires_at, invitation_sent_at,
+  mfa_enabled, mfa_secret, password_reset_token, password_reset_expires,
   created_at, updated_at
 `;
 

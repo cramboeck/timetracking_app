@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Lock, Mail, AlertCircle, ArrowRight, Shield, Info, X, Smartphone, ArrowLeft } from 'lucide-react';
 import { customerPortalApi, PortalContact } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
-import logoRamboeck from '../../logo/logo-ramboeckit.png';
+import logoRamboeckLight from '../../logo/logo-ramboeck-light.png';
+import logoRamboeckDark from '../../logo/logo-ramboeck-dark.png';
 
 interface PortalLoginProps {
   onLoginSuccess: (contact: PortalContact) => void;
@@ -168,9 +169,14 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <img
-            src={logoRamboeck}
+            src={logoRamboeckLight}
             alt="Ramboeck IT"
-            className="h-12 mx-auto mb-6 object-contain dark:brightness-0 dark:invert"
+            className="h-12 mx-auto mb-6 object-contain dark:hidden"
+          />
+          <img
+            src={logoRamboeckDark}
+            alt="Ramboeck IT"
+            className="h-12 mx-auto mb-6 object-contain hidden dark:block"
           />
           {mfaRequired && (
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent-primary/10 text-accent-primary mb-4">

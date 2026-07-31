@@ -2304,6 +2304,26 @@ export async function initializeDatabase() {
           ALTER TABLE customer_portal_users ADD COLUMN reset_token_expires_at TIMESTAMP;
         END IF;
 
+        -- MFA-Spalten fehlten auf customer_portal_users komplett (existierten
+        -- nur auf users/customer_contacts) — der Portal-Login selektiert
+        -- cpu.mfa_enabled/cpu.mfa_secret und lief damit in einen 500er
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'mfa_enabled'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN mfa_enabled BOOLEAN DEFAULT false;
+          ALTER TABLE customer_portal_users ADD COLUMN mfa_secret TEXT;
+        END IF;
+
+        -- updated_at-Absicherung fuer Alt-Tabellen, die vor der Aufnahme der
+        -- Spalte ins CREATE TABLE angelegt wurden
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'updated_at'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+        END IF;
+
         -- Add organization_id to feature_packages
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns

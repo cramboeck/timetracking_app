@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Mail, Lock, User, Shield, Building2, Users, Ticket, UserPlus, XCircle } from 'lucide-react';
-import logoRamboeck from '../logo/logo-ramboeckit.png';
+import logoRamboeckLight from '../logo/logo-ramboeck-light.png';
+import logoRamboeckDark from '../logo/logo-ramboeck-dark.png';
 import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
@@ -418,11 +419,16 @@ export const Auth = () => {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          {/* Company logo – light mode uses the original, dark mode inverts to white */}
+          {/* Company logo – echte Light-/Dark-Varianten statt CSS-Invert */}
           <img
-            src={logoRamboeck}
+            src={logoRamboeckLight}
             alt="Ramboeck IT"
-            className="h-14 mx-auto mb-4 object-contain dark:brightness-0 dark:invert"
+            className="h-14 mx-auto mb-4 object-contain dark:hidden"
+          />
+          <img
+            src={logoRamboeckDark}
+            alt="Ramboeck IT"
+            className="h-14 mx-auto mb-4 object-contain hidden dark:block"
           />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
             RamboFlow

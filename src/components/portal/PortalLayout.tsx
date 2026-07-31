@@ -1,5 +1,6 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { Ticket, LogOut, User, Settings, Book, Monitor, FileText, Shield, Info, X, HelpCircle, Clock, LayoutDashboard, Package } from 'lucide-react';
+import logoIcon from '../../logo/logo-ramboeck-appicon.png';
 import { PortalContact, customerPortalApi, PortalSettings } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
 
@@ -39,8 +40,6 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
     } as React.CSSProperties;
   }, [portalSettings?.primaryColor]);
 
-  const primaryColor = portalSettings?.primaryColor || '#3b82f6';
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-50 flex flex-col" style={brandStyles}>
       {/* Header */}
@@ -54,12 +53,11 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
                 className="w-10 h-10 rounded-xl object-contain"
               />
             ) : (
-              <div
-                className="w-10 h-10 rounded-xl text-white flex items-center justify-center"
-                style={{ backgroundColor: primaryColor }}
-              >
-                <Ticket size={22} />
-              </div>
+              <img
+                src={logoIcon}
+                alt="Ramboeck IT"
+                className="w-10 h-10 rounded-xl object-cover"
+              />
             )}
             <div>
               <h1 className="font-semibold text-gray-900 dark:text-white">
