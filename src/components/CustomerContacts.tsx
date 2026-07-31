@@ -161,9 +161,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
         setContacts(prev => [...prev, response.data]);
       }
       closeForm();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save contact:', err);
-      showToast('Fehler beim Speichern des Kontakts', 'error');
+      showToast(`Fehler beim Speichern des Kontakts${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -177,9 +177,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       await ticketsApi.deleteContact(customer.id, deleteContact.id);
       setContacts(prev => prev.filter(c => c.id !== deleteContact.id));
       setDeleteContact(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete contact:', err);
-      showToast('Fehler beim Löschen des Kontakts', 'error');
+      showToast(`Fehler beim Löschen des Kontakts${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setDeleting(false);
     }
@@ -191,9 +191,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       await ticketsApi.sendContactInvite(customer.id, contact.id);
       setInviteSuccess(contact.id);
       setTimeout(() => setInviteSuccess(null), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to send invite:', err);
-      showToast('Fehler beim Senden der Einladung', 'error');
+      showToast(`Fehler beim Senden der Einladung${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setSendingInvite(null);
     }
@@ -210,9 +210,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setPasswordContact(null);
       setNewPassword('');
       setShowPassword(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to set password:', err);
-      showToast('Fehler beim Setzen des Passworts', 'error');
+      showToast(`Fehler beim Setzen des Passworts${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setSettingPassword(false);
     }
