@@ -405,7 +405,10 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
         {/* Footer */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-500 dark:text-dark-400 mb-2">
-            Probleme beim Anmelden? Kontaktieren Sie Ihren Dienstleister.
+            Probleme beim Anmelden?{' '}
+            <a href="mailto:support@ramboeck-it.com" className="text-accent-primary hover:underline">
+              support@ramboeck-it.com
+            </a>
           </p>
           <div className="flex items-center justify-center gap-4 text-sm">
             <Button
