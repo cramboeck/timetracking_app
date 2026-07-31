@@ -16,6 +16,26 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
+  // Passwort-vergessen state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      setForgotLoading(true);
+      await customerPortalApi.requestPasswordReset(forgotEmail);
+      setForgotSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Anfrage fehlgeschlagen');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   // MFA state
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
@@ -252,6 +272,68 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                 Zurück zur Anmeldung
               </Button>
             </div>
+          ) : showForgotPassword ? (
+            /* Passwort vergessen */
+            forgotSent ? (
+              <div className="space-y-5 text-center">
+                <Mail size={40} className="mx-auto text-accent-primary" />
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">E-Mail versendet</h2>
+                <p className="text-sm text-gray-600 dark:text-dark-400">
+                  Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir Ihnen
+                  einen Link zum Zurücksetzen des Passworts geschickt. Der Link ist
+                  1 Stunde gültig.
+                </p>
+                <Button
+                  onClick={() => { setShowForgotPassword(false); setForgotSent(false); }}
+                  variant="ghost"
+                  fullWidth
+                  icon={<ArrowLeft size={18} />}
+                >
+                  Zurück zur Anmeldung
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-5">
+                <p className="text-sm text-gray-600 dark:text-dark-400">
+                  Geben Sie Ihre E-Mail-Adresse ein — wir senden Ihnen einen Link,
+                  mit dem Sie ein neues Passwort vergeben können.
+                </p>
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
+                    <AlertCircle size={18} />
+                    <span>{error}</span>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    E-Mail-Adresse
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                      placeholder="ihre@email.de"
+                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" variant="primary" fullWidth loading={forgotLoading} className="py-3">
+                  {forgotLoading ? 'Wird gesendet…' : 'Link anfordern'}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => { setShowForgotPassword(false); setError(null); }}
+                  variant="ghost"
+                  fullWidth
+                  icon={<ArrowLeft size={18} />}
+                >
+                  Zurück zur Anmeldung
+                </Button>
+              </form>
+            )
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
@@ -306,6 +388,16 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
               >
                 {loading ? 'Anmelden...' : 'Anmelden'}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotPassword(true); setForgotEmail(email); setForgotSent(false); setError(null); }}
+                  className="text-sm text-accent-primary hover:underline"
+                >
+                  Passwort vergessen?
+                </button>
+              </div>
             </form>
           )}
         </div>

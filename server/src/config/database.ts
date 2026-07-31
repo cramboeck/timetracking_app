@@ -2285,6 +2285,25 @@ export async function initializeDatabase() {
           ALTER TABLE customer_portal_users ADD COLUMN can_view_contract BOOLEAN NOT NULL DEFAULT false;
         END IF;
 
+        -- Add can_view_licenses to customer_portal_users (Go-Live-Härtung:
+        -- der Lizenzen-Tab zeigt Lieferanten-Positionen mit Beträgen und war
+        -- bis dahin für JEDEN Portal-User ungefragt sichtbar)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'can_view_licenses'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN can_view_licenses BOOLEAN NOT NULL DEFAULT false;
+        END IF;
+
+        -- Passwort-Reset fuer Portal-User (Self-Service statt Support-Anruf)
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'customer_portal_users' AND column_name = 'reset_token'
+        ) THEN
+          ALTER TABLE customer_portal_users ADD COLUMN reset_token TEXT;
+          ALTER TABLE customer_portal_users ADD COLUMN reset_token_expires_at TIMESTAMP;
+        END IF;
+
         -- Add organization_id to feature_packages
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns

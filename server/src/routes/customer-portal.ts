@@ -97,14 +97,24 @@ async function getContactPermissions(contactId: string): Promise<{
   can_view_all_tickets: boolean;
   can_view_time_report: boolean;
   can_view_contract: boolean;
+  can_view_licenses: boolean;
 } | null> {
-  // customer_portal_users is the single source of truth for permissions
+  // customer_portal_users is the single source of truth for permissions.
+  // Der JWT-contactId kann ZWEI Identitäten tragen: die id eines
+  // customer_portal_users-Eintrags (Direkt-Login) ODER die id eines
+  // customer_contacts-Eintrags (Einladung über CustomerHub — dort zeigt
+  // customer_contacts.portal_user_id auf den Portal-User). Beide auflösen,
+  // sonst laufen alle Berechtigungen für eingeladene Kontakte ins Leere.
   const result = await pool.query(
     `SELECT can_view_devices, can_view_invoices, can_view_quotes,
             can_create_tickets, can_view_all_tickets,
             COALESCE(can_view_time_report, false) AS can_view_time_report,
-            COALESCE(can_view_contract, false) AS can_view_contract
-     FROM customer_portal_users WHERE id = $1`,
+            COALESCE(can_view_contract, false) AS can_view_contract,
+            COALESCE(can_view_licenses, false) AS can_view_licenses
+     FROM customer_portal_users
+     WHERE id = $1
+        OR id = (SELECT portal_user_id FROM customer_contacts WHERE id = $1)
+     LIMIT 1`,
     [contactId]
   );
   return result.rows[0] || null;
@@ -145,7 +155,8 @@ router.post('/login', authLimiter, async (req, res) => {
       `SELECT cc.*, c.name as customer_name, c.user_id,
               cpu.password_hash as portal_user_password_hash,
               cpu.mfa_enabled as portal_mfa_enabled,
-              cpu.mfa_secret as portal_mfa_secret
+              cpu.mfa_secret as portal_mfa_secret,
+              cpu.is_active as portal_user_is_active
        FROM customer_contacts cc
        JOIN customers c ON cc.customer_id = c.id
        LEFT JOIN customer_portal_users cpu ON cc.portal_user_id = cpu.id
@@ -159,7 +170,7 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!contact) {
       const portalUserResult = await pool.query(
         `SELECT cpu.id, cpu.email, cpu.name, cpu.password_hash, cpu.customer_id,
-                cpu.mfa_enabled, cpu.mfa_secret, cpu.organization_id,
+                cpu.mfa_enabled, cpu.mfa_secret, cpu.organization_id, cpu.is_active,
                 cpu.can_create_tickets, cpu.can_view_all_tickets,
                 cpu.can_view_devices, cpu.can_view_invoices, cpu.can_view_quotes,
                 c.name as customer_name, c.user_id
@@ -187,6 +198,7 @@ router.post('/login', authLimiter, async (req, res) => {
           can_view_devices: pu.can_view_devices,
           can_view_invoices: pu.can_view_invoices,
           can_view_quotes: pu.can_view_quotes,
+          portal_user_is_active: pu.is_active,
           is_portal_user: true
         };
       }
@@ -195,6 +207,13 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!contact) {
       // Log failed login (user not found)
       logger.info(`🔐 Portal login failed: No contact found for email "${email}"`);
+      securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Deaktivierte Portal-User dürfen sich nicht mehr anmelden
+    if (contact.portal_user_is_active === false) {
+      logger.info(`🔐 Portal login rejected: portal user deactivated ("${email}")`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -289,6 +308,7 @@ router.post('/login', authLimiter, async (req, res) => {
         canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
         canViewTimeReport: permissions?.can_view_time_report ?? false,
         canViewContract: permissions?.can_view_contract ?? false,
+        canViewLicenses: permissions?.can_view_licenses ?? false,
       },
     });
   } catch (error) {
@@ -349,12 +369,29 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
       canViewTimeReport: permissions?.can_view_time_report ?? false,
       canViewContract: permissions?.can_view_contract ?? false,
+      canViewLicenses: permissions?.can_view_licenses ?? false,
     });
   } catch (error) {
     logger.error('Get contact error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Beide Identitäten eines Portal-Users (customer_contacts.id + der
+// verknüpfte customer_portal_users-Eintrag bzw. umgekehrt) — Tickets
+// speichern je nach Erstellweg mal die eine, mal die andere in
+// created_by_contact_id/contact_id.
+async function getContactIdentityIds(contactId: string): Promise<string[]> {
+  const ids = new Set<string>([contactId]);
+  const linked = await pool.query(
+    `SELECT portal_user_id AS other FROM customer_contacts WHERE id = $1 AND portal_user_id IS NOT NULL
+     UNION
+     SELECT id AS other FROM customer_contacts WHERE portal_user_id = $1`,
+    [contactId]
+  );
+  for (const row of linked.rows) ids.add(row.other);
+  return Array.from(ids);
+}
 
 // Get tickets for the customer
 router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
@@ -375,24 +412,35 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
     let query = `
       SELECT t.id, t.ticket_number, t.title, t.description, t.status, t.priority,
              t.created_at, t.updated_at, t.resolved_at, t.closed_at,
-             t.sla_first_response_due, t.sla_resolution_due,
-             t.first_response_at, t.sla_breached,
+             t.sla_response_due, t.sla_resolution_due,
+             t.first_response_at,
+             (COALESCE(t.sla_response_breached, false) OR COALESCE(t.sla_resolution_breached, false)) as sla_breached,
              c.name as customer_name, p.name as project_name,
              SPLIT_PART(u.username, '@', 1) as assigned_to_name
       FROM tickets t
       JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN users u ON t.assigned_to_user_id = u.id
+      LEFT JOIN users u ON t.assigned_to = u.id
       WHERE t.customer_id = $1 AND t.user_id = $2
     `;
     const params: any[] = [req.customerId, userId];
 
     // Filter by status (don't show archived to customers by default)
     if (status && status !== 'all') {
-      query += ` AND t.status = $3`;
       params.push(status);
+      query += ` AND t.status = $${params.length}`;
     } else {
       query += ` AND t.status != 'archived'`;
+    }
+
+    // can_view_all_tickets durchsetzen: ohne die Berechtigung sieht der
+    // Kontakt nur Tickets, die er selbst erstellt hat oder denen er als
+    // Ansprechpartner zugeordnet ist
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_all_tickets) {
+      const identityIds = await getContactIdentityIds(req.contactId!);
+      params.push(identityIds);
+      query += ` AND (t.created_by_contact_id = ANY($${params.length}) OR t.contact_id = ANY($${params.length}))`;
     }
 
     query += ` ORDER BY t.updated_at DESC`;
@@ -465,6 +513,15 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
     const ticket = ticketResult.rows[0];
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // can_view_all_tickets durchsetzen (analog zur Listen-Route)
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_all_tickets) {
+      const identityIds = await getContactIdentityIds(req.contactId!);
+      if (!identityIds.includes(ticket.created_by_contact_id) && !identityIds.includes(ticket.contact_id)) {
+        return res.status(404).json({ error: 'Ticket not found' });
+      }
     }
 
     // Get comments (only non-internal comments for customers)
@@ -732,11 +789,11 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
       try {
         // Get ticket with assignee info and organization
         const ticketWithAssignee = await pool.query(`
-          SELECT t.assigned_to_user_id, t.organization_id, c.name as customer_name,
+          SELECT t.assigned_to as assigned_to_user_id, t.organization_id, c.name as customer_name,
                  u.email as assignee_email, u.username as assignee_name
           FROM tickets t
           LEFT JOIN customers c ON t.customer_id = c.id
-          LEFT JOIN users u ON t.assigned_to_user_id = u.id
+          LEFT JOIN users u ON t.assigned_to = u.id
           WHERE t.id = $1
         `, [id]);
 
@@ -909,7 +966,7 @@ router.get('/invitation/verify/:token', async (req, res) => {
 });
 
 // Activate portal account with invitation token
-router.post('/invitation/activate', async (req, res) => {
+router.post('/invitation/activate', authLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
 
@@ -983,6 +1040,142 @@ router.post('/invitation/activate', async (req, res) => {
     });
   } catch (error) {
     logger.error('Portal activation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================================================
+// PASSWORT-RESET (Self-Service für Portal-User)
+// ----------------------------------------------------------------------------
+// Eigene Spalten reset_token/reset_token_expires_at — NICHT die
+// password_reset_token-Spalten, die gehören dem Einladungs-Flow.
+// ============================================================================
+
+// Reset anfordern — antwortet IMMER mit success (kein User-Enumeration)
+router.post('/password-reset/request', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'E-Mail erforderlich' });
+    }
+
+    const genericResponse = {
+      success: true,
+      message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen versendet.',
+    };
+
+    // Portal-User direkt oder über den verknüpften Kontakt finden
+    const result = await pool.query(
+      `SELECT cpu.id, cpu.email, cpu.name, cpu.password_hash, cpu.is_active
+       FROM customer_portal_users cpu
+       WHERE LOWER(cpu.email) = LOWER($1)
+          OR cpu.id = (SELECT portal_user_id FROM customer_contacts WHERE LOWER(email) = LOWER($1) LIMIT 1)
+       LIMIT 1`,
+      [email]
+    );
+
+    const portalUser = result.rows[0];
+    const isPlaceholder = portalUser?.password_hash?.startsWith('$2a$10$PLACEHOLDER');
+
+    // Nur für aktivierte, aktive Konten einen Token ausstellen —
+    // nach außen immer dieselbe Antwort
+    if (!portalUser || isPlaceholder || !portalUser.password_hash || portalUser.is_active === false) {
+      logger.info(`🔐 Portal password reset requested for unknown/inactive account: ${email}`);
+      return res.json(genericResponse);
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 Stunde
+
+    await pool.query(
+      `UPDATE customer_portal_users SET reset_token = $1, reset_token_expires_at = $2 WHERE id = $3`,
+      [token, expiresAt, portalUser.id]
+    );
+
+    // Link funktioniert auf beiden Hosts: portal.ramboeck.it rendert das
+    // Portal für jeden Pfad, app.ramboeck.it hat die /portal/*-Routen
+    const base = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+    const resetUrl = `${base}/portal/reset-password?token=${token}`;
+
+    emailService.sendEmail({
+      to: portalUser.email,
+      subject: 'Kundenportal: Passwort zurücksetzen',
+      html: `
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+          <h2 style="color: #1f2937;">Passwort zurücksetzen</h2>
+          <p>Hallo ${portalUser.name || ''},</p>
+          <p>für Ihr Kundenportal-Konto wurde ein Zurücksetzen des Passworts angefordert.
+             Klicken Sie auf den Button, um ein neues Passwort zu vergeben:</p>
+          <p style="margin: 24px 0;">
+            <a href="${resetUrl}" style="display: inline-block; background-color: #F27024; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600;">
+              Neues Passwort vergeben
+            </a>
+          </p>
+          <p style="font-size: 13px; color: #6b7280;">Der Link ist 1 Stunde gültig. Falls Sie das nicht angefordert haben, können Sie diese E-Mail ignorieren — Ihr Passwort bleibt unverändert.</p>
+          <p style="font-size: 13px; color: #6b7280;">Falls der Button nicht funktioniert: <a href="${resetUrl}">${resetUrl}</a></p>
+        </div>`,
+      text: `Passwort zurücksetzen\n\nFür Ihr Kundenportal-Konto wurde ein Zurücksetzen des Passworts angefordert.\n\n${resetUrl}\n\nDer Link ist 1 Stunde gültig. Falls Sie das nicht angefordert haben, können Sie diese E-Mail ignorieren.`,
+    }).catch(err => logger.error(`Portal reset mail failed: ${err.message}`));
+
+    logger.info(`🔐 Portal password reset link issued for: ${portalUser.email}`);
+    res.json(genericResponse);
+  } catch (error) {
+    logger.error('Portal password reset request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset durchführen
+router.post('/password-reset/confirm', authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token erforderlich' });
+    }
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 8 Zeichen lang sein' });
+    }
+
+    const result = await pool.query(
+      `SELECT cpu.id, cpu.email, cpu.reset_token_expires_at, cc.id as contact_id
+       FROM customer_portal_users cpu
+       LEFT JOIN customer_contacts cc ON cc.portal_user_id = cpu.id
+       WHERE cpu.reset_token = $1`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungültiger oder bereits verwendeter Link' });
+    }
+
+    const portalUser = result.rows[0];
+    if (!portalUser.reset_token_expires_at || new Date(portalUser.reset_token_expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Der Link ist abgelaufen. Bitte fordern Sie einen neuen an.', expired: true });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await pool.query(
+      `UPDATE customer_portal_users
+       SET password_hash = $1, reset_token = NULL, reset_token_expires_at = NULL, updated_at = NOW()
+       WHERE id = $2`,
+      [passwordHash, portalUser.id]
+    );
+
+    // Gespiegelten Hash auf dem verknüpften Kontakt aktualisieren
+    // (der Login nutzt bevorzugt customer_contacts.password_hash)
+    if (portalUser.contact_id) {
+      await pool.query(
+        `UPDATE customer_contacts SET password_hash = $1 WHERE id = $2`,
+        [passwordHash, portalUser.contact_id]
+      );
+    }
+
+    logger.info(`✅ Portal password reset completed for: ${portalUser.email}`);
+    res.json({ success: true, message: 'Ihr Passwort wurde geändert. Sie können sich jetzt anmelden.' });
+  } catch (error) {
+    logger.error('Portal password reset confirm error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1859,7 +2052,10 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
     }
 
     const data = await response.json() as { objects?: any[] };
-    const invoices = (data.objects || []).map((inv: any) => {
+    const invoices = (data.objects || [])
+      // Entwürfe (Status 100) sind interne Arbeitsstände — nie im Portal zeigen
+      .filter((inv: any) => parseInt(inv.status) > 100)
+      .map((inv: any) => {
       const totalNet = parseFloat(inv.sumNet || 0);
       const totalGross = parseFloat(inv.sumGross || 0);
       const sumTax = parseFloat(inv.sumTax || 0);
@@ -1879,7 +2075,7 @@ router.get('/invoices', authenticateCustomerToken, async (req: CustomerAuthReque
         payDate: inv.payDate || null,
         header: inv.header,
       };
-    });
+      });
 
     res.json({ success: true, data: invoices });
   } catch (error) {
@@ -1942,7 +2138,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
 
     const data = await response.json() as { objects?: any[] };
     const quotes = (data.objects || [])
-      .filter((order: any) => parseInt(order.status) < 500) // Only quotes, not confirmed orders
+      .filter((order: any) => parseInt(order.status) > 100 && parseInt(order.status) < 500) // Only sent quotes — no drafts, no confirmed orders
       .map((quote: any) => {
         const totalNet = parseFloat(quote.sumNet || 0);
         const totalGross = parseFloat(quote.sumGross || 0);
@@ -1976,7 +2172,7 @@ router.get('/quotes', authenticateCustomerToken, async (req: CustomerAuthRequest
 // ========================================================================
 
 // Verify MFA code during login
-router.post('/mfa/verify', async (req, res) => {
+router.post('/mfa/verify', authLimiter, async (req, res) => {
   try {
     const { mfaToken, code, trustDevice } = req.body;
 
@@ -2623,98 +2819,6 @@ router.post('/push/test', authenticateCustomerToken, async (req: CustomerAuthReq
   }
 });
 
-// DEBUG: Check contact status by email (temporary endpoint for troubleshooting)
-router.get('/debug/contact-status', async (req, res) => {
-  try {
-    const { email } = req.query;
-
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: 'Email query parameter required' });
-    }
-
-    const result = await pool.query(
-      `SELECT
-        cc.id,
-        cc.email,
-        COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name) as name,
-        cc.customer_id,
-        c.name as customer_name,
-        cc.password_hash IS NOT NULL as has_password,
-        LENGTH(cc.password_hash) as password_hash_length,
-        cc.mfa_enabled,
-        cc.last_login,
-        cc.created_at
-       FROM customer_contacts cc
-       JOIN customers c ON cc.customer_id = c.id
-       WHERE LOWER(cc.email) = LOWER($1)`,
-      [email]
-    );
-
-    // Try to read security log for recent login attempts
-    let recentLoginAttempts: string[] = [];
-    try {
-      const logPath = process.env.SECURITY_LOG_PATH || path.join(__dirname, '../../logs/security.log');
-      if (fs.existsSync(logPath)) {
-        const logContent = fs.readFileSync(logPath, 'utf-8');
-        const lines = logContent.split('\n').filter(line => line.includes(`portal:${email.toLowerCase()}`));
-        recentLoginAttempts = lines.slice(-10); // Last 10 entries for this email
-      }
-    } catch (logError) {
-      logger.error('Could not read security log:', logError);
-    }
-
-    // Check audit logs for this contact
-    let auditLogs: any[] = [];
-    if (result.rows.length > 0) {
-      try {
-        const auditResult = await pool.query(
-          `SELECT action, details, created_at, ip_address
-           FROM audit_logs
-           WHERE details LIKE $1 OR details LIKE $2
-           ORDER BY created_at DESC
-           LIMIT 10`,
-          [`%${result.rows[0].id}%`, `%${email}%`]
-        );
-        auditLogs = auditResult.rows;
-      } catch (auditError) {
-        logger.error('Could not read audit logs:', auditError);
-      }
-    }
-
-    if (result.rows.length === 0) {
-      return res.json({
-        found: false,
-        message: `No contact found with email: ${email}`,
-        recentLoginAttempts,
-        auditLogs
-      });
-    }
-
-    const contact = result.rows[0];
-    res.json({
-      found: true,
-      contact: {
-        id: contact.id,
-        email: contact.email,
-        name: contact.name,
-        customerId: contact.customer_id,
-        customerName: contact.customer_name,
-        hasPassword: contact.has_password,
-        passwordHashLength: contact.password_hash_length,
-        mfaEnabled: contact.mfa_enabled,
-        lastLogin: contact.last_login,
-        createdAt: contact.created_at,
-        canLogin: contact.has_password === true
-      },
-      recentLoginAttempts,
-      auditLogs
-    });
-  } catch (error) {
-    logger.error('Debug contact status error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // ========================================================================
 // TIME REPORT (Sprint D - Stundentransparenz)
 // ========================================================================
@@ -2968,6 +3072,13 @@ router.get('/contract', authenticateCustomerToken, async (req: CustomerAuthReque
 router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {
     const customerId = req.customerId;
+
+    // Lizenz-Daten enthalten Lieferanten-Namen und Betraege -> explizite
+    // Berechtigung noetig (Go-Live-Haertung, vorher fuer alle sichtbar)
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_licenses) {
+      return res.status(403).json({ error: 'Not allowed to view licenses' });
+    }
 
     // Get all line items assigned to this customer (billed and included)
     // grouped by product description, with contract info

@@ -935,12 +935,13 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
         // Try direct contact first, then fallback to customer's primary contact
         const contactInfo = await query(`
           SELECT t.title, t.ticket_number, t.contact_id, t.customer_id,
-                 COALESCE(cc.email, primary_contact.email) as email,
-                 COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as name,
-                 COALESCE(cc.notify_ticket_status_changed, primary_contact.notify_ticket_status_changed, true) as notify_ticket_status_changed,
-                 COALESCE(cc.id, primary_contact.id) as resolved_contact_id
+                 COALESCE(cc.email, creator.email, primary_contact.email) as email,
+                 COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, creator.first_name || ' ' || creator.last_name, creator.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as name,
+                 COALESCE(cc.notify_ticket_status_changed, creator.notify_ticket_status_changed, primary_contact.notify_ticket_status_changed, true) as notify_ticket_status_changed,
+                 COALESCE(cc.id, creator.id, primary_contact.id) as resolved_contact_id
           FROM tickets t
           LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+          LEFT JOIN customer_contacts creator ON (creator.id = t.created_by_contact_id OR creator.portal_user_id = t.created_by_contact_id)
           LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
           WHERE t.id = $1
         `, [id]);
@@ -1723,13 +1724,14 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
           // Get ticket info with contact - try direct contact first, then fallback to customer's primary contact
           const ticketInfo = await query(`
             SELECT t.title, t.ticket_number, t.contact_id, t.customer_id, t.email_conversation_id, t.email_from, t.source,
-                   COALESCE(cc.email, primary_contact.email) as contact_email,
-                   COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as contact_name,
-                   COALESCE(cc.notify_ticket_reply, primary_contact.notify_ticket_reply, true) as notify_ticket_reply,
-                   COALESCE(cc.id, primary_contact.id) as resolved_contact_id,
+                   COALESCE(cc.email, creator.email, primary_contact.email) as contact_email,
+                   COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, creator.first_name || ' ' || creator.last_name, creator.last_name, primary_contact.first_name || ' ' || primary_contact.last_name, primary_contact.last_name) as contact_name,
+                   COALESCE(cc.notify_ticket_reply, creator.notify_ticket_reply, primary_contact.notify_ticket_reply, true) as notify_ticket_reply,
+                   COALESCE(cc.id, creator.id, primary_contact.id) as resolved_contact_id,
                    COALESCE(u.display_name, u.username) as replier_name
             FROM tickets t
             LEFT JOIN customer_contacts cc ON t.contact_id = cc.id
+            LEFT JOIN customer_contacts creator ON (creator.id = t.created_by_contact_id OR creator.portal_user_id = t.created_by_contact_id)
             LEFT JOIN customer_contacts primary_contact ON t.customer_id = primary_contact.customer_id AND primary_contact.is_primary = true
             LEFT JOIN users u ON u.id = $2
             WHERE t.id = $1

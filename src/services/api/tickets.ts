@@ -251,6 +251,9 @@ export const ticketsApi = {
     canViewDevices?: boolean;
     canViewInvoices?: boolean;
     canViewQuotes?: boolean;
+    canViewTimeReport?: boolean;
+    canViewContract?: boolean;
+    canViewLicenses?: boolean;
     notifyTicketCreated?: boolean;
     notifyTicketStatusChanged?: boolean;
     notifyTicketReply?: boolean;
@@ -270,6 +273,9 @@ export const ticketsApi = {
     canViewDevices?: boolean;
     canViewInvoices?: boolean;
     canViewQuotes?: boolean;
+    canViewTimeReport?: boolean;
+    canViewContract?: boolean;
+    canViewLicenses?: boolean;
     notifyTicketCreated?: boolean;
     notifyTicketStatusChanged?: boolean;
     notifyTicketReply?: boolean;

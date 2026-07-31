@@ -328,6 +328,9 @@ const createContactSchema = z.object({
   canViewDevices: z.boolean().optional().default(false),
   canViewInvoices: z.boolean().optional().default(false),
   canViewQuotes: z.boolean().optional().default(false),
+  canViewTimeReport: z.boolean().optional().default(false),
+  canViewContract: z.boolean().optional().default(false),
+  canViewLicenses: z.boolean().optional().default(false),
   notifyTicketCreated: z.boolean().optional().default(true),
   notifyTicketStatusChanged: z.boolean().optional().default(true),
   notifyTicketReply: z.boolean().optional().default(true),
@@ -342,6 +345,9 @@ const updateContactSchema = z.object({
   canViewDevices: z.boolean().optional(),
   canViewInvoices: z.boolean().optional(),
   canViewQuotes: z.boolean().optional(),
+  canViewTimeReport: z.boolean().optional(),
+  canViewContract: z.boolean().optional(),
+  canViewLicenses: z.boolean().optional(),
   notifyTicketCreated: z.boolean().optional(),
   notifyTicketStatusChanged: z.boolean().optional(),
   notifyTicketReply: z.boolean().optional(),
@@ -365,6 +371,9 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       `SELECT id, customer_id, name, email, is_primary_contact as is_primary,
               can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
+              COALESCE(can_view_time_report, false) as can_view_time_report,
+              COALESCE(can_view_contract, false) as can_view_contract,
+              COALESCE(can_view_licenses, false) as can_view_licenses,
               notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
               last_login, created_at, password_hash IS NOT NULL AND password_hash != '' as is_activated
        FROM customer_portal_users
@@ -384,6 +393,9 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
       canViewDevices: row.can_view_devices ?? false,
       canViewInvoices: row.can_view_invoices ?? false,
       canViewQuotes: row.can_view_quotes ?? false,
+      canViewTimeReport: row.can_view_time_report ?? false,
+      canViewContract: row.can_view_contract ?? false,
+      canViewLicenses: row.can_view_licenses ?? false,
       notifyTicketCreated: row.notify_ticket_created ?? true,
       notifyTicketStatusChanged: row.notify_ticket_status_changed ?? true,
       notifyTicketReply: row.notify_ticket_reply ?? true,
@@ -412,6 +424,7 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
     const {
       name, email, isPrimary, canCreateTickets, canViewAllTickets,
       canViewDevices, canViewInvoices, canViewQuotes,
+      canViewTimeReport, canViewContract, canViewLicenses,
       notifyTicketCreated, notifyTicketStatusChanged, notifyTicketReply
     } = req.body;
 
@@ -442,11 +455,13 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
         id, owner_user_id, organization_id, customer_id, name, email, password_hash,
         is_primary_contact, is_active, can_create_tickets, can_view_all_tickets,
         can_view_devices, can_view_invoices, can_view_quotes,
+        can_view_time_report, can_view_contract, can_view_licenses,
         notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, '', $7, true, $8, $9, $10, $11, $12, $13, $14, $15, NOW())`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, '', $7, true, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())`,
       [id, userId, organizationId, customerId, name, email, isPrimary ?? false,
        canCreateTickets ?? true, canViewAllTickets ?? false,
        canViewDevices ?? false, canViewInvoices ?? false, canViewQuotes ?? false,
+       canViewTimeReport ?? false, canViewContract ?? false, canViewLicenses ?? false,
        notifyTicketCreated ?? true, notifyTicketStatusChanged ?? true, notifyTicketReply ?? true]
     );
 
@@ -471,6 +486,9 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
         canViewDevices: canViewDevices ?? false,
         canViewInvoices: canViewInvoices ?? false,
         canViewQuotes: canViewQuotes ?? false,
+        canViewTimeReport: canViewTimeReport ?? false,
+        canViewContract: canViewContract ?? false,
+        canViewLicenses: canViewLicenses ?? false,
         notifyTicketCreated: notifyTicketCreated ?? true,
         notifyTicketStatusChanged: notifyTicketStatusChanged ?? true,
         notifyTicketReply: notifyTicketReply ?? true,
@@ -556,6 +574,18 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       fields.push(`can_view_quotes = $${paramCount++}`);
       values.push(updates.canViewQuotes);
     }
+    if (updates.canViewTimeReport !== undefined) {
+      fields.push(`can_view_time_report = $${paramCount++}`);
+      values.push(updates.canViewTimeReport);
+    }
+    if (updates.canViewContract !== undefined) {
+      fields.push(`can_view_contract = $${paramCount++}`);
+      values.push(updates.canViewContract);
+    }
+    if (updates.canViewLicenses !== undefined) {
+      fields.push(`can_view_licenses = $${paramCount++}`);
+      values.push(updates.canViewLicenses);
+    }
     if (updates.notifyTicketCreated !== undefined) {
       fields.push(`notify_ticket_created = $${paramCount++}`);
       values.push(updates.notifyTicketCreated);
@@ -582,6 +612,9 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
       `SELECT id, customer_id, name, email, is_primary_contact as is_primary,
               can_create_tickets, can_view_all_tickets,
               can_view_devices, can_view_invoices, can_view_quotes,
+              COALESCE(can_view_time_report, false) as can_view_time_report,
+              COALESCE(can_view_contract, false) as can_view_contract,
+              COALESCE(can_view_licenses, false) as can_view_licenses,
               notify_ticket_created, notify_ticket_status_changed, notify_ticket_reply,
               last_login, created_at, password_hash IS NOT NULL AND password_hash != '' as is_activated
        FROM customer_portal_users WHERE id = $1`,
@@ -602,6 +635,9 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
         canViewDevices: updated.can_view_devices ?? false,
         canViewInvoices: updated.can_view_invoices ?? false,
         canViewQuotes: updated.can_view_quotes ?? false,
+        canViewTimeReport: updated.can_view_time_report ?? false,
+        canViewContract: updated.can_view_contract ?? false,
+        canViewLicenses: updated.can_view_licenses ?? false,
         notifyTicketCreated: updated.notify_ticket_created ?? true,
         notifyTicketStatusChanged: updated.notify_ticket_status_changed ?? true,
         notifyTicketReply: updated.notify_ticket_reply ?? true,
@@ -697,8 +733,8 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     const userResult = await pool.query('SELECT username, email FROM users WHERE id = $1', [userId]);
     const user = userResult.rows[0];
 
-    // Send activation email
-    const portalUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // Send activation email (PORTAL_URL = dedizierter Portal-Host, z.B. portal.ramboeck.it)
+    const portalUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
     const activationUrl = `${portalUrl}/portal/activate?token=${activationToken}`;
 
     await emailService.sendEmail({

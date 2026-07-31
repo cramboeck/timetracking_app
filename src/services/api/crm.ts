@@ -577,6 +577,7 @@ export const contactsApi = {
     success: boolean;
     portal_user_id: string;
     invitation_token?: string;
+    email_sent?: boolean;
     message: string;
   }> => {
     return authFetch(`/contacts/${id}/portal-access`, {

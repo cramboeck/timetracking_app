@@ -474,6 +474,9 @@ export interface CustomerContact {
   canViewDevices: boolean; // View NinjaRMM devices (Support feature)
   canViewInvoices: boolean; // View sevDesk invoices (Business feature)
   canViewQuotes: boolean; // View sevDesk quotes (Business feature)
+  canViewTimeReport?: boolean; // View monthly time report in portal
+  canViewContract?: boolean; // View contract info in portal
+  canViewLicenses?: boolean; // View licenses/subscriptions in portal
   notifyTicketCreated?: boolean; // Email on ticket created
   notifyTicketStatusChanged?: boolean; // Email on status change
   notifyTicketReply?: boolean; // Email on new reply

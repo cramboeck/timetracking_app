@@ -6,6 +6,7 @@ import { PortalTicketList } from './PortalTicketList';
 import { PortalTicketDetail } from './PortalTicketDetail';
 import { PortalCreateTicket } from './PortalCreateTicket';
 import { PortalActivate } from './PortalActivate';
+import { PortalResetPassword } from './PortalResetPassword';
 import { PortalProfile } from './PortalProfile';
 import { PortalKnowledgeBase } from './PortalKnowledgeBase';
 import { PortalDevices } from './PortalDevices';
@@ -38,6 +39,9 @@ export const CustomerPortal = () => {
   const urlParams = new URLSearchParams(window.location.search);
   const activationToken = urlParams.get('token');
   const isActivation = window.location.pathname.endsWith('/activate');
+  // Passwort-Reset aus der E-Mail: /portal/reset-password (App-Host) bzw.
+  // /reset-password (Portal-Host) — gleicher Mechanismus wie /activate
+  const isPasswordReset = window.location.pathname.endsWith('/reset-password');
 
   // Check for deep link to ticket: /portal/tickets/{id} (app host) or
   // /tickets/{id} (portal host). The optional /portal prefix covers both.
@@ -87,8 +91,8 @@ export const CustomerPortal = () => {
   }, [contact, pendingTicketId]);
 
   useEffect(() => {
-    // Don't check session if on activation page
-    if (isActivation && activationToken) {
+    // Don't check session if on activation or password-reset page
+    if ((isActivation || isPasswordReset) && activationToken) {
       setLoading(false);
       return;
     }
@@ -257,6 +261,16 @@ export const CustomerPortal = () => {
     );
   }
 
+  // Show password reset page
+  if (isPasswordReset && activationToken) {
+    return (
+      <PortalResetPassword
+        token={activationToken}
+        onDone={handleActivated}
+      />
+    );
+  }
+
   // Show login page
   if (!contact) {
     return <PortalLogin onLoginSuccess={handleLoginSuccess} />;
@@ -272,9 +286,9 @@ export const CustomerPortal = () => {
       onShowDevices={contact.canViewDevices ? handleShowDevices : undefined}
       onShowInvoices={(contact.canViewInvoices || contact.canViewQuotes) ? handleShowInvoices : undefined}
       onShowDashboard={handleShowDashboard}
-      onShowTimeReport={contact.canViewTimeReport && portalSettings?.showTimeReport ? handleShowTimeReport : undefined}
-      onShowContract={contact.canViewContract && portalSettings?.showContractInfo ? handleShowContract : undefined}
-      onShowLicenses={handleShowLicenses}
+      onShowTimeReport={contact.canViewTimeReport ? handleShowTimeReport : undefined}
+      onShowContract={contact.canViewContract ? handleShowContract : undefined}
+      onShowLicenses={contact.canViewLicenses ? handleShowLicenses : undefined}
       onShowTickets={handleShowTickets}
       onShowHelp={handleShowWelcomeGuide}
       currentView={currentView}
@@ -283,7 +297,6 @@ export const CustomerPortal = () => {
       {currentView === 'dashboard' ? (
         <PortalDashboard
           contact={contact}
-          portalSettings={portalSettings}
           onNavigate={handleDashboardNavigate}
         />
       ) : currentView === 'kb' ? (
@@ -314,7 +327,6 @@ export const CustomerPortal = () => {
       ) : (
         <PortalDashboard
           contact={contact}
-          portalSettings={portalSettings}
           onNavigate={handleDashboardNavigate}
         />
       )}

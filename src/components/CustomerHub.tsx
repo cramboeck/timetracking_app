@@ -1478,7 +1478,11 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         if (result.invitation_token) {
           const invitationUrl = `${window.location.origin}/portal/activate?token=${result.invitation_token}`;
           await navigator.clipboard.writeText(invitationUrl);
-          showToast('Portal-Zugang aktiviert. Einladungslink in Zwischenablage kopiert.', 'success');
+          if (result.email_sent === false) {
+            showToast('Portal-Zugang aktiviert — Einladungs-E-Mail konnte NICHT gesendet werden! Link ist in der Zwischenablage.', 'warning');
+          } else {
+            showToast('Portal-Zugang aktiviert. Einladung per E-Mail versendet, Link zusätzlich in Zwischenablage.', 'success');
+          }
         } else {
           showToast('Portal-Zugang aktiviert', 'success');
         }

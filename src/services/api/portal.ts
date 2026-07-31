@@ -120,6 +120,7 @@ export interface PortalContact {
   canViewQuotes: boolean;
   canViewTimeReport: boolean;
   canViewContract: boolean;
+  canViewLicenses: boolean;
 }
 
 export interface PortalTicket {
@@ -293,6 +294,24 @@ export const customerPortalApi = {
 
   setPassword: async (token: string, password: string): Promise<{ success: boolean; message: string }> => {
     const response = await fetch(`${API_BASE_URL}/customer-portal/invitation/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    return handleResponse(response);
+  },
+
+  requestPasswordReset: async (email: string): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/password-reset/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return handleResponse(response);
+  },
+
+  confirmPasswordReset: async (token: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${API_BASE_URL}/customer-portal/password-reset/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password }),

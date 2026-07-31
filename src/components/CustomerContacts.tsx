@@ -29,6 +29,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
   const [formCanViewDevices, setFormCanViewDevices] = useState(false);
   const [formCanViewInvoices, setFormCanViewInvoices] = useState(false);
   const [formCanViewQuotes, setFormCanViewQuotes] = useState(false);
+  const [formCanViewTimeReport, setFormCanViewTimeReport] = useState(false);
+  const [formCanViewContract, setFormCanViewContract] = useState(false);
+  const [formCanViewLicenses, setFormCanViewLicenses] = useState(false);
   const [formNotifyTicketCreated, setFormNotifyTicketCreated] = useState(true);
   const [formNotifyTicketStatusChanged, setFormNotifyTicketStatusChanged] = useState(true);
   const [formNotifyTicketReply, setFormNotifyTicketReply] = useState(true);
@@ -79,6 +82,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormCanViewDevices(contact.canViewDevices ?? false);
       setFormCanViewInvoices(contact.canViewInvoices ?? false);
       setFormCanViewQuotes(contact.canViewQuotes ?? false);
+      setFormCanViewTimeReport(contact.canViewTimeReport ?? false);
+      setFormCanViewContract(contact.canViewContract ?? false);
+      setFormCanViewLicenses(contact.canViewLicenses ?? false);
       setFormNotifyTicketCreated(contact.notifyTicketCreated ?? true);
       setFormNotifyTicketStatusChanged(contact.notifyTicketStatusChanged ?? true);
       setFormNotifyTicketReply(contact.notifyTicketReply ?? true);
@@ -92,6 +98,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
       setFormCanViewDevices(false);
       setFormCanViewInvoices(false);
       setFormCanViewQuotes(false);
+      setFormCanViewTimeReport(false);
+      setFormCanViewContract(false);
+      setFormCanViewLicenses(false);
       setFormNotifyTicketCreated(true);
       setFormNotifyTicketStatusChanged(true);
       setFormNotifyTicketReply(true);
@@ -123,6 +132,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           canViewDevices: formCanViewDevices,
           canViewInvoices: formCanViewInvoices,
           canViewQuotes: formCanViewQuotes,
+          canViewTimeReport: formCanViewTimeReport,
+          canViewContract: formCanViewContract,
+          canViewLicenses: formCanViewLicenses,
           notifyTicketCreated: formNotifyTicketCreated,
           notifyTicketStatusChanged: formNotifyTicketStatusChanged,
           notifyTicketReply: formNotifyTicketReply,
@@ -139,6 +151,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
           canViewDevices: formCanViewDevices,
           canViewInvoices: formCanViewInvoices,
           canViewQuotes: formCanViewQuotes,
+          canViewTimeReport: formCanViewTimeReport,
+          canViewContract: formCanViewContract,
+          canViewLicenses: formCanViewLicenses,
           notifyTicketCreated: formNotifyTicketCreated,
           notifyTicketStatusChanged: formNotifyTicketStatusChanged,
           notifyTicketReply: formNotifyTicketReply,
@@ -385,6 +400,51 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     </div>
                   </label>
                 )}
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formCanViewTimeReport}
+                    onChange={(e) => setFormCanViewTimeReport(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300"
+                  />
+                  <div>
+                    <span className="text-gray-900 dark:text-white font-medium">Kann Stundenbericht sehen</span>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
+                      Monatliche Projektstunden-Übersicht im Portal
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formCanViewContract}
+                    onChange={(e) => setFormCanViewContract(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300"
+                  />
+                  <div>
+                    <span className="text-gray-900 dark:text-white font-medium">Kann Vertrag sehen</span>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
+                      Vertragsdaten, Stundenkontingent und SLA im Portal
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formCanViewLicenses}
+                    onChange={(e) => setFormCanViewLicenses(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300"
+                  />
+                  <div>
+                    <span className="text-gray-900 dark:text-white font-medium">Kann Lizenzen sehen</span>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
+                      Lizenzen & Abos inkl. Beträgen im Portal
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Email Notification Preferences */}
@@ -529,6 +589,21 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                           {contact.canViewQuotes && (
                             <span className="bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded">
                               Angebote
+                            </span>
+                          )}
+                          {contact.canViewTimeReport && (
+                            <span className="bg-gray-200 dark:bg-dark-300 px-2 py-0.5 rounded">
+                              Stunden
+                            </span>
+                          )}
+                          {contact.canViewContract && (
+                            <span className="bg-gray-200 dark:bg-dark-300 px-2 py-0.5 rounded">
+                              Vertrag
+                            </span>
+                          )}
+                          {contact.canViewLicenses && (
+                            <span className="bg-gray-200 dark:bg-dark-300 px-2 py-0.5 rounded">
+                              Lizenzen
                             </span>
                           )}
                         </div>

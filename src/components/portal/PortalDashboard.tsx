@@ -5,10 +5,6 @@ import { Card } from '../ui/Card';
 
 interface PortalDashboardProps {
   contact: PortalContact;
-  portalSettings?: {
-    showTimeReport?: boolean;
-    showContractInfo?: boolean;
-  } | null;
   onNavigate: (view: string) => void;
 }
 
@@ -35,7 +31,7 @@ interface DashboardData {
   } | null;
 }
 
-export const PortalDashboard = ({ contact, portalSettings, onNavigate }: PortalDashboardProps) => {
+export const PortalDashboard = ({ contact, onNavigate }: PortalDashboardProps) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
 
@@ -93,7 +89,7 @@ export const PortalDashboard = ({ contact, portalSettings, onNavigate }: PortalD
       }
 
       // Load time report if permitted
-      if (contact.canViewTimeReport && portalSettings?.showTimeReport) {
+      if (contact.canViewTimeReport) {
         try {
           const now = new Date();
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -110,7 +106,7 @@ export const PortalDashboard = ({ contact, portalSettings, onNavigate }: PortalD
       }
 
       // Load contract if permitted
-      if (contact.canViewContract && portalSettings?.showContractInfo) {
+      if (contact.canViewContract) {
         try {
           const contractRes = await customerPortalApi.getContract();
           if (contractRes.success && contractRes.data) {
@@ -255,7 +251,7 @@ export const PortalDashboard = ({ contact, portalSettings, onNavigate }: PortalD
         )}
 
         {/* Time Report Card */}
-        {contact.canViewTimeReport && portalSettings?.showTimeReport && data.timeReport && (
+        {contact.canViewTimeReport && data.timeReport && (
           <button
             onClick={() => onNavigate('time-report')}
             className="text-left bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4 hover:border-accent-primary dark:hover:border-accent-primary transition-all hover:shadow-md"
@@ -285,7 +281,7 @@ export const PortalDashboard = ({ contact, portalSettings, onNavigate }: PortalD
         )}
 
         {/* Contract Card */}
-        {contact.canViewContract && portalSettings?.showContractInfo && data.contract && (
+        {contact.canViewContract && data.contract && (
           <button
             onClick={() => onNavigate('contract')}
             className="text-left bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4 hover:border-accent-primary dark:hover:border-accent-primary transition-all hover:shadow-md"

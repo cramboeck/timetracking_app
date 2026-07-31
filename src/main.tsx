@@ -69,6 +69,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     {/* Customer Portal (separate from main app) */}
                     <Route path="/portal" element={<CustomerPortal />} />
                     <Route path="/portal/activate" element={<CustomerPortal />} />
+                    <Route path="/portal/reset-password" element={<CustomerPortal />} />
 
                     {/* Admin Portal (separate from main app, with auth) */}
                     <Route path="/admin" element={<AdminRoute />} />
