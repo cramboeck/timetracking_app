@@ -20,6 +20,23 @@ import { grayTone } from './utils/theme.ts'
 import { darkMode } from './utils/darkMode.ts'
 import './index.css'
 
+// Auf dem Portal-Host (portal.ramboeck.it) Branding umbiegen: Tab-Titel,
+// Beschreibung und Manifest gehören dort dem Kundenportal, nicht der
+// internen RamboFlow-App ("RamboFlow - Zeiterfassung" im Kunden-Tab wäre
+// falsch). Läuft vor dem React-Render, damit nichts flackert.
+const initializePortalBranding = () => {
+  if (!isPortalHost()) return;
+  document.title = 'Kundenportal | Ramböck IT';
+  document.querySelector('meta[name="description"]')?.setAttribute(
+    'content',
+    'Kundenportal von Ramböck IT – Tickets, Geräte, Rechnungen und Verträge'
+  );
+  document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', 'Kundenportal');
+  document.querySelectorAll('link[rel="manifest"]').forEach(link =>
+    link.setAttribute('href', '/portal-manifest.json')
+  );
+};
+
 // Initialize theme on app startup (before React renders to prevent FOUC)
 const initializeTheme = () => {
   const color = accentColor.get();
@@ -36,6 +53,7 @@ const initializeTheme = () => {
 };
 
 // Initialize before rendering
+initializePortalBranding();
 initializeTheme();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

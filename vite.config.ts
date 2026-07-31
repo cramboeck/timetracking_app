@@ -22,22 +22,22 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Zeiterfassung',
-        short_name: 'Zeiterfassung',
-        description: 'Moderne Zeiterfassungs-App mit Stoppuhr und manueller Erfassung',
-        theme_color: '#3b82f6',
+        name: 'RamboFlow – Zeiterfassung & Management',
+        short_name: 'RamboFlow',
+        description: 'Professionelle Zeiterfassung, Ticketverwaltung und Projektmanagement für IT-Dienstleister',
+        theme_color: '#FF6A00',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'icon-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

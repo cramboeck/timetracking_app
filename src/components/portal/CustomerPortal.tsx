@@ -43,6 +43,15 @@ export const CustomerPortal = () => {
   // /reset-password (Portal-Host) — gleicher Mechanismus wie /activate
   const isPasswordReset = window.location.pathname.endsWith('/reset-password');
 
+  // Tab-Titel: das Portal heißt auch unter app.ramboeck.it/portal nicht
+  // "RamboFlow - Zeiterfassung" (auf dem Portal-Host setzt main.tsx den
+  // Titel bereits vor dem Render)
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = 'Kundenportal | Ramböck IT';
+    return () => { document.title = previousTitle; };
+  }, []);
+
   // Check for deep link to ticket: /portal/tickets/{id} (app host) or
   // /tickets/{id} (portal host). The optional /portal prefix covers both.
   useEffect(() => {
