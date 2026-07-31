@@ -458,8 +458,13 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                   1. Verantwortlicher
                 </h3>
                 <p className="text-gray-600 dark:text-dark-500">
-                  Verantwortlich für die Datenverarbeitung auf diesem Portal ist der Betreiber
-                  dieses Kundenportals.
+                  Verantwortlich für die Datenverarbeitung auf diesem Portal im Sinne der
+                  DSGVO ist:<br /><br />
+                  Christoph Ramböck – IT Consulting &amp; Services<br />
+                  Pillham 4B<br />
+                  94099 Ruhstorf a.d. Rott<br />
+                  Telefon: +49 8534 3759990<br />
+                  E-Mail: kontakt@ramboeck-it.com
                 </p>
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
@@ -476,26 +481,42 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                 </ul>
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-                  3. Zweck der Verarbeitung
+                  3. Zweck und Rechtsgrundlage der Verarbeitung
                 </h3>
                 <p className="text-gray-600 dark:text-dark-500">
                   Die Daten werden ausschließlich zur Erbringung von Support-Leistungen und zur
                   Kommunikation im Rahmen bestehender Geschäftsbeziehungen verwendet.
+                  Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie
+                  Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Sicherheit und
+                  Nachvollziehbarkeit des Portalbetriebs, z.&thinsp;B. Zugriffs-Protokolle).
                 </p>
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-                  4. Ihre Rechte
-                </h3>
-                <p className="text-gray-600 dark:text-dark-500 mb-2">
-                  Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung
-                  der Verarbeitung Ihrer personenbezogenen Daten.
-                </p>
-
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
-                  5. Kontakt
+                  4. Hosting und Speicherdauer
                 </h3>
                 <p className="text-gray-600 dark:text-dark-500">
-                  Bei Fragen zum Datenschutz wenden Sie sich bitte an Ihren Dienstleister.
+                  Das Portal wird auf Servern in Deutschland betrieben. Ihre Daten werden
+                  gespeichert, solange die Geschäftsbeziehung besteht bzw. gesetzliche
+                  Aufbewahrungspflichten dies erfordern, und anschließend gelöscht.
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  5. Ihre Rechte
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-2">
+                  Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
+                  der Verarbeitung, Datenübertragbarkeit sowie Widerspruch gegen die
+                  Verarbeitung Ihrer personenbezogenen Daten. Außerdem haben Sie das Recht,
+                  sich bei einer Datenschutz-Aufsichtsbehörde zu beschweren (für Bayern:
+                  Bayerisches Landesamt für Datenschutzaufsicht, Ansbach).
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  6. Kontakt
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500">
+                  Bei Fragen zum Datenschutz wenden Sie sich bitte an:
+                  kontakt@ramboeck-it.com
                 </p>
               </div>
             </div>
@@ -536,9 +557,54 @@ export const PortalLogin = ({ onLoginSuccess }: PortalLoginProps) => {
                 </h3>
 
                 <p className="text-gray-600 dark:text-dark-500 mb-4">
-                  Dieses Kundenportal wird betrieben im Rahmen einer Geschäftsbeziehung.
-                  Die vollständigen Kontaktdaten entnehmen Sie bitte Ihren Vertragsunterlagen
-                  oder wenden Sie sich direkt an Ihren Ansprechpartner.
+                  Christoph Ramböck – IT Consulting &amp; Services<br />
+                  Pillham 4B<br />
+                  94099 Ruhstorf a.d. Rott<br />
+                  Deutschland<br /><br />
+                  Vertreten durch: Christoph Ramböck
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  Kontakt
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
+                  Telefon: +49 8534 3759990<br />
+                  E-Mail: kontakt@ramboeck-it.com
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  Umsatzsteuer-ID
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
+                  Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br />
+                  DE340053019
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  Berufshaftpflichtversicherung
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
+                  VHV Allgemeine Versicherung AG<br />
+                  VHV-Platz 1<br />
+                  30177 Hannover<br />
+                  Geltungsbereich: Deutschland
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  Inhaltlich verantwortlich gem. § 18 Abs. 2 MStV
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
+                  Christoph Ramböck<br />
+                  Pillham 4B<br />
+                  94099 Ruhstorf a.d. Rott
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
+                  Streitschlichtung
+                </h3>
+                <p className="text-gray-600 dark:text-dark-500 mb-4">
+                  Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor
+                  einer Verbraucherschlichtungsstelle teilzunehmen.
                 </p>
 
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-3">
