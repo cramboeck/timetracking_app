@@ -5,7 +5,7 @@ import { validatePassword, validateEmail, validateUsername } from '../utils/auth
 import { accentColor } from '../utils/accentColor';
 import { grayTone } from '../utils/theme';
 import { darkMode } from '../utils/darkMode';
-import { authApi, userApi, SESSION_EXPIRED_EVENT } from '../services/api';
+import { authApi, userApi, SESSION_EXPIRED_EVENT, tryRefreshAccessToken } from '../services/api';
 
 // Helper to persist settings to backend
 const persistSettings = async (settings: Parameters<typeof userApi.updateSettings>[0]) => {
@@ -189,17 +189,52 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       userApi.getMe().catch(() => { /* network errors are non-fatal */ });
     };
 
+    // Proaktiver Keep-Alive: solange die App offen ist, laeuft die Sitzung
+    // nie unbemerkt ab. Jede Minute (und bei Fokus) wird die Restlaufzeit
+    // des Access-Tokens aus dem JWT gelesen; unter 15 Minuten wird still
+    // verlaengert (Refresh-Token rotiert mit, 30 Tage gleitend). Schlaegt
+    // der Refresh endgueltig fehl, feuert SESSION_EXPIRED_EVENT -> die App
+    // zeigt SOFORT den Login statt Eingaben in eine tote Sitzung zu lassen.
+    const tokenExpiryMs = (token: string): number | null => {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const keepSessionAlive = () => {
+      if (!navigator.onLine) return;
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
+      const expiry = tokenExpiryMs(token);
+      if (expiry === null) return;
+      if (expiry - Date.now() < 15 * 60_000) {
+        void tryRefreshAccessToken(token);
+      }
+    };
+
+    const keepAliveInterval = window.setInterval(keepSessionAlive, 60_000);
+    keepSessionAlive();
+
+    const revalidateAndKeepAlive = () => {
+      keepSessionAlive();
+      revalidateSession();
+    };
+
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     // visibilitychange + focus zusammen: iOS PWAs feuern je nach Resume-Pfad
     // mal das eine, mal das andere zuerst (oder nur eines). Doppelte getMe()-
     // Calls sind harmlos (idempotent + Single-Flight im authFetch).
-    document.addEventListener('visibilitychange', revalidateSession);
-    window.addEventListener('focus', revalidateSession);
+    document.addEventListener('visibilitychange', revalidateAndKeepAlive);
+    window.addEventListener('focus', revalidateAndKeepAlive);
 
     return () => {
+      window.clearInterval(keepAliveInterval);
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
-      document.removeEventListener('visibilitychange', revalidateSession);
-      window.removeEventListener('focus', revalidateSession);
+      document.removeEventListener('visibilitychange', revalidateAndKeepAlive);
+      window.removeEventListener('focus', revalidateAndKeepAlive);
     };
   }, []);
 

@@ -475,9 +475,6 @@ function App() {
 
   // Time Entry handlers (API-based)
   const handleSaveEntry = async (entry: TimeEntry): Promise<boolean> => {
-    // Store the previous running entry for rollback on error
-    const previousRunningEntry = runningEntry;
-
     // If this entry was running (has same ID as runningEntry), it's an update
     const isUpdatingRunningEntry = runningEntry && entry.id === runningEntry.id;
     const existsInState = entries.find(e => e.id === entry.id);
@@ -531,31 +528,29 @@ function App() {
       }
 
       return true; // Success
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [ENTRY] Failed to save entry:', error);
 
-      // If network error, save locally for later sync
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.log('📴 [ENTRY] Network error - saving entry locally:', entry.id);
-        addPendingEntry(entry, action);
-        refreshOfflineCounts();
+      // JEDER Fehlschlag (Netzwerk, abgelaufene Sitzung, Serverfehler) parkt
+      // den Eintrag in der lokalen Queue — der Offline-Sync schiebt ihn nach
+      // Re-Login/Reconnect idempotent nach (clientId). Vorher gingen
+      // Eintraege bei abgelaufener Sitzung kommentarlos verloren.
+      addPendingEntry(entry, action);
+      refreshOfflineCounts();
 
-        // Still update local state
-        if (action === 'update') {
-          setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
-        } else {
-          setEntries(prev => [...prev.filter(e => e.id !== entry.id), entry]);
-        }
-
-        return true; // Return success since we saved locally
+      // Still update local state so the user keeps seeing the entry
+      if (action === 'update') {
+        setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
+      } else {
+        setEntries(prev => [...prev.filter(e => e.id !== entry.id), entry]);
       }
 
-      // Rollback: restore the running entry if the API call failed
-      if (previousRunningEntry && !entry.isRunning) {
-        console.log('🔄 [ENTRY] Rolling back running entry due to error');
-        setRunningEntry(previousRunningEntry);
-      }
-      return false; // Failed
+      showToast(
+        'Speichern fehlgeschlagen — Eintrag lokal gesichert und wird automatisch nachsynchronisiert.',
+        'warning',
+        6000
+      );
+      return true; // Entry is safe in the local queue
     }
   };
 
@@ -596,12 +591,10 @@ function App() {
     } catch (error) {
       console.error('❌ [ENTRY] Failed to update running entry:', error);
 
-      // Save to pending storage for later sync (prevents data loss)
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.log('📴 [ENTRY] Network error - saving running entry update locally:', entry.id);
-        addPendingEntry(entry, 'update');
-        refreshOfflineCounts();
-      }
+      // Save to pending storage for later sync (prevents data loss) —
+      // bei JEDEM Fehler, nicht nur bei Netzwerkfehlern
+      addPendingEntry(entry, 'update');
+      refreshOfflineCounts();
     }
   };
 
@@ -766,7 +759,7 @@ function App() {
       console.log('✅ [PROJECT] Local state updated');
     } catch (error) {
       console.error('❌ [PROJECT] Failed to add project:', error);
-      // TODO: Show error to user
+      showToast('Projekt anlegen fehlgeschlagen', 'error');
     }
   };
 
@@ -783,7 +776,7 @@ function App() {
       console.log('✅ [PROJECT] Local state updated');
     } catch (error) {
       console.error('❌ [PROJECT] Failed to update project:', error);
-      // TODO: Show error to user
+      showToast('Projekt speichern fehlgeschlagen', 'error');
     }
   };
 
@@ -800,7 +793,7 @@ function App() {
       console.log('✅ [PROJECT] Local state updated');
     } catch (error) {
       console.error('❌ [PROJECT] Failed to delete project:', error);
-      // TODO: Show error to user
+      showToast('Projekt löschen fehlgeschlagen', 'error');
     }
   };
 
