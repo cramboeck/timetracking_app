@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { featuresApi, UserFeatures } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -24,6 +25,21 @@ const defaultFeatures: UserFeatures = {
   packages: [],
 };
 
+// Letzter bekannter Stand pro Browser: verhindert das "Module fehlen"-
+// Flackern beim Login und überbrückt fehlgeschlagene Erst-Requests, bis
+// der Retry durch ist. Rein kosmetisch — die Backend-Routen prüfen die
+// Pakete ohnehin serverseitig.
+const CACHE_KEY = 'ramboflow_features_cache';
+
+const readFeaturesCache = (): UserFeatures | undefined => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as UserFeatures) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const FeaturesContext = createContext<FeaturesContextType>({
   features: defaultFeatures,
   loading: true,
@@ -41,57 +57,55 @@ interface FeaturesProviderProps {
 
 export const FeaturesProvider = ({ children }: FeaturesProviderProps) => {
   const { isAuthenticated } = useAuth();
-  const [features, setFeatures] = useState<UserFeatures | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchFeatures = async () => {
-    if (!isAuthenticated) {
-      setFeatures(defaultFeatures);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
+  // TanStack Query statt Hand-Fetch: Der alte Context fiel bei EINEM
+  // fehlgeschlagenen /features-Request (z.B. Race mit dem Token-Refresh
+  // beim Session-Restore) dauerhaft auf "keine Pakete" zurück — Support/
+  // CRM/Finanzen verschwanden dann bis zum nächsten manuellen Reload.
+  // Jetzt: 3 Retries mit Backoff, Refetch bei Fokus/Reconnect, und der
+  // letzte bekannte Stand als Platzhalter.
+  const query = useQuery({
+    queryKey: ['features'],
+    queryFn: async () => {
       const response = await featuresApi.getFeatures();
-      if (response.success) {
-        setFeatures(response.data);
-      } else {
-        // If no features found, use defaults
-        setFeatures(defaultFeatures);
+      if (!response.success) throw new Error('Features konnten nicht geladen werden');
+      return response.data;
+    },
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+    retry: 3,
+    retryDelay: attempt => Math.min(1000 * 2 ** attempt, 10_000),
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    placeholderData: readFeaturesCache,
+  });
+
+  // Erfolgreich geladene Features als letzten bekannten Stand sichern
+  useEffect(() => {
+    if (query.data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(query.data));
+      } catch {
+        // Quota/Private-Mode — Cache ist optional
       }
-    } catch (err: any) {
-      console.error('Failed to fetch features:', err);
-      setError(err.message);
-      // Use defaults on error
-      setFeatures(defaultFeatures);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [query.data]);
 
+  // Beim Logout Cache + Query-Daten verwerfen (nächster User am selben
+  // Browser soll nicht kurz die fremden Module als Platzhalter sehen)
   useEffect(() => {
-    fetchFeatures();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+    if (!isAuthenticated) {
+      try {
+        localStorage.removeItem(CACHE_KEY);
+      } catch {
+        // ignore
+      }
+      queryClient.removeQueries({ queryKey: ['features'] });
+    }
+  }, [isAuthenticated, queryClient]);
 
-  // Features beim Fenster-Fokus nachladen: schaltet ein Admin einem bereits
-  // eingeloggten User ein Paket frei, erscheinen die Bereiche beim nächsten
-  // Tab-Wechsel — vorher war dafür ein Re-Login/Reload nötig.
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    let lastFetch = Date.now();
-    const onFocus = () => {
-      if (Date.now() - lastFetch < 60_000) return; // max. 1×/Minute
-      lastFetch = Date.now();
-      fetchFeatures();
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  const features = isAuthenticated ? (query.data ?? null) : defaultFeatures;
 
   const hasFeature = (feature: keyof UserFeatures): boolean => {
     if (!features) return false;
@@ -104,13 +118,17 @@ export const FeaturesProvider = ({ children }: FeaturesProviderProps) => {
     return features[packageName] === true;
   };
 
+  const refetch = async () => {
+    await query.refetch();
+  };
+
   return (
     <FeaturesContext.Provider
       value={{
         features,
-        loading,
-        error,
-        refetch: fetchFeatures,
+        loading: query.isLoading,
+        error: query.error ? (query.error as Error).message : null,
+        refetch,
         hasFeature,
         hasPackage,
       }}
