@@ -5,7 +5,6 @@ import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
-import { TimePicker } from './TimePicker';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
@@ -1398,12 +1397,13 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
         isOpen={editingEntry !== null}
         onClose={() => setEditingEntry(null)}
         title="Eintrag bearbeiten"
+        maxWidth="2xl"
         footer={
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
             <Button
               onClick={() => setEditingEntry(null)}
               variant="secondary"
-              fullWidth
+              className="w-full sm:w-auto sm:px-6"
             >
               Abbrechen
             </Button>
@@ -1411,138 +1411,171 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               onClick={handleSaveEdit}
               disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
               variant="primary"
-              fullWidth
+              className="w-full sm:w-auto sm:px-8"
             >
               Speichern
             </Button>
           </div>
         }
       >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Projekt *
-            </label>
-            <select
-              value={editProjectId}
-              onChange={(e) => setEditProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              {projects.filter(p => p.isActive).map(project => {
-                const customer = getCustomerById(project.customerId);
-                return (
-                  <option key={project.id} value={project.id}>
-                    {customer?.name} - {project.name}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+        {(() => {
+          // Live-Dauer aus Von/Bis fuer den Chip rechts oben im Zeitraum-Block
+          const toSeconds = (t: string) => {
+            const [h, m] = t.split(':').map(Number);
+            return (h || 0) * 3600 + (m || 0) * 60;
+          };
+          const editSeconds =
+            editStartTime && editEndTime ? toSeconds(editEndTime) - toSeconds(editStartTime) : null;
+          const fmtHm = (sec: number) => {
+            const h = Math.floor(sec / 3600);
+            const m = Math.round((sec % 3600) / 60);
+            return `${h}:${String(m).padStart(2, '0')}`;
+          };
+          const inputClasses =
+            'w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary';
+          return (
+            <div className="space-y-5">
+              {/* Projekt + Taetigkeit nebeneinander (Desktop) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    Projekt *
+                  </label>
+                  <select
+                    value={editProjectId}
+                    onChange={(e) => setEditProjectId(e.target.value)}
+                    className={inputClasses}
+                  >
+                    {projects.filter(p => p.isActive).map(project => {
+                      const customer = getCustomerById(project.customerId);
+                      return (
+                        <option key={project.id} value={project.id}>
+                          {customer?.name} - {project.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                    Tätigkeit
+                  </label>
+                  <select
+                    value={editActivityId}
+                    onChange={(e) => setEditActivityId(e.target.value)}
+                    className={inputClasses}
+                  >
+                    <option value="">— Keine Tätigkeit —</option>
+                    {activities.map(activity => (
+                      <option key={activity.id} value={activity.id}>
+                        {activity.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Tätigkeit
-            </label>
-            <select
-              value={editActivityId}
-              onChange={(e) => setEditActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="">— Keine Tätigkeit —</option>
-              {activities.map(activity => (
-                <option key={activity.id} value={activity.id}>
-                  {activity.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              {/* Datum + Zeitraum in einer Reihe, Live-Dauer als Chip */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
+                    Datum &amp; Zeitraum *
+                  </label>
+                  {editSeconds !== null && (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
+                        editSeconds > 0
+                          ? 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {editSeconds > 0 ? `${fmtHm(editSeconds)} h` : 'Ende vor Beginn'}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-[1.4fr,1fr,1fr] gap-3">
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    required
+                    className={`col-span-2 sm:col-span-1 ${inputClasses}`}
+                  />
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    required
+                    className={`${inputClasses} tabular-nums`}
+                  />
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    required
+                    className={`${inputClasses} tabular-nums`}
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Datum *
-            </label>
-            <input
-              type="date"
-              value={editDate}
-              onChange={(e) => setEditDate(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Von *
-              </label>
-              <TimePicker
-                value={editStartTime}
-                onChange={setEditStartTime}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Bis *
-              </label>
-              <TimePicker
-                value={editEndTime}
-                onChange={setEditEndTime}
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
-                Beschreibung
-              </label>
-              {aiConfigured && editProjectId && (
-                <Button
-                  onClick={generateEditAiDescription}
-                  disabled={generatingDescription}
-                  loading={generatingDescription}
-                  variant="ghost"
-                  size="sm"
-                  icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
-                  title="KI-Vorschlag generieren"
-                  className="text-accent-dark dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20"
-                >
-                  KI-Vorschlag
-                </Button>
-              )}
-            </div>
-            <textarea
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
-            <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
-              Abrechenbar
-            </label>
-            <IconButton
-              type="button"
-              onClick={() => setEditIsBillable(!editIsBillable)}
-              icon={
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    editIsBillable ? 'translate-x-6' : 'translate-x-1'
-                  }`}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
+                    Beschreibung
+                  </label>
+                  {aiConfigured && editProjectId && (
+                    <Button
+                      onClick={generateEditAiDescription}
+                      disabled={generatingDescription}
+                      loading={generatingDescription}
+                      variant="ghost"
+                      size="sm"
+                      icon={!generatingDescription ? <Sparkles size={12} /> : undefined}
+                      title="KI-Vorschlag generieren"
+                      className="text-accent-dark dark:text-accent-primary hover:bg-accent-lighter dark:hover:bg-accent-primary/20"
+                    >
+                      KI-Vorschlag
+                    </Button>
+                  )}
+                </div>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={4}
+                  placeholder="Was wurde gemacht?"
+                  className={`${inputClasses} resize-none`}
                 />
-              }
-              variant={editIsBillable ? 'success' : 'default'}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-dark-300'
-              }`}
-              tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
-            />
-          </div>
-        </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-dark-border px-4 py-3">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
+                    Abrechenbar
+                  </span>
+                  <p className="text-xs text-gray-500 dark:text-dark-400">
+                    Eintrag wird bei der Abrechnung berücksichtigt
+                  </p>
+                </div>
+                <IconButton
+                  type="button"
+                  onClick={() => setEditIsBillable(!editIsBillable)}
+                  icon={
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        editIsBillable ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  }
+                  variant={editIsBillable ? 'success' : 'default'}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    editIsBillable ? 'bg-green-500' : 'bg-gray-300 dark:bg-dark-300'
+                  }`}
+                  tooltip={editIsBillable ? 'Als nicht abrechenbar markieren' : 'Als abrechenbar markieren'}
+                />
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Bulk Edit Modal */}
