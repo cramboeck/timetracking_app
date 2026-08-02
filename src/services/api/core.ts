@@ -622,9 +622,26 @@ export interface WorkSession {
   userName?: string;       // nur in der Team-Auswertung befüllt
 }
 
+// Tages-Abdeckung: Anwesenheit (work_sessions) vs. erfasste Zeiten (time_entries)
+export interface WorkDayCoverage {
+  date: string;
+  attendanceSeconds: number;
+  breakSeconds: number;
+  recordedSeconds: number;
+  unassignedSeconds: number;
+}
+
 export const workSessionsApi = {
   getCurrent: async (): Promise<{ success: boolean; data: WorkSession | null }> => {
     return authFetch('/work-sessions/current');
+  },
+
+  getCoverage: async (from?: string, to?: string): Promise<{ success: boolean; data: WorkDayCoverage[] }> => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authFetch(`/work-sessions/coverage${qs ? `?${qs}` : ''}`);
   },
 
   clockIn: async (): Promise<{ success: boolean; data: WorkSession }> => {

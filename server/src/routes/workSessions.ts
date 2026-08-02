@@ -74,6 +74,64 @@ router.get('/current', authenticateToken, async (req: AuthRequest, res: Response
   }
 });
 
+// GET /api/work-sessions/coverage?from=&to= — Tages-Abdeckung:
+// Anwesenheit (work_sessions netto) vs. erfasste Projekt-/interne Zeiten
+// (time_entries). Grundlage für die Abdeckungs-Anzeige und den
+// Ausstempel-Abgleich („nicht zugeordnete Zeit nachtragen?").
+router.get('/coverage', authenticateToken, validate(rangeSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const today = new Date().toISOString().slice(0, 10);
+    const from = (req.query.from as string) || today;
+    const to = (req.query.to as string) || from;
+
+    const result = await query(
+      `WITH att AS (
+         SELECT work_date::text AS date,
+                SUM(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))::int
+                    - break_seconds
+                    - COALESCE(EXTRACT(EPOCH FROM (NOW() - break_started_at))::int, 0)))::int AS attendance_seconds,
+                SUM(break_seconds + COALESCE(EXTRACT(EPOCH FROM (NOW() - break_started_at))::int, 0))::int AS break_seconds
+         FROM work_sessions
+         WHERE user_id = $1 AND work_date BETWEEN $2 AND $3
+         GROUP BY work_date
+       ),
+       rec AS (
+         SELECT start_time::date::text AS date,
+                SUM(CASE WHEN is_running THEN GREATEST(EXTRACT(EPOCH FROM (NOW() - start_time))::int, 0)
+                         ELSE COALESCE(duration, 0) END)::int AS recorded_seconds
+         FROM time_entries
+         WHERE user_id = $1
+           AND entry_scope IN ('customer_project', 'internal')
+           AND start_time >= $2::date AND start_time < ($3::date + INTERVAL '1 day')
+         GROUP BY start_time::date
+       )
+       SELECT COALESCE(att.date, rec.date) AS date,
+              COALESCE(att.attendance_seconds, 0) AS attendance_seconds,
+              COALESCE(att.break_seconds, 0) AS break_seconds,
+              COALESCE(rec.recorded_seconds, 0) AS recorded_seconds
+       FROM att
+       FULL OUTER JOIN rec ON att.date = rec.date
+       ORDER BY 1`,
+      [userId, from, to]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map((r: any) => ({
+        date: r.date,
+        attendanceSeconds: r.attendance_seconds,
+        breakSeconds: r.break_seconds,
+        recordedSeconds: r.recorded_seconds,
+        unassignedSeconds: Math.max(0, r.attendance_seconds - r.recorded_seconds),
+      })),
+    });
+  } catch (error: any) {
+    logger.error('Work session coverage error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load coverage' });
+  }
+});
+
 // POST /api/work-sessions/clock-in — Einstempeln
 router.post('/clock-in', authenticateToken, attachOrganization, async (req: AuthRequest, res: Response) => {
   try {

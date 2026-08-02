@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LogIn, LogOut, Coffee, Play, AlertTriangle, ChevronDown, History } from 'lucide-react';
-import { workSessionsApi, WorkSession } from '../services/api';
+import { LogIn, LogOut, Coffee, Play, AlertTriangle, ChevronDown, History, ClipboardList, X } from 'lucide-react';
+import { workSessionsApi, entriesApi, WorkSession } from '../services/api';
 import { useToast } from '../contexts/UIContext';
+
+// Toleranz für den Ausstempel-Abgleich: unter 15 Min. nicht zugeordneter
+// Zeit wird nicht nachgefragt
+const UNASSIGNED_TOLERANCE_SECONDS = 15 * 60;
+
+// Muss zur Liste in ManualEntryModern/Stopwatch passen
+const INTERNAL_CATEGORIES = [
+  { value: 'admin', label: 'Administration' },
+  { value: 'accounting', label: 'Buchhaltung' },
+  { value: 'sales', label: 'Vertrieb' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'training', label: 'Weiterbildung' },
+  { value: 'meeting', label: 'Meeting' },
+  { value: 'internal_support', label: 'Interner Support' },
+  { value: 'travel', label: 'Reise' },
+] as const;
 
 /**
  * Arbeitszeit-Stempelleiste (Kommen/Gehen/Pause) — sichtbar im Bereich
@@ -34,7 +51,14 @@ const breakSecondsTotal = (s: WorkSession, now: number): number => {
 export const AttendanceBar = () => {
   const queryClient = useQueryClient();
   const showToast = useToast();
+  const navigate = useNavigate();
   const [now, setNow] = useState(() => Date.now());
+
+  // Ausstempel-Abgleich: Dialog-State (null = zu)
+  const [clockOutCheck, setClockOutCheck] = useState<{ unassignedSeconds: number } | null>(null);
+  const [checkingCoverage, setCheckingCoverage] = useState(false);
+  const [internalCategory, setInternalCategory] = useState('internal_support');
+  const [bookingInternal, setBookingInternal] = useState(false);
 
   const currentQuery = useQuery({
     queryKey: ['workSessions', 'current'],
@@ -53,6 +77,16 @@ export const AttendanceBar = () => {
   const session = currentQuery.data ?? null;
   const isRunning = !!session;
   const onBreak = !!session?.breakStartedAt;
+
+  // Abdeckung heute: Anwesenheit vs. erfasste Projekt-/interne Zeiten
+  const coverageQuery = useQuery({
+    queryKey: ['workSessions', 'coverage', today],
+    queryFn: async () => (await workSessionsApi.getCoverage(today, today)).data[0] ?? null,
+    staleTime: 30_000,
+    refetchInterval: isRunning ? 60_000 : false,
+    refetchOnWindowFocus: true,
+  });
+  const coverage = coverageQuery.data ?? null;
 
   // Aufklappbare Historie: eigene Arbeitszeiten der letzten 14 Tage
   const [showHistory, setShowHistory] = useState(false);
@@ -82,6 +116,56 @@ export const AttendanceBar = () => {
 
   const clockIn = useMutation({ mutationFn: () => workSessionsApi.clockIn(), ...mutationOpts('Einstempeln fehlgeschlagen') });
   const clockOut = useMutation({ mutationFn: () => workSessionsApi.clockOut(), ...mutationOpts('Ausstempeln fehlgeschlagen') });
+
+  // Ausstempeln mit Abgleich: erst frische Abdeckung holen — liegt mehr als
+  // die Toleranz an nicht zugeordneter Zeit vor, fragt ein Dialog nach,
+  // statt kommentarlos auszustempeln.
+  const handleClockOut = async () => {
+    try {
+      setCheckingCoverage(true);
+      const fresh = (await workSessionsApi.getCoverage(today, today)).data[0];
+      const unassigned = fresh?.unassignedSeconds ?? 0;
+      if (unassigned > UNASSIGNED_TOLERANCE_SECONDS) {
+        setClockOutCheck({ unassignedSeconds: unassigned });
+        return;
+      }
+    } catch {
+      // Abgleich darf das Ausstempeln nie blockieren
+    } finally {
+      setCheckingCoverage(false);
+    }
+    clockOut.mutate();
+  };
+
+  // Option „Als interne Zeit buchen": Eintrag über die nicht zugeordnete
+  // Dauer anlegen (endet jetzt), dann ausstempeln
+  const bookUnassignedAsInternal = async () => {
+    if (!clockOutCheck) return;
+    try {
+      setBookingInternal(true);
+      const end = new Date();
+      const start = new Date(end.getTime() - clockOutCheck.unassignedSeconds * 1000);
+      await entriesApi.create({
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        duration: clockOutCheck.unassignedSeconds,
+        projectId: null,
+        description: 'Nachtrag beim Ausstempeln',
+        isRunning: false,
+        isBillable: false,
+        entryScope: 'internal',
+        internalCategory,
+        customerVisibility: 'hidden',
+      } as any);
+      queryClient.invalidateQueries({ queryKey: ['entries'] });
+      setClockOutCheck(null);
+      clockOut.mutate();
+    } catch (err: any) {
+      showToast(err?.message || 'Interne Zeit konnte nicht gebucht werden', 'error');
+    } finally {
+      setBookingInternal(false);
+    }
+  };
   const startBreak = useMutation({ mutationFn: () => workSessionsApi.startBreak(), ...mutationOpts('Pause starten fehlgeschlagen') });
   const endBreak = useMutation({ mutationFn: () => workSessionsApi.endBreak(), ...mutationOpts('Pause beenden fehlgeschlagen') });
   const pending = clockIn.isPending || clockOut.isPending || startBreak.isPending || endBreak.isPending;
@@ -183,8 +267,8 @@ export const AttendanceBar = () => {
               </button>
             )}
             <button
-              onClick={() => clockOut.mutate()}
-              disabled={pending}
+              onClick={handleClockOut}
+              disabled={pending || checkingCoverage}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-700 hover:bg-gray-800 dark:bg-dark-300 dark:hover:bg-dark-400 text-white transition-colors disabled:opacity-50"
             >
               <LogOut size={16} /> Ausstempeln
@@ -201,6 +285,34 @@ export const AttendanceBar = () => {
         </button>
       </div>
       </div>
+
+      {/* Abdeckung: Anwesenheit vs. erfasste Zeiten (heute) */}
+      {coverage && coverage.attendanceSeconds > 0 && (() => {
+        const pct = Math.min(100, Math.round((coverage.recordedSeconds / Math.max(1, coverage.attendanceSeconds)) * 100));
+        const hasGap = coverage.unassignedSeconds > UNASSIGNED_TOLERANCE_SECONDS;
+        return (
+          <div className="border-t border-gray-100 dark:border-dark-border px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="flex-1 min-w-[120px] h-2 bg-gray-100 dark:bg-dark-200 rounded overflow-hidden">
+              <div
+                className={`h-full rounded ${hasGap ? 'bg-amber-400' : 'bg-green-500'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+              Erfasst {fmt(coverage.recordedSeconds)} h von {fmt(coverage.attendanceSeconds)} h
+            </span>
+            {hasGap ? (
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400 tabular-nums">
+                {fmt(coverage.unassignedSeconds)} h nicht zugeordnet
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                Alles zugeordnet
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Meine Arbeitszeiten (letzte 14 Tage) */}
       {showHistory && (
@@ -237,6 +349,72 @@ export const AttendanceBar = () => {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {/* Ausstempel-Abgleich: nicht zugeordnete Zeit nachtragen? */}
+      {clockOutCheck && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setClockOutCheck(null)} />
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-start justify-between p-5 border-b border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <ClipboardList size={20} className="text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Zeiten unvollständig</h3>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                      {fmt(clockOutCheck.unassignedSeconds)} h
+                    </span>{' '}
+                    deiner heutigen Arbeitszeit sind keinem Projekt oder einer internen Kategorie zugeordnet.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setClockOutCheck(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <button
+                onClick={() => { setClockOutCheck(null); navigate('/arbeiten/manual'); }}
+                className="w-full px-4 py-2.5 rounded-lg bg-accent-primary text-white font-medium hover:opacity-90"
+              >
+                Jetzt nachtragen (bleibt eingestempelt)
+              </button>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={internalCategory}
+                  onChange={(e) => setInternalCategory(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-sm text-gray-900 dark:text-white"
+                >
+                  {INTERNAL_CATEGORIES.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={bookUnassignedAsInternal}
+                  disabled={bookingInternal}
+                  className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-800 dark:bg-dark-300 dark:hover:bg-dark-400 text-white text-sm font-medium disabled:opacity-50 whitespace-nowrap"
+                >
+                  {bookingInternal ? 'Bucht…' : 'Als intern buchen'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-dark-400 -mt-1">
+                Bucht die nicht zugeordnete Zeit als internen Eintrag und stempelt dich aus.
+              </p>
+
+              <button
+                onClick={() => { setClockOutCheck(null); clockOut.mutate(); }}
+                className="w-full px-4 py-2 rounded-lg text-sm text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-white"
+              >
+                Trotzdem ausstempeln
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
