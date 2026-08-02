@@ -5,6 +5,7 @@ import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SearchableSelect } from './SearchableSelect';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
@@ -268,6 +269,39 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   });
   const aiConfigured = Boolean(aiConfigQuery.data?.enabled && aiConfigQuery.data?.hasApiKey);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+
+  // Letzte Beschreibung fuer das im Edit-Dialog gewaehlte Projekt —
+  // wird unter dem Beschreibungsfeld als uebernehmbarer Vorschlag angezeigt
+  const lastDescriptionQuery = useQuery({
+    queryKey: ['entries', 'lastDescription', editProjectId],
+    queryFn: async () => (await entriesApi.getPaginated({ projectId: editProjectId, limit: 5 })).data,
+    enabled: editingEntry !== null && !!editProjectId,
+    staleTime: 60_000,
+  });
+  const lastProjectDescription = (lastDescriptionQuery.data ?? [])
+    .find(e => e.id !== editingEntry?.id && e.description?.trim())?.description?.trim() ?? null;
+
+  // 24h-Zeitfelder: freie Eingabe wie "8", "830", "0830" oder "8:30"
+  // wird beim Verlassen zu "08:30" normalisiert (kein AM/PM wie beim
+  // nativen time-Input mit US-Browser-Locale)
+  const isValidTime = (t: string) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(t);
+  const normalizeTimeInput = (raw: string): string => {
+    const v = raw.trim().replace(/[.,;]/g, ':');
+    if (!v) return '';
+    let h = NaN;
+    let m = NaN;
+    if (v.includes(':')) {
+      const [hs, ms] = v.split(':');
+      h = parseInt(hs, 10);
+      m = ms === '' ? 0 : parseInt(ms, 10);
+    } else if (/^\d+$/.test(v)) {
+      if (v.length <= 2) { h = parseInt(v, 10); m = 0; }
+      else if (v.length === 3) { h = parseInt(v.slice(0, 1), 10); m = parseInt(v.slice(1), 10); }
+      else { h = parseInt(v.slice(0, 2), 10); m = parseInt(v.slice(2, 4), 10); }
+    }
+    if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return raw;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
 
   // Generate AI description for edit modal
   const generateEditAiDescription = async () => {
@@ -1409,7 +1443,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             </Button>
             <Button
               onClick={handleSaveEdit}
-              disabled={!editProjectId || !editDate || !editStartTime || !editEndTime}
+              disabled={!editProjectId || !editDate || !isValidTime(editStartTime) || !isValidTime(editEndTime)}
               variant="primary"
               className="w-full sm:w-auto sm:px-8"
             >
@@ -1425,7 +1459,9 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             return (h || 0) * 3600 + (m || 0) * 60;
           };
           const editSeconds =
-            editStartTime && editEndTime ? toSeconds(editEndTime) - toSeconds(editStartTime) : null;
+            isValidTime(editStartTime) && isValidTime(editEndTime)
+              ? toSeconds(editEndTime) - toSeconds(editStartTime)
+              : null;
           const fmtHm = (sec: number) => {
             const h = Math.floor(sec / 3600);
             const m = Math.round((sec % 3600) / 60);
@@ -1441,20 +1477,20 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                     Projekt *
                   </label>
-                  <select
-                    value={editProjectId}
-                    onChange={(e) => setEditProjectId(e.target.value)}
-                    className={inputClasses}
-                  >
-                    {projects.filter(p => p.isActive).map(project => {
+                  <SearchableSelect
+                    options={projects.filter(p => p.isActive).map(project => {
                       const customer = getCustomerById(project.customerId);
-                      return (
-                        <option key={project.id} value={project.id}>
-                          {customer?.name} - {project.name}
-                        </option>
-                      );
+                      return {
+                        value: project.id,
+                        label: project.name,
+                        sublabel: customer?.name,
+                      };
                     })}
-                  </select>
+                    value={editProjectId}
+                    onChange={setEditProjectId}
+                    placeholder="Projekt oder Kunde suchen…"
+                    allowClear={false}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
@@ -1502,18 +1538,28 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                     className={`col-span-2 sm:col-span-1 ${inputClasses}`}
                   />
                   <input
-                    type="time"
+                    type="text"
+                    inputMode="numeric"
                     value={editStartTime}
                     onChange={(e) => setEditStartTime(e.target.value)}
+                    onBlur={(e) => setEditStartTime(normalizeTimeInput(e.target.value))}
+                    placeholder="08:00"
                     required
-                    className={`${inputClasses} tabular-nums`}
+                    className={`${inputClasses} tabular-nums text-center ${
+                      editStartTime && !isValidTime(editStartTime) ? 'border-red-400 dark:border-red-500' : ''
+                    }`}
                   />
                   <input
-                    type="time"
+                    type="text"
+                    inputMode="numeric"
                     value={editEndTime}
                     onChange={(e) => setEditEndTime(e.target.value)}
+                    onBlur={(e) => setEditEndTime(normalizeTimeInput(e.target.value))}
+                    placeholder="17:00"
                     required
-                    className={`${inputClasses} tabular-nums`}
+                    className={`${inputClasses} tabular-nums text-center ${
+                      editEndTime && !isValidTime(editEndTime) ? 'border-red-400 dark:border-red-500' : ''
+                    }`}
                   />
                 </div>
               </div>
@@ -1545,6 +1591,25 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   placeholder="Was wurde gemacht?"
                   className={`${inputClasses} resize-none`}
                 />
+                {lastProjectDescription && lastProjectDescription !== editDescription.trim() && (
+                  <div className="mt-2 flex items-start gap-2 rounded-lg bg-gray-50 dark:bg-dark-50 border border-gray-200 dark:border-dark-border px-3 py-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-500 dark:text-dark-400 mb-0.5">
+                        Letzter Eintrag für dieses Projekt
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-dark-500 line-clamp-2">
+                        {lastProjectDescription}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditDescription(lastProjectDescription)}
+                      className="shrink-0 text-xs font-medium text-accent-primary hover:underline mt-0.5"
+                    >
+                      Übernehmen
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-dark-border px-4 py-3">
