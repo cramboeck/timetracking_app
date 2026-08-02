@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X, Lock, History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Lock, History, Pencil } from 'lucide-react';
 import { TimeEntry, Customer, Project, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -115,6 +115,8 @@ export const WeeklyGridView = ({
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfISOWeek(new Date()));
   const [editingCell, setEditingCell] = useState<{ rowKey: string; dayISO: string } | null>(null);
+  // Beschreibungs-Panel pro Zelle (Stift-Icon): rowKey + Tag
+  const [descCell, setDescCell] = useState<{ rowKey: string; dayISO: string } | null>(null);
   const [editBuffer, setEditBuffer] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -751,23 +753,43 @@ export const WeeklyGridView = ({
                             className="w-full text-center bg-white dark:bg-dark-50 border border-accent-primary rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                           />
                         ) : isLocked ? (
-                          <div
-                            title={breakdown}
-                            className="w-full px-1 py-1 rounded bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 text-xs cursor-not-allowed inline-flex items-center justify-center gap-1"
-                          >
-                            <Lock size={10} />
-                            <span className="font-medium">{formatHoursDecimalAlways(seconds)}</span>
-                            <span className="text-[9px] opacity-70">×{entryCount}</span>
+                          <div className="relative group">
+                            <div
+                              title={breakdown}
+                              className="w-full px-1 py-1 rounded bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 text-xs cursor-not-allowed inline-flex items-center justify-center gap-1"
+                            >
+                              <Lock size={10} />
+                              <span className="font-medium">{formatHoursDecimalAlways(seconds)}</span>
+                              <span className="text-[9px] opacity-70">×{entryCount}</span>
+                            </div>
+                            <button
+                              onClick={() => setDescCell({ rowKey: row.rowKey, dayISO })}
+                              title="Beschreibungen bearbeiten"
+                              className="absolute -right-0.5 -top-1 p-0.5 rounded bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border text-gray-400 hover:text-accent-primary opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                            >
+                              <Pencil size={11} />
+                            </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => openCell(row.rowKey, dayISO, seconds, false)}
-                            className={`w-full px-1 py-1 rounded text-sm transition-colors hover:bg-accent-primary/10 ${
-                              seconds > 0 ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-300 dark:text-dark-400/60'
-                            }`}
-                          >
-                            {seconds > 0 ? formatHoursDecimalAlways(seconds) : '–'}
-                          </button>
+                          <div className="relative group">
+                            <button
+                              onClick={() => openCell(row.rowKey, dayISO, seconds, false)}
+                              className={`w-full px-1 py-1 rounded text-sm transition-colors hover:bg-accent-primary/10 ${
+                                seconds > 0 ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-300 dark:text-dark-400/60'
+                              }`}
+                            >
+                              {seconds > 0 ? formatHoursDecimalAlways(seconds) : '–'}
+                            </button>
+                            {seconds > 0 && (
+                              <button
+                                onClick={() => setDescCell({ rowKey: row.rowKey, dayISO })}
+                                title="Beschreibung bearbeiten"
+                                className="absolute -right-0.5 -top-1 p-0.5 rounded bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border text-gray-400 hover:text-accent-primary opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     );
@@ -798,6 +820,81 @@ export const WeeklyGridView = ({
           )}
         </table>
       </div>
+
+      {/* Beschreibungs-Panel (Stift in der Zelle) */}
+      {descCell && (() => {
+        const meta = weekData.rowMetas.find(r => r.rowKey === descCell.rowKey);
+        const cellEntries = [...(weekData.data.get(descCell.rowKey)?.get(descCell.dayISO)?.entries ?? [])]
+          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        const suggestions = (descriptionSuggestionsByRow.get(descCell.rowKey) ?? []).slice(0, 10);
+        const dayLabel = new Date(descCell.dayISO + 'T00:00:00').toLocaleDateString('de-DE', {
+          weekday: 'long', day: '2-digit', month: '2-digit',
+        });
+        const fmtClock = (iso: string) =>
+          new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDescCell(null)}>
+            <div className="bg-white dark:bg-dark-100 rounded-xl shadow-xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {cellEntries.length === 1 ? 'Beschreibung' : 'Beschreibungen'}
+                </h3>
+                <button onClick={() => setDescCell(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                  <X size={20} />
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-dark-400 mb-4 truncate">
+                {meta?.customer?.name ?? '—'}{meta?.project && ` · ${meta.project.name}`}
+                {meta?.activity && ` · ${meta.activity.name}`} — {dayLabel}
+              </p>
+
+              {cellEntries.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4 text-center">Keine Einträge an diesem Tag.</p>
+              ) : (
+                <div className="space-y-3">
+                  {cellEntries.map(entry => {
+                    const datalistId = `grid-desc-${entry.id}`;
+                    return (
+                      <div key={entry.id}>
+                        <div className="flex items-baseline justify-between mb-1">
+                          <span className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+                            {fmtClock(entry.startTime)}{entry.endTime && ` – ${fmtClock(entry.endTime)}`}
+                          </span>
+                          <span className="text-xs font-semibold text-accent-primary tabular-nums">
+                            {formatHoursDecimalAlways(entry.duration)} h
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          list={suggestions.length > 0 ? datalistId : undefined}
+                          defaultValue={entry.description ?? ''}
+                          placeholder="Was wurde gemacht? (Beschreibung)"
+                          onBlur={(e) => void handleDescriptionBlur(entry, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          autoFocus={cellEntries.length === 1}
+                          className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-dark-50 border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
+                        />
+                        {suggestions.length > 0 && (
+                          <datalist id={datalistId}>
+                            {suggestions.map(sg => <option key={sg.description} value={sg.description} />)}
+                          </datalist>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p className="text-xs text-gray-400 dark:text-dark-400 mt-3">
+                Änderungen werden beim Verlassen des Felds gespeichert (Enter bestätigt).
+              </p>
+              <div className="flex justify-end mt-4">
+                <Button onClick={() => setDescCell(null)} variant="secondary">Schließen</Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add-Row Modal */}
       {addRowOpen && (
