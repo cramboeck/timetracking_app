@@ -115,8 +115,9 @@ export const WeeklyGridView = ({
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfISOWeek(new Date()));
   const [editingCell, setEditingCell] = useState<{ rowKey: string; dayISO: string } | null>(null);
-  // Beschreibungs-Panel pro Zelle (Stift-Icon): rowKey + Tag
-  const [descCell, setDescCell] = useState<{ rowKey: string; dayISO: string } | null>(null);
+  // Beschreibungs-Panel (Stift-Icon): rowKey + Tag; rowKey null = alle
+  // Einträge des Tages (Stift in der Tages-Total-Zeile)
+  const [descCell, setDescCell] = useState<{ rowKey: string | null; dayISO: string } | null>(null);
   const [editBuffer, setEditBuffer] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -809,7 +810,18 @@ export const WeeklyGridView = ({
                 </td>
                 {dailyTotals.map((sec, i) => (
                   <td key={i} className="px-1 py-2 text-center font-semibold text-gray-700 dark:text-dark-500">
-                    {sec > 0 ? formatHoursDecimalAlways(sec) : '–'}
+                    {sec > 0 ? (
+                      <div className="relative group inline-flex items-center justify-center w-full">
+                        <span>{formatHoursDecimalAlways(sec)}</span>
+                        <button
+                          onClick={() => setDescCell({ rowKey: null, dayISO: weekDays[i] })}
+                          title="Alle Beschreibungen dieses Tages bearbeiten"
+                          className="absolute -right-0.5 -top-2 p-0.5 rounded bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border text-gray-400 hover:text-accent-primary opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                      </div>
+                    ) : '–'}
                   </td>
                 ))}
                 <td className="px-3 py-2 text-center font-bold text-accent-primary text-base">
@@ -823,10 +835,12 @@ export const WeeklyGridView = ({
 
       {/* Beschreibungs-Panel (Stift in der Zelle) */}
       {descCell && (() => {
-        const meta = weekData.rowMetas.find(r => r.rowKey === descCell.rowKey);
-        const cellEntries = [...(weekData.data.get(descCell.rowKey)?.get(descCell.dayISO)?.entries ?? [])]
-          .sort((a, b) => a.startTime.localeCompare(b.startTime));
-        const suggestions = (descriptionSuggestionsByRow.get(descCell.rowKey) ?? []).slice(0, 10);
+        const isDayMode = descCell.rowKey === null;
+        const meta = isDayMode ? undefined : weekData.rowMetas.find(r => r.rowKey === descCell.rowKey);
+        const cellEntries = (isDayMode
+          ? entries.filter(e => !e.isRunning && e.endTime && toLocalDateString(new Date(e.startTime)) === descCell.dayISO)
+          : [...(weekData.data.get(descCell.rowKey!)?.get(descCell.dayISO)?.entries ?? [])]
+        ).sort((a, b) => a.startTime.localeCompare(b.startTime));
         const dayLabel = new Date(descCell.dayISO + 'T00:00:00').toLocaleDateString('de-DE', {
           weekday: 'long', day: '2-digit', month: '2-digit',
         });
@@ -844,8 +858,9 @@ export const WeeklyGridView = ({
                 </button>
               </div>
               <p className="text-sm text-gray-500 dark:text-dark-400 mb-4 truncate">
-                {meta?.customer?.name ?? '—'}{meta?.project && ` · ${meta.project.name}`}
-                {meta?.activity && ` · ${meta.activity.name}`} — {dayLabel}
+                {isDayMode
+                  ? `Alle Einträge — ${dayLabel}`
+                  : `${meta?.customer?.name ?? '—'}${meta?.project ? ` · ${meta.project.name}` : ''}${meta?.activity ? ` · ${meta.activity.name}` : ''} — ${dayLabel}`}
               </p>
 
               {cellEntries.length === 0 ? (
@@ -854,13 +869,21 @@ export const WeeklyGridView = ({
                 <div className="space-y-3">
                   {cellEntries.map(entry => {
                     const datalistId = `grid-desc-${entry.id}`;
+                    const suggestions = (descriptionSuggestionsByRow.get(rowKeyFor(entry.projectId ?? '', entry.activityId)) ?? []).slice(0, 10);
+                    const entryProject = entry.projectId ? projectById.get(entry.projectId) : undefined;
+                    const entryCustomer = entryProject ? customerById.get(entryProject.customerId) ?? null : null;
                     return (
                       <div key={entry.id}>
-                        <div className="flex items-baseline justify-between mb-1">
-                          <span className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+                        <div className="flex items-baseline justify-between gap-2 mb-1">
+                          {isDayMode && (
+                            <span className="text-xs font-medium text-gray-700 dark:text-dark-500 truncate">
+                              {entryCustomer?.name ?? '—'}{entryProject && ` · ${entryProject.name}`}
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-500 dark:text-dark-400 tabular-nums shrink-0">
                             {fmtClock(entry.startTime)}{entry.endTime && ` – ${fmtClock(entry.endTime)}`}
                           </span>
-                          <span className="text-xs font-semibold text-accent-primary tabular-nums">
+                          <span className="text-xs font-semibold text-accent-primary tabular-nums shrink-0">
                             {formatHoursDecimalAlways(entry.duration)} h
                           </span>
                         </div>
