@@ -45,6 +45,12 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Haupt-Bundle (~3.2 MB) MIT precachen: sonst serviert ein alter
+        // Service Worker seine alte index.html, muss das Bundle aber aus dem
+        // Netz holen — das nach einem Deploy nicht mehr existiert (404,
+        // "App down"-Vorfall 03.08.2026). Mit Precache bleibt die alte
+        // Version offline lauffähig, bis autoUpdate die neue aktiviert.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Add custom service worker code for push notifications
         importScripts: ['push-sw.js'],
         // Don't cache API responses, especially downloads

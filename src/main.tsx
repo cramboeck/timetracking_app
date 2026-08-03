@@ -52,6 +52,19 @@ const initializeTheme = () => {
   darkMode.initialize();
 };
 
+// Selbstheilung nach Deploys: schlägt das Nachladen eines gehashten Chunks
+// fehl (veraltete index.html im Cache, Datei existiert auf dem Server nicht
+// mehr), einmal hart neu laden statt weißer Seite. Ein Session-Flag mit
+// kurzem Verfall verhindert Reload-Schleifen.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  const KEY = 'ramboflow_chunk_reload';
+  if (sessionStorage.getItem(KEY)) return;
+  sessionStorage.setItem(KEY, '1');
+  window.setTimeout(() => sessionStorage.removeItem(KEY), 30_000);
+  window.location.reload();
+});
+
 // Initialize before rendering
 initializePortalBranding();
 initializeTheme();
