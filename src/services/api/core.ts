@@ -671,6 +671,31 @@ export const workSessionsApi = {
     return authFetch(`/work-sessions${qs ? `?${qs}` : ''}`);
   },
 
+  // Admin-Korrekturen (nur Teammanager): Stempelzeiten nachtragen/ändern/löschen
+  adminCreate: async (input: {
+    userId: string;
+    workDate: string;
+    startedAt: string;
+    endedAt: string;
+    breakMinutes?: number;
+    note?: string;
+  }): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/admin', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  adminUpdate: async (id: string, updates: {
+    startedAt?: string;
+    endedAt?: string | null;
+    breakMinutes?: number;
+    note?: string | null;
+  }): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch(`/work-sessions/admin/${id}`, { method: 'PUT', body: JSON.stringify(updates) });
+  },
+
+  adminDelete: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/work-sessions/admin/${id}`, { method: 'DELETE' });
+  },
+
   listTeam: async (from?: string, to?: string): Promise<{ success: boolean; data: WorkSession[] }> => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);

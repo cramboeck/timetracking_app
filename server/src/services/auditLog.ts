@@ -6,6 +6,9 @@ export type AuditAction =
   | 'work_session.clock_out'
   | 'work_session.break_start'
   | 'work_session.break_end'
+  | 'work_session.admin_create'
+  | 'work_session.admin_edit'
+  | 'work_session.admin_delete'
   // User actions
   | 'user.register'
   | 'user.login'

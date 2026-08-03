@@ -291,6 +291,178 @@ router.get('/', authenticateToken, validate(rangeSchema), async (req: AuthReques
   }
 });
 
+// ============================================================================
+// Admin-Korrekturen (nur Admin/Owner — Teammanager-Funktion)
+// ----------------------------------------------------------------------------
+// Mitarbeiter können ihre Stempelzeiten NICHT selbst ändern. Vergessenes
+// Ein-/Ausstempeln oder Fehlbuchungen korrigiert der Teammanager unter
+// Berichte → Arbeitszeit. Jede Korrektur wird mit Vorher/Nachher-Werten
+// im Audit-Log festgehalten.
+// ============================================================================
+
+// Frontend baut Timestamps via toISOString() — daher .datetime() (Regel 14)
+const adminCreateSchema = z.object({
+  userId: z.string().min(1),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startedAt: z.string().datetime(),
+  endedAt: z.string().datetime(),
+  breakMinutes: z.number().int().min(0).max(1440).optional(),
+  note: z.string().max(500).optional(),
+});
+
+const adminUpdateSchema = z.object({
+  startedAt: z.string().datetime().optional(),
+  endedAt: z.string().datetime().nullable().optional(),
+  breakMinutes: z.number().int().min(0).max(1440).optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+function validateSpan(startedAt: string, endedAt: string | null, breakSeconds: number): string | null {
+  if (!endedAt) return null;
+  const gross = (new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000;
+  if (gross <= 0) return 'Ende muss nach dem Beginn liegen';
+  if (gross > 24 * 3600) return 'Arbeitszeit darf 24 Stunden nicht überschreiten';
+  if (breakSeconds >= gross) return 'Pause muss kürzer als die Anwesenheit sein';
+  return null;
+}
+
+// POST /api/work-sessions/admin — Session für ein Teammitglied nachtragen
+router.post('/admin', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(adminCreateSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { userId, workDate, startedAt, endedAt, breakMinutes, note } = req.body;
+    const breakSeconds = (breakMinutes ?? 0) * 60;
+
+    const spanError = validateSpan(startedAt, endedAt, breakSeconds);
+    if (spanError) return res.status(400).json({ success: false, error: spanError });
+
+    // Ziel-User muss zur Organisation gehören
+    const member = await query(
+      'SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id = $2',
+      [organizationId, userId]
+    );
+    if (member.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Mitarbeiter nicht in dieser Organisation' });
+    }
+
+    const id = crypto.randomUUID();
+    const result = await query(
+      `INSERT INTO work_sessions (id, user_id, organization_id, work_date, started_at, ended_at, break_seconds, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING ${WORK_SESSION_COLUMNS}`,
+      [id, userId, organizationId, workDate, startedAt, endedAt, breakSeconds, note ?? null]
+    );
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'work_session.admin_create',
+      details: JSON.stringify({ sessionId: id, targetUserId: userId, workDate, startedAt, endedAt, breakSeconds }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.status(201).json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Admin work session create error:', error);
+    res.status(500).json({ success: false, error: 'Nachtragen fehlgeschlagen' });
+  }
+});
+
+// PUT /api/work-sessions/admin/:id — Session korrigieren (auch offene schließen)
+router.put('/admin/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(adminUpdateSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const updates = req.body;
+
+    const existing = await query(
+      `SELECT ${WORK_SESSION_COLUMNS} FROM work_sessions WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Arbeitszeit nicht gefunden' });
+    }
+    const before = existing.rows[0];
+
+    const newStarted = updates.startedAt ?? new Date(before.started_at).toISOString();
+    const newEnded = updates.endedAt !== undefined
+      ? updates.endedAt
+      : (before.ended_at ? new Date(before.ended_at).toISOString() : null);
+    const newBreak = updates.breakMinutes !== undefined ? updates.breakMinutes * 60 : before.break_seconds;
+
+    const spanError = validateSpan(newStarted, newEnded, newBreak);
+    if (spanError) return res.status(400).json({ success: false, error: spanError });
+
+    const result = await query(
+      `UPDATE work_sessions
+       SET started_at = $1, ended_at = $2, break_seconds = $3,
+           break_started_at = CASE WHEN $2::timestamp IS NOT NULL THEN NULL ELSE break_started_at END,
+           note = COALESCE($4, note),
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING ${WORK_SESSION_COLUMNS}`,
+      [newStarted, newEnded, newBreak, updates.note ?? null, id]
+    );
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'work_session.admin_edit',
+      details: JSON.stringify({
+        sessionId: id,
+        targetUserId: before.user_id,
+        before: { startedAt: before.started_at, endedAt: before.ended_at, breakSeconds: before.break_seconds },
+        after: { startedAt: newStarted, endedAt: newEnded, breakSeconds: newBreak },
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true, data: toApi(result.rows[0]) });
+  } catch (error: any) {
+    logger.error('Admin work session update error:', error);
+    res.status(500).json({ success: false, error: 'Korrektur fehlgeschlagen' });
+  }
+});
+
+// DELETE /api/work-sessions/admin/:id — Fehlbuchung entfernen
+router.delete('/admin/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const existing = await query(
+      `SELECT ${WORK_SESSION_COLUMNS} FROM work_sessions WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Arbeitszeit nicht gefunden' });
+    }
+    const before = existing.rows[0];
+
+    await query('DELETE FROM work_sessions WHERE id = $1', [id]);
+
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'work_session.admin_delete',
+      details: JSON.stringify({
+        sessionId: id,
+        targetUserId: before.user_id,
+        before: { workDate: before.work_date, startedAt: before.started_at, endedAt: before.ended_at, breakSeconds: before.break_seconds },
+      }),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Admin work session delete error:', error);
+    res.status(500).json({ success: false, error: 'Löschen fehlgeschlagen' });
+  }
+});
+
 // GET /api/work-sessions/team?from=&to= — org-weite Auswertung (nur Admin/Owner)
 router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(rangeSchema), async (req: AuthRequest, res: Response) => {
   try {
