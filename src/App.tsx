@@ -149,28 +149,12 @@ function App() {
 
       console.log('📦 [DATA] Loading data for user:', currentUser.username);
 
-      try {
-        // Load all data from API in parallel
-        console.log('📦 [DATA] Fetching all data from API...');
-        const [projectsResponse, customersResponse, activitiesResponse, entriesResponse] = await Promise.all([
-          projectsApi.getAll(),
-          customersApi.getAll(),
-          activitiesApi.getAll(),
-          entriesApi.getAll()
-        ]);
-
-        console.log('✅ [DATA] Projects loaded:', projectsResponse);
-        console.log('✅ [DATA] Customers loaded:', customersResponse);
-        console.log('✅ [DATA] Activities loaded:', activitiesResponse);
-        console.log('✅ [DATA] Entries loaded:', entriesResponse);
-
-        setProjects(projectsResponse.data || []);
-        setCustomers(customersResponse.data || []);
-        setActivities(activitiesResponse.data || []);
-        setEntries(entriesResponse.data || []);
+      // Einträge anwenden + Running-Timer-Recovery (aus dem alten Promise.all-Block)
+      const applyEntries = (entriesData: TimeEntry[]) => {
+        setEntries(entriesData);
 
         // Find any running entry
-        const running = (entriesResponse.data || []).find(e => e.isRunning);
+        const running = entriesData.find(e => e.isRunning);
         if (running) {
           setRunningEntry(running);
         } else {
@@ -187,7 +171,7 @@ function App() {
               if (backupAge < maxBackupAge && backup.entry?.isRunning) {
                 console.log('🔄 [TIMER] Found backup timer in localStorage, recovering...');
                 // Check if this entry exists in the loaded entries
-                const existingEntry = (entriesResponse.data || []).find(e => e.id === backup.entry.id);
+                const existingEntry = entriesData.find(e => e.id === backup.entry.id);
                 if (existingEntry && !existingEntry.endTime) {
                   // Entry exists but server doesn't know it's running - resume it
                   const recoveredEntry = { ...existingEntry, isRunning: true };
@@ -210,13 +194,55 @@ function App() {
             console.error('❌ [TIMER] Failed to recover timer from backup:', err);
           }
         }
+      };
 
-        // Note: Don't auto-switch to stopwatch view - respect user's saved preference
+      // Jede Ressource unabhängig laden. Vorher Promise.all: EIN
+      // fehlgeschlagener Request (429/Timeout) verwarf ALLE Ergebnisse
+      // still -> App lief mit leeren Stammdaten, überall "Unbekanntes
+      // Projekt" bis zum manuellen Reload. Jetzt: allSettled, 2 stille
+      // Retries mit Backoff, danach Warn-Toast + erneuter Versuch beim
+      // nächsten Fenster-Fokus.
+      const tasks: [string, () => Promise<void>][] = [
+        ['Projekte', async () => setProjects(((await projectsApi.getAll()).data) || [])],
+        ['Kunden', async () => setCustomers(((await customersApi.getAll()).data) || [])],
+        ['Tätigkeiten', async () => setActivities(((await activitiesApi.getAll()).data) || [])],
+        ['Zeiteinträge', async () => applyEntries(((await entriesApi.getAll()).data) || [])],
+      ];
+
+      const attempt = async (list: typeof tasks): Promise<typeof tasks> => {
+        const results = await Promise.allSettled(list.map(([, fn]) => fn()));
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`❌ [DATA] ${list[i][0]} laden fehlgeschlagen:`, r.reason);
+          }
+        });
+        return list.filter((_, i) => results[i].status === 'rejected');
+      };
+
+      let failed = await attempt(tasks);
+      // Skeletons nicht an die Retries koppeln — erste Runde ist durch
+      setIsInitialDataLoading(false);
+
+      for (const delayMs of [2000, 5000]) {
+        if (failed.length === 0) break;
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        failed = await attempt(failed);
+      }
+
+      if (failed.length > 0) {
+        const labels = failed.map(([label]) => label).join(', ');
+        showToast(
+          `${labels} konnten nicht geladen werden — neuer Versuch beim nächsten Fenster-Wechsel.`,
+          'warning',
+          8000
+        );
+        const retryOnFocus = () => {
+          window.removeEventListener('focus', retryOnFocus);
+          void loadData();
+        };
+        window.addEventListener('focus', retryOnFocus);
+      } else {
         console.log('✅ [DATA] All data loaded successfully');
-      } catch (error) {
-        console.error('❌ [DATA] Error loading data:', error);
-      } finally {
-        setIsInitialDataLoading(false);
       }
     };
 
