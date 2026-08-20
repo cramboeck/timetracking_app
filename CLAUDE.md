@@ -135,6 +135,29 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 | sevDesk-Kunden-Auto-Sync-Job (Toggle war totes Feld) mit E-Mail-Benachrichtigung + „Jetzt synchronisieren"-Button | 1d46580 |
 | **Positions-Klassifizierung**: `item_type` (Lizenz/Abo/Hardware/Dienstleistung) auto-klassifiziert (Infinigate-Signale + Keywords), Status `internal` für Eigenbedarf, CRM-Tab „Lizenzen & Abos" + **Hardware-Käufe-Register** (Seriennummern), Auswertung „Interne Ausgaben" unter Berichte → Intern, Review-Endpoint liefert endlich camelCase | 94167f0 |
 
+### Go-Live-Sprint Kundenportal + Stabilität (Anfang August 2026) — ✅ abgeschlossen
+
+> Auslöser: Portal sollte live gehen. Ein Audit fand 8 Go-Live-Blocker; beim Testen kamen vier **Phantom-Spalten-Bugs** zutage (SQL referenzierte nie angelegte Spalten, Fehler wurden in try/catch verschluckt) — daraus entstand der Schema-Sweep (s.u.).
+
+| Task | Commit |
+|---|---|
+| **Portal-Härtung (8 Blocker)**: Ticket-Liste-500 (Phantom-SLA-Spalten), Berechtigungs-Identität (JWT trägt `customer_contacts.id` ODER `customer_portal_users.id` — `getContactPermissions` löst jetzt beide auf), unauthentifizierter Debug-Endpoint GELÖSCHT, neue Berechtigung `can_view_licenses`, `is_active` beim Login erzwungen, `can_view_all_tickets` wirklich durchgesetzt, sevDesk-Entwürfe gefiltert, Portal-Passwort-Reset (Self-Service, `reset_token`-Spalten), Zeitreport/Vertrag erreichbar + 3 neue Berechtigungs-Checkboxen im Kontakte-Dialog, `PORTAL_URL` env | 834fdb9 |
+| Phantom-Spalten-Fixes: `PORTAL_USER_COLUMNS` erfand `invitation_token/…` (Kontakt-Speichern 500), `customer_portal_users` fehlten `mfa_enabled/mfa_secret` (**Portal-Login war serverseitig nie lauffähig**) → guarded Migrationen | 57942fd |
+| Phantom-Spalten-Fixes: `contracts.monthly_hours/sla_response_time_hours` (Portal-Vertrag immer leer) → echte Spalten `included_hours_monthly/sla_response_hours`; `tickets.contact_id` existiert nicht (**Kommentar-/Status-Mails gingen NIE raus**) → `created_by_contact_id` + portal_user_id-Auflösung, Fallback Hauptkontakt; auch E-Mail-Diagnose | a903d40 |
+| Impressum + Datenschutzerklärung mit echten Anbieterdaten (Pillham 4B, USt-IdNr., VHV, § 18 MStV), Support-Adresse im Login | eb457d7, 55a36c0 |
+| Neues Ramboeck-Logo überall (Light/Dark im Login App+Portal, Header-Icon, alle Favicons/PWA-Icons aus Navy-Kachel #211C38) | 57942fd |
+| Portal-Branding: eigener Tab-Titel „Kundenportal", eigenes portal-manifest.json; VitePWA-Manifest repariert (zeigte nicht existente Icons) | 24569d5 |
+| **Passwort-Reset Haupt-App repariert**: `/reset-password` wurde von der App-Catch-all kanonisiert (Token verworfen) → eigene Route; `/join/:code` gleicher Guard | c7b988c |
+| **Nachtrags-Protokoll**: `time_entry_changes` (Vorher/Nachher-JSONB), Mutationen an Einträgen in abgeschlossenen Monaten → Log + Admin-Mail, Tab Berichte → „Nachträge", Hinweis in der Erfassung | 3afcbec |
+| **„Still kaputt"-Klasse behoben (3 Geschwister)**: Feature-Pakete (TanStack-Query, 3 Retries, localStorage-Cache — Module verschwanden nach Login), Eintrag-Speichern (JEDER Fehler → Offline-Queue + Toast statt Datenverlust bei Session-Ablauf) + proaktiver Session-Keep-Alive (JWT-Exp-Check jede Minute, Refresh <15 min Rest, Login-Screen ≤60 s nach endgültigem Tod), Stammdaten-Boot (`Promise.allSettled` + Retries + Fokus-Retry statt Promise.all-Alles-oder-Nichts → „Unbekanntes Projekt") | 9e20270, cd7bf10, 94d165d |
+| **„App down nach Deploy"-Vorfall (03.08.) gelöst**: veraltete index.html im Client-Cache zeigte auf gelöschte Bundle-Hashes. index.html no-store, sw/registerSW/manifeste no-cache (beide nginx-Ebenen — Asset-Regex hatte sw.js 1 Jahr immutable gecacht!), Haupt-Bundle in SW-Precache (5 MB Limit), `vite:preloadError` → einmaliger Selbst-Reload | 426113c |
+| **Arbeitszeit ↔ Projektzeit Paket 1+2**: `GET /work-sessions/coverage`, Abdeckungs-Balken in der AttendanceBar, Ausstempel-Abgleich-Dialog (nachtragen / als intern buchen / trotzdem raus) bei >15 min nicht zugeordneter Zeit | 3b5eb59 |
+| **Arbeitszeit-Korrekturen NUR für Admin/Owner** (Berichte → Arbeitszeit): nachtragen für beliebige Mitglieder, Beginn/Ende/Pause korrigieren, offene Sessions schließen, Fehlbuchungen löschen — alles mit Vorher/Nachher im Audit-Log | a91667f |
+| Wochenraster: Beschreibungs-Stift pro Zelle UND pro Tag (Tages-Total) — Panel mit allen Einträgen, einzeln editierbar, Autocomplete aus früheren Beschreibungen; entsperrt auch ×2-Zellen | 5b7b061, dca3079 |
+| Edit-Dialog Zeiteinträge: 2xl-Desktop-Layout, SearchableSelect fürs Projekt, 24h-Zeitfelder mit Auto-Format (statt AM/PM-Locale-Falle), Live-Dauer-Chip, letzte Projekt-Beschreibung als übernehmbarer Vorschlag | 1b48689, e6f39f8 |
+| Kontakte-Dialog zeigt Server-Fehlermeldungen im Toast (Diagnose statt Generik) | 6aeeef8 |
+| nginx: docs.ramboeck.it (BookStack) ins Repo übernommen — proxy_pass über Variable+Resolver, damit ein fehlender BookStack-Container nicht App+Portal beim nginx-Start mitreißt | 8e29c92 |
+
 ### Stabilitäts-Sprint Anfang Juli 2026 — ✅ abgeschlossen
 
 | Task | Commit |
@@ -385,6 +408,16 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 | 9 | **database.ts splitten** (4400+ Zeilen) | 1 Tag | In nummerierte Migrationsdateien; reine Hygiene, kein Featuregewinn. |
 | 10 | **Schichtenarchitektur-Pilot** (`tickets.ts` → Controller/Repository) | 2-3 Tage | Langfristig; tickets.ts ist mit ~4000 Zeilen die größte Route-Datei. |
 
+**Neu hinzugekommen (August 2026):**
+
+| Prio | Task | Aufwand | Kontext |
+|---|---|---|---|
+| A1 | **Schema-Sweep** — alle SQL-Queries gegen database.ts | 🟡 läuft (4.8.) | Nach 4 Phantom-Spalten-Prod-Bugs in einer Woche. Regel 7 systematisch auf den Bestand angewandt. |
+| A2 | **Fresh-Install-Bugs in database.ts** | 2–3h | 3 Funde: `tickets` referenziert `organizations` vor deren Anlage; `ticket_comments`-Migration läuft vor ihrem CREATE; `ticket_sequences` hat GAR KEIN CREATE TABLE. Prod (gewachsen) ok — jede NEUE Installation (Dev-Umgebung Mitarbeiter!) scheitert. Sinnvoll zusammen mit database.ts-Split (Prio 9). |
+| A3 | **Zeiterfassung Paket 3+4** | ~2 Tage | Tages-Timeline mit klickbaren Lücken (vorausgefüllter Eintrag); Verrechenbarkeits-Quote in € + Erinnerungs-Cron bei niedriger Abdeckung. Paket 1+2 ✅ (3b5eb59). |
+| A4 | **Portal-Pilotphase** | — | 1–2 echte Kunden, Feedback einsammeln. Blocker sind abgeräumt; offene Nice-to-haves: 7-Tage-JWT ohne Refresh, ~50 console.logs im Portal-Code, Portal Hardware/Lizenz-Trennung. |
+| A5 | Kleinkram | je <2h | Anträge-Badge in Berichte-Tabs · deutsches Datumsformat im Edit-Dialog (ModernDatePicker) · Massenbearbeitungs-Dialog aufhübschen · Beleg-Komfort-Rest (Duplikat-Warnung, Fälligkeits-Radar) |
+
 **Verschoben/bewusst offen:** Authentifiziertes Attachment-Serving (Capability-URLs reichen vorerst, siehe Hinweis-Box bei den Ticket-Bugs) · Offline-Sync für andere Aktionen als Zeiteinträge · React 19 Upgrade (Abhängigkeiten prüfen).
 
 ### 🔴 Sprint 1 — Sicherheit (kritisch, sofort umsetzen)
@@ -515,6 +548,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
+- **Fresh-Install kaputt** (gefunden 3.8.2026 beim lokalen Migrations-Test): database.ts scheitert auf leerer DB an Reihenfolge-Fehlern (`tickets`→`organizations`-FK vor Anlage, `ticket_comments`-ALTER vor CREATE, `ticket_sequences` ohne CREATE TABLE). Gewachsene Prod-DB unbetroffen. Fix zusammen mit dem database.ts-Split.
 
 ### Tickets — Offene Bugs & Verbesserungen (Stand 14.6.2026)
 
@@ -650,7 +684,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 30.7.2026 — Team-Onboarding-Sprint ✅: Rollen-Gating im Frontend, Arbeitszeiterfassung (work_sessions + AttendanceBar + Admin-Auswertung), „Mein Bereich" mit Arbeitszeitkonto/Abwesenheit, globale Audit-Middleware. Außerdem: Beleg-Kette Rechnungseingang→sevDesk komplett repariert (5 Bugs), Zod-Audit (16 Schemas), Infinigate Phase 1, portal.ramboeck.it. Offen: Infinigate Phase 2, NinjaRMM-Diagnose, TS-Fehler 374.**Alle offenen Punkte konsolidiert in der Tabelle „🎯 Offene Punkte auf einen Blick".***
+*Zuletzt aktualisiert: 4.8.2026 — Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
