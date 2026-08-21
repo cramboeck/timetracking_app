@@ -412,8 +412,8 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 
 | Prio | Task | Aufwand | Kontext |
 |---|---|---|---|
-| A1 | **Schema-Sweep** — alle SQL-Queries gegen database.ts | 🟡 läuft (4.8.) | Nach 4 Phantom-Spalten-Prod-Bugs in einer Woche. Regel 7 systematisch auf den Bestand angewandt. |
-| A2 | **Fresh-Install-Bugs in database.ts** | 2–3h | 3 Funde: `tickets` referenziert `organizations` vor deren Anlage; `ticket_comments`-Migration läuft vor ihrem CREATE; `ticket_sequences` hat GAR KEIN CREATE TABLE. Prod (gewachsen) ok — jede NEUE Installation (Dev-Umgebung Mitarbeiter!) scheitert. Sinnvoll zusammen mit database.ts-Split (Prio 9). |
+| ~~A1~~ ✅ | ~~**Schema-Sweep**~~ | erledigt (21.8.) | 3 Agenten prüften ALLE Server-Queries gegen das **echte Prod-Schema** (Export: `docs/prod-schema-columns.md`). Ergebnis: 14 echte Laufzeit-Bugs gefixt (3e5731f: Vertragsstunden-Cron, Health-Score, Firmendaten, Checklisten, Gerätedetail, Wartung, Merge, Carousel, Report-Kontakte, Mail-Verlauf, tote sla-policies.ts entfernt) + database.ts per Migrationen an Prod angeglichen (b29ee3a: ticket_activities/kb_*/ticket_sequences-CREATEs, ticket_comments.content, tickets-SLA/Merge/Satisfaction-Spalten u.v.m.). ⚠️ Merke: **Prod-DB ist der gewachsenen Wahrheit voraus** — bei Konflikten gilt docs/prod-schema-columns.md, nicht database.ts-Historie. |
+| ~~A2~~ ✅ | ~~**Fresh-Install-Bugs in database.ts**~~ | erledigt (21.8.) | Mit b29ee3a: organizations/customer_contacts idempotent vorgezogen, ticket_comments-Migration hinter CREATE, invoice_line_items-Guards, ticket_sequences-CREATE. **Verifiziert: leere PostgreSQL 16 bootet fehlerfrei durch (112 Tabellen)** — Dev-Umgebungen funktionieren jetzt auf Anhieb. |
 | A3 | **Zeiterfassung Paket 3+4** | ~2 Tage | Tages-Timeline mit klickbaren Lücken (vorausgefüllter Eintrag); Verrechenbarkeits-Quote in € + Erinnerungs-Cron bei niedriger Abdeckung. Paket 1+2 ✅ (3b5eb59). |
 | A4 | **Portal-Pilotphase** | — | 1–2 echte Kunden, Feedback einsammeln. Blocker sind abgeräumt; offene Nice-to-haves: 7-Tage-JWT ohne Refresh, ~50 console.logs im Portal-Code, Portal Hardware/Lizenz-Trennung. |
 | A5 | Kleinkram | je <2h | Anträge-Badge in Berichte-Tabs · deutsches Datumsformat im Edit-Dialog (ModernDatePicker) · Massenbearbeitungs-Dialog aufhübschen · Beleg-Komfort-Rest (Duplikat-Warnung, Fälligkeits-Radar) |
@@ -548,7 +548,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
-- **Fresh-Install kaputt** (gefunden 3.8.2026 beim lokalen Migrations-Test): database.ts scheitert auf leerer DB an Reihenfolge-Fehlern (`tickets`→`organizations`-FK vor Anlage, `ticket_comments`-ALTER vor CREATE, `ticket_sequences` ohne CREATE TABLE). Gewachsene Prod-DB unbetroffen. Fix zusammen mit dem database.ts-Split.
+- ~~**Fresh-Install kaputt**~~ ✅ Behoben 21.8. (b29ee3a) — leere DB bootet fehlerfrei durch; siehe A2.
 
 ### Tickets — Offene Bugs & Verbesserungen (Stand 14.6.2026)
 
