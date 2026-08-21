@@ -272,15 +272,27 @@ export const DayTimelineView = ({ entries, projects, customers, activities, onCr
             <Button onClick={() => changeDate(toLocalDateString(new Date()))} variant="secondary" size="sm">Heute</Button>
           )}
         </div>
-        <div className="flex items-center gap-4 text-sm tabular-nums">
-          <span className="text-gray-600 dark:text-dark-400">Anwesenheit <strong className="text-gray-900 dark:text-white">{fmtHours(model.attendanceMin)} h</strong></span>
-          <span className="text-gray-600 dark:text-dark-400">Erfasst <strong className="text-gray-900 dark:text-white">{fmtHours(model.recordedMin)} h</strong></span>
-          <span className="text-gray-600 dark:text-dark-400">Pause <strong className="text-gray-900 dark:text-white">{fmtHours(model.breakMin)} h</strong></span>
-          {model.gapMin > 0 ? (
-            <span className="font-medium text-amber-600 dark:text-amber-400">{fmtHours(model.gapMin)} h nicht zugeordnet</span>
-          ) : model.attendanceMin > 0 ? (
-            <span className="font-medium text-green-600 dark:text-green-400">Alles zugeordnet</span>
-          ) : null}
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { label: 'Anwesenheit', value: `${fmtHours(model.attendanceMin)} h`, classes: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' },
+            { label: 'Erfasst', value: `${fmtHours(model.recordedMin)} h`, classes: 'bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary' },
+            { label: 'Pause', value: `${fmtHours(model.breakMin)} h`, classes: 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400' },
+          ].map(chip => (
+            <div key={chip.label} className={`px-3 py-1.5 rounded-lg text-center ${chip.classes}`}>
+              <div className="text-[10px] uppercase tracking-wide opacity-75">{chip.label}</div>
+              <div className="text-sm font-bold tabular-nums leading-tight">{chip.value}</div>
+            </div>
+          ))}
+          <div className={`px-3 py-1.5 rounded-lg text-center ${
+            model.gapMin > 0
+              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+              : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+          }`}>
+            <div className="text-[10px] uppercase tracking-wide opacity-75">Offen</div>
+            <div className="text-sm font-bold tabular-nums leading-tight">
+              {model.attendanceMin === 0 ? '—' : model.gapMin > 0 ? `${fmtHours(model.gapMin)} h` : '✓'}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -290,49 +302,48 @@ export const DayTimelineView = ({ entries, projects, customers, activities, onCr
           <p className="text-sm text-gray-400 py-6 text-center">Lade…</p>
         ) : (
           <>
-            {/* Stunden-Achse */}
-            <div className="relative h-5 mb-1 text-[10px] text-gray-400 dark:text-dark-400">
+            <div className="relative h-32 select-none">
+              {/* Stunden-Gridlines + Labels */}
               {hourMarks.map(m => (
-                <span key={m} className="absolute -translate-x-1/2 tabular-nums" style={{ left: pct(m) }}>
-                  {Math.floor(m / 60)}
-                </span>
+                <div key={m} className="absolute top-0 bottom-0" style={{ left: pct(m) }}>
+                  <span className="absolute -translate-x-1/2 top-0 text-[10px] tabular-nums text-gray-400 dark:text-dark-400">
+                    {String(Math.floor(m / 60)).padStart(2, '0')}
+                  </span>
+                  <div className="absolute top-5 bottom-0 border-l border-gray-100 dark:border-dark-border/40" />
+                </div>
               ))}
-            </div>
 
-            {/* Anwesenheits-Spur */}
-            <div className="relative h-7 rounded bg-gray-100 dark:bg-dark-200 overflow-hidden">
+              {/* Anwesenheits-Band */}
               {model.sessions.map((sess, i) => (
                 <div
-                  key={i}
+                  key={`s-${i}`}
                   title={`Anwesend ${fmtClock(sess.start)}–${sess.open ? 'jetzt' : fmtClock(sess.end)}${sess.breakSeconds > 0 ? ` · Pause ${fmtHours(Math.round(sess.breakSeconds / 60))} h (Lage unbekannt)` : ''}`}
-                  className="absolute top-0 h-full bg-green-200/70 dark:bg-green-800/40 border-x border-green-400/60"
+                  className={`absolute top-7 h-2.5 rounded-full bg-green-400/60 dark:bg-green-500/40 ${sess.open ? 'animate-pulse' : ''}`}
                   style={{ left: pct(sess.start), width: widthPct(sess) }}
                 />
               ))}
-              {isToday && nowMinutes >= model.axisStart && nowMinutes <= model.axisEnd && (
-                <div className="absolute top-0 h-full w-0.5 bg-accent-primary" style={{ left: pct(nowMinutes) }} />
-              )}
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-500 dark:text-dark-400 pointer-events-none">
-                Anwesenheit
-              </span>
-            </div>
 
-            {/* Eintrags-Spur mit Lücken */}
-            <div className="relative h-12 mt-1 rounded bg-gray-50 dark:bg-dark-200/50 overflow-hidden">
               {/* Lücken (klickbar) */}
-              {model.gaps.map((g, i) => (
-                <button
-                  key={`gap-${i}`}
-                  onClick={() => openGap(g)}
-                  title={`Nicht zugeordnet ${fmtClock(g.start)}–${fmtClock(g.end)} (${fmtHours(g.end - g.start)} h) — klicken zum Nachtragen`}
-                  className="absolute top-0 h-full border-2 border-dashed border-amber-400 bg-amber-100/60 dark:bg-amber-900/20 hover:bg-amber-200/80 dark:hover:bg-amber-900/40 transition-colors rounded-sm z-10"
-                  style={{ left: pct(g.start), width: widthPct(g) }}
-                >
-                  <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300 px-1 truncate block">
-                    + {fmtHours(g.end - g.start)} h
-                  </span>
-                </button>
-              ))}
+              {model.gaps.map((g, i) => {
+                const wide = (g.end - g.start) / (model.axisEnd - model.axisStart) > 0.055;
+                return (
+                  <button
+                    key={`gap-${i}`}
+                    onClick={() => openGap(g)}
+                    title={`Nicht zugeordnet ${fmtClock(g.start)}–${fmtClock(g.end)} (${fmtHours(g.end - g.start)} h) — klicken zum Nachtragen`}
+                    className="absolute top-12 bottom-3 rounded-lg border-2 border-dashed border-amber-400/80 bg-amber-50/80 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-500 transition-all flex flex-col items-center justify-center gap-0.5 z-10"
+                    style={{ left: pct(g.start), width: widthPct(g) }}
+                  >
+                    <span className="text-amber-600 dark:text-amber-400 font-bold leading-none">＋</span>
+                    {wide && (
+                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 tabular-nums leading-none">
+                        {fmtHours(g.end - g.start)} h
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
               {/* Einträge */}
               {model.entryBlocks.map(b => {
                 const project = b.entry.projectId ? projectById.get(b.entry.projectId) : undefined;
@@ -340,12 +351,13 @@ export const DayTimelineView = ({ entries, projects, customers, activities, onCr
                 const isInternal = b.entry.entryScope === 'internal';
                 const label = isInternal
                   ? (INTERNAL_CATEGORIES.find(c => c.value === b.entry.internalCategory)?.label ?? 'Intern')
-                  : `${customer?.name ?? '?'} · ${project?.name ?? '?'}`;
+                  : `${project?.name ?? '?'}`;
+                const widthShare = (b.end - b.start) / (model.axisEnd - model.axisStart);
                 return (
                   <div
                     key={b.entry.id}
-                    title={`${label}\n${fmtClock(b.start)}–${fmtClock(b.end)} (${fmtHours(b.end - b.start)} h)${b.entry.description ? `\n${b.entry.description}` : ''}`}
-                    className={`absolute top-1 bottom-1 rounded px-1.5 overflow-hidden flex items-center gap-1 text-[10px] font-medium text-white ${
+                    title={`${isInternal ? label : `${customer?.name ?? '?'} · ${project?.name ?? '?'}`}\n${fmtClock(b.start)}–${fmtClock(b.end)} (${fmtHours(b.end - b.start)} h)${b.entry.description ? `\n${b.entry.description}` : ''}`}
+                    className={`absolute top-12 bottom-3 rounded-lg shadow-sm ring-1 ring-black/5 dark:ring-white/10 px-2 py-1 overflow-hidden flex flex-col justify-center text-white ${
                       isInternal ? 'bg-gray-400 dark:bg-dark-300' : ''
                     } ${b.entry.isRunning ? 'animate-pulse' : ''}`}
                     style={{
@@ -354,11 +366,43 @@ export const DayTimelineView = ({ entries, projects, customers, activities, onCr
                       backgroundColor: isInternal ? undefined : (customer?.color ?? '#94a3b8'),
                     }}
                   >
-                    {isInternal && <Coffee size={10} className="shrink-0" />}
-                    <span className="truncate">{label}</span>
+                    {widthShare > 0.05 && (
+                      <>
+                        <span className="text-[11px] font-semibold truncate leading-tight flex items-center gap-1">
+                          {isInternal && <Coffee size={10} className="shrink-0" />}
+                          {label}
+                        </span>
+                        {widthShare > 0.09 && (
+                          <span className="text-[10px] opacity-85 tabular-nums leading-tight">
+                            {fmtClock(b.start)}–{fmtClock(b.end)} · {fmtHours(b.end - b.start)} h
+                          </span>
+                        )}
+                      </>
+                    )}
                   </div>
                 );
               })}
+
+              {/* Jetzt-Marker */}
+              {isToday && nowMinutes >= model.axisStart && nowMinutes <= model.axisEnd && (
+                <div className="absolute top-6 bottom-0 z-20 pointer-events-none" style={{ left: pct(nowMinutes) }}>
+                  <div className="absolute top-0 -translate-x-1/2 w-2 h-2 rounded-full bg-accent-primary" />
+                  <div className="absolute top-1 bottom-0 -translate-x-1/2 w-0.5 bg-accent-primary/70" />
+                </div>
+              )}
+            </div>
+
+            {/* Legende */}
+            <div className="flex items-center gap-4 mt-2 text-[11px] text-gray-500 dark:text-dark-400 flex-wrap">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-full bg-green-400/60 dark:bg-green-500/40" /> Anwesenheit
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded bg-accent-primary/80" /> Zeiteintrag
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded border-2 border-dashed border-amber-400 bg-amber-50 dark:bg-amber-900/20" /> Lücke — klicken zum Nachtragen
+              </span>
             </div>
 
             {model.sessions.length === 0 && (
@@ -367,8 +411,8 @@ export const DayTimelineView = ({ entries, projects, customers, activities, onCr
               </p>
             )}
             {model.sessions.length > 0 && model.breakMin > 0 && (
-              <p className="text-xs text-gray-400 dark:text-dark-400 mt-3">
-                Hinweis: Pausen ({fmtHours(model.breakMin)} h) sind in der Anwesenheits-Spur enthalten — ihre genaue Lage wird nicht aufgezeichnet, Lücken können also auch Pausen sein.
+              <p className="text-xs text-gray-400 dark:text-dark-400 mt-1">
+                Pausen ({fmtHours(model.breakMin)} h) sind im Anwesenheits-Band enthalten — ihre genaue Lage wird nicht aufgezeichnet, Lücken können also auch Pausen sein.
               </p>
             )}
           </>
