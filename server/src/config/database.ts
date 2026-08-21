@@ -1110,6 +1110,24 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_portal_activity_owner ON customer_portal_activity_log(owner_user_id)');
 
     // ============================================
+    // Organizations (VORGEZOGEN: tickets referenziert organizations(id) —
+    // ohne diese Reihenfolge scheitert jede Neu-Installation. Der spätere
+    // CREATE im Organizations-Abschnitt ist idempotent und überspringt.)
+    // ============================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE,
+        owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        settings JSONB DEFAULT '{}',
+        logo TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // ============================================
     // Tickets System (referenced by alerts)
     // ============================================
 
@@ -1124,7 +1142,7 @@ export async function initializeDatabase() {
         ticket_number TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT,
-        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')),
+        status TEXT DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed', 'archived')),
         -- 'critical' (not 'urgent') is the app-wide ticket priority set: frontend
         -- TicketPriority, ticketPrioritySchema and the live production constraint
         -- all use low/normal/high/critical. Tasks use 'urgent' — tickets do not.
@@ -1335,7 +1353,25 @@ export async function initializeDatabase() {
       END $$;
     `);
 
-    // Migration: Add portal_user_id to ticket_comments if not exists
+    // Ticket comments/updates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_comments (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+        customer_contact_id TEXT,
+        content TEXT NOT NULL,
+        is_internal BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    // Migration NACH dem CREATE (vorher lief sie davor und riss jede
+    // Neu-Installation): portal_user_id für Alt-Tabellen nachrüsten;
+    // ausserdem comment→content-Angleichung (Prod heisst die Spalte
+    // content — das alte CREATE hier nannte sie comment)
     await client.query(`
       DO $$
       BEGIN
@@ -1345,20 +1381,28 @@ export async function initializeDatabase() {
         ) THEN
           ALTER TABLE ticket_comments ADD COLUMN portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL;
         END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'comment'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'content'
+        ) THEN
+          ALTER TABLE ticket_comments RENAME COLUMN comment TO content;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'customer_contact_id'
+        ) THEN
+          ALTER TABLE ticket_comments ADD COLUMN customer_contact_id TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ticket_comments' AND column_name = 'updated_at'
+        ) THEN
+          ALTER TABLE ticket_comments ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+        END IF;
       END $$;
-    `);
-
-    // Ticket comments/updates
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS ticket_comments (
-        id TEXT PRIMARY KEY,
-        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
-        comment TEXT NOT NULL,
-        is_internal BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
     `);
 
     // Ticket time entries (link existing time entries to tickets)
@@ -1399,6 +1443,16 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_tickets_number ON tickets(ticket_number)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entries_ticket ON time_entries(ticket_id)');
+
+    // ticket_sequences hatte NIE ein CREATE TABLE (Fund Schema-Sweep) —
+    // Prod-Form: (organization_id, last_number); UNIQUE für das
+    // ON CONFLICT (organization_id) der Ticketnummern-Vergabe
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_sequences (
+        organization_id TEXT UNIQUE,
+        last_number INTEGER NOT NULL DEFAULT 0
+      )
+    `);
 
     // Add foreign key from ninjarmm_alerts to tickets (now that tickets exists)
     await client.query(`
@@ -1699,6 +1753,36 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_devices_device ON maintenance_announcement_devices(device_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_templates_user ON maintenance_templates(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_maintenance_activity_announcement ON maintenance_activity_log(announcement_id)');
+
+    // customer_contacts VORGEZOGEN (Fresh-Install-Ordering): die folgenden
+    // ALTER-Migrationen liefen bisher VOR dem CREATE weiter unten und
+    // rissen jede Neu-Installation. Idempotente Kopie; das spätere CREATE
+    // im CRM-Abschnitt überspringt dann.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_contacts (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        first_name TEXT,
+        last_name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        mobile TEXT,
+        job_title TEXT,
+        department TEXT,
+        role TEXT DEFAULT 'contact' CHECK(role IN ('decision_maker', 'technical', 'billing', 'contact', 'executive')),
+        is_primary BOOLEAN DEFAULT false,
+        portal_user_id TEXT REFERENCES customer_portal_users(id) ON DELETE SET NULL,
+        preferred_contact_method TEXT DEFAULT 'email' CHECK(preferred_contact_method IN ('email', 'phone', 'mobile', 'portal')),
+        notify_on_ticket_update BOOLEAN DEFAULT true,
+        notify_on_maintenance BOOLEAN DEFAULT true,
+        linkedin_url TEXT,
+        notes TEXT,
+        avatar_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
 
     // Migration: Add new portal permission columns to customer_contacts
     await client.query(`
@@ -2797,40 +2881,24 @@ export async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS sla_policies (
         id TEXT PRIMARY KEY,
-        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-
+        user_id TEXT,
+        organization_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
         description TEXT,
-        is_default BOOLEAN DEFAULT false,
-
-        -- Response times (in hours)
-        response_time_low INTEGER DEFAULT 24,
-        response_time_normal INTEGER DEFAULT 8,
-        response_time_high INTEGER DEFAULT 4,
-        response_time_critical INTEGER DEFAULT 1,
-
-        -- Resolution times (in hours)
-        resolution_time_low INTEGER DEFAULT 120,
-        resolution_time_normal INTEGER DEFAULT 48,
-        resolution_time_high INTEGER DEFAULT 24,
-        resolution_time_critical INTEGER DEFAULT 8,
-
-        -- Business hours
+        priority TEXT,
+        first_response_minutes INTEGER,
+        resolution_minutes INTEGER,
         business_hours_only BOOLEAN DEFAULT true,
-        business_hours_start TIME DEFAULT '08:00',
-        business_hours_end TIME DEFAULT '18:00',
-        business_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5],
-
-        -- Escalation
-        escalation_enabled BOOLEAN DEFAULT false,
-        escalation_after_percent INTEGER DEFAULT 80,
-        escalation_notify_users TEXT[],
-
         is_active BOOLEAN DEFAULT true,
+        is_default BOOLEAN DEFAULT false,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    // ⚠️ Form entspricht der Prod-DB und dem SLA-CRUD in tickets.ts
+    // (priority + first_response_minutes/resolution_minutes). Die frühere
+    // Definition (response_time_low/... pro Priorität) existierte nur hier
+    // und in der toten Zweitimplementierung sla-policies.ts (entfernt).
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_sla_policies_org ON sla_policies(organization_id)');
     await client.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_sla_policies_default ON sla_policies(organization_id) WHERE is_default = true');
@@ -4311,10 +4379,12 @@ export async function initializeDatabase() {
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='infinigate_document_guid') THEN
           ALTER TABLE processed_invoices ADD COLUMN infinigate_document_guid TEXT;
         END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='license_id') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='invoice_line_items')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='license_id') THEN
           ALTER TABLE invoice_line_items ADD COLUMN license_id TEXT;
         END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='serial_number') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='invoice_line_items')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='serial_number') THEN
           ALTER TABLE invoice_line_items ADD COLUMN serial_number TEXT;
         END IF;
       END $$;
@@ -4408,7 +4478,8 @@ export async function initializeDatabase() {
     await client.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='item_type') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='invoice_line_items')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoice_line_items' AND column_name='item_type') THEN
           ALTER TABLE invoice_line_items ADD COLUMN item_type TEXT CHECK(item_type IN ('license', 'subscription', 'hardware', 'service', 'other'));
         END IF;
       END $$;
@@ -4428,7 +4499,13 @@ export async function initializeDatabase() {
         RAISE NOTICE 'invoice_line_items rebilling_status check migration skipped: %', SQLERRM;
       END $$;
     `);
-    await client.query('CREATE INDEX IF NOT EXISTS idx_line_items_type ON invoice_line_items(item_type)');
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='invoice_line_items') THEN
+          CREATE INDEX IF NOT EXISTS idx_line_items_type ON invoice_line_items(item_type);
+        END IF;
+      END $$;
+    `);
     logger.info('✅ invoice_line_items item_type/internal ready');
 
     // NinjaRMM device-health Aggregatzähler (einzige per Public-API lesbare
@@ -4470,6 +4547,135 @@ export async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entry_changes_org_time ON time_entry_changes(organization_id, created_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_time_entry_changes_user ON time_entry_changes(user_id, created_at DESC)');
     logger.info('✅ time_entry_changes ready');
+
+    // ========================================================================
+    // Schema-Sweep-Angleichung (21.08.2026): Objekte, die die Prod-DB längst
+    // hat (von älteren Code-Versionen angelegt), die hier aber nie definiert
+    // wurden — ohne sie scheitert jede Neu-Installation an den ersten
+    // Requests. Auf Prod sind alle Statements No-ops (IF NOT EXISTS/guarded).
+    // Referenz: docs/prod-schema-columns.md
+    // ========================================================================
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ticket_activities (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        customer_contact_id TEXT,
+        action_type TEXT NOT NULL,
+        old_value TEXT,
+        new_value TEXT,
+        metadata JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_ticket_activities_ticket ON ticket_activities(ticket_id)');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kb_categories (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        icon TEXT,
+        sort_order INTEGER DEFAULT 0,
+        is_public BOOLEAN DEFAULT false,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS kb_articles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+        category_id TEXT REFERENCES kb_categories(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        slug TEXT,
+        content TEXT,
+        excerpt TEXT,
+        is_published BOOLEAN DEFAULT false,
+        is_featured BOOLEAN DEFAULT false,
+        view_count INTEGER DEFAULT 0,
+        helpful_yes INTEGER DEFAULT 0,
+        helpful_no INTEGER DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        published_at TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        -- tickets: in Prod vorhandene Spalten (SLA-Duplikate, Merge,
+        -- Zufriedenheit), die das CREATE hier nie kannte
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='satisfaction_rating') THEN
+          ALTER TABLE tickets ADD COLUMN satisfaction_rating INTEGER;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='satisfaction_feedback') THEN
+          ALTER TABLE tickets ADD COLUMN satisfaction_feedback TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='sla_policy_id') THEN
+          ALTER TABLE tickets ADD COLUMN sla_policy_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='first_response_due_at') THEN
+          ALTER TABLE tickets ADD COLUMN first_response_due_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='resolution_due_at') THEN
+          ALTER TABLE tickets ADD COLUMN resolution_due_at TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='sla_first_response_breached') THEN
+          ALTER TABLE tickets ADD COLUMN sla_first_response_breached BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='merged_into_id') THEN
+          ALTER TABLE tickets ADD COLUMN merged_into_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='assigned_to_user_id') THEN
+          ALTER TABLE tickets ADD COLUMN assigned_to_user_id TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tickets' AND column_name='email_subject') THEN
+          ALTER TABLE tickets ADD COLUMN email_subject TEXT;
+        END IF;
+
+        -- customer_contacts: Portal-Berechtigungen + Login-Zeitpunkt + Push
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customer_contacts' AND column_name='can_create_tickets') THEN
+          ALTER TABLE customer_contacts ADD COLUMN can_create_tickets BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customer_contacts' AND column_name='can_view_all_tickets') THEN
+          ALTER TABLE customer_contacts ADD COLUMN can_view_all_tickets BOOLEAN DEFAULT false;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customer_contacts' AND column_name='last_login') THEN
+          ALTER TABLE customer_contacts ADD COLUMN last_login TIMESTAMP;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customer_contacts' AND column_name='push_enabled') THEN
+          ALTER TABLE customer_contacts ADD COLUMN push_enabled BOOLEAN DEFAULT true;
+          ALTER TABLE customer_contacts ADD COLUMN push_on_ticket_reply BOOLEAN DEFAULT true;
+          ALTER TABLE customer_contacts ADD COLUMN push_on_status_change BOOLEAN DEFAULT true;
+        END IF;
+
+        -- users / customers / activities / social_media_posts
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='has_ticket_access') THEN
+          ALTER TABLE users ADD COLUMN has_ticket_access BOOLEAN DEFAULT true;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customers' AND column_name='customer_type') THEN
+          ALTER TABLE customers ADD COLUMN customer_type TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='activities' AND column_name='description') THEN
+          ALTER TABLE activities ADD COLUMN description TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='activities' AND column_name='pricing_type') THEN
+          ALTER TABLE activities ADD COLUMN pricing_type TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='activities' AND column_name='flat_rate') THEN
+          ALTER TABLE activities ADD COLUMN flat_rate NUMERIC(10,2);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='social_media_posts' AND column_name='metadata') THEN
+          ALTER TABLE social_media_posts ADD COLUMN metadata JSONB;
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ Schema-Sweep-Angleichung (Prod-Parität) ready');
 
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
