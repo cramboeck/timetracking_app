@@ -453,8 +453,9 @@ router.get('/devices/:id', authenticateToken, requireNinjaFeature, async (req: A
 
     const result = await query(
       `SELECT d.id, d.ninja_id, d.system_name, d.display_name, d.node_class, d.os_name,
-              d.last_contact_time, d.offline, d.last_logged_in_user, d.private_ip, d.public_ip,
-              d.processor_name, d.processor_cores, d.memory_gb, d.synced_at,
+              d.last_contact AS last_contact_time, d.offline, d.last_logged_in_user, d.private_ip, d.public_ip,
+              NULL::text AS processor_name,
+              NULL::int AS processor_cores, NULL::numeric AS memory_gb, d.synced_at,
               o.name as organization_name, c.name as customer_name
        FROM ninjarmm_devices d
        LEFT JOIN ninjarmm_organizations o ON d.organization_id = o.id

@@ -47,7 +47,6 @@ import microsoft365Routes from './routes/microsoft365';
 import contactsRoutes from './routes/contacts';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
-import slaPoliciesRoutes from './routes/sla-policies';
 import customerMetricsRoutes from './routes/customer-metrics';
 import sseRoutes from './routes/sse';
 import { apiLimiter } from './middleware/rateLimiter';
@@ -138,7 +137,6 @@ app.use('/api/microsoft365', microsoft365Routes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/interactions', interactionsRoutes);
 app.use('/api/opportunities', opportunitiesRoutes);
-app.use('/api/sla-policies', slaPoliciesRoutes);
 app.use('/api/customer-metrics', customerMetricsRoutes);
 app.use('/api/sse', sseRoutes);
 

@@ -8,20 +8,24 @@ import { emailService } from '../services/emailService';
 const router = Router();
 
 // Explicit column lists (no SELECT *)
+// ⚠️ Echte Spalten (Schema-Sweep): actual_start/actual_end existieren
+// nicht — als NULL aliasiert, damit die API-Antwort stabil bleibt
 const ANNOUNCEMENT_COLUMNS = `
   id, user_id, title, description, maintenance_type, affected_systems,
-  scheduled_start, scheduled_end, actual_start, actual_end, status,
+  scheduled_start, scheduled_end, NULL::timestamp AS actual_start,
+  NULL::timestamp AS actual_end, status,
   require_approval, approval_deadline, auto_proceed_on_no_response, notes,
   created_at, updated_at
 `;
 
 const ACTIVITY_LOG_COLUMNS = `
-  id, announcement_id, action, details, performed_by, created_at
+  id, announcement_id, action, details, actor_name AS performed_by, created_at
 `;
 
 const TEMPLATE_COLUMNS = `
   id, user_id, name, description, maintenance_type, affected_systems,
-  require_approval, auto_proceed_on_no_response, notes, is_active, created_at, updated_at
+  require_approval, auto_proceed_on_no_response, NULL::text AS notes,
+  is_active, created_at, updated_at
 `;
 
 // Validation schemas

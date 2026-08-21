@@ -1375,19 +1375,26 @@ router.post('/migrate-contacts', authenticateToken, attachOrganization, requireO
       }
     }
 
-    // 2. Extract domains from customer websites
+    // 2. Extract domains from primary_domain / customer email.
+    // ⚠️ customers hat KEINE website-Spalte (Schema-Sweep) — die alte Query
+    // crashte hier und brach die Migration ab. Domain-Quellen sind
+    // primary_domain (falls gepflegt) bzw. die Domain der Kunden-E-Mail.
     const customersWithWebsite = await pool.query(`
-      SELECT c.id, c.name, c.website
+      SELECT c.id, c.name, c.primary_domain, c.email
       FROM customers c
       WHERE c.organization_id = $1 AND c.deleted_at IS NULL
-        AND c.website IS NOT NULL
-        AND c.website != ''
+        AND (
+          (c.primary_domain IS NOT NULL AND c.primary_domain != '')
+          OR (c.email IS NOT NULL AND c.email LIKE '%@%')
+        )
     `, [organizationId]);
 
     for (const customer of customersWithWebsite.rows) {
       try {
-        // Extract domain from website URL
-        let domain = customer.website
+        const rawSource: string = customer.primary_domain && customer.primary_domain.trim() !== ''
+          ? customer.primary_domain
+          : (customer.email?.split('@')[1] ?? '');
+        let domain = rawSource
           .replace(/^https?:\/\//, '')
           .replace(/^www\./, '')
           .split('/')[0]

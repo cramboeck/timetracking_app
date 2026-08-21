@@ -63,23 +63,25 @@ async function calculateUsedHours(contractId: string, customerId: string, userId
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-  // Get time entries for this customer in the current month
-  // Only count customer_project entries (not internal or absence)
+  // Get time entries for this customer in the current month.
+  // ⚠️ Echte Spalten (Schema-Sweep): time_entries hat `duration` (Sekunden),
+  // keinen `customer_id` (läuft über projects) und kein `deleted_at` —
+  // die alte Query warf bei JEDEM Cron-Lauf "column does not exist".
   const result = await pool.query(
     `SELECT COALESCE(SUM(
       CASE
-        WHEN duration_seconds IS NOT NULL THEN duration_seconds / 3600.0
-        WHEN end_time IS NOT NULL THEN EXTRACT(EPOCH FROM (end_time - start_time)) / 3600.0
+        WHEN te.duration IS NOT NULL THEN te.duration / 3600.0
+        WHEN te.end_time IS NOT NULL THEN EXTRACT(EPOCH FROM (te.end_time - te.start_time)) / 3600.0
         ELSE 0
       END
     ), 0) as total_hours
-    FROM time_entries
-    WHERE customer_id = $1
-      AND user_id = $2
-      AND start_time >= $3
-      AND start_time <= $4
-      AND entry_scope = 'customer_project'
-      AND deleted_at IS NULL`,
+    FROM time_entries te
+    JOIN projects p ON te.project_id = p.id
+    WHERE p.customer_id = $1
+      AND te.user_id = $2
+      AND te.start_time >= $3
+      AND te.start_time <= $4
+      AND te.entry_scope = 'customer_project'`,
     [customerId, userId, startOfMonth.toISOString(), endOfMonth.toISOString()]
   );
 

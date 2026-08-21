@@ -19,8 +19,10 @@ const TASK_COLUMNS = `
   category, tags, color, completed_at, completed_by, sort_order, created_at, updated_at
 `;
 
+// ⚠️ Echte Spalte heißt `completed` (Schema-Sweep) — Alias hält die
+// API-Antwort (isCompleted nach transformRow) stabil
 const CHECKLIST_ITEM_COLUMNS = `
-  id, task_id, title, is_completed, sort_order, created_at, updated_at
+  id, task_id, title, completed AS is_completed, sort_order, created_at, updated_at
 `;
 
 // Validation schemas

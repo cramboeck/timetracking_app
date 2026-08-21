@@ -1305,8 +1305,8 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
 
         // Move tags from source to target (if not already present)
         await client.query(`
-          INSERT INTO ticket_tag_assignments (id, ticket_id, tag_id)
-          SELECT gen_random_uuid(), $1, tag_id
+          INSERT INTO ticket_tag_assignments (ticket_id, tag_id)
+          SELECT $1, tag_id
           FROM ticket_tag_assignments
           WHERE ticket_id = $2
           AND tag_id NOT IN (SELECT tag_id FROM ticket_tag_assignments WHERE ticket_id = $1)
@@ -1320,8 +1320,8 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
         // Add merge reference comment to source ticket before closing
         const mergeNoteId = crypto.randomUUID();
         await client.query(`
-          INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
-          VALUES ($1, $2, $3, $4, false, true)
+          INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal)
+          VALUES ($1, $2, $3, $4, true)
         `, [
           mergeNoteId,
           sourceTicket.id,
@@ -1354,8 +1354,8 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
       const summaryId = crypto.randomUUID();
       const sourceNumbers = sourceTickets.map((t: any) => t.ticket_number).join(', ');
       await client.query(`
-        INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal, is_system)
-        VALUES ($1, $2, $3, $4, false, true)
+        INSERT INTO ticket_comments (id, ticket_id, user_id, content, is_internal)
+        VALUES ($1, $2, $3, $4, true)
       `, [
         summaryId,
         targetId,

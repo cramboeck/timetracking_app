@@ -2346,12 +2346,26 @@ router.post('/carousel/save', authenticateToken, attachOrganization, requireOrgR
       ]
     );
 
-    // Add platform
-    await pool.query(
-      `INSERT INTO social_media_post_platforms (id, post_id, platform, status)
-       VALUES ($1, $2, $3, $4)`,
-      [crypto.randomUUID(), postId, carousel.platform, scheduleAt ? 'scheduled' : 'draft']
-    );
+    // Add platform assignment.
+    // ⚠️ social_media_post_platforms hat keine platform-Spalte (Schema-
+    // Sweep) — die Zuordnung läuft über account_id. Passenden Account der
+    // Plattform suchen; ohne verbundenen Account bleibt der Post ein
+    // Entwurf ohne Plattform-Zuordnung.
+    if (carousel.platform) {
+      const account = await pool.query(
+        `SELECT id FROM social_media_accounts
+         WHERE organization_id = $1 AND platform = $2 AND is_active = true
+         ORDER BY created_at ASC LIMIT 1`,
+        [organizationId, carousel.platform]
+      );
+      if (account.rows.length > 0) {
+        await pool.query(
+          `INSERT INTO social_media_post_platforms (id, post_id, account_id, status)
+           VALUES ($1, $2, $3, $4)`,
+          [crypto.randomUUID(), postId, account.rows[0].id, scheduleAt ? 'scheduled' : 'draft']
+        );
+      }
+    }
 
     res.json(transformRow(result.rows[0]));
   } catch (error: any) {

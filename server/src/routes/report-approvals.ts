@@ -684,10 +684,12 @@ router.get('/customer-contacts/:customerId', authenticateToken, async (req: Auth
       return res.status(403).json({ error: 'Keine Organisation zugewiesen' });
     }
 
-    // Get contacts for this customer
+    // Get contacts for this customer.
+    // ⚠️ Echte Tabelle heißt customer_contacts, das Feld job_title
+    // (Schema-Sweep: "contacts" existiert nicht — Endpoint lief in 500er)
     const contactsResult = await pool.query(
-      `SELECT id, first_name, last_name, email, phone, position, is_primary
-       FROM contacts
+      `SELECT id, first_name, last_name, email, phone, job_title AS position, is_primary
+       FROM customer_contacts
        WHERE customer_id = $1 AND organization_id = $2
        ORDER BY is_primary DESC, first_name ASC`,
       [customerId, organizationId]

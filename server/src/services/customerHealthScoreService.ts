@@ -305,20 +305,22 @@ class CustomerHealthScoreService {
       }
 
       // Get revenue metrics
+      // ⚠️ Echte Spalten (Schema-Sweep): is_billable statt billable,
+      // Zeitbezug über start_time statt der nicht existenten Spalte "date"
       const revenueMetrics = await client.query(`
         SELECT
           COALESCE(SUM(
-            CASE WHEN e.billable = true THEN
+            CASE WHEN e.is_billable = true THEN
               (EXTRACT(EPOCH FROM (e.end_time - e.start_time)) / 3600) * COALESCE(c.hourly_rate, 0)
             ELSE 0 END
           ), 0) as revenue,
           COALESCE(SUM(
-            CASE WHEN e.billable = true THEN
+            CASE WHEN e.is_billable = true THEN
               EXTRACT(EPOCH FROM (e.end_time - e.start_time)) / 3600
             ELSE 0 END
           ), 0) as hours_billed,
           COALESCE(SUM(
-            CASE WHEN e.billable = false OR e.billable IS NULL THEN
+            CASE WHEN e.is_billable = false OR e.is_billable IS NULL THEN
               EXTRACT(EPOCH FROM (e.end_time - e.start_time)) / 3600
             ELSE 0 END
           ), 0) as hours_unbilled
@@ -327,15 +329,15 @@ class CustomerHealthScoreService {
         INNER JOIN customers c ON p.customer_id = c.id
         WHERE p.customer_id = $1
           AND e.organization_id = $2
-          AND e.date >= $3
-          AND e.date <= $4
+          AND e.start_time >= $3::date
+          AND e.start_time < ($4::date + INTERVAL '1 day')
       `, [customerId, organizationId, periodStartStr, periodEndStr]);
 
       // Get contract metrics
       const contractMetrics = await client.query(`
         SELECT
           COUNT(*) FILTER (WHERE status = 'active') as active_contracts,
-          COALESCE(SUM(CASE WHEN status = 'active' THEN value ELSE 0 END), 0) as contract_value
+          COALESCE(SUM(CASE WHEN status = 'active' THEN base_price ELSE 0 END), 0) as contract_value
         FROM contracts
         WHERE customer_id = $1
           AND organization_id = $2
@@ -489,7 +491,7 @@ class CustomerHealthScoreService {
   }> {
     // Get all active customers
     const customersResult = await pool.query(
-      'SELECT id, name FROM customers WHERE organization_id = $1 AND active = true ORDER BY name',
+      'SELECT id, name FROM customers WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name',
       [organizationId]
     );
 

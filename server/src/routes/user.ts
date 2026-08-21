@@ -9,10 +9,12 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 const router = Router();
 
 // Explicit column lists (no SELECT *)
+// ⚠️ Echte Spalten (Schema-Sweep): die Leseliste erfand company_name/
+// bank_*/logo_url/invoice_* — jeder Firmendaten-GET lief in einen 500er.
+// Die Schreibpfade unten nutzten schon immer name/city/zip_code/…
 const COMPANY_INFO_COLUMNS = `
-  id, user_id, company_name, address, phone, email, website,
-  tax_id, bank_name, bank_iban, bank_bic, logo_url, invoice_prefix,
-  invoice_footer, default_payment_terms, created_at
+  id, user_id, name, address, city, zip_code, country, email, phone,
+  website, tax_id, logo, customer_number
 `;
 
 // Validation schema for user settings
@@ -285,7 +287,7 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const projectsResult = await pool.query(`SELECT id, user_id, organization_id, customer_id, name, is_active, rate_type, hourly_rate, created_at FROM projects WHERE user_id = $1`, [userId]);
     const projects = transformRows(projectsResult.rows);
 
-    const activitiesResult = await pool.query(`SELECT id, user_id, organization_id, name, is_billable, is_active, created_at FROM activities WHERE user_id = $1`, [userId]);
+    const activitiesResult = await pool.query(`SELECT id, user_id, organization_id, name, is_billable, created_at FROM activities WHERE user_id = $1`, [userId]);
     const activities = transformRows(activitiesResult.rows);
 
     const entriesResult = await pool.query(`SELECT id, user_id, organization_id, project_id, activity_id, start_time, end_time, duration, description, is_running, is_billable, created_at FROM time_entries WHERE user_id = $1`, [userId]);

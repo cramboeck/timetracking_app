@@ -969,7 +969,7 @@ export async function generateKBArticleFromTicket(
 
   // Get ticket resolution
   const ticketResult = await query(
-    `SELECT resolution, closed_at, status FROM tickets WHERE id = $1 AND user_id = $2`,
+    `SELECT solution AS resolution, closed_at, status FROM tickets WHERE id = $1 AND user_id = $2`,
     [ticketId, userId]
   );
 

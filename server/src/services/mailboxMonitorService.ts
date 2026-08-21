@@ -708,8 +708,11 @@ class MailboxMonitorService {
 
       // Save the outbound email to ticket_emails
       const emailId = crypto.randomUUID();
+      // ⚠️ Echte Spalten heißen from_email/from_name (Schema-Sweep:
+      // sender_* existiert auf ticket_emails nicht — der Verlaufs-Eintrag
+      // für ausgehende Antworten wurde nie geschrieben)
       await query(`
-        INSERT INTO ticket_emails (id, ticket_id, organization_id, message_id, direction, subject, body_preview, sender_email, sender_name, received_at)
+        INSERT INTO ticket_emails (id, ticket_id, organization_id, message_id, direction, subject, body_preview, from_email, from_name, received_at)
         VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, $8, NOW())
       `, [emailId, ticketId, organizationId, `reply-${emailId}`, lastEmail.subject, replyContent.substring(0, 250), 'support', senderName]);
 
