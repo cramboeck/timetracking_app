@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, Loader2, AlertTriangle, Plus, Pencil, Trash2, X } from 'lucide-react';
-import { workSessionsApi, organizationsApi, WorkSession } from '../services/api';
+import { workSessionsApi, organizationsApi, WorkSession, TeamCoverageRow } from '../services/api';
 import { Button } from './ui/Button';
 import { useToast, useConfirm } from '../contexts/UIContext';
 
@@ -79,6 +79,13 @@ export const TeamAttendanceView = () => {
       return (await organizationsApi.getMembers(org.id)).data;
     },
     staleTime: 5 * 60_000,
+  });
+
+  // Abdeckung & Verrechenbarkeit (Paket 4)
+  const coverageQuery = useQuery({
+    queryKey: ['workSessions', 'teamCoverage', from, to],
+    queryFn: async () => (await workSessionsApi.getTeamCoverage(from, to)).data,
+    staleTime: 60_000,
   });
 
   // Nachtragen-Modal
@@ -225,6 +232,66 @@ export const TeamAttendanceView = () => {
           Nachtragen
         </Button>
       </div>
+
+      {/* Abdeckung & Verrechenbarkeit pro Mitarbeiter */}
+      {(coverageQuery.data?.length ?? 0) > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-border">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-dark-100 text-left text-gray-500 dark:text-dark-400">
+              <tr>
+                <th className="px-3 py-2 font-medium">Abdeckung &amp; Verrechenbarkeit</th>
+                <th className="px-3 py-2 font-medium text-right">Anwesenheit</th>
+                <th className="px-3 py-2 font-medium text-right">Erfasst</th>
+                <th className="px-3 py-2 font-medium text-right">Abdeckung</th>
+                <th className="px-3 py-2 font-medium text-right">Abrechenbar</th>
+                <th className="px-3 py-2 font-medium text-right">Umsatz (€)</th>
+                <th className="px-3 py-2 font-medium text-right">Offen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
+              {(coverageQuery.data ?? []).map((row: TeamCoverageRow) => {
+                const lowCoverage = row.coveragePercent !== null && row.coveragePercent < 85;
+                return (
+                  <tr key={row.userId} className="bg-white dark:bg-dark-50">
+                    <td className="px-3 py-2 text-gray-900 dark:text-white">{row.userName}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtHours(row.attendanceSeconds)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{fmtHours(row.recordedSeconds)}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums font-semibold ${
+                      row.coveragePercent === null ? 'text-gray-400'
+                        : lowCoverage ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'
+                    }`}>
+                      {row.coveragePercent !== null ? `${row.coveragePercent} %` : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {fmtHours(row.billableSeconds)}
+                      {row.billablePercent !== null && (
+                        <span className="text-xs text-gray-400 ml-1">({row.billablePercent} %)</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-white">
+                      {row.billableAmount.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {row.unassignedSeconds > 0 ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          {fmtHours(row.unassignedSeconds)}
+                          {row.unassignedAmountEstimate !== null && row.unassignedAmountEstimate > 0 && (
+                            <span className="text-xs ml-1">≈ {row.unassignedAmountEstimate.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="text-xs text-gray-400 dark:text-dark-400 px-3 py-2 border-t border-gray-100 dark:border-dark-border">
+            „Offen" = Anwesenheit ohne zugeordneten Eintrag; €-Schätzung auf Basis des realisierten Ø-Stundensatzes im Zeitraum.
+            Mitarbeiter unter 85 % Abdeckung erhalten morgens automatisch eine Erinnerung mit Link auf ihre Tages-Timeline.
+          </p>
+        </div>
+      )}
 
       {teamQuery.isLoading ? (
         <div className="flex justify-center py-10">

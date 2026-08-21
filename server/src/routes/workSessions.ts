@@ -463,6 +463,92 @@ router.delete('/admin/:id', authenticateToken, attachOrganization, requireOrgRol
   }
 });
 
+// GET /api/work-sessions/team-coverage?from=&to= — Abdeckung & Verrechenbarkeit
+// pro Teammitglied (nur Admin/Owner): Anwesenheit vs. erfasste Zeiten vs.
+// abrechenbare Zeiten inkl. €-Bewertung (Stundensatz: Projekt, sonst Kunde).
+router.get('/team-coverage', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(rangeSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const from = (req.query.from as string) || new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
+
+    const attendance = await query(
+      `SELECT ws.user_id,
+              SUM(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(ws.ended_at, NOW()) - ws.started_at))::int
+                  - ws.break_seconds
+                  - COALESCE(EXTRACT(EPOCH FROM (NOW() - ws.break_started_at))::int, 0)))::bigint AS attendance_seconds
+       FROM work_sessions ws
+       WHERE ws.organization_id = $1 AND ws.work_date BETWEEN $2 AND $3
+       GROUP BY ws.user_id`,
+      [organizationId, from, to]
+    );
+
+    const recorded = await query(
+      `SELECT te.user_id,
+              SUM(CASE WHEN te.entry_scope IN ('customer_project', 'internal') THEN COALESCE(te.duration, 0) ELSE 0 END)::bigint AS recorded_seconds,
+              SUM(CASE WHEN te.entry_scope = 'customer_project' AND te.is_billable THEN COALESCE(te.duration, 0) ELSE 0 END)::bigint AS billable_seconds,
+              SUM(CASE WHEN te.entry_scope = 'customer_project' AND te.is_billable
+                       THEN COALESCE(te.duration, 0) / 3600.0 * COALESCE(NULLIF(p.hourly_rate, 0), c.hourly_rate, 0)
+                       ELSE 0 END)::numeric AS billable_amount
+       FROM time_entries te
+       LEFT JOIN projects p ON te.project_id = p.id
+       LEFT JOIN customers c ON p.customer_id = c.id
+       WHERE te.organization_id = $1
+         AND te.is_running = false
+         AND te.start_time >= $2::date AND te.start_time < ($3::date + INTERVAL '1 day')
+       GROUP BY te.user_id`,
+      [organizationId, from, to]
+    );
+
+    const members = await query(
+      `SELECT om.user_id, COALESCE(u.display_name, u.username) AS user_name
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       WHERE om.organization_id = $1`,
+      [organizationId]
+    );
+
+    const attByUser = new Map<string, number>(attendance.rows.map((r: any) => [r.user_id, Number(r.attendance_seconds)]));
+    const recByUser = new Map<string, any>(recorded.rows.map((r: any) => [r.user_id, r]));
+
+    const data = members.rows
+      .map((m: any) => {
+        const att = attByUser.get(m.user_id) ?? 0;
+        const rec = recByUser.get(m.user_id);
+        const recordedSeconds = rec ? Number(rec.recorded_seconds) : 0;
+        const billableSeconds = rec ? Number(rec.billable_seconds) : 0;
+        const billableAmount = rec ? Math.round(Number(rec.billable_amount) * 100) / 100 : 0;
+        const unassignedSeconds = Math.max(0, att - recordedSeconds);
+        // €-Schätzung für nicht zugeordnete Zeit: realisierter Ø-Stundensatz
+        // des Zeitraums (nur wenn eine Basis existiert)
+        const avgRate = billableSeconds > 0 ? billableAmount / (billableSeconds / 3600) : null;
+        const unassignedAmountEstimate = avgRate !== null
+          ? Math.round((unassignedSeconds / 3600) * avgRate * 100) / 100
+          : null;
+        return {
+          userId: m.user_id,
+          userName: m.user_name,
+          attendanceSeconds: att,
+          recordedSeconds,
+          billableSeconds,
+          billableAmount,
+          unassignedSeconds,
+          unassignedAmountEstimate,
+          coveragePercent: att > 0 ? Math.round((recordedSeconds / att) * 100) : null,
+          billablePercent: att > 0 ? Math.round((billableSeconds / att) * 100) : null,
+        };
+      })
+      .filter(row => row.attendanceSeconds > 0 || row.recordedSeconds > 0)
+      .sort((a, b) => a.userName.localeCompare(b.userName, 'de'));
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    logger.error('Team coverage error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load team coverage' });
+  }
+});
+
 // GET /api/work-sessions/team?from=&to= — org-weite Auswertung (nur Admin/Owner)
 router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(rangeSchema), async (req: AuthRequest, res: Response) => {
   try {

@@ -622,6 +622,20 @@ export interface WorkSession {
   userName?: string;       // nur in der Team-Auswertung befüllt
 }
 
+// Team-Abdeckung & Verrechenbarkeit (Berichte → Arbeitszeit, Admin)
+export interface TeamCoverageRow {
+  userId: string;
+  userName: string;
+  attendanceSeconds: number;
+  recordedSeconds: number;
+  billableSeconds: number;
+  billableAmount: number;
+  unassignedSeconds: number;
+  unassignedAmountEstimate: number | null;
+  coveragePercent: number | null;
+  billablePercent: number | null;
+}
+
 // Tages-Abdeckung: Anwesenheit (work_sessions) vs. erfasste Zeiten (time_entries)
 export interface WorkDayCoverage {
   date: string;
@@ -694,6 +708,14 @@ export const workSessionsApi = {
 
   adminDelete: async (id: string): Promise<{ success: boolean }> => {
     return authFetch(`/work-sessions/admin/${id}`, { method: 'DELETE' });
+  },
+
+  getTeamCoverage: async (from?: string, to?: string): Promise<{ success: boolean; data: TeamCoverageRow[] }> => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return authFetch(`/work-sessions/team-coverage${qs ? `?${qs}` : ''}`);
   },
 
   listTeam: async (from?: string, to?: string): Promise<{ success: boolean; data: WorkSession[] }> => {

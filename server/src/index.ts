@@ -12,6 +12,7 @@ import { startSevdeskVoucherSyncJob } from './jobs/sevdeskVoucherSync';
 import { startSevdeskCustomerSyncJob } from './jobs/sevdeskCustomerSync';
 import { startInfinigateSyncJob } from './jobs/infinigateSync';
 import { startContractHoursJob } from './jobs/contractHoursCron';
+import { startCoverageReminderJob } from './jobs/coverageReminderCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
@@ -236,6 +237,7 @@ startInfinigateSyncJob();
 // Start Contract Hours Check job (daily at 6:00 AM)
 // Warns when customers approach/exceed their included monthly hours
 startContractHoursJob();
+startCoverageReminderJob();
 
 // Start Invoice Inbox Cron (every 15 minutes)
 // Polls invoice mailbox, extracts attachments, runs OCR, creates draft entries

@@ -32,7 +32,7 @@ export type {
 
 // Core API (entries, projects, customers, activities, tasks, work sessions)
 export { entriesApi, projectsApi, customersApi, activitiesApi, tasksApi, workSessionsApi, absenceRequestsApi };
-export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters, TeamEntryFilters, TeamMember, TeamEntryStats, TeamEntriesResponse, WorkSession, WorkDayCoverage, AbsenceRequest, AbsenceRequestStatus, AbsenceCategory, TimeEntryChange, TimeEntryChangeSnapshot } from './core';
+export type { CreateTaskInput, UpdateTaskInput, SimilarTasksResponse, PaginationMeta, EntryFilters, TeamEntryFilters, TeamMember, TeamEntryStats, TeamEntriesResponse, WorkSession, WorkDayCoverage, TeamCoverageRow, AbsenceRequest, AbsenceRequestStatus, AbsenceCategory, TimeEntryChange, TimeEntryChangeSnapshot } from './core';
 
 // Tickets API
 export { ticketsApi, knowledgeBaseApi, publicKbApi } from './tickets';
