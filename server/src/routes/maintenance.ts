@@ -220,7 +220,7 @@ router.post('/announcements', authenticateToken, validate(createAnnouncementSche
       // Create the ticket
       await query(
         `INSERT INTO tickets (id, ticket_number, user_id, customer_id, title, description, priority, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'medium', 'open')`,
+         VALUES ($1, $2, $3, $4, $5, $6, 'normal', 'open')`,
         [ticketId, ticketNumber, userId, customerIds[0], `Wartung: ${title}`, description || `Geplante Wartung: ${title}`]
       );
     }
