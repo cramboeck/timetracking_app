@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarClock } from 'lucide-react';
 import { TimeEntry, Customer, Project, Activity } from '../types';
 import { WeeklyGridView } from './WeeklyGridView';
 import { TimeEntriesList } from './TimeEntriesList';
 import { CalendarView } from './CalendarView';
+import { DayTimelineView } from './DayTimelineView';
 
-type ViewMode = 'grid' | 'list' | 'calendar';
+type ViewMode = 'grid' | 'list' | 'calendar' | 'day';
 
 const STORAGE_KEY = 'arbeiten_zeiten_view_mode';
 const DEFAULT_MODE: ViewMode = 'grid';
@@ -25,7 +26,7 @@ interface TimeViewsProps {
 }
 
 const isViewMode = (s: string | null): s is ViewMode =>
-  s === 'grid' || s === 'list' || s === 'calendar';
+  s === 'grid' || s === 'list' || s === 'calendar' || s === 'day';
 
 export const TimeViews = (props: TimeViewsProps) => {
   const location = useLocation();
@@ -82,6 +83,7 @@ export const TimeViews = (props: TimeViewsProps) => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="inline-flex items-center bg-gray-100 dark:bg-dark-200 rounded-lg p-1 gap-1">
           {([
+            { key: 'day', label: 'Tag', icon: CalendarClock },
             { key: 'grid', label: 'Raster', icon: LayoutGrid },
             { key: 'list', label: 'Liste', icon: ListIcon },
             { key: 'calendar', label: 'Kalender', icon: CalendarIcon },
@@ -107,6 +109,15 @@ export const TimeViews = (props: TimeViewsProps) => {
       </div>
 
       {/* Active view */}
+      {mode === 'day' && (
+        <DayTimelineView
+          entries={props.entries}
+          projects={props.projects}
+          customers={props.customers}
+          activities={props.activities}
+          onCreateEntry={props.onCreateEntry}
+        />
+      )}
       {mode === 'grid' && (
         <WeeklyGridView
           entries={props.entries}
