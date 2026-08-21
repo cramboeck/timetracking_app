@@ -6,6 +6,7 @@ import { formatDuration, formatTime, formatDate, calculateDuration } from '../ut
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SearchableSelect } from './SearchableSelect';
+import { ModernDatePicker } from './ModernDatePicker';
 import { useAuth } from '../contexts/AuthContext';
 import { aiApi, entriesApi, PaginationMeta } from '../services/api';
 import { Button, IconButton } from './ui/Button';
@@ -1530,13 +1531,9 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                   )}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-[1.4fr,1fr,1fr] gap-3">
-                  <input
-                    type="date"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    required
-                    className={`col-span-2 sm:col-span-1 ${inputClasses}`}
-                  />
+                  <div className="col-span-2 sm:col-span-1">
+                    <ModernDatePicker value={editDate} onChange={setEditDate} />
+                  </div>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1647,13 +1644,14 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
       <Modal
         isOpen={bulkEditModal}
         onClose={() => setBulkEditModal(false)}
-        title={`Massenbearbeitung (${selectedEntries.size} Einträge)`}
+        title="Massenbearbeitung"
+        maxWidth="xl"
         footer={
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
             <Button
               onClick={() => setBulkEditModal(false)}
               variant="secondary"
-              fullWidth
+              className="w-full sm:w-auto sm:px-6"
             >
               Abbrechen
             </Button>
@@ -1662,95 +1660,105 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               disabled={bulkProcessing || (!bulkProjectId && bulkDescriptionMode === 'keep' && !bulkActivityId)}
               loading={bulkProcessing}
               variant="primary"
-              fullWidth
+              className="w-full sm:w-auto sm:px-8"
             >
               {selectedEntries.size} Einträge aktualisieren
             </Button>
           </div>
         }
       >
-        <div className="space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              Änderungen werden auf alle {selectedEntries.size} ausgewählten Einträge angewendet.
+        <div className="space-y-5">
+          <div className="flex items-center gap-3 rounded-xl bg-accent-lighter dark:bg-accent-primary/15 px-4 py-3">
+            <span className="min-w-[36px] h-9 px-2 rounded-lg bg-accent-primary text-white text-lg font-bold inline-flex items-center justify-center tabular-nums">
+              {selectedEntries.size}
+            </span>
+            <p className="text-sm text-accent-dark dark:text-accent-primary">
+              ausgewählte Einträge werden gemeinsam geändert — leere Felder bleiben unangetastet.
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Neues Projekt zuweisen
-            </label>
-            <select
-              value={bulkProjectId}
-              onChange={(e) => setBulkProjectId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="">— Nicht ändern —</option>
-              {projects.filter(p => p.isActive).map(project => {
-                const customer = getCustomerById(project.customerId);
-                return (
-                  <option key={project.id} value={project.id}>
-                    {customer?.name} - {project.name}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                Projekt zuweisen
+              </label>
+              <SearchableSelect
+                options={[
+                  { value: '', label: '— Nicht ändern —' },
+                  ...projects.filter(p => p.isActive).map(project => {
+                    const customer = getCustomerById(project.customerId);
+                    return { value: project.id, label: project.name, sublabel: customer?.name };
+                  }),
+                ]}
+                value={bulkProjectId}
+                onChange={setBulkProjectId}
+                placeholder="Projekt oder Kunde suchen…"
+                allowClear={false}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                Tätigkeit zuweisen
+              </label>
+              <select
+                value={bulkActivityId}
+                onChange={(e) => setBulkActivityId(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              >
+                <option value="">— Nicht ändern —</option>
+                <option value="__remove__">— Tätigkeit entfernen —</option>
+                {activities.map(activity => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name}
                   </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Beschreibung
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="descriptionMode"
-                  checked={bulkDescriptionMode === 'keep'}
-                  onChange={() => setBulkDescriptionMode('keep')}
-                  className="text-accent-primary focus:ring-accent-primary"
-                />
-                <span className="text-sm text-gray-700 dark:text-dark-500">Nicht ändern</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="descriptionMode"
-                  checked={bulkDescriptionMode === 'replace'}
-                  onChange={() => setBulkDescriptionMode('replace')}
-                  className="text-accent-primary focus:ring-accent-primary"
-                />
-                <span className="text-sm text-gray-700 dark:text-dark-500">Ersetzen durch:</span>
-              </label>
-              {bulkDescriptionMode === 'replace' && (
-                <textarea
-                  value={bulkDescription}
-                  onChange={(e) => setBulkDescription(e.target.value)}
-                  rows={2}
-                  placeholder="Neue Beschreibung..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
-                />
-              )}
+                ))}
+              </select>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Tätigkeit zuweisen
-            </label>
-            <select
-              value={bulkActivityId}
-              onChange={(e) => setBulkActivityId(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-            >
-              <option value="">— Nicht ändern —</option>
-              <option value="__remove__">— Tätigkeit entfernen —</option>
-              {activities.map(activity => (
-                <option key={activity.id} value={activity.id}>
-                  {activity.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
+                Beschreibung
+              </label>
+              <div className="inline-flex items-center bg-gray-100 dark:bg-dark-200 rounded-lg p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setBulkDescriptionMode('keep')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    bulkDescriptionMode === 'keep'
+                      ? 'bg-white dark:bg-dark-50 text-accent-primary shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400'
+                  }`}
+                >
+                  Nicht ändern
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkDescriptionMode('replace')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    bulkDescriptionMode === 'replace'
+                      ? 'bg-white dark:bg-dark-50 text-accent-primary shadow-sm'
+                      : 'text-gray-600 dark:text-dark-400'
+                  }`}
+                >
+                  Ersetzen
+                </button>
+              </div>
+            </div>
+            {bulkDescriptionMode === 'replace' ? (
+              <textarea
+                value={bulkDescription}
+                onChange={(e) => setBulkDescription(e.target.value)}
+                rows={3}
+                placeholder="Neue Beschreibung für alle ausgewählten Einträge…"
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
+              />
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-dark-400">
+                Die bestehenden Beschreibungen bleiben erhalten.
+              </p>
+            )}
           </div>
         </div>
       </Modal>

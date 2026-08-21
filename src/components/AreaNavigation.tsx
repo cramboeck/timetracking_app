@@ -235,7 +235,9 @@ export const AreaNavigation = ({
         backdrop-blur-xl
         border-t border-white/20 dark:border-dark-border/50
       ">
-        <div className="flex justify-around items-center h-16 px-2">
+        {/* flex-1 + min-w-0 statt fester px-4-Breiten: mit 6 Bereichen lief
+            die Leiste sonst rechts aus dem Viewport (Finanzen unerreichbar) */}
+        <div className="flex items-center h-16 px-1">
           {visibleAreas.map((area) => {
             const config = areaConfig[area];
             const Icon = config.icon;
@@ -245,14 +247,14 @@ export const AreaNavigation = ({
               <button
                 key={area}
                 onClick={() => onAreaChange(area)}
-                className={`relative flex flex-col items-center justify-center px-4 py-1 rounded-2xl touch-manipulation transition-all duration-200 active:scale-95 ${
+                className={`relative flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-1 rounded-2xl touch-manipulation transition-all duration-200 active:scale-95 ${
                   isActive
                     ? 'text-accent-primary bg-accent-primary/15'
                     : 'text-gray-500 dark:text-dark-400'
                 }`}
               >
                 <Icon size={22} strokeWidth={isActive ? 2.5 : 1.5} />
-                <span className={`text-[10px] mt-0.5 ${
+                <span className={`text-[10px] mt-0.5 max-w-full truncate ${
                   isActive ? 'font-bold' : 'font-medium'
                 }`}>
                   {config.label}

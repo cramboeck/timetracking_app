@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FileText, PieChart, TrendingUp, Calendar, Users, Coffee, Briefcase, History } from 'lucide-react';
 import { Button } from './ui';
 import { ReportAssistant } from './ReportAssistant';
@@ -12,6 +13,7 @@ import { InternalExpenses } from './InternalExpenses';
 import { TimeEntryChangeLog } from './TimeEntryChangeLog';
 import { TimeEntry, Project, Customer, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { absenceRequestsApi } from '../services/api';
 
 type ReportTab = 'customer' | 'internal' | 'absences' | 'team' | 'team-absences' | 'attendance' | 'requests' | 'changes';
 
@@ -34,6 +36,16 @@ export const ReportsPage = ({
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin';
+
+  // Offene Urlaubsanträge als Badge am „Anträge"-Tab (nur Admins)
+  const pendingRequestsQuery = useQuery({
+    queryKey: ['absenceRequests', 'team', 'pending'],
+    queryFn: async () => (await absenceRequestsApi.listTeam('pending')).data,
+    enabled: isAdmin,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const pendingCount = pendingRequestsQuery.data?.length ?? 0;
 
   // Calculate some quick stats
   const thisMonth = new Date();
@@ -161,6 +173,11 @@ export const ReportsPage = ({
                     <Calendar size={18} />
                     <span className="hidden sm:inline">Anträge</span>
                     <span className="sm:hidden">Antr.</span>
+                    {pendingCount > 0 && (
+                      <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent-primary text-white text-[11px] font-bold inline-flex items-center justify-center">
+                        {pendingCount}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setActiveTab('changes')}
