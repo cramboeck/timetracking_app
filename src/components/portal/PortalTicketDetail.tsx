@@ -4,7 +4,7 @@ import {
   Paperclip, Download, Trash2, XCircle, RotateCcw, Star, FileText,
   Image, File, Archive
 } from 'lucide-react';
-import { customerPortalApi, PortalTicket, PortalComment } from '../../services/api';
+import { customerPortalApi, PortalTicket } from '../../services/api';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Button, IconButton } from '../ui/Button';

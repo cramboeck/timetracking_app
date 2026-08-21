@@ -1,6 +1,6 @@
-import { Bot, Sparkles, Lightbulb, Tag, ChevronDown, MessageSquare, Loader2, ThumbsUp, ThumbsDown, Copy, ArrowRight } from 'lucide-react';
+import { Sparkles, Lightbulb, Tag, ChevronDown, MessageSquare, Loader2, ThumbsUp, ThumbsDown, Copy, ArrowRight } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
-import { AISuggestion, TicketPriority } from './types';
+import { AISuggestion } from './types';
 
 interface TicketAIPanelProps {
   suggestions: AISuggestion[];

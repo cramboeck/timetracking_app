@@ -56,7 +56,6 @@ export const InternalTimeReport = ({ entries }: InternalTimeReportProps) => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [showDetails, setShowDetails] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
 
   // Filter entries for selected month
   const monthEntries = useMemo(() => {
@@ -107,7 +106,6 @@ export const InternalTimeReport = ({ entries }: InternalTimeReportProps) => {
   // Calculate weeks in selected month for goal comparison
   const weeksInMonth = useMemo(() => {
     const [year, month] = selectedMonth.split('-').map(Number);
-    const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth = new Date(year, month, 0);
 
     // Approximate weeks (days / 7)

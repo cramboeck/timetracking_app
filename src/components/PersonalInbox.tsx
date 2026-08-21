@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Loader2, AlertTriangle, RefreshCw, Users, MessageSquare,
   CheckCircle, Paperclip, Clock, ChevronDown, ChevronUp,
-  ArrowDownLeft, ArrowUpRight, Search
+  Search
 } from 'lucide-react';
 import { microsoft365Api, customersApi, SupportEmail } from '../services/api';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';

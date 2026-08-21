@@ -1418,25 +1418,6 @@ export const ReportAssistant = ({
         amount: 0
       }));
 
-      // Create customer data object
-      const customerData: CustomerReportData = {
-        customer: {
-          id: report.customer_id,
-          name: report.customer_name,
-          reportTitle: report.report_title,
-        } as Customer,
-        totalHours: report.total_hours,
-        totalAmount: 0,
-        projectCount: report.project_count,
-        entryCount: report.entry_count
-      };
-
-      // Create PDF config for this report
-      const config: PdfConfig = {
-        ...pdfConfig,
-        reportTitle: report.report_title || 'Dienstleistungsnachweis'
-      };
-
       // Generate PDF using saved entries
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
@@ -1730,7 +1711,6 @@ export const ReportAssistant = ({
       });
 
       if (response.ok) {
-        const data = await response.json();
         setSaveMessage({
           type: 'success',
           text: sendApprovalDialog.testMode

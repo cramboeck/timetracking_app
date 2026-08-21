@@ -23,36 +23,27 @@ import {
   Ticket,
   FileSignature,
   MessageSquare,
-  Target,
   Calendar,
   ChevronRight,
   ChevronLeft,
   Plus,
   Search,
-  Filter,
-  MoreHorizontal,
   TrendingUp,
   TrendingDown,
-  AlertCircle,
   CheckCircle2,
   XCircle,
   Activity,
   Heart,
   DollarSign,
   RefreshCw,
-  ExternalLink,
   Edit2,
   ListTodo,
-  FileText,
   UserPlus,
   PhoneCall,
-  MailPlus,
-  ClipboardList,
   Timer,
   Briefcase,
   AlertTriangle,
   Award,
-  Zap,
   Inbox,
   X,
   Package,
@@ -73,7 +64,6 @@ import { StatWidget } from './ui/StatWidget';
 import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
-import { Modal } from './Modal';
 import { CustomerContacts } from './CustomerContacts';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { useToast } from '../contexts/UIContext';
@@ -137,16 +127,6 @@ const formatDate = (dateStr: string) => {
   });
 };
 
-const formatDateTime = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
 const formatDuration = (seconds: number) => {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -182,7 +162,7 @@ const getRelativeTime = (dateStr: string) => {
 // ============================================
 
 const calculateHealthScore = (
-  customer: Customer,
+  _customer: Customer,
   tickets: TicketType[],
   tasks: Task[],
   interactions: Interaction[],
@@ -280,7 +260,7 @@ interface HealthBadgeProps {
   factors?: CustomerHealthScore['factors'];
 }
 
-const HealthBadge: React.FC<HealthBadgeProps> = ({ score, trend, showDetails, factors }) => {
+const HealthBadge: React.FC<HealthBadgeProps> = ({ score, trend, factors }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
   const getColor = () => {
@@ -1884,7 +1864,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4">
               <PersonalInbox
-                onEmailSaved={(interactionId, customerId) => {
+                onEmailSaved={(_interactionId, customerId) => {
                   // Refresh customer data if viewing that customer
                   if (customerId === selectedCustomerId) {
                     loadCustomerData(customerId);

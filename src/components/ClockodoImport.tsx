@@ -63,7 +63,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
   // API-specific state
   const [apiEmail, setApiEmail] = useState<string>('');
   const [apiKey, setApiKey] = useState<string>('');
-  const [apiConfigured, setApiConfigured] = useState(false);
+  const [, setApiConfigured] = useState(false);
   const [connectionTested, setConnectionTested] = useState(false);
   const [connectionInfo, setConnectionInfo] = useState<{ userName?: string; companyName?: string } | null>(null);
   const [timeSince, setTimeSince] = useState<string>('');

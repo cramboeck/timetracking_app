@@ -9,8 +9,7 @@ import {
   Target,
   Users,
   History,
-  Trash2,
-} from 'lucide-react';
+  } from 'lucide-react';
 import { socialMediaApi } from '../../../../services/api';
 import { PLATFORM_ICONS, PLATFORM_COLORS, DEFAULT_ENGAGEMENT_SETTINGS } from '../../constants';
 import type { EngagementSettings, EngagementHistoryItem, Platform } from '../../types';

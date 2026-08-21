@@ -30,7 +30,7 @@ const initialState: PostEditorState = {
 };
 
 export function usePostEditor() {
-  const { addPost, updatePost, refreshPosts } = useSocialMedia();
+  const { addPost, updatePost } = useSocialMedia();
   const [state, setState] = useState<PostEditorState>(initialState);
 
   // Open editor for new post

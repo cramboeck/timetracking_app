@@ -28,7 +28,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
 
   // Delete confirmation
   const [deleteDomain, setDeleteDomain] = useState<CustomerEmailDomain | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [, setDeleting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {

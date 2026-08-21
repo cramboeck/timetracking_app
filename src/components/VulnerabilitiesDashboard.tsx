@@ -5,7 +5,7 @@ import {
   RefreshCw, Monitor, ExternalLink, Ticket, Filter, ChevronDown,
   CheckCircle, XCircle, Eye, EyeOff
 } from 'lucide-react';
-import { ninjaApi, NinjaVulnerability, VulnerabilitySummary } from '../services/api';
+import { ninjaApi, NinjaVulnerability } from '../services/api';
 import { Button } from './ui';
 import { useToast } from '../contexts/UIContext';
 

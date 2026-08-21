@@ -1,4 +1,4 @@
-import { Plus, Play, Square } from 'lucide-react';
+import { Play, Square } from 'lucide-react';
 import { haptics } from '../utils/haptics';
 
 interface FloatingActionButtonProps {

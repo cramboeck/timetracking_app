@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
   Search,
-  Filter,
   Clock,
   CheckCircle,
   Edit,
@@ -25,7 +24,7 @@ type PlatformFilter = 'all' | Platform;
 const PLATFORMS: Platform[] = ['linkedin', 'twitter', 'facebook', 'instagram'];
 
 export default function PostsTab() {
-  const { posts, removePost, updatePost, refreshPosts, setViewMode, setContentStudioTab } = useSocialMedia();
+  const { posts, removePost, updatePost, setViewMode, setContentStudioTab } = useSocialMedia();
   const confirm = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');

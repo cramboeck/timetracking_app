@@ -1,15 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Calendar, List, Plus, Sparkles, Hash, FileText, Settings, Send,
+  Plus, Sparkles, Hash, FileText, Settings, Send,
   ChevronLeft, ChevronRight, Edit2, Trash2, Copy, Clock, Check, CheckCircle,
   Linkedin, Twitter, Facebook, Instagram, X, Loader2, AlertCircle,
   Layers, Lightbulb, ListOrdered, Zap, Upload, BarChart3, TrendingUp,
   Recycle, Search, RefreshCw, Rocket, Globe, FileCode, Users, MessageCircle,
-  Play, Pause, ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
-  LayoutDashboard, PenTool, Bot, Library, ArrowRight, ArrowUp, ArrowDown, Target, Eye, CalendarDays,
-  Heart, MousePointer, MessageSquare
+  ThumbsUp, ThumbsDown, ExternalLink, Image, Wand2, Film,
+  LayoutDashboard, PenTool, Bot, Library, ArrowRight, Target, Eye, CalendarDays,
+  MousePointer
 } from 'lucide-react';
-import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, SocialMediaStory, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, CarouselSlide, ThemeSelectionOutput } from '../services/api';
+import { socialMediaApi, SocialMediaPost, SocialMediaTemplate, SocialMediaHashtagGroup, SocialMediaAccount, GeneratedStoryContent, GeneratedImage, MarketingAnalysis, WizardContentGeneration, ContentImprovement, AutoImprovementResult, CarouselContent, ThemeSelectionOutput } from '../services/api';
 import { Customer } from '../types';
 import { Modal } from './Modal';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -225,7 +225,6 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [engagementSettingsLoaded, setEngagementSettingsLoaded] = useState(false);
 
   // Stories state
-  const [stories, setStories] = useState<SocialMediaStory[]>([]);
   const [showStoryCreator, setShowStoryCreator] = useState(false);
   const [storyTopic, setStoryTopic] = useState('');
   const [storyType, setStoryType] = useState<StoryType>('promotional');
@@ -261,11 +260,11 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [wizardSelectedAlternative, setWizardSelectedAlternative] = useState(0);
   const [wizardAnalysis, setWizardAnalysis] = useState<MarketingAnalysis | null>(null);
   const [wizardAnalyzing, setWizardAnalyzing] = useState(false);
-  const [wizardImprovement, setWizardImprovement] = useState<ContentImprovement | null>(null);
+  const [, setWizardImprovement] = useState<ContentImprovement | null>(null);
   const [wizardImproving, setWizardImproving] = useState(false);
   const [wizardAutoImprovement, setWizardAutoImprovement] = useState<AutoImprovementResult | null>(null);
   const [wizardAutoImproving, setWizardAutoImproving] = useState(false);
-  const [wizardAutoImprovingStatus, setWizardAutoImprovingStatus] = useState('');
+  const [, setWizardAutoImprovingStatus] = useState('');
   const [wizardGeneratedImage, setWizardGeneratedImage] = useState<GeneratedImage | null>(null);
   const [wizardGeneratingImage, setWizardGeneratingImage] = useState(false);
   const [wizardEditedContent, setWizardEditedContent] = useState('');
@@ -287,7 +286,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
   const [carouselContent, setCarouselContent] = useState<CarouselContent | null>(null);
   const [carouselCurrentSlide, setCarouselCurrentSlide] = useState(0);
   const [carouselGeneratingImages, setCarouselGeneratingImages] = useState(false);
-  const [carouselSlideImages, setCarouselSlideImages] = useState<Array<{ slideNumber: number; imageUrl: string }>>([]);
+  const [, setCarouselSlideImages] = useState<Array<{ slideNumber: number; imageUrl: string }>>([]);
 
   // Load data
   useEffect(() => {
@@ -414,15 +413,6 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
     setCreateSubView('batch');
   };
 
-  // Add single post to queue
-  const addToQueue = async (content: string, hashtags: string[]) => {
-    try {
-      await socialMediaApi.addToQueue({ content, hashtags });
-      loadQueue();
-    } catch (err) {
-      console.error('Failed to add to queue:', err);
-    }
-  };
 
   // Load analytics data
   const loadAnalytics = async () => {

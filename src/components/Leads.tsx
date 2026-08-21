@@ -6,21 +6,14 @@ import {
   Trash2,
   Phone,
   Mail,
-  Globe,
-  Building2,
-  User,
-  Calendar,
   DollarSign,
   Target,
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
-  ChevronRight,
   MoreVertical,
   UserPlus,
-  TrendingUp,
-  Filter,
   Search,
   Flame,
 } from 'lucide-react';
@@ -30,7 +23,6 @@ import {
   LeadStatus,
   LeadSource,
   LeadPriority,
-  LeadActivity,
   CreateLeadInput,
 } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -105,8 +97,6 @@ interface LeadCardProps {
 
 const LeadCard: React.FC<LeadCardProps> = ({ lead, onEdit, onStatusChange, onConvert, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
-  const priorityConfig = PRIORITY_CONFIG[lead.priority];
-  const statusConfig = STATUS_CONFIG[lead.status];
 
   return (
     <div
@@ -388,7 +378,7 @@ const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCanc
   const [company, setCompany] = useState(lead?.company || '');
   const [email, setEmail] = useState(lead?.email || '');
   const [phone, setPhone] = useState(lead?.phone || '');
-  const [website, setWebsite] = useState(lead?.website || '');
+  const [website] = useState(lead?.website || '');
   const [status, setStatus] = useState<LeadStatus>(lead?.status || initialStatus || 'new');
   const [source, setSource] = useState<LeadSource | ''>(lead?.source || '');
   const [priority, setPriority] = useState<LeadPriority>(lead?.priority || 'normal');
@@ -768,10 +758,6 @@ const Leads: React.FC = () => {
   const totalValue = filteredLeads
     .filter((l) => !closedStatuses.includes(l.status))
     .reduce((sum, l) => sum + (l.estimatedValue || 0), 0);
-  const wonValue = filteredLeads
-    .filter((l) => l.status === 'won')
-    .reduce((sum, l) => sum + (l.estimatedValue || 0), 0);
-
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Contrast, Building, Upload, X, Users2, Copy, Shield, UserPlus, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive } from 'lucide-react';
-import { Customer, Project, Activity, GrayTone, TimeEntry } from '../types';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive } from 'lucide-react';
+import { Customer, Project, Activity, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -18,7 +18,6 @@ import { ClockodoImport } from './ClockodoImport';
 import { Microsoft365Settings } from './Microsoft365Settings';
 import { EmailDiagnostics } from './settings/EmailDiagnostics';
 import { Link2 } from 'lucide-react';
-import { AccountSettings } from './settings/AccountSettings';
 import { AppearanceSettings } from './settings/AppearanceSettings';
 import { NotificationSettings } from './settings/NotificationSettings';
 import { CompanySettings } from './settings/CompanySettings';
@@ -26,13 +25,11 @@ import { TeamSettings } from './settings/TeamSettings';
 import { TeamProvider } from '../contexts/TeamContext';
 import StorageMonitor from './admin/StorageMonitor';
 import { useAuth } from '../contexts/AuthContext';
-import { getRoundingIntervalLabel } from '../utils/timeRounding';
 import { gdprService } from '../utils/gdpr';
 import { authApi, userApi, sevdeskApi, organizationsApi, customersApi, contractsApi, Organization } from '../services/api';
 import Papa from 'papaparse';
 import { getTemplatesByCategory, ActivityTemplate } from '../data/activityTemplates';
 import { generateUUID } from '../utils/uuid';
-import { storage } from '../utils/storage';
 import { useToast, useConfirm } from '../contexts/UIContext';
 
 interface SettingsProps {
@@ -77,7 +74,7 @@ export const Settings = ({
   onDeleteActivity,
   onRefreshEntries
 }: SettingsProps) => {
-  const { currentUser, logout, updateAccentColor, updateGrayTone, updateTimeRoundingInterval, updateTimeFormat } = useAuth();
+  const { currentUser, logout } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import'>('account');
@@ -236,7 +233,6 @@ export const Settings = ({
   const userRole = currentOrganization?.user_role;
   const canEdit = userRole !== 'viewer'; // owner, admin, member can edit
   const canDelete = userRole === 'owner' || userRole === 'admin'; // only owner/admin can delete
-  const canInvite = userRole === 'owner' || userRole === 'admin'; // only owner/admin can invite
 
   const openCustomerModal = (customer?: Customer) => {
     if (customer) {

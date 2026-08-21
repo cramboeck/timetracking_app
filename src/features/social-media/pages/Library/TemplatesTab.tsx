@@ -68,7 +68,7 @@ export default function TemplatesTab() {
     try {
       if (editingTemplate) {
         // Update existing
-        const updated = await socialMediaApi.updateTemplate(editingTemplate.id, {
+        await socialMediaApi.updateTemplate(editingTemplate.id, {
           name,
           content,
           category: category || undefined,

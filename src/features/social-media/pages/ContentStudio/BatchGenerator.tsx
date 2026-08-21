@@ -9,7 +9,6 @@ import {
   Check,
   Clock,
 } from 'lucide-react';
-import { useContentGeneration } from '../../hooks';
 import { useSocialMedia } from '../../context';
 import { socialMediaApi } from '../../../../services/api';
 import { PLATFORM_ICONS, PLATFORM_COLORS } from '../../constants';
@@ -26,7 +25,6 @@ const TONES: { value: Tone; label: string }[] = [
 
 export default function BatchGenerator() {
   const { addPost } = useSocialMedia();
-  const { generating } = useContentGeneration();
 
   // Input state
   const [topics, setTopics] = useState<string[]>(['']);

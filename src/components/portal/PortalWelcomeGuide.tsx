@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import {
   X, ChevronRight, ChevronLeft, Ticket, Bell, MessageSquare,
-  PlusCircle, Search, User, Shield, Smartphone, CheckCircle2,
-  FileText, Monitor, HelpCircle
+  Shield, Smartphone, CheckCircle2,
+  FileText, HelpCircle
 } from 'lucide-react';
 
 interface PortalWelcomeGuideProps {

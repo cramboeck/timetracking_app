@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus,
   X,
@@ -7,18 +7,12 @@ import {
   DollarSign,
   Calendar,
   User,
-  Building2,
   TrendingUp,
   Target,
   Award,
   AlertCircle,
-  ChevronRight,
   Clock,
   MoreVertical,
-  GripVertical,
-  Settings,
-  BarChart3,
-  Filter,
   Search,
   FileText,
 } from 'lucide-react';
@@ -260,7 +254,6 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const totalValue = opportunities.reduce((sum, o) => sum + (o.value || 0), 0);
-  const weightedValue = opportunities.reduce((sum, o) => sum + (o.weighted_value || 0), 0);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -373,7 +366,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
     opportunity?.expected_close_date?.split('T')[0] || ''
   );
   const [nextStep, setNextStep] = useState(opportunity?.next_step || '');
-  const [notes, setNotes] = useState(opportunity?.notes || '');
+  const [notes] = useState(opportunity?.notes || '');
   const [saving, setSaving] = useState(false);
 
   // Update probability when stage changes
@@ -712,7 +705,7 @@ const SalesPipeline: React.FC = () => {
     setShowForm(true);
   };
 
-  const handleSaveOpportunity = async (opp: Opportunity) => {
+  const handleSaveOpportunity = async (_opp: Opportunity) => {
     // Reload pipeline to get updated data
     await loadData();
     setShowForm(false);

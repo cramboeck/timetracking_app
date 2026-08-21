@@ -14,8 +14,6 @@ export const ModernTimePicker = ({
   value,
   onChange,
   label,
-  min,
-  max,
 }: ModernTimePickerProps) => {
   const [hours, minutes] = value.split(':').map(Number);
   const [isOpen, setIsOpen] = useState(false);

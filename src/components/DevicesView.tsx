@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Monitor, Wifi, WifiOff, Search, RefreshCw, ExternalLink,
-  X, Cpu, HardDrive, Globe, Building, AlertTriangle, Package, ChevronDown, ChevronUp, Shield
+  X, Cpu, HardDrive, Globe, Building, Package, ChevronDown, ChevronUp, Shield
 } from 'lucide-react';
 import { ninjaApi, NinjaDevice, NinjaRMMConfig, NinjaDeviceSoftware, NinjaDeviceOSPatch } from '../services/api';
 import { Button, IconButton } from './ui/Button';

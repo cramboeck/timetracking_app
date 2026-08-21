@@ -30,7 +30,7 @@ export default function TrendsTab() {
     }
   };
 
-  const createPostFromTrend = (trend: Trend) => {
+  const createPostFromTrend = (_trend: Trend) => {
     // Navigate to content studio with trend topic
     setContentStudioTab('wizard');
     setViewMode('content-studio');

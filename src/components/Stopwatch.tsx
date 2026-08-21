@@ -388,11 +388,6 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
     }
   };
 
-  const getProjectDisplay = (project: Project) => {
-    const customer = customers.find(c => c.id === project.customerId);
-    return `${customer?.name} - ${project.name}`;
-  };
-
   const selectedProject = projectId ? projects.find(p => p.id === projectId) : null;
   const selectedCustomer = selectedProject ? customers.find(c => c.id === selectedProject.customerId) : null;
 
@@ -667,8 +662,6 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                     if (descriptionUpdateTimeoutRef.current) {
                       clearTimeout(descriptionUpdateTimeoutRef.current);
                     }
-                    // Capture the entry ID to check later
-                    const entryId = runningEntry.id;
                     descriptionUpdateTimeoutRef.current = window.setTimeout(() => {
                       // IMPORTANT: Check ref to see if timer was stopped since this was queued
                       if (isStoppedRef.current) {

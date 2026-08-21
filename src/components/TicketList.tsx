@@ -58,7 +58,7 @@ const sourceConfig: Record<TicketSource, { label: string; icon: typeof Mail; col
 };
 
 export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
-  ({ customers, projects, onTicketSelect, onCreateTicket }, ref) => {
+  ({ customers, onTicketSelect, onCreateTicket }, ref) => {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const confirm = useConfirm();

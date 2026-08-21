@@ -14,7 +14,6 @@ export const ModernDatePicker = ({
   value,
   onChange,
   label,
-  maxDate,
 }: ModernDatePickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState(() => {

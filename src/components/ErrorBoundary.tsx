@@ -1,4 +1,4 @@
-import React, { Component, ReactNode } from 'react';
+import { Component, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home, Bug, Copy, Check } from 'lucide-react';
 import { Button } from './ui';
 
@@ -89,7 +89,7 @@ Time: ${new Date().toISOString()}
   };
 
   render(): ReactNode {
-    const { hasError, error, errorInfo, copied } = this.state;
+    const { hasError, error, copied } = this.state;
     const { children, fallback } = this.props;
 
     if (hasError) {

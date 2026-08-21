@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertTriangle,
   Shield, Server, RefreshCw, Wrench
@@ -36,7 +36,6 @@ function formatDateTime(dateStr: string): string {
 
 export default function MaintenanceApproval() {
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
   const [details, setDetails] = useState<MaintenanceApprovalDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +70,7 @@ export default function MaintenanceApproval() {
     setError('');
 
     try {
-      const result = await maintenanceApi.submitApproval(token, {
+      await maintenanceApi.submitApproval(token, {
         action: 'approve',
         approverName: approverName || undefined
       });
@@ -89,7 +88,7 @@ export default function MaintenanceApproval() {
     setError('');
 
     try {
-      const result = await maintenanceApi.submitApproval(token, {
+      await maintenanceApi.submitApproval(token, {
         action: 'reject',
         reason: rejectionReason || undefined,
         approverName: approverName || undefined

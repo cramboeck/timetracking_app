@@ -176,7 +176,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId 
 
   // Margin settings
   const [_showMarginSettings, _setShowMarginSettings] = useState(false);
-  const [defaultMargin, setDefaultMargin] = useState(30); // 30% default margin
+  const [defaultMargin] = useState(30); // 30% default margin
 
   // Load contacts on mount and check AI config
   useEffect(() => {

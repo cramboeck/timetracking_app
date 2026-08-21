@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, FileCheck, Clock, AlertCircle, RefreshCw, Search, Euro, Calendar, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { FileText, FileCheck, RefreshCw, Search, Euro, ChevronDown, ChevronUp } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalInvoice, PortalQuote } from '../../services/api';
 
 interface PortalInvoicesProps {

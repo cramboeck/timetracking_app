@@ -7,7 +7,7 @@ interface ContractsProps {
   onBack?: () => void;
 }
 
-const Contracts: React.FC<ContractsProps> = ({ onBack }) => {
+const Contracts: React.FC<ContractsProps> = () => {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
 

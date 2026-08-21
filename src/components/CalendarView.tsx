@@ -11,7 +11,7 @@ import { formatDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { TimePicker } from './TimePicker';
 import { maintenanceApi, MaintenanceAnnouncement } from '../services/api';
-import { Wrench, Clock, AlertCircle } from 'lucide-react';
+import { Wrench, Clock } from 'lucide-react';
 import { Button } from './ui';
 import { useToast } from '../contexts/UIContext';
 

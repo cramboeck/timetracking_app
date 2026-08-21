@@ -4,7 +4,7 @@ import { IOSSwitch } from '../IOSSwitch';
 import { PushNotificationSettings } from '../PushNotificationSettings';
 import { notificationService } from '../../utils/notifications';
 import { Button } from '../ui/Button';
-import { Card, CardContent } from '../ui/Card';
+import { Card } from '../ui/Card';
 
 export const NotificationSettings = () => {
   // Notification Settings State (synced with localStorage)

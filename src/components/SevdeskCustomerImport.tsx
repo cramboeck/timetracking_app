@@ -62,7 +62,7 @@ export const SevdeskCustomerImport = ({
     name_match: true,
     linked: false,
   });
-  const [showAll, setShowAll] = useState(true); // Default to showing all customers
+  const [showAll] = useState(true); // Default to showing all customers
   const [result, setResult] = useState<{
     imported: number;
     linked: number;

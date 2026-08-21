@@ -34,7 +34,7 @@ interface TicketDetailProps {
   onTicketDeleted: () => void;
 }
 
-export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTimer, onTicketDeleted }: TicketDetailProps) => {
+export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTicketDeleted }: TicketDetailProps) => {
   const queryClient = useQueryClient();
   const showToast = useToast();
   const confirm = useConfirm();
@@ -501,7 +501,7 @@ export const TicketDetail = ({ ticketId, customers, projects, onBack, onStartTim
   const handleSuggestionFeedback = (suggestionId: string, isHelpful: boolean) =>
     feedbackMutation.mutate({ suggestionId, isHelpful });
 
-  const applyResponseSuggestion = (content: string) => {
+  const applyResponseSuggestion = (_content: string) => {
     // This will be handled via the comment component's internal state
     // We trigger this by scrolling to the comment area
     document.querySelector('textarea[placeholder*="Kommentar"]')?.scrollIntoView({ behavior: 'smooth' });

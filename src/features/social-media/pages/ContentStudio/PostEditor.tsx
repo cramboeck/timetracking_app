@@ -7,8 +7,7 @@ import {
   Sparkles,
   X,
   AlertCircle,
-  Check,
-} from 'lucide-react';
+  } from 'lucide-react';
 import { useSocialMedia } from '../../context';
 import { usePostEditor, useContentGeneration } from '../../hooks';
 import { PLATFORM_ICONS, PLATFORM_COLORS, PLATFORM_LIMITS } from '../../constants';

@@ -5,7 +5,6 @@ import {
   Target,
   Users,
   Megaphone,
-  TrendingUp,
   ShoppingCart,
   Globe,
   Copy,

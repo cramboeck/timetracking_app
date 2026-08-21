@@ -16,26 +16,17 @@ import {
   Users,
   Target,
   Calendar,
-  Clock,
   Phone,
   Mail,
   MessageSquare,
   DollarSign,
-  AlertCircle,
   CheckCircle2,
-  ArrowRight,
-  ChevronRight,
   Heart,
   Activity,
-  Briefcase,
   FileSignature,
-  AlertTriangle,
   RefreshCw,
-  Plus,
-  Filter,
   BarChart3,
-  PieChart,
-} from 'lucide-react';
+  } from 'lucide-react';
 import { Customer, Project } from '../types';
 import {
   interactionsApi,
@@ -119,7 +110,6 @@ interface PipelineCardProps {
 }
 
 const PipelineCard: React.FC<PipelineCardProps> = ({
-  stage,
   stageLabel,
   opportunities,
   color,
@@ -339,7 +329,6 @@ const CustomerHealthList: React.FC<CustomerHealthListProps> = ({ customers, onCu
 
 export const CRMDashboard: React.FC<CRMDashboardProps> = ({
   customers,
-  projects,
   onNavigateToCustomer,
   onNavigateToOpportunity,
 }) => {
@@ -355,9 +344,8 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [oppsRes, contractsRes, interactionsRes, followUpsRes] = await Promise.all([
+        const [oppsRes, interactionsRes, followUpsRes] = await Promise.all([
           opportunitiesApi.getAll().catch(() => ({ data: [] })),
-          contractsApi.getSummary().catch(() => ({ data: { activeContracts: 0, totalMonthlyRevenue: 0 } })),
           interactionsApi.getAll({ limit: 20 }).catch(() => ({ interactions: [] })),
           interactionsApi.getPendingFollowUps().catch(() => ({ interactions: [] })),
         ]);
