@@ -440,7 +440,7 @@ router.get('/tickets', authenticateCustomerToken, async (req: CustomerAuthReques
     if (!permissions?.can_view_all_tickets) {
       const identityIds = await getContactIdentityIds(req.contactId!);
       params.push(identityIds);
-      query += ` AND (t.created_by_contact_id = ANY($${params.length}) OR t.contact_id = ANY($${params.length}))`;
+      query += ` AND t.created_by_contact_id = ANY($${params.length})`;
     }
 
     query += ` ORDER BY t.updated_at DESC`;
@@ -519,7 +519,7 @@ router.get('/tickets/:id', authenticateCustomerToken, async (req: CustomerAuthRe
     const permissions = await getContactPermissions(req.contactId!);
     if (!permissions?.can_view_all_tickets) {
       const identityIds = await getContactIdentityIds(req.contactId!);
-      if (!identityIds.includes(ticket.created_by_contact_id) && !identityIds.includes(ticket.contact_id)) {
+      if (!identityIds.includes(ticket.created_by_contact_id)) {
         return res.status(404).json({ error: 'Ticket not found' });
       }
     }
