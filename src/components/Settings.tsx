@@ -1139,7 +1139,7 @@ export const Settings = ({
 
               <div className="bg-gradient-to-br from-accent-light to-accent-lighter dark:from-accent-primary/20 dark:to-accent-primary/15 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40 p-5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-accent-light0 rounded-lg">
+                  <div className="p-2 bg-purple-500 rounded-lg">
                     <Users size={20} className="text-white" />
                   </div>
                   <p className="text-sm font-medium text-accent-dark dark:text-accent-primary">Kunden</p>

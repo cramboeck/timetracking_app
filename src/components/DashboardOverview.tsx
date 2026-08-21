@@ -4,7 +4,7 @@ import {
   Calendar, CheckCircle2,
   ArrowRight, FileText, FolderKanban,
 } from 'lucide-react';
-import { TimeEntry, Project, Customer, Ticket as TicketType } from '../types';
+import { TimeEntry, Project, Customer, Ticket as TicketType, TicketStatus } from '../types';
 import { QuickAction } from './ui/StatWidget';
 import { useAuth } from '../contexts/AuthContext';
 import { Area, SubView } from './AreaNavigation';
@@ -77,7 +77,7 @@ export const DashboardOverview = ({
     tomorrow.setDate(today.getDate() + 1);
 
     const todayEntries = entries.filter(e => {
-      const entryDate = new Date(e.startTime || e.date);
+      const entryDate = new Date(e.startTime);
       return entryDate >= today && entryDate < tomorrow;
     });
 
@@ -110,7 +110,7 @@ export const DashboardOverview = ({
     monday.setHours(0, 0, 0, 0);
 
     const weekEntries = entries.filter(e => {
-      const entryDate = new Date(e.startTime || e.date);
+      const entryDate = new Date(e.startTime);
       return entryDate >= monday && entryDate <= today;
     });
 
@@ -136,16 +136,16 @@ export const DashboardOverview = ({
   }, [tickets]);
 
   const unbilledStats = useMemo(() => {
-    const unbilled = entries.filter(e => !e.billed);
-    const totalSeconds = sumDurationSeconds(unbilled);
+    const billable = entries.filter(e => e.isBillable);
+    const totalSeconds = sumDurationSeconds(billable);
     return {
-      count: unbilled.length,
+      count: billable.length,
       hours: Math.floor(totalSeconds / 3600),
     };
   }, [entries]);
 
   const activeCustomerCount = useMemo(
-    () => customers.filter(c => c.isActive !== false).length,
+    () => customers.length,
     [customers],
   );
 
@@ -156,12 +156,12 @@ export const DashboardOverview = ({
 
   const recentEntries = useMemo(() => {
     return [...entries]
-      .sort((a, b) => new Date(b.startTime || b.date).getTime() - new Date(a.startTime || a.date).getTime())
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
       .slice(0, 5)
       .map(entry => {
         const project = projects.find(p => p.id === entry.projectId);
         const customer = customers.find(c => c.id === project?.customerId);
-        const entryDate = new Date(entry.startTime || entry.date);
+        const entryDate = new Date(entry.startTime);
         return {
           ...entry,
           projectName: project?.name || 'Unbekannt',
@@ -253,7 +253,7 @@ export const DashboardOverview = ({
         <QuickAction
           label="Reports"
           icon={FileText}
-          color="emerald"
+          color="green"
           onClick={() => onNavigate('finanzen', 'reports')}
         />
       </div>
@@ -380,7 +380,7 @@ export const DashboardOverview = ({
                 {unbilledStats.hours}h
               </div>
               <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
-                Nicht abgerechnet · {unbilledStats.count}
+                Abrechenbar · {unbilledStats.count}
               </div>
             </button>
 
@@ -516,17 +516,17 @@ export const DashboardOverview = ({
                         normal: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/30 dark:text-accent-primary',
                         low: 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400',
                       };
-                      const statusColors = {
+                      const statusColors: Partial<Record<TicketStatus, string>> = {
                         open: 'bg-blue-500',
                         in_progress: 'bg-yellow-500',
-                        waiting: 'bg-accent-light0',
+                        waiting: 'bg-purple-500',
                         resolved: 'bg-green-500',
                       };
 
                       return (
                         <div key={ticket.id} className="p-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors">
                           <div className="flex items-center gap-3">
-                            <div className={`w-2 h-10 rounded-full ${statusColors[ticket.status]}`} />
+                            <div className={`w-2 h-10 rounded-full ${statusColors[ticket.status] ?? 'bg-gray-400'}`} />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                                 {ticket.title}

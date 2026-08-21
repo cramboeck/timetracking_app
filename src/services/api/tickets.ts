@@ -17,21 +17,64 @@ import {
 } from '../../types';
 import { API_BASE_URL, authFetch, authFetchMultipart, handleResponse } from './base';
 
-// Ticket Dashboard type
+// Ticket Dashboard type — spiegelt die echte Response von GET /api/tickets/dashboard.
+// Die overview-Zähler kommen als Strings aus pg (COUNT = bigint), daher string | number.
 export interface TicketDashboardData {
-  stats: {
-    open_count: number;
-    in_progress_count: number;
-    waiting_count: number;
-    resolved_count: number;
-    closed_count: number;
-    critical_count: number;
-    high_priority_count: number;
-    total_count: number;
+  overview: {
+    open: string | number;
+    in_progress: string | number;
+    waiting: string | number;
+    resolved: string | number;
+    closed: string | number;
+    active_total: string | number;
+    total: string | number;
+    critical: string | number;
+    high: string | number;
+    normal: string | number;
+    low: string | number;
   };
-  recentTickets: Ticket[];
-  overdue: Ticket[];
-  slaAtRisk: Ticket[];
+  sla: {
+    responseCompliance: number;
+    resolutionCompliance: number;
+    responseBreached: number;
+    resolutionBreached: number;
+    responseOverdue: number;
+    resolutionOverdue: number;
+  };
+  urgentTickets: {
+    id: string;
+    ticketNumber: string;
+    title: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    customerName: string | null;
+    responseMinutesRemaining: number | null;
+    resolutionMinutesRemaining: number | null;
+  }[];
+  recentActivity: {
+    id: string;
+    ticketId: string;
+    action: string;
+    oldValue: string | null;
+    newValue: string | null;
+    createdAt: string;
+    ticketNumber: string;
+    ticketTitle: string;
+    actorName: string;
+  }[];
+  trends: {
+    ticketsThisWeek: number;
+    ticketsLastWeek: number;
+    resolvedThisWeek: number;
+    avgFirstResponseMinutes: number | null;
+    avgResolutionMinutes: number | null;
+  };
+  topCustomers: {
+    id: string;
+    name: string;
+    color: string | null;
+    ticketCount: number;
+  }[];
 }
 
 // Canned Response type

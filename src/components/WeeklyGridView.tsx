@@ -74,8 +74,8 @@ function formatHoursDecimalAlways(seconds: number): string {
   return (seconds / 3600).toFixed(2);
 }
 
-function rowKeyFor(projectId: string, activityId: string | null | undefined): string {
-  return `${projectId}::${activityId ?? ''}`;
+function rowKeyFor(projectId: string | undefined, activityId: string | null | undefined): string {
+  return `${projectId ?? ''}::${activityId ?? ''}`;
 }
 
 function parseRowKey(rowKey: string): { projectId: string; activityId: string | null } {
@@ -144,6 +144,9 @@ export const WeeklyGridView = ({
 
     for (const entry of entries) {
       if (entry.isRunning || !entry.endTime) continue;
+      // Interne/Abwesenheits-Eintraege ohne Projekt gehoeren nicht ins
+      // Projekt-Raster (wuerden eine kaputte "Unbekannt"-Zeile erzeugen)
+      if (!entry.projectId) continue;
       const dayISO = toLocalDateString(new Date(entry.startTime));
       if (dayISO < weekStartISO || dayISO > weekEndISO) continue;
 
@@ -201,6 +204,9 @@ export const WeeklyGridView = ({
     const dayTotals: Map<string, { seconds: number; count: number }> = new Map();
     for (const entry of entries) {
       if (entry.isRunning || !entry.endTime) continue;
+      // Interne/Abwesenheits-Eintraege ohne Projekt gehoeren nicht ins
+      // Projekt-Raster (wuerden eine kaputte "Unbekannt"-Zeile erzeugen)
+      if (!entry.projectId) continue;
       const dayISO = toLocalDateString(new Date(entry.startTime));
       if (dayISO < rangeStart || dayISO > rangeEnd) continue;
       const cur = dayTotals.get(dayISO) ?? { seconds: 0, count: 0 };
@@ -372,6 +378,7 @@ export const WeeklyGridView = ({
     if (cellEntries.length === 0) {
       if (newSeconds === 0) { cancelEdit(); return; }
       const { projectId, activityId } = parseRowKey(rowKey);
+      if (!projectId) { cancelEdit(); return; }
       const { startTime, endTime } = synthesizeTimes(dayISO, newSeconds);
       try {
         await onCreateEntry({
@@ -568,7 +575,7 @@ export const WeeklyGridView = ({
           </h3>
           <div className="space-y-2">
             {todayEntries.map(entry => {
-              const project = projectById.get(entry.projectId);
+              const project = entry.projectId ? projectById.get(entry.projectId) : undefined;
               const customer = project ? customerById.get(project.customerId) ?? null : null;
               const activity = entry.activityId ? activityById.get(entry.activityId) ?? null : null;
               const rk = rowKeyFor(entry.projectId, entry.activityId);

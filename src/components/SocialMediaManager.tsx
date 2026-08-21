@@ -41,7 +41,7 @@ const PLATFORM_COLORS: Record<string, string> = {
   linkedin: 'bg-accent-primary',
   twitter: 'bg-sky-500',
   facebook: 'bg-blue-500',
-  instagram: 'bg-gradient-to-r from-accent-light0 via-pink-500 to-orange-500',
+  instagram: 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500',
 };
 
 const PLATFORM_LIMITS: Record<string, number> = {
@@ -1198,7 +1198,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               </button>
               <button
                 onClick={() => { setViewMode('create'); setCreateSubView('post'); setShowAiGenerator(true); }}
-                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-accent-light0 to-pink-500 text-white rounded-xl hover:opacity-90"
+                className="flex flex-col items-center gap-2 p-4 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90"
               >
                 <Sparkles size={24} />
                 <span className="text-sm font-medium">KI-Post</span>
@@ -2371,7 +2371,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   <button
                     onClick={handleGenerateAutopilot}
                     disabled={autopilotGenerating || autopilotSettings.contentThemes.length === 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
                   >
                     {autopilotGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                     {autopilotGenerating ? 'Generiere...' : 'Posts generieren'}
@@ -3036,7 +3036,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 <button
                   onClick={generateBatch}
                   disabled={batchGenerating || batchTopics.split('\n').filter(t => t.trim()).length === 0}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
                 >
                   {batchGenerating ? (
                     <>
@@ -3309,7 +3309,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
       {viewMode === 'autopilot' && (
         <div className="space-y-6">
           {/* Autopilot Header */}
-          <div className="bg-gradient-to-r from-accent-light0 to-indigo-600 rounded-xl p-6 text-white">
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <Rocket size={28} />
               <h2 className="text-xl font-bold">Social Media Autopilot</h2>
@@ -3423,7 +3423,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
               <button
                 onClick={handleGenerateAutopilot}
                 disabled={autopilotGenerating || !autopilotSettings.enabled || autopilotSettings.contentThemes.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-indigo-600 text-white rounded-lg disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg disabled:opacity-50"
               >
                 {autopilotGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
                 Jetzt generieren
@@ -4210,7 +4210,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <div className="flex gap-2">
               <button
                 onClick={() => setShowImageGenerator(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
               >
                 <Image size={18} />
                 Bild generieren
@@ -4562,7 +4562,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                   }
                 }}
                 disabled={generatingImage || !imagePrompt.trim()}
-                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {generatingImage ? (
                   <>
@@ -4630,7 +4630,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
                 </ul>
               </div>
 
-              <div className="bg-gradient-to-br from-accent-light0 to-pink-500 rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-6 text-white">
                 <Image size={32} className="mb-3" />
                 <h3 className="font-bold text-lg mb-2">Bild-Generierung</h3>
                 <ul className="text-sm space-y-1 opacity-90">
@@ -4738,7 +4738,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
           {/* AI Generator Button */}
           <button
             onClick={() => setShowAiGenerator(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
           >
             <Sparkles size={18} />
             Mit KI generieren
@@ -5002,7 +5002,7 @@ export const SocialMediaManager = ({ customers = [] }: SocialMediaManagerProps) 
             <button
               onClick={generateWithAi}
               disabled={generating || !aiTopic.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-accent-light0 to-pink-500 text-white rounded-lg disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg disabled:opacity-50"
             >
               {generating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               Generieren

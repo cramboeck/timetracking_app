@@ -101,6 +101,9 @@ const getRelativeTime = (dateStr: string) => {
 // Sub-Components
 // ============================================
 
+// Farb-Palette für die dynamischen Pipeline-Stages (nach Wahrscheinlichkeit sortiert)
+const PIPELINE_STAGE_COLORS = ['bg-gray-500', 'bg-blue-500', 'bg-yellow-500', 'bg-orange-500', 'bg-green-500'];
+
 interface PipelineCardProps {
   stage: string;
   stageLabel: string;
@@ -141,7 +144,7 @@ const PipelineCard: React.FC<PipelineCardProps> = ({
               className="w-full p-3 text-left hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
             >
               <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                {opp.title}
+                {opp.name}
               </p>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-xs text-gray-500 dark:text-dark-400">
@@ -345,14 +348,14 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
       setIsLoading(true);
       try {
         const [oppsRes, interactionsRes, followUpsRes] = await Promise.all([
-          opportunitiesApi.getAll().catch(() => ({ data: [] })),
+          opportunitiesApi.getAll().catch(() => ({ opportunities: [] as Opportunity[], total: 0 })),
           interactionsApi.getAll({ limit: 20 }).catch(() => ({ interactions: [] })),
-          interactionsApi.getPendingFollowUps().catch(() => ({ interactions: [] })),
+          interactionsApi.getFollowUps().catch(() => ({ follow_ups: [] })),
         ]);
 
-        setOpportunities(oppsRes.data || []);
+        setOpportunities(oppsRes.opportunities || []);
         setRecentInteractions(interactionsRes.interactions || []);
-        setPendingFollowUps(followUpsRes.interactions || []);
+        setPendingFollowUps(followUpsRes.follow_ups || []);
 
         // Get full contracts list
         const fullContracts = await contractsApi.getContracts().catch(() => ({ data: [] }));
@@ -369,12 +372,12 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
 
   // Calculate stats
   const stats = useMemo((): DashboardStats => {
-    const activeCustomers = customers.filter(c => c.isActive !== false).length;
+    const activeCustomers = customers.length;
     const activeOpps = opportunities.filter(o => o.status !== 'won' && o.status !== 'lost');
     const pipelineValue = activeOpps.reduce((sum, o) => sum + (o.value || 0), 0);
     const monthlyRecurring = contracts
-      .filter(c => c.status === 'active')
-      .reduce((sum, c) => sum + (c.monthlyValue || 0), 0);
+      .filter(c => c.status === 'active' && c.billingCycle === 'monthly')
+      .reduce((sum, c) => sum + (c.basePrice || 0), 0);
 
     // Calculate average health score (simplified)
     const avgHealthScore = Math.round(70 + Math.random() * 20); // Placeholder
@@ -397,16 +400,24 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
     };
   }, [customers, opportunities, contracts, recentInteractions, pendingFollowUps]);
 
-  // Group opportunities by stage
-  const opportunitiesByStage = useMemo(() => {
-    const stages = {
-      lead: opportunities.filter(o => o.stage === 'lead'),
-      qualified: opportunities.filter(o => o.stage === 'qualified'),
-      proposal: opportunities.filter(o => o.stage === 'proposal'),
-      negotiation: opportunities.filter(o => o.stage === 'negotiation'),
-      closing: opportunities.filter(o => o.stage === 'closing'),
-    };
-    return stages;
+  // Group opportunities by their actual pipeline stage (Stages sind pro Org
+  // dynamisch aus pipeline_stages, keine festen Keys)
+  const pipelineStages = useMemo(() => {
+    const open = opportunities.filter(o => o.status !== 'won' && o.status !== 'lost');
+    const byStage = new Map<string, { label: string; probability: number; opportunities: Opportunity[] }>();
+    for (const o of open) {
+      const key = o.stage_id || 'none';
+      const entry = byStage.get(key) || {
+        label: o.stage_name || 'Ohne Phase',
+        probability: o.stage_probability ?? 0,
+        opportunities: [],
+      };
+      entry.opportunities.push(o);
+      byStage.set(key, entry);
+    }
+    return Array.from(byStage.entries())
+      .map(([id, s]) => ({ id, ...s }))
+      .sort((a, b) => a.probability - b.probability);
   }, [opportunities]);
 
   // Simulated customer health data (would come from API in production)
@@ -497,41 +508,22 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
           Sales Pipeline
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <PipelineCard
-            stage="lead"
-            stageLabel="Leads"
-            opportunities={opportunitiesByStage.lead}
-            color="bg-gray-500"
-            onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-          />
-          <PipelineCard
-            stage="qualified"
-            stageLabel="Qualifiziert"
-            opportunities={opportunitiesByStage.qualified}
-            color="bg-blue-500"
-            onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-          />
-          <PipelineCard
-            stage="proposal"
-            stageLabel="Angebot"
-            opportunities={opportunitiesByStage.proposal}
-            color="bg-yellow-500"
-            onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-          />
-          <PipelineCard
-            stage="negotiation"
-            stageLabel="Verhandlung"
-            opportunities={opportunitiesByStage.negotiation}
-            color="bg-orange-500"
-            onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-          />
-          <PipelineCard
-            stage="closing"
-            stageLabel="Abschluss"
-            opportunities={opportunitiesByStage.closing}
-            color="bg-green-500"
-            onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-          />
+          {pipelineStages.length === 0 ? (
+            <div className="col-span-full bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center text-gray-500 dark:text-dark-400 text-sm">
+              Keine offenen Verkaufschancen
+            </div>
+          ) : (
+            pipelineStages.map((stage, index) => (
+              <PipelineCard
+                key={stage.id}
+                stage={stage.id}
+                stageLabel={stage.label}
+                opportunities={stage.opportunities}
+                color={PIPELINE_STAGE_COLORS[index % PIPELINE_STAGE_COLORS.length]}
+                onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
+              />
+            ))
+          )}
         </div>
       </div>
 

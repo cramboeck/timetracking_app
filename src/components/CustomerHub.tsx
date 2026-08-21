@@ -17,7 +17,6 @@ import {
   Users,
   Mail,
   Phone,
-  Globe,
   MapPin,
   Clock,
   Ticket,
@@ -227,7 +226,7 @@ const calculateHealthScore = (
 
   // Factor 5: Recent Activity (time entries)
   const recentEntries = entries.filter(e => {
-    const daysDiff = (Date.now() - new Date(e.date || e.startTime).getTime()) / 86400000;
+    const daysDiff = (Date.now() - new Date(e.startTime).getTime()) / 86400000;
     return daysDiff <= 30;
   });
   const activityScore = Math.min(100, recentEntries.length * 5);
@@ -415,7 +414,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           size="sm"
         />
         <StatWidget
-          label="Nicht abgerechnet"
+          label="Abrechenbar"
           value={`${stats.unbilledHours}h`}
           icon={DollarSign}
           color={stats.unbilledHours > 0 ? 'orange' : 'green'}
@@ -508,18 +507,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
                 <Mail size={16} />
                 {customer.email}
-              </a>
-            )}
-            {customer.phone && (
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
-                <Phone size={16} />
-                {customer.phone}
-              </a>
-            )}
-            {customer.website && (
-              <a href={customer.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
-                <Globe size={16} />
-                {customer.website}
               </a>
             )}
             {customer.address && (
@@ -736,7 +723,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ tickets, onCreateTicket, onTick
   const statusColors: Record<string, string> = {
     open: 'bg-blue-500',
     in_progress: 'bg-yellow-500',
-    waiting: 'bg-accent-light0',
+    waiting: 'bg-purple-500',
     resolved: 'bg-green-500',
     closed: 'bg-gray-500',
   };
@@ -968,8 +955,8 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
   }).length;
 
   const monthlyRevenue = activeContracts.reduce((sum, c) => {
-    if (!c.monthlyValue) return sum;
-    return sum + c.monthlyValue;
+    if (c.billingCycle !== 'monthly' || !c.basePrice) return sum;
+    return sum + c.basePrice;
   }, 0);
 
   const statusColors: Record<string, string> = {
@@ -1086,12 +1073,12 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ contracts, onContractClick 
                       {contract.endDate && !contract.isIndefinite && ` - ${formatDate(contract.endDate)}`}
                       {contract.isIndefinite && ' - Unbefristet'}
                     </span>
-                    {contract.monthlyValue && (
+                    {contract.billingCycle === 'monthly' && contract.basePrice ? (
                       <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                         <DollarSign size={12} />
-                        {formatCurrency(contract.monthlyValue)}/Monat
+                        {formatCurrency(contract.basePrice)}/Monat
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   {isExpiringSoon && (
                     <div className="mt-2 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
@@ -1122,7 +1109,7 @@ interface TimeEntriesTabProps {
 }
 
 const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onStartTimer, onAddManualEntry }) => {
-  const getProjectName = (projectId: string) => {
+  const getProjectName = (projectId?: string) => {
     return projects.find(p => p.id === projectId)?.name || 'Unbekannt';
   };
 
@@ -1138,7 +1125,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
     return sum;
   }, 0);
 
-  const unbilledSeconds = entries.filter(e => !e.billed).reduce((sum, e) => {
+  const billableSeconds = entries.filter(e => e.isBillable).reduce((sum, e) => {
     if (e.duration && e.duration > 0) return sum + e.duration;
     if (e.startTime && e.endTime) {
       const start = new Date(e.startTime);
@@ -1161,9 +1148,9 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
             </span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-500 dark:text-dark-400">Nicht abgerechnet:</span>
+            <span className="text-gray-500 dark:text-dark-400">Abrechenbar:</span>
             <span className="ml-2 font-semibold text-orange-600 dark:text-orange-400">
-              {formatDuration(unbilledSeconds)}
+              {formatDuration(billableSeconds)}
             </span>
           </div>
         </div>
@@ -1192,13 +1179,13 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
 
             return (
               <div key={entry.id} className="p-4 flex items-center gap-4">
-                <div className={`w-2 h-2 rounded-full ${entry.billed ? 'bg-green-500' : 'bg-orange-500'}`} />
+                <div className={`w-2 h-2 rounded-full ${entry.isBillable ? 'bg-orange-500' : 'bg-gray-400'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white truncate">
                     {entry.description || getProjectName(entry.projectId)}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-dark-400">
-                    {formatDate(entry.date || entry.startTime)} • {getProjectName(entry.projectId)}
+                    {formatDate(entry.startTime)} • {getProjectName(entry.projectId)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -1206,7 +1193,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ entries, projects, onSt
                     {formatDuration(duration)}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-dark-400">
-                    {entry.billed ? 'Abgerechnet' : 'Offen'}
+                    {entry.isBillable ? 'Abrechenbar' : 'Intern'}
                   </p>
                 </div>
               </div>
@@ -1260,9 +1247,9 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     return customers.filter(customer => {
       const matchesSearch = customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         customer.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = filterStatus === 'all' ||
-        (filterStatus === 'active' && customer.isActive !== false) ||
-        (filterStatus === 'inactive' && customer.isActive === false);
+      // Kunden haben keinen Aktiv-Status in der DB; geloeschte sind serverseitig
+      // bereits gefiltert (soft delete) -> Status-Filter wirkt nur auf 'all'/'active'
+      const matchesStatus = filterStatus !== 'inactive';
       return matchesSearch && matchesStatus;
     });
   }, [customers, searchQuery, filterStatus]);
@@ -1306,8 +1293,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     if (!selectedCustomerId) return [];
     const customerProjects = projects.filter(p => p.customerId === selectedCustomerId);
     const projectIds = customerProjects.map(p => p.id);
-    return entries.filter(e => projectIds.includes(e.projectId))
-      .sort((a, b) => new Date(b.date || b.startTime).getTime() - new Date(a.date || a.startTime).getTime());
+    return entries.filter(e => e.projectId !== undefined && projectIds.includes(e.projectId))
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }, [selectedCustomerId, entries, projects]);
 
   // Calculate health score
@@ -1330,7 +1317,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
       return sum;
     }, 0);
 
-    const unbilledSeconds = customerEntries.filter(e => !e.billed).reduce((sum, e) => {
+    const billableSeconds = customerEntries.filter(e => e.isBillable).reduce((sum, e) => {
       if (e.duration && e.duration > 0) return sum + e.duration;
       if (e.startTime && e.endTime) {
         const start = new Date(e.startTime);
@@ -1344,7 +1331,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
     return {
       totalHours: Math.round(totalSeconds / 3600),
-      unbilledHours: Math.round(unbilledSeconds / 3600),
+      unbilledHours: Math.round(billableSeconds / 3600),
       openTickets: tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length,
       totalTickets: tickets.length,
       activeTasks: tasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length,
@@ -1408,7 +1395,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
         type: 'entry',
         title: e.description || 'Zeiteintrag',
         description: formatDuration(e.duration || 0),
-        timestamp: e.date || e.startTime,
+        timestamp: e.startTime,
         icon: Clock,
         color: 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-primary dark:text-accent-primary',
       });

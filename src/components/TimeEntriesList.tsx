@@ -36,7 +36,7 @@ interface TimeEntriesListProps {
   customers: Customer[];
   activities: Activity[];
   onDelete: (id: string) => void | Promise<void>;
-  onEdit: (id: string, updates: Partial<TimeEntry>) => void | Promise<void>;
+  onEdit: (id: string, updates: Partial<Omit<TimeEntry, 'activityId'>> & { activityId?: string | null }) => void | Promise<void>;
   onRepeatEntry?: (entry: TimeEntry) => void;
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }
@@ -348,7 +348,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   const [bulkActivityId, setBulkActivityId] = useState<string>('');
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
-  const getProjectById = (id: string) => projects.find(p => p.id === id);
+  const getProjectById = (id?: string) => projects.find(p => p.id === id);
   const getCustomerById = (id: string) => customers.find(c => c.id === id);
   const getActivityById = (id: string) => activities.find(a => a.id === id);
 
@@ -578,7 +578,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
   const openEditModal = (entry: TimeEntry) => {
     setEditingEntry(entry);
-    setEditProjectId(entry.projectId);
+    setEditProjectId(entry.projectId || '');
     setEditDescription(entry.description);
     setEditIsBillable(entry.isBillable ?? true);
     setEditActivityId(entry.activityId || '');
