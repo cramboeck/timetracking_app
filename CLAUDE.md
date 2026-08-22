@@ -79,7 +79,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 ### Frontend
 
 - ~~**Architektur-Problem:**~~ ✅ Gelöst in Epic 5 Pass 4. App.tsx jetzt 1185 Zeilen, URL ist single source of truth (React Router). Deep-Linking und Browser Back/Forward funktionieren.
-- **Daten-Fetching:** Ticket-Subtree + AlertsView auf TanStack Query migriert. ~50 useEffects verbleiben (TaskHub, TimeEntriesList, SocialMediaManager, Stopwatch etc.).
+- **Daten-Fetching:** Ticket-Subtree + AlertsView + TimeEntriesList + Stopwatch + TaskHub auf TanStack Query migriert. Restliche useEffects im features/social-media-Modul und diversen Detail-Views.
 - **Modernisierungs-Potenzial (2026):**
   - **React Router v7** für echte URL-Routen
   - **TanStack Query (React Query)** ersetzt hunderte `useEffect`-Boilerplate-Zeilen, automatisches Caching + Background-Updates (ideal für NinjaRMM Alerts)
@@ -115,7 +115,20 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 30.7.2026)
+## Aktueller Stand (Stand 22.8.2026)
+
+### Tech-Debt-Sprint „TS-Fehler 374 → 0" (22.8.2026) — ✅ abgeschlossen
+
+> Methode: NICHT Interfaces aufblähen, bis der Compiler schweigt — sondern jede Meldung gegen die **echte Server-Response** prüfen (Route lesen!). Viele „fehlende Properties" waren Phantom-Felder, die die API nie liefert; die zugehörigen UI-Zweige waren still tot. Dabei fielen 12 echte Laufzeitbugs.
+
+| Task | Commit |
+|---|---|
+| **Stufe 1**: alle 132 TS6133 (71 Import-Specifier automatisiert via Skript, 64 manuell: Props aus Destrukturierung, tote Helfer, Setter-only-State) | 46ad2ef |
+| **Stufe 2a — Phantom-Felder + Dashboard-Bugs**: `TicketDashboardData` komplett neu nach echter Response (overview/sla/urgentTickets/trends/topCustomers); **CRM-Dashboard lud NIE Daten** (nicht existente API-Methode `getPendingFollowUps` → synchroner TypeError, dazu `oppsRes.data` statt `.opportunities` und Stage-Gruppierung gegen hartkodierte Keys, die es im dynamischen `pipeline_stages`-Modell nie gab → jetzt nach `stage_id`); `TimeEntry.date/billed`, `Customer.isActive/phone/website`, `Contract.monthlyValue` existieren nirgends → Code auf echte Felder (`startTime`, `isBillable`, `basePrice`), Label „Nicht abgerechnet" → „Abrechenbar" (war immer „Offen"); `accent-light0` (10 Stellen) = kaputtes Sed-Artefakt der Farbmigration → `purple-500`; WeeklyGridView: Einträge ohne Projekt raus aus dem Raster (Bearbeiten hätte Eintrag mit projectId "undefined" erzeugt) | 919f972 |
+| **Stufe 2b — tote Module + API-Verträge**: `SocialMediaManager.tsx` (6482 Z.) **gelöscht** (seit features/social-media nirgends importiert — Roadmap-Punkt „splitten" obsolet), `settings/AccountSettings.tsx` gelöscht (Barrel unbenutzt, rief nicht existierende APIs); Social-Media: Posts-Liste lieferte nie Plattformen (jetzt Aggregation als string[]), Vorlagen-Bearbeiten crashte (PUT /templates/:id + /hashtags/:id neu, Zod), EngagementBot-Historie/Competitor-Analyse auf echte Response-Formen gemappt; Kanban: Fälligkeits-Badge nie sichtbar (`transformTicket` ließ `due_date` fallen → `dueDate` gemappt), Assignee-Filter auf `assignedToUserId`; Kalender: Drag/Resize von Wartungs-Events crashte, Agenda-Datumszelle bekam `{day}` statt `{event}`; InteractionForm/LeadForm: Abbrechen tat nichts (`onClose` vs `onCancel`); PersonalInbox: UnknownCustomerDialog mit falschem Prop-Vertrag; Firmendaten-Kundennummer wurde nie gespeichert; Settings-Speicherplatz-Tab für Org-Owner unsichtbar; **guarded Migration** `notification_preferences.email_on_new_ticket` (fehlte in Prod, wird in SELECTs referenziert!); Typen ehrlich angeglichen: TicketActivity/TicketComment/CannedResponse/TicketTag/NotificationPreferences, `TimeEntryUpdate` (activityId: null = Tätigkeit entfernen), AccountType inkl. Legacy `'freelancer'` | 1ad5bd8 |
+
+**Regel ab jetzt: `npx tsc --noEmit` (Root und server/) bleibt bei 0** — neue Fehler sofort fixen.
+
 
 ### Team-Onboarding-Sprint Ende Juli 2026 — ✅ abgeschlossen
 
@@ -398,10 +411,10 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 | Prio | Task | Aufwand | Kontext |
 |---|---|---|---|
 | ~~1~~ ✅ | ~~**NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler**~~ | erledigt | **Commit ad0d5ca (30.7.2026):** `GET /api/ninjarmm/diagnose` probt 7 Endpoints mit gespeichertem OAuth-Token (Diagnose-Karte im Sync-Tab der NinjaRMM-Settings); `syncDeviceHealthCounts()` synct `critical/high/medium/low_vuln_count` + `health_status` aus `/v2/queries/device-health` (cursor-paginiert, non-fatal in syncAll, manuell via `POST /sync-health`); VulnerabilitiesDashboard zeigt Tabelle „Schwachstellen-Zähler pro Gerät". CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
-| 2 | **SocialMediaManager.tsx splitten** (6482 Zeilen) | 1 Tag | In PostsTab/TemplatesTab/AnalyticsTab/CalendarTab; lazy-Import. Größter Einzelbrocken Tech-Debt, blockiert auch TS-Fehler-Abbau (40 Fehler in der Datei). |
-| 3 | **TS-Fehler 374 → 0** | 6h+ | ~135 unbenutzte Imports (mechanisch), ~239 fehlende Interface-Properties (TicketDashboard 47, SocialMediaManager 40, CustomerHub 38). Nach dem Split (Punkt 2) leichter. |
+| ~~2~~ ✅ | ~~**SocialMediaManager.tsx splitten**~~ | obsolet (22.8.) | Datei war seit dem features/social-media-Modul (SocialMediaLayout) **nirgends mehr importiert** → GELÖSCHT (1ad5bd8) statt gesplittet. Live-UI ist `src/features/social-media/`. |
+| ~~3~~ ✅ | ~~**TS-Fehler 374 → 0**~~ | erledigt (22.8.) | Commits 46ad2ef, 919f972, 1ad5bd8 — siehe Tech-Debt-Sprint-Tabelle. **Neue Regel: `npx tsc --noEmit` muss bei 0 bleiben.** |
 | 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
-| 5 | **text-gray-* Cleanup** (~495 Stellen) | 4-6h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: SocialMediaManager (118, nach Split), Finanzen (29), MaintenanceView (26). |
+| 5 | **text-gray-* Cleanup** | 3-4h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: Finanzen (29), MaintenanceView (26). (SocialMediaManager mit 118 Stellen ist gelöscht.) |
 | 6 | **React Router v7 Upgrade** + echte `<Routes>`-Definitionen | 1 Tag | Von v6.22; danach Pass 5 (App.tsx switch → `<Route>`-Elemente). |
 | 7 | **Epic G Rest: Distributor-Integrationen** | je 1-3 Tage | ADN-Lizenzimport, Infinigate, Lywand-Security-Audits im Portal, Microsoft Security Center Scores. Reihenfolge nach Business-Priorität festlegen. |
 | 8 | **Social Media: echtes Posten an Plattformen** | 3-5 Tage | Aktuell nur DB-Einträge. Meta/LinkedIn-APIs, OAuth-Flows, Fehlerbehandlung. |
@@ -466,10 +479,10 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| 🟡 | **TS-Fehler reduzieren** (374 verbleibend, Stand 5.7.2026) | diverse | 6h+ | Commits 8817b47–4992d7b + Nebeneffekte des Juli-Sprints (379→374). Verbleibend: ~135 TS6133 (Imports), ~239 echte Type-Mismatches (fehlende Properties: `date`, `billed`, `trends`, `sla` in Interfaces). |
+| ✅ | **TS-Fehler reduzieren** (374 → **0**, 22.8.2026) | diverse | erledigt | Commits 46ad2ef (132× TS6133), 919f972 + 1ad5bd8 (alle Typ-Mismatches: Interfaces an echte API-Responses angeglichen statt Properties zu erfinden; 12 Laufzeitbugs nebenbei gefixt). |
 | ✅ | **Ticket Detail Desktop-Layout** | `src/components/TicketDetail.tsx` + ticket-detail/* | 2h | Commit 1266a09. Desktop: 2-Spalten-Layout (Hauptinhalt links, Sidebar rechts sticky). Mobile: Metadata oben. Source-Badge, Assigned-User in Sidebar. |
 | ✅ | **TanStack Query** für TaskHub, TimeEntriesList, Stopwatch | diverse | 4-6h | TaskHub ✅ (efbb042). TimeEntriesList + Stopwatch ✅ (f01807f): Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key (TicketDetail/Stopwatch/TimeEntriesList teilen einen Request). |
-| ⬜ | **SocialMediaManager.tsx splitten** (6482 Zeilen) | `src/components/SocialMediaManager.tsx` | 1 Tag | In `PostsTab`, `TemplatesTab`, `AnalyticsTab`, `CalendarTab` aufteilen. Lazy-Import in App.tsx. |
+| ✅ | ~~**SocialMediaManager.tsx splitten**~~ | — | obsolet | Datei war toter Code (nirgends importiert; Live-UI = `features/social-media`) → gelöscht (1ad5bd8). |
 | ✅ | **Test-Setup** (Vitest) + erste Unit-Tests | `vite.config.ts`, `src/test/`, `src/utils/*.test.ts`, `src/hooks/*.test.ts` | 1 Tag | 57 Tests für utils (time, timeRounding, uuid, sanitize) und hooks (useMediaQuery, useOnlineStatus). `npm run test` / `test:run` / `test:coverage`. |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes: `<Routes>` → `<Routes>` (kompatibel), aber `useNavigate`-API leicht geändert. |
 | ✅ | **Push Subscriptions zusammenführen** | `server/src/config/database.ts` + Routes | 2-3h | Migration: `subscription_type` + `contact_id` Spalten, Daten-Migration, Routes aktualisiert. |
@@ -544,7 +557,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ## Bekannte Probleme (pre-existing)
 
-- **TS-Fehler-Baseline: 374 Fehler** (Stand 5.7.2026; ~135 TS6133, ~239 echte Type-Fehler). Hauptsächlich: TicketDashboard (47), SocialMediaManager (40), CustomerHub (38). Backend kompiliert fehlerfrei. Ursache: fehlende Interface-Properties (`date`, `billed`, `trends`, `sla`). Cleanup: 452→379 durch Commits 8817b47–4992d7b, 379→374 als Nebeneffekt des Juli-Sprints.
+- ~~**TS-Fehler-Baseline**~~ ✅ **0 Fehler seit 22.8.2026** (vorher 374). Frontend UND Backend kompilieren fehlerfrei. **Regel für alle künftigen Änderungen: `npx tsc --noEmit` (Root + server/) muss bei 0 bleiben — neue Fehler sofort fixen, keine neue Baseline aufbauen.**
 - Social Media Modul postet aktuell nicht wirklich an Plattformen (nur Datenbankeinträge).
 - Offline-Sync funktioniert nur für Zeiteinträge, nicht für andere Aktionen.
 - `database.ts` ist mit 4400+ Zeilen zu groß — sollte in separate Migrationsdateien aufgeteilt werden.
@@ -684,7 +697,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 4.8.2026 — Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
+*Zuletzt aktualisiert: 22.8.2026 — Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
@@ -702,11 +715,11 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 | Status | Task | Datei | Aufwand | Hinweis |
 |---|---|---|---|---|
-| ⬜ | **TS-Fehler auf 0 reduzieren** | diverse | 6h+ | ~374 verbleibend (Stand 5.7.2026). Hauptdateien: TicketDashboard.tsx (47), SocialMediaManager.tsx (40), CustomerHub.tsx (38). Fehlende Interface-Properties ergänzen: `date`, `billed`, `trends`, `sla`. Vorgehen: `npx tsc --noEmit 2>&1 | head -50` für aktuellen Stand, dann pro Datei die Interface-Definitionen in `src/types.ts` erweitern. |
+| ✅ | **TS-Fehler auf 0 reduziert** | diverse | 22.8.2026 | 46ad2ef + 919f972 + 1ad5bd8. Wichtig: Die "fehlenden Properties" (`date`, `billed`, `trends`, `sla`) waren größtenteils **Phantom-Felder, die die API nie liefert** — gefixt wurde der Code (echte Feldnamen), nicht die Interfaces aufgebläht. Dabei 12 echte Laufzeitbugs gefunden (CRM-Dashboard lud NIE Daten, Kanban-Fälligkeits-Badge nie sichtbar, Vorlagen-Bearbeiten crashte, u.a.). |
 | ⬜ | **React Router v7 Upgrade** | `package.json` + alle Router-Imports | 1 Tag | Von v6.22 → v7. Breaking Changes prüfen: `useNavigate`-API, `<Routes>`-Syntax. Erst `pnpm add react-router-dom@7`, dann alle Imports anpassen, dann testen. |
 | ✅ | **TanStack Query für TimeEntriesList + Stopwatch** | `src/components/TimeEntriesList.tsx`, `src/components/Stopwatch.tsx` | 3–4h | Commit f01807f. Entries-Fetch → useQuery mit `keepPreviousData` + `staleTime 0`, AI-Config als geteilter `['ai','config']`-Key. |
-| ⬜ | **text-gray-* Cleanup (priorisiert)** | `SocialMediaManager.tsx` (118), `Finanzen.tsx` (29), `MaintenanceView.tsx` (26) | 2–3h | Nur diese 3 Dateien manuell prüfen. `text-gray-*` ohne `dark:`-Pendant → `text-dark-400` oder `text-dark-500`. Nicht automatisch ersetzen — jede Stelle einzeln prüfen. |
-| ⬜ | **SocialMediaManager.tsx splitten** *(niedrige Priorität — zuletzt)* | `src/components/SocialMediaManager.tsx` (6482 Zeilen) | 1 Tag | In 4 Tabs aufteilen: `PostsTab.tsx`, `TemplatesTab.tsx`, `AnalyticsTab.tsx`, `CalendarTab.tsx`. Lazy-Import in App.tsx. Jede Datei max. 800 Zeilen. **Erst nach TS-Fehler + Router v7 + text-gray-Cleanup angehen.** |
+| ⬜ | **text-gray-* Cleanup (priorisiert)** | `Finanzen.tsx` (29), `MaintenanceView.tsx` (26) | 1–2h | Nur diese 2 Dateien manuell prüfen. `text-gray-*` ohne `dark:`-Pendant → `text-dark-400` oder `text-dark-500`. Nicht automatisch ersetzen — jede Stelle einzeln prüfen. |
+| ✅ | ~~**SocialMediaManager.tsx splitten**~~ | — | obsolet (22.8.) | Toter Code — seit dem features/social-media-Modul nirgends mehr importiert → gelöscht (1ad5bd8). |
 
 ---
 
