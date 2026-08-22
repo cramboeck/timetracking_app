@@ -686,7 +686,7 @@ export const NinjaRMMSettings = () => {
           >
             <tab.icon size={16} />
             {tab.label}
-            {'badge' in tab && tab.badge > 0 && (
+            {'badge' in tab && (tab.badge ?? 0) > 0 && (
               <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
                 {tab.badge}
               </span>

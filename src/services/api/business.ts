@@ -820,7 +820,8 @@ export interface SocialMediaPost {
   publishedAt?: string;
   aiGenerated: boolean;
   aiPrompt?: string;
-  platforms?: SocialMediaPostPlatform[];
+  // Plattform-Namen der Zielkonten (aus social_media_post_platforms -> accounts)
+  platforms?: string[];
   contentCategory?: string;
   evergreen?: boolean;
   recycleCount?: number;
@@ -1163,6 +1164,19 @@ export const socialMediaApi = {
     });
   },
 
+  updateTemplate: async (id: string, data: {
+    name?: string;
+    content?: string;
+    platform?: 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'all';
+    category?: string;
+    hashtags?: string[];
+  }): Promise<SocialMediaTemplate> => {
+    return authFetch(`/social-media/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
   deleteTemplate: async (id: string): Promise<{ success: boolean }> => {
     return authFetch(`/social-media/templates/${id}`, { method: 'DELETE' });
   },
@@ -1179,6 +1193,17 @@ export const socialMediaApi = {
   }): Promise<SocialMediaHashtagGroup> => {
     return authFetch('/social-media/hashtags', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateHashtagGroup: async (id: string, data: {
+    name?: string;
+    hashtags?: string[];
+    category?: string;
+  }): Promise<SocialMediaHashtagGroup> => {
+    return authFetch(`/social-media/hashtags/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
   },

@@ -4,7 +4,7 @@
  */
 
 import {
-  TimeEntry,
+  TimeEntry, TimeEntryUpdate,
   Project,
   Customer,
   Activity,
@@ -174,7 +174,7 @@ export const entriesApi = {
     });
   },
 
-  update: async (id: string, updates: Partial<Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>>): Promise<{ success: boolean; data: TimeEntry }> => {
+  update: async (id: string, updates: TimeEntryUpdate): Promise<{ success: boolean; data: TimeEntry }> => {
     return authFetch(`/entries/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),

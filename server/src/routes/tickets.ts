@@ -238,6 +238,7 @@ function transformTicket(row: any) {
     status: row.status,
     priority: row.priority,
     assignedToUserId: row.assigned_to,
+    dueDate: row.due_date?.toISOString() || null,
     createdAt: row.created_at?.toISOString(),
     updatedAt: row.updated_at?.toISOString(),
     resolvedAt: row.resolved_at?.toISOString(),

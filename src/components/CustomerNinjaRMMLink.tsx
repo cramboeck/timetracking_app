@@ -181,7 +181,7 @@ export const CustomerNinjaRMMLink = ({
           ) : (
             <div className="divide-y divide-gray-200">
               {filteredOrganizations.map((org) => {
-                const isLinkedToOther = org.customerId && org.customerId !== customer.id;
+                const isLinkedToOther = !!org.customerId && org.customerId !== customer.id;
                 const isCurrentlyLinked = org.id === customer.ninjarmmOrganizationId;
 
                 return (

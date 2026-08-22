@@ -18,7 +18,7 @@ export const KnowledgeBaseSettings = () => {
   const [activeKbTab, setActiveKbTab] = useState<KbTab>('categories');
   const [categories, setCategories] = useState<KbCategory[]>([]);
   const [articles, setArticles] = useState<KbArticle[]>([]);
-  const [portalSettings, setPortalSettings] = useState<PortalSettings>({
+  const [portalSettings, setPortalSettings] = useState<Partial<PortalSettings>>({
     companyName: null,
     welcomeMessage: null,
     logoUrl: null,
@@ -79,7 +79,7 @@ export const KnowledgeBaseSettings = () => {
   const checkAiConfig = async () => {
     try {
       const response = await aiApi.getConfig();
-      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+      setAiConfigured(!!(response.data?.enabled && response.data?.hasApiKey));
     } catch (err) {
       console.error('Failed to check AI config:', err);
     }
@@ -778,7 +778,7 @@ export const KnowledgeBaseSettings = () => {
         isOpen={articleModalOpen}
         onClose={() => setArticleModalOpen(false)}
         title={editingArticle ? 'Artikel bearbeiten' : 'Neuer Artikel'}
-        maxWidth="max-w-3xl"
+        maxWidth="3xl"
       >
         <div className="space-y-4">
           {/* AI Generation from Ticket - only for new articles */}

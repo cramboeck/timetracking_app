@@ -215,7 +215,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId 
           setTimeout(async () => {
             const loadedContacts = await sevdeskApi.getContacts();
             if (loadedContacts.success) {
-              const foundContact = loadedContacts.data.contacts.find(c => c.id === quote.contact.id);
+              const foundContact = loadedContacts.data.find(c => c.id === quote.contact.id);
               if (foundContact) {
                 setSelectedContact(foundContact);
               }
@@ -234,7 +234,7 @@ export const QuoteEditor = ({ onClose, onSuccess, quoteId, preselectedContactId 
   const checkAiConfig = async () => {
     try {
       const response = await aiApi.getConfig();
-      setAiConfigured(response.data?.enabled && response.data?.hasApiKey);
+      setAiConfigured(!!(response.data?.enabled && response.data?.hasApiKey));
     } catch (err) {
       console.error('Failed to check AI config:', err);
       setAiConfigured(false);

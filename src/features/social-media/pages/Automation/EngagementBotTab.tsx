@@ -53,7 +53,14 @@ export default function EngagementBotTab() {
           excludeKeywords: settingsData.excludeKeywords || DEFAULT_ENGAGEMENT_SETTINGS.excludeKeywords,
         });
       }
-      setHistory(historyData || []);
+      // API liefert original_content/response_content -> aufs Anzeige-Modell mappen
+      setHistory((historyData || []).map(h => ({
+        id: h.id,
+        originalPost: h.originalContent || '',
+        response: h.responseContent || '',
+        platform: h.platform,
+        createdAt: h.createdAt,
+      })));
     } catch (error) {
       console.error('Failed to load engagement data:', error);
     } finally {

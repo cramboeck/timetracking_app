@@ -5,7 +5,6 @@
  * Each tab should be its own component for better maintainability.
  *
  * Extracted:
- * - AccountSettings: User account, profile, GDPR, MFA
  * - AppearanceSettings: Dark mode, accent colors, time format
  * - NotificationSettings: Push notifications, reminders
  *
@@ -17,6 +16,5 @@
  * - ActivitiesSettings: Activity management
  */
 
-export { AccountSettings } from './AccountSettings';
 export { AppearanceSettings } from './AppearanceSettings';
 export { NotificationSettings } from './NotificationSettings';

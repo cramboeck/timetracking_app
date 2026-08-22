@@ -16,6 +16,7 @@ import {
   TimeEntry,
 } from '../../types';
 import { API_BASE_URL, authFetch, authFetchMultipart, handleResponse } from './base';
+import type { PortalSettings } from './portal';
 
 // Ticket Dashboard type — spiegelt die echte Response von GET /api/tickets/dashboard.
 // Die overview-Zähler kommen als Strings aus pg (COUNT = bigint), daher string | number.
@@ -77,39 +78,43 @@ export interface TicketDashboardData {
   }[];
 }
 
-// Canned Response type
+// Canned Response type — Server liefert rohe snake_case-Zeilen
 export interface CannedResponse {
   id: string;
-  userId: string;
+  user_id: string | null;
+  organization_id: string;
   title: string;
   content: string;
-  shortcut?: string;
-  category?: string;
-  usageCount: number;
-  createdAt: string;
-  updatedAt: string;
+  shortcut?: string | null;
+  category?: string | null;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
-// Ticket Tag type
+// Ticket Tag type — Server liefert rohe snake_case-Zeilen;
+// ticket_count nur in der /tags/list-Antwort (COUNT als String aus pg)
 export interface TicketTag {
   id: string;
   name: string;
   color: string;
-  description?: string;
-  createdAt: string;
+  description?: string | null;
+  ticket_count?: string | number;
 }
 
-// Ticket Activity type
+// Ticket Activity type — spiegelt GET /tickets/:ticketId/activities
 export interface TicketActivity {
   id: string;
   ticketId: string;
-  userId: string;
-  userName: string;
-  action: string;
-  oldValue?: string;
-  newValue?: string;
-  details?: any;
+  userId: string | null;
+  customerContactId?: string | null;
+  actionType: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  metadata?: unknown;
   createdAt: string;
+  userName?: string | null;
+  contactName?: string | null;
 }
 
 // Ticket Attachment type (matches backend response)
@@ -147,11 +152,13 @@ export interface TicketTemplate {
 
 // Tickets API
 export const ticketsApi = {
-  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority }): Promise<{ success: boolean; data: Ticket[] }> => {
+  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority; limit?: number; searchText?: string }): Promise<{ success: boolean; data: Ticket[] }> => {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.customerId) params.append('customerId', filters.customerId);
     if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.searchText) params.append('searchText', filters.searchText);
     const query = params.toString() ? `?${params.toString()}` : '';
     return authFetch(`/tickets${query}`);
   },
@@ -206,6 +213,7 @@ export const ticketsApi = {
     assignedToUserId: string | null;
     solution: string;
     resolutionType: TicketResolutionType;
+    deviceId: string | null;
   }>): Promise<{ success: boolean; data: Ticket; requiresSolution?: boolean }> => {
     return authFetch(`/tickets/${id}`, {
       method: 'PUT',

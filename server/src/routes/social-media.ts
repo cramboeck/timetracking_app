@@ -45,11 +45,15 @@ const createTemplateSchema = z.object({
   hashtags: z.array(z.string()).optional()
 });
 
+const updateTemplateSchema = createTemplateSchema.partial();
+
 const createHashtagGroupSchema = z.object({
   name: z.string().min(1).max(100),
   hashtags: z.array(z.string().min(1)).min(1),
   category: z.string().max(50).optional()
 });
+
+const updateHashtagGroupSchema = createHashtagGroupSchema.partial();
 
 const generateContentSchema = z.object({
   topic: z.string().min(1).max(500),
@@ -165,9 +169,12 @@ router.get('/posts', authenticateToken, attachOrganization, async (req: AuthRequ
       SELECT p.id, p.user_id, p.organization_id, p.customer_id, p.title, p.content, p.media_urls, p.hashtags,
              p.status, p.scheduled_at, p.published_at, p.ai_generated, p.ai_prompt, p.content_category,
              p.evergreen, p.recycle_count, p.last_recycled_at, p.created_at, p.updated_at,
-             c.name as customer_name
+             c.name as customer_name,
+             COALESCE(array_agg(sa.platform) FILTER (WHERE sa.platform IS NOT NULL), '{}') as platforms
       FROM social_media_posts p
       LEFT JOIN customers c ON p.customer_id = c.id
+      LEFT JOIN social_media_post_platforms pp ON pp.post_id = p.id
+      LEFT JOIN social_media_accounts sa ON pp.account_id = sa.id
       WHERE p.organization_id = $1
     `;
     const params: any[] = [organizationId];
@@ -193,6 +200,7 @@ router.get('/posts', authenticateToken, attachOrganization, async (req: AuthRequ
       params.push(endDate);
     }
 
+    query += ' GROUP BY p.id, c.name';
     query += ' ORDER BY COALESCE(p.scheduled_at, p.created_at) DESC';
 
     const result = await pool.query(query, params);
@@ -226,7 +234,7 @@ router.get('/posts/:id', authenticateToken, attachOrganization, async (req: Auth
     }
 
     const platformsResult = await pool.query(
-      `SELECT pp.*, sa.platform, sa.account_name
+      `SELECT sa.platform
        FROM social_media_post_platforms pp
        JOIN social_media_accounts sa ON pp.account_id = sa.id
        WHERE pp.post_id = $1`,
@@ -234,7 +242,7 @@ router.get('/posts/:id', authenticateToken, attachOrganization, async (req: Auth
     );
 
     const post = transformRow(postResult.rows[0]);
-    post.platforms = transformRows(platformsResult.rows);
+    post.platforms = platformsResult.rows.map(r => r.platform);
 
     res.json(post);
   } catch (error) {
@@ -430,6 +438,37 @@ router.post('/templates', authenticateToken, attachOrganization, requireOrgRole(
 });
 
 // DELETE /api/social-media/templates/:id - Delete template
+// PUT /api/social-media/templates/:id - Update template
+router.put('/templates/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateTemplateSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const { name, content, platform, category, hashtags } = req.body;
+
+    const result = await pool.query(
+      `UPDATE social_media_templates SET
+         name = COALESCE($3, name),
+         content = COALESCE($4, content),
+         platform = COALESCE($5, platform),
+         category = COALESCE($6, category),
+         hashtags = COALESCE($7, hashtags),
+         updated_at = NOW()
+       WHERE id = $1 AND organization_id = $2 AND is_active = true
+       RETURNING ${SM_TEMPLATE_COLUMNS}`,
+      [id, organizationId, name ?? null, content ?? null, platform ?? null, category ?? null, hashtags ?? null]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update template error:', error);
+    res.status(500).json({ error: 'Failed to update template' });
+  }
+});
+
 router.delete('/templates/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
@@ -495,6 +534,35 @@ router.post('/hashtags', authenticateToken, attachOrganization, requireOrgRole('
 });
 
 // DELETE /api/social-media/hashtags/:id - Delete hashtag group
+// PUT /api/social-media/hashtags/:id - Update hashtag group
+router.put('/hashtags/:id', authenticateToken, attachOrganization, requireOrgRole('member'), validate(updateHashtagGroupSchema), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+    const { name, hashtags, category } = req.body;
+
+    const result = await pool.query(
+      `UPDATE social_media_hashtag_groups SET
+         name = COALESCE($3, name),
+         hashtags = COALESCE($4, hashtags),
+         category = COALESCE($5, category),
+         updated_at = NOW()
+       WHERE id = $1 AND organization_id = $2
+       RETURNING ${SM_HASHTAG_GROUP_COLUMNS}`,
+      [id, organizationId, name ?? null, hashtags ?? null, category ?? null]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Hashtag group not found' });
+    }
+    res.json(transformRow(result.rows[0]));
+  } catch (error) {
+    console.error('Update hashtag group error:', error);
+    res.status(500).json({ error: 'Failed to update hashtag group' });
+  }
+});
+
 router.delete('/hashtags/:id', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;

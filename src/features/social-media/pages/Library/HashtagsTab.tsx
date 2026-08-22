@@ -15,7 +15,7 @@ import type { SocialMediaHashtagGroup } from '../../types';
 import { useConfirm } from '../../../../contexts/UIContext';
 
 export default function HashtagsTab() {
-  const { hashtagGroups, addHashtagGroup, removeHashtagGroup } = useSocialMedia();
+  const { hashtagGroups, addHashtagGroup, updateHashtagGroup, removeHashtagGroup } = useSocialMedia();
   const confirm = useConfirm();
 
   const [showEditor, setShowEditor] = useState(false);
@@ -73,11 +73,11 @@ export default function HashtagsTab() {
     try {
       if (editingGroup) {
         // Update existing
-        await socialMediaApi.updateHashtagGroup(editingGroup.id, {
+        const updated = await socialMediaApi.updateHashtagGroup(editingGroup.id, {
           name,
           hashtags,
         });
-        // Refresh would be needed here
+        updateHashtagGroup(updated);
       } else {
         // Create new
         const created = await socialMediaApi.createHashtagGroup({

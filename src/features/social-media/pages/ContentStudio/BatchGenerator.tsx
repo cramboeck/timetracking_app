@@ -100,7 +100,6 @@ export default function BatchGenerator() {
         hashtags: result.hashtags,
         platforms: [platform],
         scheduledAt: result.scheduledAt,
-        status: result.scheduledAt ? 'scheduled' : 'draft',
       });
       addPost(post);
       // Remove from results

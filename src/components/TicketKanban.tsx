@@ -364,12 +364,12 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
     return customerMap.get(customerId)?.color || '#6B7280';
   }, [customerMap]);
 
-  const getAssigneeName = useCallback((assignedTo: string | null) => {
+  const getAssigneeName = useCallback((assignedTo: string | null | undefined) => {
     if (!assignedTo) return null;
     return teamMemberMap.get(assignedTo)?.name || null;
   }, [teamMemberMap]);
 
-  const getAssigneeInitials = useCallback((assignedTo: string | null) => {
+  const getAssigneeInitials = useCallback((assignedTo: string | null | undefined) => {
     if (!assignedTo) return null;
     return teamMemberMap.get(assignedTo)?.initials || null;
   }, [teamMemberMap]);
@@ -378,7 +378,7 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
       if (customerFilter && t.customerId !== customerFilter) return false;
-      if (assigneeFilter && t.assignedTo !== assigneeFilter) return false;
+      if (assigneeFilter && t.assignedToUserId !== assigneeFilter) return false;
       if (priorityFilter && t.priority !== priorityFilter) return false;
       return true;
     });
@@ -477,8 +477,8 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
   const renderTicketCard = useCallback((ticket: Ticket) => {
     const tags = ticketTags[ticket.id] || [];
     const isDragging = draggedTicket?.id === ticket.id;
-    const assigneeInitials = getAssigneeInitials(ticket.assignedTo);
-    const assigneeName = getAssigneeName(ticket.assignedTo);
+    const assigneeInitials = getAssigneeInitials(ticket.assignedToUserId);
+    const assigneeName = getAssigneeName(ticket.assignedToUserId);
 
     return (
       <TicketCard

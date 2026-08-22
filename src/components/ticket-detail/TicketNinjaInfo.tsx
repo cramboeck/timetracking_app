@@ -90,9 +90,9 @@ export const TicketNinjaInfo = ({ deviceId, ninjaAlertId, deviceName }: TicketNi
                   {device.displayName || device.systemName}
                 </span>
                 {device.offline ? (
-                  <WifiOff size={14} className="text-red-500" title="Offline" />
+                  <span title="Offline"><WifiOff size={14} className="text-red-500" /></span>
                 ) : (
-                  <Wifi size={14} className="text-green-500" title="Online" />
+                  <span title="Online"><Wifi size={14} className="text-green-500" /></span>
                 )}
               </div>
               <div className="text-sm text-gray-500 dark:text-dark-400">
@@ -118,11 +118,11 @@ export const TicketNinjaInfo = ({ deviceId, ninjaAlertId, deviceName }: TicketNi
                 </div>
               </div>
             )}
-            {device.lastContactTime && (
+            {device.lastContact && (
               <div className="bg-white dark:bg-dark-200 rounded p-2">
                 <div className="text-xs text-gray-500 dark:text-dark-400">Letzter Kontakt</div>
                 <div className="text-gray-900 dark:text-white">
-                  {new Date(device.lastContactTime).toLocaleString('de-DE')}
+                  {new Date(device.lastContact).toLocaleString('de-DE')}
                 </div>
               </div>
             )}

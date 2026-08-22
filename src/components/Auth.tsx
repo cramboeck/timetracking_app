@@ -91,7 +91,7 @@ export const Auth = () => {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState('');
-  const [registerAccountType, setRegisterAccountType] = useState<AccountType>('personal');
+  const [registerAccountType, setRegisterAccountType] = useState<Exclude<AccountType, 'freelancer'>>('personal');
   const [registerOrganizationName, setRegisterOrganizationName] = useState('');
   const [registerInviteCode, setRegisterInviteCode] = useState('');
 

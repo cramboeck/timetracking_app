@@ -40,7 +40,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
-import { TimeEntry, Customer, Project, Activity, Ticket } from './types';
+import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useToast } from './contexts/UIContext';
 import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
@@ -712,7 +712,7 @@ function App() {
     }
   };
 
-  const handleEditEntry = async (id: string, updates: Partial<TimeEntry>) => {
+  const handleEditEntry = async (id: string, updates: TimeEntryUpdate) => {
     try {
       console.log('✏️ [ENTRY] Editing entry:', id);
       const response = await entriesApi.update(id, updates);

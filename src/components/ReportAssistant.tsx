@@ -1312,7 +1312,7 @@ export const ReportAssistant = ({
 
         setPdfPreview({
           show: true,
-          pdfUrl: pdfUrl as string,
+          pdfUrl: String(pdfUrl),
           customerName: customerData.customer.name,
           currentIndex: index,
           totalCount: selectedIds.length
@@ -1405,10 +1405,13 @@ export const ReportAssistant = ({
         weekday: entry.weekday || getWeekdayAbbr(new Date(entry.date)),
         project: {
           id: '',
-          name: entry.projectName || 'Projekt',
+          userId: '',
           customerId: report.customer_id,
+          name: entry.projectName || 'Projekt',
+          rateType: 'hourly',
           hourlyRate: 0,
-          color: '#6b7280'
+          isActive: true,
+          createdAt: '',
         } as Project,
         activity: entry.activityName && entry.activityName !== '-'
           ? { id: '', name: entry.activityName } as Activity

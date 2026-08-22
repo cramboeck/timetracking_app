@@ -110,6 +110,7 @@ export type {
   InternalExpenseSummary,
   NinjaDiagnosticResult,
   NinjaDeviceHealth,
+  NinjaVulnerability,
 } from './integrations';
 
 // Business API (maintenance, contracts, import, AI, social media)

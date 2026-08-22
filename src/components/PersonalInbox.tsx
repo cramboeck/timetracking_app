@@ -121,11 +121,10 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       const newCustomer = await customersApi.create({
         name: customerData.name,
         email: customerData.email,
-        website: customerData.domain ? `https://${customerData.domain}` : undefined,
-        isActive: true,
+        color: '#FF6A00', // Brand-Default; Server verlangt eine Farbe
       });
       setShowUnknownCustomerDialog(false);
-      await handleSaveAsInteraction(newCustomer.id);
+      await handleSaveAsInteraction(newCustomer.data.id);
     } catch (err: any) {
       showToast(err.message || 'Fehler beim Erstellen des Kunden', 'error');
     }
@@ -401,9 +400,19 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
       {showUnknownCustomerDialog && senderInfo && (
         <UnknownCustomerDialog
           isOpen={showUnknownCustomerDialog}
-          onClose={() => setShowUnknownCustomerDialog(false)}
-          onSelectCustomer={handleSelectCustomer}
-          onCreateCustomer={handleCreateCustomer}
+          onCancel={() => setShowUnknownCustomerDialog(false)}
+          onCustomerSelected={handleSelectCustomer}
+          onNavigateToCreateCustomer={() =>
+            handleCreateCustomer({
+              name: senderInfo.name || senderInfo.email,
+              email: senderInfo.email,
+              domain: senderInfo.domain || undefined,
+            })
+          }
+          onContinueWithoutCustomer={() => {
+            setShowUnknownCustomerDialog(false);
+            handleSaveAsInteraction();
+          }}
           senderEmail={senderInfo.email}
           senderName={senderInfo.name}
           senderDomain={senderInfo.domain}

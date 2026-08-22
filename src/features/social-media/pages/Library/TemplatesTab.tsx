@@ -17,7 +17,7 @@ import { useConfirm } from '../../../../contexts/UIContext';
 const PLATFORMS: Platform[] = ['linkedin', 'twitter', 'facebook', 'instagram'];
 
 export default function TemplatesTab() {
-  const { templates, addTemplate, removeTemplate } = useSocialMedia();
+  const { templates, addTemplate, updateTemplate, removeTemplate } = useSocialMedia();
   const confirm = useConfirm();
 
   const [showEditor, setShowEditor] = useState(false);
@@ -47,7 +47,7 @@ export default function TemplatesTab() {
       setName(template.name);
       setContent(template.content);
       setCategory(template.category || '');
-      setPlatforms(template.platforms as Platform[]);
+      setPlatforms(template.platform === 'all' ? [...PLATFORMS] : [template.platform]);
     }
     setShowEditor(true);
   };
@@ -66,22 +66,22 @@ export default function TemplatesTab() {
     if (!name.trim() || !content.trim()) return;
     setSaving(true);
     try {
+      // DB kennt genau eine Plattform pro Vorlage ('all' = alle)
+      const platform: Platform = platforms.length === 1 ? platforms[0] : 'all';
       if (editingTemplate) {
-        // Update existing
-        await socialMediaApi.updateTemplate(editingTemplate.id, {
+        const updated = await socialMediaApi.updateTemplate(editingTemplate.id, {
           name,
           content,
           category: category || undefined,
-          platforms,
+          platform,
         });
-        // Refresh templates in context would be needed here
+        updateTemplate(updated);
       } else {
-        // Create new
         const created = await socialMediaApi.createTemplate({
           name,
           content,
           category: category || undefined,
-          platforms,
+          platform,
         });
         addTemplate(created);
       }
@@ -211,7 +211,7 @@ export default function TemplatesTab() {
               </p>
 
               <div className="flex gap-1">
-                {(template.platforms || []).map((platform) => (
+                {(template.platform === 'all' ? PLATFORMS : [template.platform]).map((platform) => (
                   <span
                     key={platform}
                     className={`p-1 rounded ${PLATFORM_COLORS[platform]} text-white`}

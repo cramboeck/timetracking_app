@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar } from 'lucide-react';
-import { TimeEntry, Project, Customer, Activity, EntryScope } from '../types';
+import { TimeEntry, TimeEntryUpdate, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -36,7 +36,7 @@ interface TimeEntriesListProps {
   customers: Customer[];
   activities: Activity[];
   onDelete: (id: string) => void | Promise<void>;
-  onEdit: (id: string, updates: Partial<Omit<TimeEntry, 'activityId'>> & { activityId?: string | null }) => void | Promise<void>;
+  onEdit: (id: string, updates: TimeEntryUpdate) => void | Promise<void>;
   onRepeatEntry?: (entry: TimeEntry) => void;
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
 }

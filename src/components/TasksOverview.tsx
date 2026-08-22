@@ -214,7 +214,7 @@ export const TasksOverview = ({ customers, onTicketSelect }: TasksOverviewProps)
                             {task.title}
                           </span>
                           {task.visibleToCustomer && (
-                            <Eye size={14} className="text-accent-primary flex-shrink-0 mt-0.5" title="Für Kunden sichtbar" />
+                            <span title="Für Kunden sichtbar"><Eye size={14} className="text-accent-primary flex-shrink-0 mt-0.5" /></span>
                           )}
                         </div>
 

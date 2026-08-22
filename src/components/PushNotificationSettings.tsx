@@ -263,31 +263,31 @@ export const PushNotificationSettings = () => {
                 <PreferenceToggle
                   label="Neues Ticket"
                   description="E-Mail wenn ein neues Ticket erstellt wird"
-                  checked={preferences.email_on_new_ticket}
+                  checked={preferences.email_on_new_ticket ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_new_ticket', v)}
                 />
                 <PreferenceToggle
                   label="Ticket zugewiesen"
                   description="E-Mail wenn Ihnen ein Ticket zugewiesen wird"
-                  checked={preferences.email_on_ticket_assigned}
+                  checked={preferences.email_on_ticket_assigned ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_ticket_assigned', v)}
                 />
                 <PreferenceToggle
                   label="Neuer Kommentar"
                   description="E-Mail bei Kommentaren zu Ihren zugewiesenen Tickets"
-                  checked={preferences.email_on_ticket_comment}
+                  checked={preferences.email_on_ticket_comment ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_ticket_comment', v)}
                 />
                 <PreferenceToggle
                   label="Status geändert"
                   description="E-Mail bei Statusänderungen Ihrer Tickets"
-                  checked={preferences.email_on_status_change}
+                  checked={preferences.email_on_status_change ?? false}
                   onChange={(v) => handlePreferenceChange('email_on_status_change', v)}
                 />
                 <PreferenceToggle
                   label="SLA-Warnung"
                   description="E-Mail bei SLA-Verletzungen"
-                  checked={preferences.email_on_sla_warning}
+                  checked={preferences.email_on_sla_warning ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_sla_warning', v)}
                 />
               </div>

@@ -575,7 +575,7 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
                 customerId={customerId}
                 interaction={editingInteraction || undefined}
                 onSave={handleSave}
-                onClose={() => {
+                onCancel={() => {
                   setShowForm(false);
                   setEditingInteraction(null);
                 }}

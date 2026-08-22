@@ -168,7 +168,7 @@ export const InternalTimeReport = ({ entries }: InternalTimeReportProps) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Arbeitszeit_${selectedMonth}_${currentUser?.name || 'export'}.csv`;
+    link.download = `Arbeitszeit_${selectedMonth}_${currentUser?.displayName || currentUser?.username || 'export'}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 
@@ -181,7 +181,7 @@ export const InternalTimeReport = ({ entries }: InternalTimeReportProps) => {
       `ARBEITSZEITNACHWEIS`,
       `==================`,
       ``,
-      `Mitarbeiter: ${currentUser?.name || 'N/A'}`,
+      `Mitarbeiter: ${currentUser?.displayName || currentUser?.username || 'N/A'}`,
       `Zeitraum: ${formatMonthLabel(selectedMonth)}`,
       ``,
       `ZUSAMMENFASSUNG`,
@@ -237,7 +237,7 @@ export const InternalTimeReport = ({ entries }: InternalTimeReportProps) => {
 
   // Open email client
   const sendViaEmail = () => {
-    const subject = encodeURIComponent(`Arbeitszeitnachweis ${formatMonthLabel(selectedMonth)} - ${currentUser?.name || ''}`);
+    const subject = encodeURIComponent(`Arbeitszeitnachweis ${formatMonthLabel(selectedMonth)} - ${currentUser?.displayName || currentUser?.username || ''}`);
     const body = encodeURIComponent(generateReportText());
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
     showToast('E-Mail-Programm wird geöffnet', 'info');

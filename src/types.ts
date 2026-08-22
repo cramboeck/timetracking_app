@@ -59,7 +59,8 @@ export interface Activity {
   createdAt: string;
 }
 
-export type AccountType = 'personal' | 'business' | 'team';
+// 'freelancer' ist ein Legacy-Wert, den der DB-CHECK weiterhin erlaubt
+export type AccountType = 'personal' | 'business' | 'team' | 'freelancer';
 
 export type AccentColor = 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'pink' | 'ramboeck';
 
@@ -144,7 +145,8 @@ export interface RegisterData {
   username: string;
   email: string;
   password: string;
-  accountType: AccountType;
+  // Neuregistrierung erlaubt den Legacy-Wert 'freelancer' nicht mehr
+  accountType: Exclude<AccountType, 'freelancer'>;
   organizationName?: string;
   inviteCode?: string; // Optional invite code to join existing team
 }
@@ -183,6 +185,10 @@ export interface TimeEntry {
   customerVisibility: CustomerVisibility; // 'hidden' | 'summary' | 'detailed'
 }
 
+// Partial-Update fuer Zeiteintraege: activityId darf explizit null sein
+// (= Taetigkeit entfernen; undefined = Feld nicht anfassen)
+export type TimeEntryUpdate = Partial<Omit<TimeEntry, 'activityId'>> & { activityId?: string | null };
+
 // ============================================================================
 // Ticket System Types
 // ============================================================================
@@ -205,6 +211,7 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   assignedToUserId?: string; // For teams: who is working on it
+  dueDate?: string | null; // Faelligkeitsdatum (tickets.due_date)
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
@@ -446,6 +453,9 @@ export interface TicketComment {
   isInternal: boolean; // Internal notes not visible to customer
   content: string;
   createdAt: string;
+  // Vom Server gejoint (transformComment)
+  authorName?: string | null;
+  authorType?: 'user' | 'customer';
 }
 
 export interface TicketAttachment {

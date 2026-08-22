@@ -348,7 +348,7 @@ export const customerPortalApi = {
     return portalAuthFetch(`/customer-portal/tickets/${ticketId}/attachments`);
   },
 
-  uploadAttachments: async (ticketId: string, formData: FormData): Promise<PortalAttachment[]> => {
+  uploadAttachments: async (ticketId: string, formData: FormData): Promise<{ success: boolean; attachments: PortalAttachment[] }> => {
     const token = getPortalAuthToken();
     if (!token) {
       throw new Error('No portal authentication token found');
@@ -630,7 +630,18 @@ export interface NotificationPreferences {
   push_on_ticket_assigned: boolean;
   push_on_status_change: boolean;
   push_on_sla_warning: boolean;
+  push_on_mention?: boolean;
   email_enabled: boolean;
+  email_on_new_ticket?: boolean;
+  email_on_ticket_assigned?: boolean;
+  email_on_ticket_comment?: boolean;
+  email_on_status_change?: boolean;
+  email_on_sla_warning?: boolean;
+  email_on_mention?: boolean;
+  email_daily_digest?: boolean;
+  quiet_hours_enabled?: boolean;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
 }
 
 export interface DeviceSubscription {

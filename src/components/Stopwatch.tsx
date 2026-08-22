@@ -220,7 +220,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       if (project) {
         setCustomerId(project.customerId);
       }
-      setProjectId(runningEntry.projectId);
+      setProjectId(runningEntry.projectId || '');
       setActivityId(runningEntry.activityId || '');
       setTicketId(runningEntry.ticketId);
       setDescription(runningEntry.description);

@@ -48,8 +48,10 @@ interface SocialMediaContextValue {
   updatePost: (post: SocialMediaPost) => void;
   removePost: (postId: string) => void;
   addTemplate: (template: SocialMediaTemplate) => void;
+  updateTemplate: (template: SocialMediaTemplate) => void;
   removeTemplate: (templateId: string) => void;
   addHashtagGroup: (group: SocialMediaHashtagGroup) => void;
+  updateHashtagGroup: (group: SocialMediaHashtagGroup) => void;
   removeHashtagGroup: (groupId: string) => void;
   setError: (error: string | null) => void;
 }
@@ -147,6 +149,10 @@ export function SocialMediaProvider({ children, customers = [] }: SocialMediaPro
     setTemplates(prev => [template, ...prev]);
   }, []);
 
+  const updateTemplate = useCallback((template: SocialMediaTemplate) => {
+    setTemplates(prev => prev.map(t => (t.id === template.id ? template : t)));
+  }, []);
+
   const removeTemplate = useCallback((templateId: string) => {
     setTemplates(prev => prev.filter(t => t.id !== templateId));
   }, []);
@@ -154,6 +160,10 @@ export function SocialMediaProvider({ children, customers = [] }: SocialMediaPro
   // Hashtag group actions
   const addHashtagGroup = useCallback((group: SocialMediaHashtagGroup) => {
     setHashtagGroups(prev => [group, ...prev]);
+  }, []);
+
+  const updateHashtagGroup = useCallback((group: SocialMediaHashtagGroup) => {
+    setHashtagGroups(prev => prev.map(g => (g.id === group.id ? group : g)));
   }, []);
 
   const removeHashtagGroup = useCallback((groupId: string) => {
@@ -192,8 +202,10 @@ export function SocialMediaProvider({ children, customers = [] }: SocialMediaPro
     updatePost,
     removePost,
     addTemplate,
+    updateTemplate,
     removeTemplate,
     addHashtagGroup,
+    updateHashtagGroup,
     removeHashtagGroup,
     setError,
   };

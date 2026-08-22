@@ -220,7 +220,7 @@ router.get('/company', authenticateToken, async (req: AuthRequest, res) => {
 router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { name, address, city, zipCode, country, email, phone, website, taxId, logo } = req.body;
+    const { name, address, city, zipCode, country, email, phone, website, taxId, customerNumber, logo } = req.body;
 
     // Check if company info already exists
     const existingResult = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
@@ -231,17 +231,17 @@ router.post('/company', authenticateToken, async (req: AuthRequest, res) => {
       await pool.query(
         `UPDATE company_info
          SET name = $1, address = $2, city = $3, zip_code = $4, country = $5, email = $6,
-             phone = $7, website = $8, tax_id = $9, logo = $10
-         WHERE user_id = $11`,
-        [name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null, userId]
+             phone = $7, website = $8, tax_id = $9, customer_number = $10, logo = $11
+         WHERE user_id = $12`,
+        [name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, customerNumber || null, logo || null, userId]
       );
     } else {
       // Create new
       const id = crypto.randomUUID();
       await pool.query(
-        `INSERT INTO company_info (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, logo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [id, userId, name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, logo || null]
+        `INSERT INTO company_info (id, user_id, name, address, city, zip_code, country, email, phone, website, tax_id, customer_number, logo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [id, userId, name, address, city, zipCode, country, email, phone || null, website || null, taxId || null, customerNumber || null, logo || null]
       );
     }
 

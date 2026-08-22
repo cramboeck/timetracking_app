@@ -11,9 +11,9 @@ import {
   MaintenanceType,
   MaintenanceStatus,
   MaintenanceDashboard,
-  customersApi,
-  Customer
+  customersApi
 } from '../services/api';
+import { Customer } from '../types';
 import { Button, IconButton } from './ui/Button';
 
 const MAINTENANCE_TYPE_LABELS: Record<MaintenanceType, string> = {

@@ -99,8 +99,19 @@ export default function CompetitorsTab() {
   const analyzeCompetitor = async (competitor: Competitor) => {
     setAnalyzing(competitor.id);
     try {
-      const result = await socialMediaApi.analyzeCompetitor(competitor.id);
-      setAnalysis({ ...analysis, [competitor.id]: result });
+      // Die API erwartet vom User gesammelte Beispiel-Posts; ohne solche
+      // analysiert die KI auf Basis von Name/Profilen
+      const result = await socialMediaApi.analyzeCompetitor(competitor.id, { samplePosts: [] });
+      // API-Shape (insights/generatedPosts) auf das Anzeige-Modell mappen
+      const mapped = {
+        strengths: result.insights.strengths || [],
+        weaknesses: [],
+        contentThemes: [...(result.insights.contentTypes || []), ...(result.insights.topTopics || [])],
+        postingFrequency: result.insights.postingFrequency || '',
+        engagementRate: (result.insights.engagementTactics || []).join(', '),
+        recommendations: result.insights.opportunities || [],
+      };
+      setAnalysis({ ...analysis, [competitor.id]: mapped });
     } catch (error) {
       console.error('Failed to analyze competitor:', error);
     } finally {

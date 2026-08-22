@@ -193,7 +193,7 @@ const TicketsTab: React.FC<TicketsTabProps> = ({ customerId, onNavigateToTickets
   const loadTickets = async () => {
     try {
       setLoading(true);
-      const response = await ticketsApi.getAll({ customer_id: customerId, limit: 10 });
+      const response = await ticketsApi.getAll({ customerId, limit: 10 });
       setTickets(response.data || []);
     } catch (err) {
       console.error('Failed to load tickets:', err);
@@ -293,7 +293,7 @@ const TimeEntriesTab: React.FC<TimeEntriesTabProps> = ({ customerId, projects })
       setLoading(true);
       const response = await entriesApi.getAll();
       const customerEntries = (response.data || [])
-        .filter((e: TimeEntry) => customerProjectIds.includes(e.projectId))
+        .filter((e: TimeEntry) => e.projectId !== undefined && customerProjectIds.includes(e.projectId))
         .slice(0, 15);
       setEntries(customerEntries);
     } catch (err) {
@@ -381,7 +381,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const loadStats = async () => {
     try {
       // Load ticket stats
-      const ticketResponse = await ticketsApi.getAll({ customer_id: customer.id });
+      const ticketResponse = await ticketsApi.getAll({ customerId: customer.id });
       const tickets = ticketResponse.data || [];
       const openTickets = tickets.filter((t: TicketType) => ['open', 'in_progress'].includes(t.status));
 
@@ -389,7 +389,7 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
       const entriesResponse = await entriesApi.getAll();
       const customerProjectIds = projects.filter((p) => p.customerId === customer.id).map((p) => p.id);
       const customerEntries = (entriesResponse.data || []).filter((e: TimeEntry) =>
-        customerProjectIds.includes(e.projectId)
+        e.projectId !== undefined && customerProjectIds.includes(e.projectId)
       );
 
       const totalSeconds = customerEntries.reduce((sum: number, e: TimeEntry) => sum + e.duration, 0);

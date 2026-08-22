@@ -935,7 +935,7 @@ export const Settings = ({
       items: [
         { id: 'company', label: 'Firma & Branding', icon: Building, desc: 'Logo & Kontaktdaten' },
         { id: 'team', label: 'Team Management', icon: Users2, desc: 'Mitglieder & Einladungen' },
-        ...(currentUser?.role === 'admin' || currentUser?.role === 'owner' ? [
+        ...(currentUser?.role === 'admin' || userRole === 'owner' ? [
           { id: 'storage', label: 'Speicherplatz', icon: HardDrive, desc: 'Dateien & DB-Monitor' }
         ] : [])
       ]
@@ -2043,7 +2043,7 @@ export const Settings = ({
         )}
 
         {/* Storage Monitor Tab (Admin only) */}
-        {activeTab === 'storage' && (currentUser?.role === 'admin' || currentUser?.role === 'owner') && (
+        {activeTab === 'storage' && (currentUser?.role === 'admin' || userRole === 'owner') && (
           <div className="max-w-5xl mx-auto">
             <StorageMonitor />
           </div>

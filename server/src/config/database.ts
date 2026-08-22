@@ -1578,6 +1578,13 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Prod-Angleichung (22.8.2026): email_on_new_ticket fehlt in der gewachsenen
+    // Prod-Tabelle (stand nur im CREATE fuer Frischinstallationen), wird aber in
+    // expliziten SELECTs (tickets.ts, customer-portal.ts) referenziert.
+    await client.query(`
+      ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS email_on_new_ticket BOOLEAN DEFAULT true
+    `);
+
     // AI Suggestions for Tickets (internal only)
     await client.query(`
       CREATE TABLE IF NOT EXISTS ticket_ai_suggestions (

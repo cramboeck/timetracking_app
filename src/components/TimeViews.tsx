@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarClock } from 'lucide-react';
-import { TimeEntry, Customer, Project, Activity } from '../types';
+import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity } from '../types';
 import { WeeklyGridView } from './WeeklyGridView';
 import { TimeEntriesList } from './TimeEntriesList';
 import { CalendarView } from './CalendarView';
@@ -18,7 +18,7 @@ interface TimeViewsProps {
   customers: Customer[];
   activities: Activity[];
   onCreateEntry: (entry: TimeEntry) => void | Promise<boolean | void>;
-  onEditEntry: (id: string, updates: Partial<TimeEntry>) => void | Promise<void>;
+  onEditEntry: (id: string, updates: TimeEntryUpdate) => void | Promise<void>;
   onDeleteEntry: (id: string) => void | Promise<void>;
   onRepeatEntry: (entry: TimeEntry) => void;
   onBulkUpdate: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;

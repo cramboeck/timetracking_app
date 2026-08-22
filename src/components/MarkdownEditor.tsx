@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, KeyboardEvent, ClipboardEvent } from 'react';
-import { Bold, Italic, List, Code, Link2, ListOrdered, Quote, Image, Loader2 } from 'lucide-react';
+import { Bold, Italic, List, Code, Link2, ListOrdered, Quote, Image, Loader2, type LucideIcon } from 'lucide-react';
 
 interface MarkdownEditorProps {
   value: string;
@@ -12,7 +12,7 @@ interface MarkdownEditorProps {
 }
 
 interface ToolbarButton {
-  icon: React.ComponentType<{ size?: number }>;
+  icon: LucideIcon;
   title: string;
   shortcut: string;
   prefix: string;

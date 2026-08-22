@@ -1,11 +1,11 @@
-import { Calendar, dateFnsLocalizer, View, SlotInfo, Views } from 'react-big-calendar';
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import { Calendar, CalendarProps, AgendaDateProps, AgendaTimeProps, dateFnsLocalizer, View, SlotInfo, Views } from 'react-big-calendar';
+import withDragAndDrop, { EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import '../styles/calendar.css';
-import { TimeEntry, Project, Customer, Activity } from '../types';
+import { TimeEntry, TimeEntryUpdate, Project, Customer, Activity } from '../types';
 import { useState, useMemo, useEffect } from 'react';
 import { formatDuration } from '../utils/time';
 import { Modal } from './Modal';
@@ -28,7 +28,7 @@ const localizer = dateFnsLocalizer({
 });
 
 // Create DnD Calendar
-const DnDCalendar = withDragAndDrop(Calendar);
+const DnDCalendar = withDragAndDrop<CalendarEvent>(Calendar as React.ComponentType<CalendarProps<CalendarEvent>>);
 
 // Event types for calendar
 type EventType = 'timeEntry' | 'maintenance';
@@ -39,7 +39,7 @@ interface CalendarViewProps {
   customers: Customer[];
   activities: Activity[];
   onEditEntry: (entry: TimeEntry) => void;
-  onUpdateEntry: (id: string, updates: Partial<TimeEntry>) => void;
+  onUpdateEntry: (id: string, updates: TimeEntryUpdate) => void;
   onCreateEntry?: (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>) => void;
 }
 
@@ -271,7 +271,7 @@ export const CalendarView = ({
   // Open edit modal
   const openEditModal = (entry: TimeEntry) => {
     setEditingEntry(entry);
-    setEditProjectId(entry.projectId);
+    setEditProjectId(entry.projectId || '');
     setEditActivityId(entry.activityId || '');
     setEditDescription(entry.description);
 
@@ -325,29 +325,35 @@ export const CalendarView = ({
   };
 
   // Handle event drag & drop (move event to different time)
-  const handleEventDrop = ({ event, start, end }: { event: CalendarEvent; start: Date; end: Date }) => {
+  const handleEventDrop = ({ event, start, end }: EventInteractionArgs<CalendarEvent>) => {
     console.log('📅 [CALENDAR] Event dropped:', { event, start, end });
 
     const entry = event.resource.entry;
-    const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
+    if (!entry) return; // Wartungs-Events sind nicht editierbar
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const duration = Math.floor((endDate.getTime() - startDate.getTime()) / 1000);
 
     onUpdateEntry(entry.id, {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      startTime: startDate.toISOString(),
+      endTime: endDate.toISOString(),
       duration
     });
   };
 
   // Handle event resize (change duration)
-  const handleEventResize = ({ event, start, end }: { event: CalendarEvent; start: Date; end: Date }) => {
+  const handleEventResize = ({ event, start, end }: EventInteractionArgs<CalendarEvent>) => {
     console.log('📅 [CALENDAR] Event resized:', { event, start, end });
 
     const entry = event.resource.entry;
-    const duration = Math.floor((end.getTime() - start.getTime()) / 1000);
+    if (!entry) return; // Wartungs-Events sind nicht editierbar
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const duration = Math.floor((endDate.getTime() - startDate.getTime()) / 1000);
 
     onUpdateEntry(entry.id, {
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      startTime: startDate.toISOString(),
+      endTime: endDate.toISOString(),
       duration
     });
   };
@@ -405,12 +411,15 @@ export const CalendarView = ({
 
     const newEntry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'> = {
       projectId: createProjectId,
-      activityId: createActivityId === '' ? null : createActivityId,
+      activityId: createActivityId === '' ? undefined : createActivityId,
       startTime: startDateTime.toISOString(),
       endTime: endDateTime.toISOString(),
       duration,
       description: createDescription,
-      isRunning: false
+      isRunning: false,
+      isBillable: true,
+      entryScope: 'customer_project',
+      customerVisibility: 'hidden'
     };
 
     onCreateEntry(newEntry);
@@ -452,9 +461,10 @@ export const CalendarView = ({
     return {};
   };
 
-  // Custom Agenda Date component to fix date display
-  const AgendaDateComponent = ({ event }: { event: CalendarEvent }) => {
-    const dateStr = format(event.start, 'EEE, dd.MM.yyyy', { locale: de });
+  // Custom Agenda Date component to fix date display — react-big-calendar
+  // uebergibt hier { day, label }, kein Event
+  const AgendaDateComponent = ({ day }: AgendaDateProps) => {
+    const dateStr = format(day, 'EEE, dd.MM.yyyy', { locale: de });
     return (
       <div className="agenda-date-cell">
         <span className="font-medium text-gray-900 dark:text-white">{dateStr}</span>
@@ -463,8 +473,10 @@ export const CalendarView = ({
   };
 
   // Custom Agenda Time component
-  const AgendaTimeComponent = ({ event }: { event: CalendarEvent }) => {
-    const timeStr = `${format(event.start, 'HH:mm')} - ${format(event.end, 'HH:mm')}`;
+  const AgendaTimeComponent = ({ event }: AgendaTimeProps) => {
+    const timeStr = event.start && event.end
+      ? `${format(event.start, 'HH:mm')} - ${format(event.end, 'HH:mm')}`
+      : '';
     return (
       <div className="agenda-time-cell">
         <span className="text-sm text-gray-600 dark:text-dark-400">{timeStr}</span>

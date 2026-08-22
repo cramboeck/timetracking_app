@@ -42,6 +42,7 @@ export const userApi = {
     phone?: string;
     website?: string;
     taxId?: string;
+    customerNumber?: string;
     logo?: string;
   }): Promise<CompanyInfo> => {
     return authFetch('/company-info', {
