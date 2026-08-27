@@ -117,6 +117,19 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ## Aktueller Stand (Stand 27.8.2026)
 
+### Ticket-Zuweisungs-Sprint (27.8.2026) — ✅ abgeschlossen (80efbea)
+
+> Anlass: „das ticketsystem hat noch keine möglichkeit die zuordnung an support mitarbeiter durchzuführen“. Ist-Analyse: Fundament existierte komplett (tickets.assigned_to, PUT-Endpoint, fertige Push-/Mail-Benachrichtigungen inkl. Prefs), aber der einzige UI-Weg war die Bulk-Aktion in der Liste — und genau die benachrichtigte nicht. Kein „Meine Tickets“, kein Bearbeiter im Detail/Liste sichtbar setzbar.
+
+| Bereich | Änderung |
+|---|---|
+| **Zuweisen überall** | Detail-Sidebar-Dropdown + „Mir zuweisen“, Bearbeiter-Feld im CreateTicketDialog (POST /tickets mit assignedToUserId + Aktivität + Benachrichtigung), Aufgaben-Zuweisung im Ticket (Backend konnte es, UI sendete es nie) |
+| **Meine Tickets** | Server-Filter `GET /tickets?assignedTo=` (`none` = unzugewiesen), Liste: Filter Alle/Meine/Unzugewiesen/Mitglied + Bearbeiter-Name in der Zeile (Listen-Query joint jetzt users), Kanban: „Meine Tickets“-Shortcut |
+| **Benachrichtigung immer** | `sendAssignedNotifications()`-Helfer; Bulk benachrichtigt jetzt („+N weitere“ statt Spam) — vorher erfuhr praktisch niemand von einer Zuweisung |
+| **Konsistenz** | PUT prüft Org-Mitgliedschaft (hatte nur Bulk), `.uuid()`-Zwang weg (users.id ist TEXT), Aktivitäts-Feed/Dashboard zeigen Namen statt roher User-ID (`newValueLabel`), PUT-Response liefert assignee_name |
+
+**Bewusst offen (bei Bedarf):** Auto-Zuweisung (Round-Robin, Kunde→Mitarbeiter-Regeln, Default-Bearbeiter in Vorlagen) — lohnt erst ab mehr Teamgröße. `tickets.assigned_to_user_id` bleibt tote Legacy-Spalte (nur `assigned_to` wird genutzt).
+
 ### E-Mail-Ticket-Sprint „Support-Inbox produktionsreif" (27.8.2026) — ✅ abgeschlossen (860bc0c)
 
 > Anlass: „mir gefällt das support ticket handling bzw. anhängen von mails zu vorhandenen tickets noch nicht". Ist-Analyse ergab: kein automatischer Eingang (nur pull-on-demand aus dem UI), Threading nur über Graph-`conversationId` (brach bei Antworten auf SMTP-Benachrichtigungen), „Mit Ticket verknüpfen" nur bei conversationId-Vorschlag, Anhängen ohne Statuswechsel/Aktivität/Benachrichtigung.
@@ -710,7 +723,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 27.8.2026 — E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
+*Zuletzt aktualisiert: 27.8.2026 — Ticket-Zuweisungs-Sprint ✅ (80efbea): Zuweisen im Detail/Erstellen/Aufgaben, „Meine Tickets“-Filter, Bulk benachrichtigt endlich, Namen statt UUIDs im Feed. Davor: E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
