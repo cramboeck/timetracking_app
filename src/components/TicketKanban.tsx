@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Clock, Building2, AlertCircle, RefreshCw, Filter, User, Layers, X, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { Ticket, TicketStatus, TicketPriority, Customer } from '../types';
 import { ticketsApi, TicketTag, organizationsApi, OrganizationMember } from '../services/api';
 import { Button, IconButton } from './ui';
@@ -193,6 +194,7 @@ const useIsMobile = () => {
 export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanbanProps) => {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+  const { currentUser } = useAuth();
 
   // Merge custom config with defaults
   const activeConfig = useMemo(() => ({
@@ -584,11 +586,14 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
                 className="px-2 py-1 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-xs text-gray-900 dark:text-white"
               >
                 <option value="">Alle Bearbeiter</option>
-                {teamMembers.map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.display_name || member.username}
-                  </option>
-                ))}
+                {currentUser?.id && <option value={currentUser.id}>Meine Tickets</option>}
+                {teamMembers
+                  .filter((member) => member.user_id !== currentUser?.id)
+                  .map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.display_name || member.username}
+                    </option>
+                  ))}
               </select>
             </div>
 

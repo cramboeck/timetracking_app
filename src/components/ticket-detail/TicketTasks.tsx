@@ -2,15 +2,17 @@ import { useState, useMemo } from 'react';
 import { CheckSquare, Square, GripVertical, Eye, EyeOff, Trash2, Pencil, Check, X, ChevronRight, Calendar, User, AlertCircle } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
 import { TicketTask } from './types';
+import { OrganizationMember } from '../../services/api';
 
 interface TicketTasksProps {
   ticketId: string;
   tasks: TicketTask[];
   loadingTasks: boolean;
-  onAddTask: (title: string, visible: boolean, dueDate?: string | null) => Promise<void>;
+  teamMembers?: OrganizationMember[];
+  onAddTask: (title: string, visible: boolean, dueDate?: string | null, assignedTo?: string | null) => Promise<void>;
   onToggleTask: (task: TicketTask) => Promise<void>;
   onToggleTaskVisibility: (task: TicketTask) => Promise<void>;
-  onUpdateTask: (taskId: string, title: string, dueDate?: string | null) => Promise<void>;
+  onUpdateTask: (taskId: string, title: string, dueDate?: string | null, assignedTo?: string | null) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onReorderTasks: (taskIds: string[]) => Promise<void>;
 }
@@ -40,6 +42,7 @@ const formatDueDate = (dateStr: string): string => {
 export const TicketTasks = ({
   tasks,
   loadingTasks,
+  teamMembers = [],
   onAddTask,
   onToggleTask,
   onToggleTaskVisibility,
@@ -51,11 +54,13 @@ export const TicketTasks = ({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskVisible, setNewTaskVisible] = useState(false);
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [addingTask, setAddingTask] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskTitle, setEditingTaskTitle] = useState('');
   const [editingTaskDueDate, setEditingTaskDueDate] = useState('');
+  const [editingTaskAssignee, setEditingTaskAssignee] = useState('');
   const [localTasks, setLocalTasks] = useState<TicketTask[]>(tasks);
 
   // Sync local tasks with props
@@ -75,10 +80,11 @@ export const TicketTasks = ({
 
     try {
       setAddingTask(true);
-      await onAddTask(newTaskTitle.trim(), newTaskVisible, newTaskDueDate || null);
+      await onAddTask(newTaskTitle.trim(), newTaskVisible, newTaskDueDate || null, newTaskAssignee || null);
       setNewTaskTitle('');
       setNewTaskVisible(false);
       setNewTaskDueDate('');
+      setNewTaskAssignee('');
     } finally {
       setAddingTask(false);
     }
@@ -88,12 +94,14 @@ export const TicketTasks = ({
     setEditingTaskId(task.id);
     setEditingTaskTitle(task.title);
     setEditingTaskDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
+    setEditingTaskAssignee(task.assignedTo || '');
   };
 
   const handleCancelEditTask = () => {
     setEditingTaskId(null);
     setEditingTaskTitle('');
     setEditingTaskDueDate('');
+    setEditingTaskAssignee('');
   };
 
   const handleSaveEditTask = async (taskId: string) => {
@@ -101,7 +109,7 @@ export const TicketTasks = ({
       handleCancelEditTask();
       return;
     }
-    await onUpdateTask(taskId, editingTaskTitle.trim(), editingTaskDueDate || null);
+    await onUpdateTask(taskId, editingTaskTitle.trim(), editingTaskDueDate || null, editingTaskAssignee || null);
     handleCancelEditTask();
   };
 
@@ -232,6 +240,18 @@ export const TicketTasks = ({
                             onChange={(e) => setEditingTaskDueDate(e.target.value)}
                             className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
                           />
+                          {teamMembers.length > 0 && (
+                            <select
+                              value={editingTaskAssignee}
+                              onChange={(e) => setEditingTaskAssignee(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                            >
+                              <option value="">Niemand</option>
+                              {teamMembers.map((m) => (
+                                <option key={m.user_id} value={m.user_id}>{m.display_name || m.username}</option>
+                              ))}
+                            </select>
+                          )}
                           <IconButton
                             onClick={() => handleSaveEditTask(task.id)}
                             icon={<Check size={14} />}
@@ -342,6 +362,18 @@ export const TicketTasks = ({
                     className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
                     placeholder="Fällig am"
                   />
+                  {teamMembers.length > 0 && (
+                    <select
+                      value={newTaskAssignee}
+                      onChange={(e) => setNewTaskAssignee(e.target.value)}
+                      className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
+                    >
+                      <option value="">Niemand</option>
+                      {teamMembers.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>{m.display_name || m.username}</option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     onClick={() => setNewTaskVisible(!newTaskVisible)}
                     className={`p-1 rounded transition-colors ${

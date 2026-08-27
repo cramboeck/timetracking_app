@@ -27,6 +27,8 @@ const createTicketSchema = z.object({
   title: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).optional(),
   priority: ticketPrioritySchema.optional(),
+  // users.id ist TEXT (nicht zwingend UUID) — kein .uuid() erzwingen
+  assignedToUserId: z.string().min(1).max(100).optional().nullable(),
 });
 
 const updateTicketSchema = z.object({
@@ -36,7 +38,8 @@ const updateTicketSchema = z.object({
   description: z.string().max(50_000).optional().nullable(),
   status: ticketStatusSchema.optional(),
   priority: ticketPrioritySchema.optional(),
-  assignedToUserId: z.string().uuid().optional().nullable(),
+  // users.id ist TEXT (nicht zwingend UUID) — kein .uuid() erzwingen
+  assignedToUserId: z.string().min(1).max(100).optional().nullable(),
   solution: z.string().max(50_000).optional().nullable(),
   resolutionType: z.string().max(100).optional().nullable(),
   deviceId: z.string().max(200).optional().nullable(),
@@ -123,7 +126,8 @@ const bulkPrioritySchema = z.object({
 
 const bulkAssignSchema = z.object({
   ticketIds: z.array(z.string().uuid()).min(1).max(100),
-  assignedToUserId: z.string().uuid().nullable(),
+  // users.id ist TEXT (nicht zwingend UUID)
+  assignedToUserId: z.string().min(1).max(100).nullable(),
 });
 
 const bulkArchiveSchema = z.object({
@@ -188,6 +192,91 @@ const TICKET_BASIC_COLUMNS = `id, priority, created_at`;
 
 // Portal URL for email links
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+
+// Benachrichtigt den neu zugewiesenen Bearbeiter (Push + E-Mail, gemaess
+// notification_preferences). Von Einzel-Update, Bulk-Zuweisung und
+// Ticket-Erstellung genutzt — vorher benachrichtigte nur der (im UI
+// unerreichbare) Einzel-Pfad. Fire-and-forget beim Aufrufer.
+async function sendAssignedNotifications(
+  ticketId: string,
+  assignedToUserId: string,
+  assignerUserId: string,
+  options: { bulkCount?: number } = {}
+): Promise<void> {
+  try {
+    const assigneeResult = await query(
+      'SELECT id, username, email FROM users WHERE id = $1',
+      [assignedToUserId]
+    );
+    if (assigneeResult.rows.length === 0) return;
+    const assignee = assigneeResult.rows[0];
+
+    const assignerResult = await query(
+      'SELECT COALESCE(display_name, username) as name FROM users WHERE id = $1',
+      [assignerUserId]
+    );
+    const assignerName = assignerResult.rows[0]?.name || 'Ein Teammitglied';
+
+    const ticketDetails = await query(`
+      SELECT t.ticket_number, t.title, t.description, t.priority, c.name as customer_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      WHERE t.id = $1
+    `, [ticketId]);
+    if (ticketDetails.rows.length === 0) return;
+    const ticket = ticketDetails.rows[0];
+
+    const prefsResult = await query(
+      `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
+      [assignedToUserId]
+    );
+    const prefs = prefsResult.rows[0] || {
+      push_enabled: true,
+      push_on_ticket_assigned: true,
+      email_enabled: true,
+      email_on_ticket_assigned: true
+    };
+
+    const bulkSuffix = options.bulkCount && options.bulkCount > 1
+      ? ` (+${options.bulkCount - 1} weitere)`
+      : '';
+
+    if (prefs.push_enabled !== false && prefs.push_on_ticket_assigned !== false) {
+      sendTicketNotification(
+        assignedToUserId,
+        { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+        'push_on_ticket_assigned',
+        `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen${bulkSuffix}`
+      ).catch(err => logger.error('Push notification error (assigned):', err));
+    }
+
+    if (prefs.email_enabled !== false && prefs.email_on_ticket_assigned !== false && assignee.email) {
+      const ticketUrl = `${PORTAL_URL}/?ticket=${ticketId}`;
+      emailService.sendTicketAssignedNotification({
+        to: assignee.email,
+        assigneeName: assignee.username,
+        assignedByName: assignerName,
+        ticketNumber: ticket.ticket_number,
+        ticketTitle: ticket.title + bulkSuffix,
+        ticketDescription: ticket.description || '',
+        customerName: ticket.customer_name || 'Unbekannt',
+        priority: ticket.priority,
+        ticketUrl
+      }).catch(err => logger.error('Email notification error (assigned):', err));
+    }
+  } catch (err) {
+    logger.error('Error sending assignment notifications:', err);
+  }
+}
+
+// Prueft, ob ein User Mitglied der Organisation ist (Zuweisungs-Validierung)
+async function isOrgMember(organizationId: string, targetUserId: string): Promise<boolean> {
+  const result = await query(
+    'SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2',
+    [organizationId, targetUserId]
+  );
+  return result.rows.length > 0;
+}
 
 // Helper function to generate ticket number (zentrale Sequenz; auch von
 // microsoft365.ts fuer Mail-Tickets genutzt — frueher zwei Generatoren mit
@@ -301,7 +390,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { status, customerId, priority, searchText } = req.query;
+    const { status, customerId, priority, searchText, assignedTo } = req.query;
 
     // Legacy support: ?all=true bypasses pagination
     const returnAll = req.query.all === 'true';
@@ -331,6 +420,14 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
       whereClause += ` AND t.priority = $${params.length}`;
     }
 
+    // Bearbeiter-Filter: 'none' = unzugewiesen, sonst User-ID
+    if (assignedTo === 'none') {
+      whereClause += ` AND t.assigned_to IS NULL`;
+    } else if (assignedTo && typeof assignedTo === 'string') {
+      params.push(assignedTo);
+      whereClause += ` AND t.assigned_to = $${params.length}`;
+    }
+
     if (searchText && typeof searchText === 'string' && searchText.trim()) {
       params.push(`%${searchText.trim()}%`);
       whereClause += ` AND (t.title ILIKE $${params.length} OR t.description ILIKE $${params.length})`;
@@ -346,11 +443,13 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
              t.created_at, t.updated_at, t.created_by_contact_id,
              t.device_id, t.ninja_alert_id,
              c.name as customer_name, p.name as project_name,
-             d.display_name as device_name
+             d.display_name as device_name,
+             COALESCE(assignee.display_name, assignee.username) as assignee_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
+      LEFT JOIN users assignee ON t.assigned_to = assignee.id
       ${whereClause}
       ORDER BY t.created_at DESC`;
 
@@ -545,6 +644,19 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       LIMIT 5
     `, [organizationId]);
 
+    // Namen fuer Zuweisungs-Aktivitaeten aufloesen (new_value = User-ID)
+    const activityAssigneeIds = recentActivity.rows
+      .filter(a => a.action === 'assigned' && a.new_value)
+      .map(a => a.new_value);
+    const activityAssigneeNames = new Map<string, string>();
+    if (activityAssigneeIds.length > 0) {
+      const nameResult = await query(
+        `SELECT id, COALESCE(display_name, username) as name FROM users WHERE id = ANY($1)`,
+        [activityAssigneeIds]
+      );
+      for (const row of nameResult.rows) activityAssigneeNames.set(row.id, row.name);
+    }
+
     // Calculate SLA compliance percentage
     const sla = slaStats.rows[0];
     const responseCompliance = sla.with_response_sla > 0
@@ -585,6 +697,10 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
           action: a.action,
           oldValue: a.old_value,
           newValue: a.new_value,
+          // Bei Zuweisungen: Name statt User-ID fuer die Anzeige
+          newValueLabel: (a.action === 'assigned' && a.new_value)
+            ? (activityAssigneeNames.get(a.new_value) || a.new_value)
+            : undefined,
           createdAt: a.created_at,
           ticketNumber: a.ticket_number,
           ticketTitle: a.title,
@@ -732,20 +848,24 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { customerId, projectId, title, description, priority = 'normal' } = req.body;
+    const { customerId, projectId, title, description, priority = 'normal', assignedToUserId } = req.body;
 
     if (!customerId || !title) {
       return res.status(400).json({ success: false, error: 'Customer and title are required' });
+    }
+
+    if (assignedToUserId && !(await isOrgMember(organizationId, assignedToUserId))) {
+      return res.status(400).json({ success: false, error: 'Der Bearbeiter ist kein Mitglied dieser Organisation' });
     }
 
     const id = crypto.randomUUID();
     const ticketNumber = await generateTicketNumber(organizationId);
 
     const result = await query(`
-      INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, project_id, title, description, priority, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open')
+      INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, project_id, title, description, priority, status, assigned_to)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', $10)
       RETURNING *
-    `, [id, ticketNumber, userId, organizationId, customerId, projectId || null, title, description || '', priority]);
+    `, [id, ticketNumber, userId, organizationId, customerId, projectId || null, title, description || '', priority, assignedToUserId || null]);
 
     // Apply SLA if available
     const slaDeadlines = await calculateSlaDeadlines(organizationId, priority);
@@ -761,6 +881,15 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
 
     // Log activity
     await logTicketActivity(id, userId, null, 'created', null, null, { ticketNumber, title, priority });
+
+    // Direkt-Zuweisung beim Erstellen: Aktivitaet + Benachrichtigung
+    if (assignedToUserId) {
+      await logTicketActivity(id, userId, null, 'assigned', null, assignedToUserId);
+      if (assignedToUserId !== userId) {
+        sendAssignedNotifications(id, assignedToUserId, userId)
+          .catch(err => logger.error('Error sending assignment notifications (create):', err));
+      }
+    }
 
     // Audit log
     await auditLog.log({
@@ -892,6 +1021,9 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       paramIndex++;
     }
     if (assignedToUserId !== undefined) {
+      if (assignedToUserId && !(await isOrgMember(organizationId, assignedToUserId))) {
+        return res.status(400).json({ success: false, error: 'Der Bearbeiter ist kein Mitglied dieser Organisation' });
+      }
       updates.push(`assigned_to = $${paramIndex}`);
       params.push(assignedToUserId || null);
       paramIndex++;
@@ -1012,77 +1144,9 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (assignedToUserId !== undefined && assignedToUserId !== oldValues.assigned_to) {
       if (assignedToUserId) {
         await logTicketActivity(id, userId, null, 'assigned', oldValues.assigned_to, assignedToUserId);
-
         // Send notification to the newly assigned user (async, don't block response)
-        (async () => {
-          try {
-            // Get assignee info
-            const assigneeResult = await query(
-              'SELECT id, username, email FROM users WHERE id = $1',
-              [assignedToUserId]
-            );
-            if (assigneeResult.rows.length === 0) return;
-            const assignee = assigneeResult.rows[0];
-
-            // Get assigner (current user) info
-            const assignerResult = await query(
-              'SELECT username FROM users WHERE id = $1',
-              [userId]
-            );
-            const assignerName = assignerResult.rows[0]?.username || 'Ein Teammitglied';
-
-            // Get ticket details with customer name
-            const ticketDetails = await query(`
-              SELECT t.ticket_number, t.title, t.description, t.priority, c.name as customer_name
-              FROM tickets t
-              LEFT JOIN customers c ON t.customer_id = c.id
-              WHERE t.id = $1
-            `, [id]);
-            if (ticketDetails.rows.length === 0) return;
-            const ticket = ticketDetails.rows[0];
-
-            // Check notification preferences for assignee
-            const prefsResult = await query(
-              `SELECT ${NOTIFICATION_PREFS_COLUMNS} FROM notification_preferences WHERE user_id = $1`,
-              [assignedToUserId]
-            );
-            // Default preferences if not set
-            const prefs = prefsResult.rows[0] || {
-              push_enabled: true,
-              push_on_ticket_assigned: true,
-              email_enabled: true,
-              email_on_ticket_assigned: true
-            };
-
-            // Send push notification
-            if (prefs.push_enabled !== false && prefs.push_on_ticket_assigned !== false) {
-              sendTicketNotification(
-                assignedToUserId,
-                { id, ticketNumber: ticket.ticket_number, title: ticket.title },
-                'push_on_ticket_assigned',
-                `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen`
-              ).catch(err => logger.error('Push notification error (assigned):', err));
-            }
-
-            // Send email notification
-            if (prefs.email_enabled !== false && prefs.email_on_ticket_assigned !== false && assignee.email) {
-              const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
-              emailService.sendTicketAssignedNotification({
-                to: assignee.email,
-                assigneeName: assignee.username,
-                assignedByName: assignerName,
-                ticketNumber: ticket.ticket_number,
-                ticketTitle: ticket.title,
-                ticketDescription: ticket.description || '',
-                customerName: ticket.customer_name || 'Unbekannt',
-                priority: ticket.priority,
-                ticketUrl
-              }).catch(err => logger.error('Email notification error (assigned):', err));
-            }
-          } catch (err) {
-            logger.error('Error sending assignment notifications:', err);
-          }
-        })();
+        sendAssignedNotifications(id, assignedToUserId, userId)
+          .catch(err => logger.error('Error sending assignment notifications:', err));
       } else {
         await logTicketActivity(id, userId, null, 'unassigned', oldValues.assigned_to, null);
       }
@@ -1104,10 +1168,12 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     // Get with joined data
     const ticketResult = await query(`
-      SELECT t.*, c.name as customer_name, p.name as project_name
+      SELECT t.*, c.name as customer_name, p.name as project_name,
+             COALESCE(assignee.display_name, assignee.username) as assignee_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
+      LEFT JOIN users assignee ON t.assigned_to = assignee.id
       WHERE t.id = $1
     `, [id]);
 
@@ -1624,6 +1690,15 @@ router.post('/bulk/assign', authenticateToken, attachOrganization, requireOrgRol
       action: 'ticket.bulk_assign',
       details: JSON.stringify({ ticketIds, assignedToUserId, count: ticketIds.length }),
     });
+
+    // Benachrichtigen — eine Push/Mail mit "+N weitere" statt pro Ticket
+    // (vorher benachrichtigte der Bulk-Pfad ueberhaupt nicht, und das war
+    // der einzige im UI erreichbare Zuweisungsweg)
+    const actuallyChanged = ticketIds.filter((tid: string) => oldAssignees.get(tid) !== assignedToUserId);
+    if (assignedToUserId && assignedToUserId !== userId && actuallyChanged.length > 0) {
+      sendAssignedNotifications(actuallyChanged[0], assignedToUserId, userId, { bulkCount: actuallyChanged.length })
+        .catch(err => logger.error('Error sending assignment notifications (bulk):', err));
+    }
 
     logger.info(`Bulk assign: ${ticketIds.length} tickets to ${assignedToUserId || 'unassigned'}`);
     res.json({ success: true, message: `${ticketIds.length} Tickets zugewiesen`, count: ticketIds.length });
@@ -3177,6 +3252,28 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
     `, [ticketId, Number(limit), Number(offset)]);
 
     // Transform to camelCase
+    // Bei Zuweisungs-Aktivitaeten stehen User-IDs in old_value/new_value —
+    // fuer die Anzeige in Namen aufloesen (vorher zeigte der Feed rohe UUIDs)
+    const assigneeIds = new Set<string>();
+    for (const row of result.rows) {
+      if (row.action_type === 'assigned' || row.action_type === 'unassigned') {
+        if (row.old_value) assigneeIds.add(row.old_value);
+        if (row.new_value) assigneeIds.add(row.new_value);
+      }
+    }
+    const nameById = new Map<string, string>();
+    if (assigneeIds.size > 0) {
+      const nameResult = await query(
+        `SELECT id, COALESCE(display_name, username) as name FROM users WHERE id = ANY($1)`,
+        [Array.from(assigneeIds)]
+      );
+      for (const row of nameResult.rows) nameById.set(row.id, row.name);
+    }
+    const resolveLabel = (row: any, value: string | null) =>
+      (row.action_type === 'assigned' || row.action_type === 'unassigned') && value
+        ? nameById.get(value) || value
+        : undefined;
+
     const activities = result.rows.map(row => ({
       id: row.id,
       ticketId: row.ticket_id,
@@ -3185,6 +3282,9 @@ router.get('/:ticketId/activities', authenticateToken, attachOrganization, async
       actionType: row.action_type,
       oldValue: row.old_value,
       newValue: row.new_value,
+      // Anzeige-Labels fuer Zuweisungen (Name statt User-ID)
+      oldValueLabel: resolveLabel(row, row.old_value),
+      newValueLabel: resolveLabel(row, row.new_value),
       metadata: row.metadata,
       createdAt: row.created_at?.toISOString(),
       userName: row.user_name,

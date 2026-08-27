@@ -1,9 +1,9 @@
-import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone, FileCheck, AlertTriangle } from 'lucide-react';
+import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone, FileCheck, AlertTriangle, UserPlus, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { SlaStatus } from '../SlaStatus';
 import { Ticket, Customer, TimeEntry, formatDuration } from './types';
 import { TicketSource } from '../../types';
-import { Contract } from '../../services/api';
+import { Contract, OrganizationMember } from '../../services/api';
 
 interface TicketMetadataProps {
   ticket: Ticket;
@@ -11,6 +11,11 @@ interface TicketMetadataProps {
   timeEntries: TimeEntry[];
   activeContract?: Contract;
   onStartTimer: (ticket: Ticket) => void;
+  // Zuweisung
+  teamMembers?: OrganizationMember[];
+  currentUserId?: string;
+  onAssign?: (userId: string | null) => void;
+  assigning?: boolean;
 }
 
 const sourceConfig: Record<TicketSource, { label: string; icon: typeof Mail; color: string }> = {
@@ -26,6 +31,10 @@ export const TicketMetadata = ({
   timeEntries,
   activeContract,
   onStartTimer,
+  teamMembers = [],
+  currentUserId,
+  onAssign,
+  assigning = false,
 }: TicketMetadataProps) => {
   const getCustomerName = (customerId: string) => {
     return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
@@ -64,19 +73,47 @@ export const TicketMetadata = ({
           </div>
         </div>
 
-        {ticket.assigneeName && (
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-dark-200 rounded-lg flex items-center justify-center">
-              <User className="text-gray-500 dark:text-dark-400" size={16} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs text-gray-500 dark:text-dark-400">Zugewiesen an</div>
-              <div className="font-medium text-gray-900 dark:text-white truncate">
-                {ticket.assigneeName}
-              </div>
-            </div>
+        {/* Bearbeiter — direkt in der Sidebar zuweisbar */}
+        <div className="flex items-center gap-3">
+          <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-dark-200 rounded-lg flex items-center justify-center">
+            {assigning
+              ? <Loader2 className="text-accent-primary animate-spin" size={16} />
+              : <User className="text-gray-500 dark:text-dark-400" size={16} />}
           </div>
-        )}
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-gray-500 dark:text-dark-400">Bearbeiter</div>
+            {onAssign ? (
+              <select
+                value={ticket.assignedToUserId || ''}
+                onChange={(e) => onAssign(e.target.value || null)}
+                disabled={assigning}
+                className="w-full mt-0.5 px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-60"
+              >
+                <option value="">Nicht zugewiesen</option>
+                {teamMembers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.display_name || m.username}
+                    {m.user_id === currentUserId ? ' (ich)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="font-medium text-gray-900 dark:text-white truncate">
+                {ticket.assigneeName || 'Nicht zugewiesen'}
+              </div>
+            )}
+            {onAssign && currentUserId && ticket.assignedToUserId !== currentUserId && (
+              <button
+                onClick={() => onAssign(currentUserId)}
+                disabled={assigning}
+                className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-accent-dark dark:text-accent-primary hover:underline disabled:opacity-60"
+              >
+                <UserPlus size={12} />
+                Mir zuweisen
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-dark-200 rounded-lg flex items-center justify-center">

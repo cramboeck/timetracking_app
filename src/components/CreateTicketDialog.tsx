@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, Save, FileText } from 'lucide-react';
 import { Customer, Project, TicketPriority } from '../types';
-import { ticketsApi, TicketTemplate } from '../services/api';
+import { ticketsApi, TicketTemplate, organizationsApi, OrganizationMember } from '../services/api';
 import { Button, IconButton } from './ui';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CreateTicketDialogProps {
   isOpen: boolean;
@@ -20,13 +21,31 @@ const priorityOptions: { value: TicketPriority; label: string }[] = [
 ];
 
 export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, projects }: CreateTicketDialogProps) => {
+  const { currentUser } = useAuth();
   const [customerId, setCustomerId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TicketPriority>('normal');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [teamMembers, setTeamMembers] = useState<OrganizationMember[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Team-Mitglieder fuer die Bearbeiter-Auswahl
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const orgRes = await organizationsApi.getCurrent();
+        if (!orgRes.success || !orgRes.data?.id) return;
+        const membersRes = await organizationsApi.getMembers(orgRes.data.id);
+        if (membersRes.success) setTeamMembers(membersRes.data || []);
+      } catch (err) {
+        console.error('Failed to load team members:', err);
+      }
+    })();
+  }, [isOpen]);
 
   // Template state
   const [templates, setTemplates] = useState<TicketTemplate[]>([]);
@@ -109,6 +128,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
+        assignedToUserId: assignedToUserId || undefined,
       });
 
       // Reset form and close
@@ -117,6 +137,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
       setTitle('');
       setDescription('');
       setPriority('normal');
+      setAssignedToUserId('');
       setSelectedTemplateId('');
       onCreated();
       onClose();
@@ -281,6 +302,26 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Bearbeiter (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                Bearbeiter
+              </label>
+              <select
+                value={assignedToUserId}
+                onChange={(e) => setAssignedToUserId(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              >
+                <option value="">Nicht zugewiesen</option>
+                {teamMembers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.display_name || m.username}
+                    {m.user_id === currentUser?.id ? ' (ich)' : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Description */}

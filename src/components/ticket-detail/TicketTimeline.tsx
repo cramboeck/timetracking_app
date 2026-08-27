@@ -32,9 +32,11 @@ export const TicketTimeline = ({
       case 'priority_changed':
         return `${actor} hat die Prioritat von "${priorityConfig[activity.oldValue as TicketPriority]?.label || activity.oldValue}" auf "${priorityConfig[activity.newValue as TicketPriority]?.label || activity.newValue}" geandert`;
       case 'assigned':
-        return `${actor} hat das Ticket zugewiesen`;
+        return `${actor} hat das Ticket ${activity.newValueLabel || activity.newValue || ''} zugewiesen`.replace('  ', ' ');
       case 'unassigned':
-        return `${actor} hat die Zuweisung entfernt`;
+        return `${actor} hat die Zuweisung${activity.oldValueLabel ? ` von ${activity.oldValueLabel}` : ''} entfernt`;
+      case 'email_received':
+        return `E-Mail eingegangen: ${activity.newValue || ''}`;
       case 'comment_added':
         return `${actor} hat einen Kommentar hinzugefugt`;
       case 'internal_comment_added':

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
+import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, OrganizationMember, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -38,6 +39,7 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   const queryClient = useQueryClient();
   const showToast = useToast();
   const confirm = useConfirm();
+  const { currentUser } = useAuth();
 
   // Edit mode
   const [isEditing, setIsEditing] = useState(false);
@@ -170,6 +172,18 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   const loadingEmails = ticketEmailsQuery.isFetching;
   const loadTicketEmails = () => ticketEmailsQuery.refetch();
 
+  const teamMembersQuery = useQuery({
+    queryKey: ['teamMembers', 'current'],
+    queryFn: async () => {
+      const orgResponse = await organizationsApi.getCurrent();
+      if (!orgResponse.success || !orgResponse.data) return [] as OrganizationMember[];
+      const membersResponse = await organizationsApi.getMembers(orgResponse.data.id);
+      return (membersResponse.success ? membersResponse.data : []) as OrganizationMember[];
+    },
+    staleTime: 5 * 60_000,
+  });
+  const teamMembers = teamMembersQuery.data ?? [];
+
   const aiConfigQuery = useQuery({
     queryKey: ['ai', 'config'],
     queryFn: async () => (await aiApi.getConfig()).data,
@@ -237,6 +251,23 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
       showToast('Fehler beim Speichern des Tickets', 'error');
     },
   });
+
+  const handleAssign = (assignedToUserId: string | null) => {
+    updateTicketMutation.mutate({ assignedToUserId }, {
+      onSuccess: () => {
+        if (!assignedToUserId) {
+          showToast('Zuweisung entfernt', 'success');
+          return;
+        }
+        if (assignedToUserId === currentUser?.id) {
+          showToast('Ticket dir zugewiesen', 'success');
+          return;
+        }
+        const member = teamMembers.find(m => m.user_id === assignedToUserId);
+        showToast(`Ticket ${member?.display_name || member?.username || 'Bearbeiter'} zugewiesen`, 'success');
+      },
+    });
+  };
 
   const handleSaveEdit = () => {
     if (!ticket) return;
@@ -389,8 +420,8 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   const invalidateTasksOverview = () =>
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
-  const handleAddTask = async (title: string, visible: boolean, dueDate?: string | null) => {
-    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible, dueDate });
+  const handleAddTask = async (title: string, visible: boolean, dueDate?: string | null, assignedTo?: string | null) => {
+    const response = await ticketsApi.createTask(ticketId, { title, visibleToCustomer: visible, dueDate, assignedTo: assignedTo || undefined });
     writeTasks((prev) => [...prev, response.data]);
     invalidateTasksOverview();
   };
@@ -409,8 +440,8 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
     invalidateTasksOverview();
   };
 
-  const handleUpdateTask = async (taskId: string, title: string, dueDate?: string | null) => {
-    const response = await ticketsApi.updateTask(ticketId, taskId, { title, dueDate });
+  const handleUpdateTask = async (taskId: string, title: string, dueDate?: string | null, assignedTo?: string | null) => {
+    const response = await ticketsApi.updateTask(ticketId, taskId, { title, dueDate, assignedTo });
     writeTasks((prev) => prev.map((t) => (t.id === taskId ? response.data : t)));
     invalidateTasksOverview();
   };
@@ -656,6 +687,10 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 timeEntries={timeEntries}
                 activeContract={activeContract}
                 onStartTimer={onStartTimer}
+                teamMembers={teamMembers}
+                currentUserId={currentUser?.id}
+                onAssign={handleAssign}
+                assigning={updateTicketMutation.isPending}
               />
 
               {/* NinjaRMM Alert Info - for tickets from NinjaRMM */}
@@ -672,6 +707,7 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 ticketId={ticketId}
                 tasks={tasks}
                 loadingTasks={loadingTasks}
+                teamMembers={teamMembers}
                 onAddTask={handleAddTask}
                 onToggleTask={handleToggleTask}
                 onToggleTaskVisibility={handleToggleTaskVisibility}

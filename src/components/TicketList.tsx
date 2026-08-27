@@ -1,12 +1,13 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive, Trash2, Square, CheckSquare, MinusSquare, Mail, Globe, Smartphone, Monitor } from 'lucide-react';
+import { Plus, Filter, AlertCircle, Clock, CheckCircle, Pause, X, ChevronRight, Search, Archive, Trash2, Square, CheckSquare, MinusSquare, Mail, Globe, Smartphone, Monitor, User as UserIcon } from 'lucide-react';
 import { Ticket, TicketStatus, TicketPriority, TicketSource, Customer, Project } from '../types';
 import { ticketsApi, organizationsApi } from '../services/api';
 import { SlaStatus } from './SlaStatus';
 import { Button } from './ui';
 import { SkeletonListItem } from './Skeleton';
 import { useToast, useConfirm } from '../contexts/UIContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface TicketListHandle {
   selectNext: () => void;
@@ -62,6 +63,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
   const queryClient = useQueryClient();
   const showToast = useToast();
   const confirm = useConfirm();
+  const { currentUser } = useAuth();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
@@ -71,6 +73,8 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  // '' = alle, 'me' = mir zugewiesen, 'none' = unzugewiesen, sonst User-ID
+  const [assigneeFilter, setAssigneeFilter] = useState('');
 
   // Bulk selection state
   const [selectedTicketIds, setSelectedTicketIds] = useState<Set<string>>(new Set());
@@ -86,7 +90,8 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
       const membersRes = await organizationsApi.getMembers(orgRes.data.id);
       return membersRes.data || [];
     },
-    enabled: selectedTicketIds.size > 0,
+    // Auch fuer den Bearbeiter-Filter noetig, nicht nur fuer Bulk-Zuweisung
+    enabled: selectedTicketIds.size > 0 || showFilters,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -253,6 +258,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
     status: statusFilter || undefined,
     priority: priorityFilter || undefined,
     customerId: customerFilter || undefined,
+    assignedTo: assigneeFilter === 'me' ? currentUser?.id : (assigneeFilter || undefined),
   };
 
   const ticketsQuery = useQuery({
@@ -335,7 +341,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
     setShowArchived(false);
   };
 
-  const hasActiveFilters = statusFilter || priorityFilter || customerFilter || searchQuery || showArchived;
+  const hasActiveFilters = statusFilter || priorityFilter || customerFilter || assigneeFilter || searchQuery || showArchived;
 
   // Expose keyboard navigation methods via ref
   useImperativeHandle(ref, () => ({
@@ -462,7 +468,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
         {/* Filter Panel */}
         {showFilters && (
           <div className="mt-4 p-4 bg-gray-50 dark:bg-dark-100 rounded-lg space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Status</label>
                 <select
@@ -500,6 +506,23 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                   {customers.map(customer => (
                     <option key={customer.id} value={customer.id}>{customer.name}</option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Bearbeiter</label>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                >
+                  <option value="">Alle Bearbeiter</option>
+                  <option value="me">Meine Tickets</option>
+                  <option value="none">Nicht zugewiesen</option>
+                  {(membersQuery.data || [])
+                    .filter(m => m.user_id !== currentUser?.id)
+                    .map(m => (
+                      <option key={m.user_id} value={m.user_id}>{m.display_name || m.username}</option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -774,6 +797,15 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                           <span>{getCustomerName(ticket.customerId)}</span>
                           <span>•</span>
                           <span>{formatDate(ticket.createdAt)}</span>
+                          {ticket.assigneeName && (
+                            <>
+                              <span>•</span>
+                              <span className="inline-flex items-center gap-1">
+                                <UserIcon size={12} />
+                                {ticket.assigneeName}
+                              </span>
+                            </>
+                          )}
                           {ticket.deviceName && (
                             <>
                               <span>•</span>

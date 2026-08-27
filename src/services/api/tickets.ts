@@ -58,6 +58,8 @@ export interface TicketDashboardData {
     action: string;
     oldValue: string | null;
     newValue: string | null;
+    // Bei Zuweisungen: aufgeloester Name statt User-ID
+    newValueLabel?: string;
     createdAt: string;
     ticketNumber: string;
     ticketTitle: string;
@@ -111,6 +113,9 @@ export interface TicketActivity {
   actionType: string;
   oldValue?: string | null;
   newValue?: string | null;
+  // Anzeige-Labels bei Zuweisungen (Name statt User-ID)
+  oldValueLabel?: string;
+  newValueLabel?: string;
   metadata?: unknown;
   createdAt: string;
   userName?: string | null;
@@ -152,11 +157,12 @@ export interface TicketTemplate {
 
 // Tickets API
 export const ticketsApi = {
-  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority; limit?: number; searchText?: string }): Promise<{ success: boolean; data: Ticket[] }> => {
+  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority; limit?: number; searchText?: string; assignedTo?: string }): Promise<{ success: boolean; data: Ticket[] }> => {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.customerId) params.append('customerId', filters.customerId);
     if (filters?.priority) params.append('priority', filters.priority);
+    if (filters?.assignedTo) params.append('assignedTo', filters.assignedTo); // 'none' = unzugewiesen
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.searchText) params.append('searchText', filters.searchText);
     const query = params.toString() ? `?${params.toString()}` : '';
@@ -196,6 +202,7 @@ export const ticketsApi = {
     title: string;
     description?: string;
     priority?: TicketPriority;
+    assignedToUserId?: string | null;
   }): Promise<{ success: boolean; data: Ticket }> => {
     return authFetch('/tickets', {
       method: 'POST',

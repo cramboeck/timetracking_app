@@ -45,7 +45,7 @@ const formatRelativeTime = (dateString: string): string => {
   return `vor ${Math.floor(diffMins / 1440)} Tagen`;
 };
 
-const getActionText = (action: string, oldValue?: string | null, newValue?: string | null): string => {
+const getActionText = (action: string, oldValue?: string | null, newValue?: string | null, newValueLabel?: string): string => {
   const statusLabels: Record<string, string> = {
     open: 'Offen',
     in_progress: 'In Bearbeitung',
@@ -65,7 +65,7 @@ const getActionText = (action: string, oldValue?: string | null, newValue?: stri
     created: 'Ticket erstellt',
     status_changed: `Status: ${statusLabels[oldValue || ''] || oldValue} → ${statusLabels[newValue || ''] || newValue}`,
     priority_changed: `Priorität: ${priorityLabels[oldValue || ''] || oldValue} → ${priorityLabels[newValue || ''] || newValue}`,
-    assigned: `Zugewiesen an ${newValue}`,
+    assigned: `Zugewiesen an ${newValueLabel || newValue}`,
     unassigned: 'Zuweisung entfernt',
     comment_added: 'Kommentar hinzugefügt',
     internal_comment_added: 'Interne Notiz',
@@ -480,7 +480,7 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                       <p className="text-sm text-gray-900 dark:text-white">
                         <span className="font-medium">{activity.actorName}</span>{' '}
                         <span className="text-gray-500 dark:text-dark-400">
-                          {getActionText(activity.action, activity.oldValue, activity.newValue)}
+                          {getActionText(activity.action, activity.oldValue, activity.newValue, activity.newValueLabel)}
                         </span>
                       </p>
                       <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
