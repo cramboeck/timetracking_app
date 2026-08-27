@@ -115,7 +115,20 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 22.8.2026)
+## Aktueller Stand (Stand 27.8.2026)
+
+### E-Mail-Ticket-Sprint „Support-Inbox produktionsreif" (27.8.2026) — ✅ abgeschlossen (860bc0c)
+
+> Anlass: „mir gefällt das support ticket handling bzw. anhängen von mails zu vorhandenen tickets noch nicht". Ist-Analyse ergab: kein automatischer Eingang (nur pull-on-demand aus dem UI), Threading nur über Graph-`conversationId` (brach bei Antworten auf SMTP-Benachrichtigungen), „Mit Ticket verknüpfen" nur bei conversationId-Vorschlag, Anhängen ohne Statuswechsel/Aktivität/Benachrichtigung.
+
+| Bereich | Änderung |
+|---|---|
+| **Zuordnungs-Kaskade** | `findTicketForEmail()`: Ticket-Nummer im Betreff (`TKT-\d{6}`) → `conversationId` → In-Reply-To/References gegen `ticket_emails.internet_message_id` (wird jetzt bei jedem Eingang erfasst; Header-Abruf nur als letzte Stufe). SMTP-Benachrichtigungs-Betreffs trugen die Nummer schon immer → deren Antworten matchen jetzt. |
+| **Automatik** | `supportInboxCron` (alle 2 Min, Gate: `microsoft365_config.features_enabled.inboxMonitoring` — Settings-Toggle war „Bald verfügbar", jetzt funktional). Treffer → Mail+Anhänge ans Ticket, Status waiting/resolved/closed→open, Aktivität `email_received`, Push an Bearbeiter, als gelesen markiert. Kein Treffer → bleibt ungelesen als Triage. Loop-Schutz (eigene Absender), >14 Tage geschlossene Tickets nie auto-reopen. |
+| **Triage-UX** | Neuer `TicketPickerDialog`: „An Ticket anhängen…" für beliebige Tickets (Suche Nummer/Titel/Kunde, Absender-Kunde zuoberst). Vorher ging Verknüpfen nur bei conversationId-Vorschlag. `ticket-info`-Vorschlag nutzt die volle Kaskade. |
+| **Anhängen = Seiteneffekte** | `applyInboundEmailSideEffects()` bei manuellem UND automatischem Anhängen (vorher: Ticket blieb unsichtbar auf „Wartend"). |
+| **Paket-0-Bugs** | „Dringend"-400 (`urgent`→`critical`), Mail-Tickets ohne SLA/created-Aktivität, zwei konkurrierende Nummern-Generatoren (→ zentrale `ticket_sequences`), Merge ließ `ticket_emails` zurück, E-Mail-Verlauf nur bei `source='email'` sichtbar, outbound-Zeilen leer (`from_email='support'`, kein Body), `replyViaEmail` fire-and-forget → `emailReplySent` in Response + Toast. |
+
 
 ### Tech-Debt-Sprint „TS-Fehler 374 → 0" (22.8.2026) — ✅ abgeschlossen
 
@@ -697,7 +710,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 22.8.2026 — Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
+*Zuletzt aktualisiert: 27.8.2026 — E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
