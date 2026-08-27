@@ -189,8 +189,10 @@ const TICKET_BASIC_COLUMNS = `id, priority, created_at`;
 // Portal URL for email links
 const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
 
-// Helper function to generate ticket number
-async function generateTicketNumber(organizationId: string): Promise<string> {
+// Helper function to generate ticket number (zentrale Sequenz; auch von
+// microsoft365.ts fuer Mail-Tickets genutzt — frueher zwei Generatoren mit
+// Kollisionsrisiko)
+export async function generateTicketNumber(organizationId: string): Promise<string> {
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -1295,6 +1297,19 @@ router.post('/:id/merge', authenticateToken, attachOrganization, requireOrgRole(
           UPDATE ticket_attachments SET ticket_id = $1 WHERE ticket_id = $2
         `, [targetId, sourceTicket.id]);
 
+        // Move email history from source to target — sonst zeigen Folgemails
+        // (conversationId-Match) weiter auf das geschlossene Quell-Ticket
+        await client.query(`
+          UPDATE ticket_emails SET ticket_id = $1 WHERE ticket_id = $2
+        `, [targetId, sourceTicket.id]);
+        await client.query(`
+          UPDATE tickets target SET
+            email_conversation_id = COALESCE(target.email_conversation_id, source.email_conversation_id),
+            email_from = COALESCE(target.email_from, source.email_from)
+          FROM tickets source
+          WHERE target.id = $1 AND source.id = $2
+        `, [targetId, sourceTicket.id]);
+
         // Copy activities from source to target (with merge reference)
         await client.query(`
           INSERT INTO ticket_activities (id, ticket_id, user_id, customer_contact_id, action_type, old_value, new_value, metadata, created_at)
@@ -1703,6 +1718,8 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     }
 
     const commentId = crypto.randomUUID();
+    // undefined = kein Mail-Versand angefordert; true/false = Graph-Reply-Ergebnis
+    let emailReplySent: boolean | undefined;
 
     await query(`
       INSERT INTO ticket_comments (id, ticket_id, user_id, is_internal, content)
@@ -1746,10 +1763,16 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
               // If replyViaEmail is true and ticket has email conversation, reply via Graph API
               if (replyViaEmail && ticket.source === 'email' && ticket.email_conversation_id) {
-                // Reply via email thread (Graph API) - handled by mailboxMonitorService
+                // Reply via email thread (Graph API). Ergebnis abwarten, damit
+                // ein Fehlschlag im UI sichtbar wird (vorher fire-and-forget:
+                // Kommentar gespeichert, Mail ging still nie raus).
                 const { mailboxMonitorService } = await import('../services/mailboxMonitorService');
-                mailboxMonitorService.replyToTicketEmail(organizationId, ticketId, content, ticket.replier_name || 'Support')
-                  .catch(err => logger.error('Failed to send email reply via Graph API:', err));
+                try {
+                  emailReplySent = await mailboxMonitorService.replyToTicketEmail(organizationId, ticketId, content, ticket.replier_name || 'Support');
+                } catch (err) {
+                  logger.error('Failed to send email reply via Graph API:', err);
+                  emailReplySent = false;
+                }
               } else {
                 // Send standard notification email via SMTP
                 const portalTicketUrl = `${PORTAL_URL}/portal/tickets/${ticketId}`;
@@ -1879,7 +1902,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       WHERE tc.id = $1
     `, [commentId]);
 
-    res.status(201).json({ success: true, data: transformComment(result.rows[0]) });
+    res.status(201).json({ success: true, data: transformComment(result.rows[0]), emailReplySent });
   } catch (error) {
     logger.error('Error adding comment:', error);
     res.status(500).json({ success: false, error: 'Failed to add comment' });

@@ -36,6 +36,8 @@ export interface EmailMessage {
   }>;
   receivedDateTime: string;
   hasAttachments: boolean;
+  // RFC-5322 Message-ID — Basis fuer In-Reply-To/References-Threading
+  internetMessageId?: string;
   isRead: boolean;
   importance: 'low' | 'normal' | 'high';
 }
@@ -136,7 +138,7 @@ class MailboxMonitorService {
         .api(`/users/${mailbox}/mailFolders/${folder}/messages`)
         .top(maxResults)
         .orderby('receivedDateTime desc')
-        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
+        .select('id,conversationId,internetMessageId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
 
       // Only filter by unread if not including read emails
       if (!includeRead) {
@@ -170,6 +172,7 @@ class MailboxMonitorService {
         hasAttachments: msg.hasAttachments || false,
         isRead: msg.isRead || false,
         importance: msg.importance || 'normal',
+        internetMessageId: msg.internetMessageId || undefined,
       }));
 
       const status = includeRead ? 'all' : 'unread';
@@ -214,7 +217,7 @@ class MailboxMonitorService {
         .api(`/users/${mailboxEmail}/mailFolders/${folder}/messages`)
         .top(maxResults)
         .orderby('receivedDateTime desc')
-        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
+        .select('id,conversationId,internetMessageId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
 
       // Only filter by unread if not including read emails
       if (!includeRead) {
@@ -248,6 +251,7 @@ class MailboxMonitorService {
         hasAttachments: msg.hasAttachments || false,
         isRead: msg.isRead || false,
         importance: msg.importance || 'normal',
+        internetMessageId: msg.internetMessageId || undefined,
       }));
 
       return { success: true, emails };
@@ -280,7 +284,7 @@ class MailboxMonitorService {
     try {
       const msg = await client
         .api(`/users/${mailboxEmail}/messages/${messageId}`)
-        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
+        .select('id,conversationId,internetMessageId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
         .get();
 
       return {
@@ -308,6 +312,7 @@ class MailboxMonitorService {
         hasAttachments: msg.hasAttachments || false,
         isRead: msg.isRead || false,
         importance: msg.importance || 'normal',
+        internetMessageId: msg.internetMessageId || undefined,
       };
     } catch (error: any) {
       logger.error('Failed to get email from mailbox:', error.message);
@@ -367,7 +372,7 @@ class MailboxMonitorService {
     try {
       const msg = await client
         .api(`/users/${mailbox}/messages/${messageId}`)
-        .select('id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
+        .select('id,conversationId,internetMessageId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance')
         .get();
 
       return {
@@ -395,6 +400,7 @@ class MailboxMonitorService {
         hasAttachments: msg.hasAttachments || false,
         isRead: msg.isRead || false,
         importance: msg.importance || 'normal',
+        internetMessageId: msg.internetMessageId || undefined,
       };
     } catch (error: any) {
       logger.error('Failed to get email:', error.message);
@@ -623,6 +629,40 @@ class MailboxMonitorService {
   }
 
   /**
+   * Fetch In-Reply-To/References headers of a message (fuer Threading gegen
+   * gespeicherte internet_message_ids). Ein Extra-Graph-Call pro Mail — nur
+   * aufrufen, wenn Betreff- und conversationId-Matching leer ausgingen.
+   */
+  async getThreadingHeaders(
+    organizationId: string,
+    messageId: string,
+    mailboxType: MailboxType = 'support'
+  ): Promise<{ inReplyTo: string | null; references: string[] } | null> {
+    const clientData = await this.createClient(organizationId);
+    if (!clientData) return null;
+    const { client, config } = clientData;
+    const mailbox = this.getMailboxByType(config, mailboxType);
+    if (!mailbox) return null;
+
+    try {
+      const msg = await client
+        .api(`/users/${mailbox}/messages/${messageId}`)
+        .select('internetMessageHeaders')
+        .get();
+      const headers: Array<{ name: string; value: string }> = msg.internetMessageHeaders || [];
+      const get = (name: string) => headers.find(h => h.name?.toLowerCase() === name)?.value || null;
+      const inReplyTo = get('in-reply-to');
+      const referencesRaw = get('references');
+      // References enthaelt whitespace-getrennte <message-ids> der ganzen Kette
+      const references = referencesRaw ? (referencesRaw.match(/<[^>]+>/g) || []) : [];
+      return { inReplyTo, references };
+    } catch (error: any) {
+      logger.error('Failed to fetch threading headers:', error.message);
+      return null;
+    }
+  }
+
+  /**
    * Reply to an email
    */
   async replyToEmail(
@@ -680,7 +720,7 @@ class MailboxMonitorService {
     try {
       // Get the last inbound email for this ticket
       const result = await query(`
-        SELECT message_id, subject
+        SELECT message_id, subject, conversation_id, from_email, from_name
         FROM ticket_emails
         WHERE ticket_id = $1 AND organization_id = $2 AND direction = 'inbound'
         ORDER BY received_at DESC
@@ -706,18 +746,34 @@ class MailboxMonitorService {
         </div>
       `;
 
-      // Save the outbound email to ticket_emails
-      const emailId = crypto.randomUUID();
-      // ⚠️ Echte Spalten heißen from_email/from_name (Schema-Sweep:
-      // sender_* existiert auf ticket_emails nicht — der Verlaufs-Eintrag
-      // für ausgehende Antworten wurde nie geschrieben)
-      await query(`
-        INSERT INTO ticket_emails (id, ticket_id, organization_id, message_id, direction, subject, body_preview, from_email, from_name, received_at)
-        VALUES ($1, $2, $3, $4, 'outbound', $5, $6, $7, $8, NOW())
-      `, [emailId, ticketId, organizationId, `reply-${emailId}`, lastEmail.subject, replyContent.substring(0, 250), 'support', senderName]);
+      // Send the reply via Graph API FIRST — nur erfolgreiche Sendungen
+      // landen im Verlauf (vorher stand die Mail im Verlauf, auch wenn der
+      // Versand scheiterte)
+      const sent = await this.replyToEmail(organizationId, lastEmail.message_id, htmlContent, false, 'support');
+      if (!sent) return false;
 
-      // Send the reply via Graph API
-      return await this.replyToEmail(organizationId, lastEmail.message_id, htmlContent, false, 'support');
+      // Absender = konfiguriertes Support-Postfach (vorher Literal 'support')
+      const config = await getConfig(organizationId);
+      const mailboxAddress = config?.supportMailbox || config?.mailFrom || 'support';
+
+      // Save the outbound email to ticket_emails — mit Inhalt, Empfaenger und
+      // Konversation, damit der E-Mail-Verlauf die Antwort anzeigen kann
+      const emailId = crypto.randomUUID();
+      await query(`
+        INSERT INTO ticket_emails (
+          id, ticket_id, organization_id, message_id, conversation_id, direction,
+          subject, body_preview, body_html, body_text,
+          from_email, from_name, to_recipients, received_at, sent_at
+        )
+        VALUES ($1, $2, $3, $4, $5, 'outbound', $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+      `, [
+        emailId, ticketId, organizationId, `reply-${emailId}`, lastEmail.conversation_id,
+        `RE: ${lastEmail.subject}`, replyContent.substring(0, 250), htmlContent, replyContent,
+        mailboxAddress, senderName,
+        JSON.stringify([{ name: lastEmail.from_name || '', email: lastEmail.from_email }]),
+      ]);
+
+      return true;
     } catch (error: any) {
       logger.error('Failed to reply to ticket email:', error.message);
       return false;

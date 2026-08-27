@@ -164,7 +164,7 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
       const res = await microsoft365Api.getTicketEmails(ticketId);
       return (res.success ? res.data || [] : []) as TicketEmail[];
     },
-    enabled: ticket?.source === 'email',
+    enabled: !!ticket,
   });
   const ticketEmails = ticketEmailsQuery.data ?? [];
   const loadingEmails = ticketEmailsQuery.isFetching;
@@ -312,6 +312,13 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
       );
       // For public replies, refetch to pick up first_response_at (SLA tracking)
       if (!vars.isInternal) ticketQuery.refetch();
+      // Graph-Reply angefordert, aber Versand fehlgeschlagen → deutlich melden
+      // (vorher fire-and-forget: Kommentar gespeichert, Mail ging still nie raus)
+      if (vars.replyViaEmail && res.emailReplySent === false) {
+        showToast('Kommentar gespeichert, aber die E-Mail-Antwort konnte NICHT versendet werden. Bitte den Kunden auf anderem Weg informieren.', 'error', 10000);
+      } else if (vars.replyViaEmail && res.emailReplySent) {
+        showToast('Antwort per E-Mail an den Kunden gesendet', 'success');
+      }
     },
   });
 
@@ -680,8 +687,9 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 onLoad={loadActivities}
               />
 
-              {/* Email History - collapsible */}
-              {ticket.source === 'email' && (
+              {/* Email History - collapsible (sichtbar sobald Mails existieren,
+                  unabhängig von der Ticket-Quelle) */}
+              {(ticket.source === 'email' || ticketEmails.length > 0) && (
                 <TicketEmailHistory
                   emails={ticketEmails}
                   loading={loadingEmails}

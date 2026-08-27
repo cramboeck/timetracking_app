@@ -582,11 +582,11 @@ export const Microsoft365Settings = () => {
             />
             <div>
               <span className="font-medium dark:text-white">Inbox-Ueberwachung</span>
-              <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
-                Bald verfuegbar
-              </span>
               <p className="text-sm text-gray-500 dark:text-dark-400">
-                Eingehende E-Mails automatisch in Tickets umwandeln
+                Support-Postfach alle 2 Minuten pruefen: Kundenantworten werden automatisch
+                dem passenden Ticket zugeordnet (Ticket-Nummer im Betreff, E-Mail-Thread)
+                und als gelesen markiert. Nicht zuordenbare Mails bleiben ungelesen in der
+                Support-Inbox zur manuellen Bearbeitung.
               </p>
             </div>
           </label>

@@ -5,7 +5,9 @@ import {
   ChevronDown, ChevronUp, AlertCircle, MessageSquare
 } from 'lucide-react';
 import { microsoft365Api, SupportEmail } from '../services/api';
+import { Ticket as TicketType } from '../types';
 import { UnknownCustomerDialog } from './UnknownCustomerDialog';
+import { TicketPickerDialog } from './TicketPickerDialog';
 import { Button, IconButton } from './ui/Button';
 import { sanitizeEmailHtml } from '../utils/sanitize';
 import { useToast } from '../contexts/UIContext';
@@ -51,6 +53,11 @@ export const SupportInbox = () => {
 
   // Save as interaction state
   const [savingInteraction, setSavingInteraction] = useState(false);
+
+  // Ticket-Picker ("An Ticket anhängen…")
+  const [showTicketPicker, setShowTicketPicker] = useState(false);
+  const [linkingTicketId, setLinkingTicketId] = useState<string | null>(null);
+  const [matchedCustomer, setMatchedCustomer] = useState<{ id: string; name: string } | null>(null);
 
   const loadConfig = async () => {
     try {
@@ -246,15 +253,11 @@ export const SupportInbox = () => {
     }
   };
 
-  const handleLinkToTicket = async () => {
-    if (!selectedEmail || !selectedTicketInfo?.suggestedTicket) return;
-
+  const linkEmailTo = async (ticketId: string) => {
+    if (!selectedEmail) return;
     setCreating(true);
     try {
-      const response = await microsoft365Api.linkEmailToTicket(
-        selectedEmail.id,
-        selectedTicketInfo.suggestedTicket.ticket_id
-      );
+      const response = await microsoft365Api.linkEmailToTicket(selectedEmail.id, ticketId);
       if (response.success && response.data) {
         showToast(`E-Mail wurde zu Ticket ${response.data.ticketNumber} hinzugefügt`, 'success', 5000);
         await loadEmails();
@@ -266,6 +269,36 @@ export const SupportInbox = () => {
       showToast(err.message || 'Fehler beim Verknüpfen', 'error');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleLinkToTicket = async () => {
+    if (!selectedTicketInfo?.suggestedTicket) return;
+    await linkEmailTo(selectedTicketInfo.suggestedTicket.ticket_id);
+  };
+
+  // "An Ticket anhängen…" — Picker öffnen; erkannten Kunden fürs Sortieren mitgeben
+  const openTicketPicker = async () => {
+    if (!selectedEmail) return;
+    setMatchedCustomer(null);
+    setShowTicketPicker(true);
+    try {
+      const lookup = await microsoft365Api.lookupCustomerForEmail(selectedEmail.id);
+      if (lookup.success && lookup.found && lookup.customer) {
+        setMatchedCustomer({ id: lookup.customer.id, name: lookup.customer.name });
+      }
+    } catch {
+      // Kundensuche ist nur Komfort — Picker funktioniert auch ohne
+    }
+  };
+
+  const handlePickTicket = async (ticket: TicketType) => {
+    setLinkingTicketId(ticket.id);
+    try {
+      await linkEmailTo(ticket.id);
+      setShowTicketPicker(false);
+    } finally {
+      setLinkingTicketId(null);
     }
   };
 
@@ -588,7 +621,7 @@ export const SupportInbox = () => {
                         Hoch
                       </Button>
                       <Button
-                        onClick={() => handleCreateTicket('urgent')}
+                        onClick={() => handleCreateTicket('critical')}
                         disabled={creating || savingInteraction}
                         variant="danger"
                         size="sm"
@@ -596,6 +629,20 @@ export const SupportInbox = () => {
                         Dringend
                       </Button>
                     </div>
+                  </div>
+
+                  {/* An bestehendes Ticket anhängen (beliebiges Ticket, mit Suche) */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-dark-200">
+                    <Button
+                      onClick={openTicketPicker}
+                      disabled={creating || savingInteraction}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                      icon={<Link2 size={16} />}
+                    >
+                      An Ticket anhängen…
+                    </Button>
                   </div>
 
                   {/* Save as Interaction */}
@@ -640,9 +687,9 @@ export const SupportInbox = () => {
             <h3 className="font-semibold text-gray-900 dark:text-white">E-Mail zu Ticket</h3>
           </div>
           <p className="text-sm text-gray-600 dark:text-dark-400">
-            Wählen Sie eine E-Mail aus und erstellen Sie daraus ein Support-Ticket.
-            Die E-Mail wird dem Ticket zugeordnet und alle zukünftigen Antworten
-            im selben Thread werden automatisch verknüpft.
+            Wählen Sie eine E-Mail aus und erstellen Sie daraus ein Support-Ticket —
+            oder hängen Sie sie über „An Ticket anhängen…" an ein beliebiges
+            bestehendes Ticket an.
           </p>
         </div>
 
@@ -654,12 +701,24 @@ export const SupportInbox = () => {
             <h3 className="font-semibold text-gray-900 dark:text-white">Automatische Zuordnung</h3>
           </div>
           <p className="text-sm text-gray-600 dark:text-dark-400">
-            E-Mails aus demselben Thread werden automatisch erkannt und können
-            einfach zu bestehenden Tickets hinzugefügt werden. Die E-Mail-Historie
-            wird im Ticket gespeichert.
+            Bei aktiviertem Inbox-Monitoring (Einstellungen → Microsoft 365) werden
+            Kundenantworten automatisch erkannt (Ticket-Nummer im Betreff, E-Mail-Thread)
+            und dem Ticket zugeordnet — hier erscheinen nur noch Mails, die ein
+            Mensch entscheiden muss.
           </p>
         </div>
       </div>
+
+      {/* Ticket Picker */}
+      <TicketPickerDialog
+        isOpen={showTicketPicker}
+        onClose={() => setShowTicketPicker(false)}
+        onSelect={handlePickTicket}
+        contextLabel={selectedEmail?.subject}
+        matchedCustomerId={matchedCustomer?.id}
+        matchedCustomerName={matchedCustomer?.name}
+        selectingTicketId={linkingTicketId}
+      />
 
       {/* Unknown Customer Dialog */}
       <UnknownCustomerDialog

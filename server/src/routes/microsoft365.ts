@@ -12,6 +12,7 @@ import { invoiceProcessorService } from '../services/invoiceProcessorService';
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { saveTicketFileFromBuffer } from '../middleware/upload';
+import { generateTicketNumber, calculateSlaDeadlines, logTicketActivity } from './tickets';
 import multer from 'multer';
 
 // ============================================================================
@@ -506,16 +507,6 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), validate(repl
 // Support Email to Ticket Endpoints
 // ========================================
 
-// Helper function to generate ticket number
-async function generateTicketNumber(organizationId: string): Promise<string> {
-  const result = await query(`
-    SELECT COALESCE(MAX(CAST(SUBSTRING(ticket_number FROM 5) AS INTEGER)), 0) + 1 as next_number
-    FROM tickets WHERE organization_id = $1
-  `, [organizationId]);
-  const nextNumber = result.rows[0]?.next_number || 1;
-  return `TKT-${String(nextNumber).padStart(6, '0')}`;
-}
-
 // Helper function to extract domain from email address
 function extractDomainFromEmail(email: string): string | null {
   const match = email.match(/@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/);
@@ -625,8 +616,8 @@ async function persistEmailAttachments(
   }
 }
 
-// Helper to save email to ticket_emails table
-async function saveEmailToTicket(
+// Helper to save email to ticket_emails table (auch vom Support-Inbox-Cron genutzt)
+export async function saveEmailToTicket(
   organizationId: string,
   ticketId: string,
   email: any,
@@ -643,12 +634,12 @@ async function saveEmailToTicket(
 
   const insertResult = await query(`
     INSERT INTO ticket_emails (
-      id, ticket_id, organization_id, message_id, conversation_id,
+      id, ticket_id, organization_id, message_id, conversation_id, internet_message_id,
       direction, subject, body_preview, body_html, body_text,
       from_name, from_email, to_recipients, cc_recipients,
       is_read, importance, has_attachments, received_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
     )
     ON CONFLICT (organization_id, message_id) DO NOTHING
     RETURNING id
@@ -658,6 +649,7 @@ async function saveEmailToTicket(
     organizationId,
     messageId,
     email.conversationId,
+    email.internetMessageId || null,
     direction,
     email.subject || '(Kein Betreff)',
     email.bodyPreview || '',
@@ -690,6 +682,149 @@ async function saveEmailToTicket(
   }
 
   return emailRecordId;
+}
+
+// ============================================================================
+// E-Mail → Ticket Zuordnungs-Kaskade + Seiteneffekte
+// ============================================================================
+
+// Stufe 1: Ticket-Nummer im Betreff ("... TKT-000123 ..." — auch #TKT-… / [TKT-…])
+async function findTicketByNumberInSubject(
+  organizationId: string,
+  subject: string | undefined
+): Promise<{ id: string; ticketNumber: string; status: string; closedAt: string | null } | null> {
+  if (!subject) return null;
+  const match = subject.match(/TKT-(\d{6})/i);
+  if (!match) return null;
+  const ticketNumber = `TKT-${match[1]}`;
+  const result = await query(`
+    SELECT id, ticket_number, status, closed_at FROM tickets
+    WHERE organization_id = $1 AND ticket_number = $2
+    LIMIT 1
+  `, [organizationId, ticketNumber]);
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return { id: row.id, ticketNumber: row.ticket_number, status: row.status, closedAt: row.closed_at };
+}
+
+// Stufe 3: In-Reply-To/References gegen gespeicherte internet_message_ids.
+// References enthaelt die Message-IDs der ganzen Kette — auch die frueherer
+// Kundenmails, die wir beim Eingang gespeichert haben.
+async function findTicketByReferences(
+  organizationId: string,
+  messageIds: string[]
+): Promise<{ id: string; ticketNumber: string; status: string; closedAt: string | null } | null> {
+  if (messageIds.length === 0) return null;
+  const result = await query(`
+    SELECT t.id, t.ticket_number, t.status, t.closed_at
+    FROM ticket_emails te
+    JOIN tickets t ON t.id = te.ticket_id
+    WHERE te.organization_id = $1 AND te.internet_message_id = ANY($2)
+    ORDER BY te.received_at DESC
+    LIMIT 1
+  `, [organizationId, messageIds]);
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return { id: row.id, ticketNumber: row.ticket_number, status: row.status, closedAt: row.closed_at };
+}
+
+export interface MatchedTicket {
+  id: string;
+  ticketNumber: string;
+  status: string;
+  closedAt: string | null;
+  matchedBy: 'subject' | 'conversation' | 'references';
+}
+
+// Zuordnungs-Kaskade: Betreff → conversationId → References-Header.
+// Der Header-Abruf kostet einen extra Graph-Call und laeuft nur, wenn die
+// billigen Stufen leer ausgehen (fetchHeaders=true nur im Cron).
+export async function findTicketForEmail(
+  organizationId: string,
+  email: { subject?: string; conversationId?: string },
+  messageId: string,
+  options: { fetchHeaders?: boolean } = {}
+): Promise<MatchedTicket | null> {
+  const bySubject = await findTicketByNumberInSubject(organizationId, email.subject);
+  if (bySubject) return { ...bySubject, matchedBy: 'subject' };
+
+  if (email.conversationId) {
+    const result = await query(`
+      SELECT id, ticket_number, status, closed_at FROM tickets
+      WHERE organization_id = $1 AND email_conversation_id = $2
+      LIMIT 1
+    `, [organizationId, email.conversationId]);
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      return { id: row.id, ticketNumber: row.ticket_number, status: row.status, closedAt: row.closed_at, matchedBy: 'conversation' };
+    }
+  }
+
+  if (options.fetchHeaders) {
+    const headers = await mailboxMonitorService.getThreadingHeaders(organizationId, messageId, 'support');
+    if (headers) {
+      const ids = [...(headers.inReplyTo ? [headers.inReplyTo] : []), ...headers.references];
+      const byRefs = await findTicketByReferences(organizationId, ids);
+      if (byRefs) return { ...byRefs, matchedBy: 'references' };
+    }
+  }
+
+  return null;
+}
+
+// Seiteneffekte, wenn eine eingehende Mail an ein bestehendes Ticket kommt:
+// Status wiedereroeffnen (waiting/resolved/closed → open), updated_at,
+// Aktivitaetseintrag, Push an den Bearbeiter. actorUserId = null bei Automatik.
+export async function applyInboundEmailSideEffects(
+  organizationId: string,
+  ticketId: string,
+  email: { subject?: string; from: { name?: string; email: string } },
+  actorUserId: string | null,
+  matchedBy: string
+): Promise<void> {
+  const ticketResult = await query(`
+    SELECT id, ticket_number, title, status, assigned_to FROM tickets
+    WHERE id = $1 AND organization_id = $2
+  `, [ticketId, organizationId]);
+  if (ticketResult.rows.length === 0) return;
+  const ticket = ticketResult.rows[0];
+
+  const reopenFrom = ['waiting', 'resolved', 'closed'];
+  const reopened = reopenFrom.includes(ticket.status);
+  if (reopened) {
+    await query(`
+      UPDATE tickets SET status = 'open', updated_at = NOW() WHERE id = $1
+    `, [ticketId]);
+    await logTicketActivity(ticketId, actorUserId, null, 'status_changed', ticket.status, 'open', {
+      reason: 'email_received',
+    });
+  } else {
+    await query(`UPDATE tickets SET updated_at = NOW() WHERE id = $1`, [ticketId]);
+  }
+
+  await logTicketActivity(ticketId, actorUserId, null, 'email_received', null, email.subject || '(Kein Betreff)', {
+    from: email.from.email,
+    matchedBy,
+  });
+
+  // Bearbeiter benachrichtigen (nicht den, der die Mail gerade selbst verknuepft)
+  if (ticket.assigned_to && ticket.assigned_to !== actorUserId) {
+    try {
+      const { sendTicketNotification, getNotificationPreferences } = await import('../services/pushNotifications');
+      const prefs = await getNotificationPreferences(ticket.assigned_to);
+      if (!prefs || (prefs.push_enabled !== false && prefs.push_on_ticket_comment !== false)) {
+        const senderName = email.from.name || email.from.email;
+        sendTicketNotification(
+          ticket.assigned_to,
+          { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
+          'push_on_ticket_comment',
+          `Neue E-Mail von ${senderName}${reopened ? ' — Ticket wiedereröffnet' : ''}`
+        ).catch(err => logger.error('Push notification error (email to ticket):', err));
+      }
+    } catch (err) {
+      logger.error('Error notifying assignee about inbound email:', err);
+    }
+  }
 }
 
 // Helper to find ticket by conversation ID
@@ -798,24 +933,24 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), valid
 
     const email = emailResult.email;
 
-    // Check if ticket already exists for this conversation
-    if (email.conversationId) {
-      const existingTicket = await findTicketByConversationId(organizationId, email.conversationId);
-      if (existingTicket) {
-        // Link email to existing ticket instead
-        await saveEmailToTicket(organizationId, existingTicket.id, email, messageId, 'inbound');
-        await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
+    // Zuordnungs-Kaskade (Betreff-Ticketnummer → conversationId): existiert
+    // schon ein Ticket zum Thread, wird die Mail dort angehaengt statt ein
+    // Duplikat zu erzeugen
+    const existingTicket = await findTicketForEmail(organizationId, email, messageId);
+    if (existingTicket) {
+      await saveEmailToTicket(organizationId, existingTicket.id, email, messageId, 'inbound');
+      await applyInboundEmailSideEffects(organizationId, existingTicket.id, email, userId, existingTicket.matchedBy);
+      await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
 
-        return res.json({
-          success: true,
-          data: {
-            ticketId: existingTicket.id,
-            ticketNumber: existingTicket.ticketNumber,
-            title: email.subject,
-            linkedToExisting: true,
-          },
-        });
-      }
+      return res.json({
+        success: true,
+        data: {
+          ticketId: existingTicket.id,
+          ticketNumber: existingTicket.ticketNumber,
+          title: email.subject,
+          linkedToExisting: true,
+        },
+      });
     }
 
     // Find or use provided customer
@@ -862,6 +997,24 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), valid
       email.from.email,
       email.subject
     ]);
+
+    // SLA-Fristen anwenden — wie bei regulaeren Tickets (fehlte bisher:
+    // Mail-Tickets hatten nie first_response_due_at/resolution_due_at)
+    const slaDeadlines = await calculateSlaDeadlines(organizationId, priority);
+    if (slaDeadlines) {
+      await query(`
+        UPDATE tickets SET
+          sla_policy_id = $1,
+          first_response_due_at = $2,
+          resolution_due_at = $3
+        WHERE id = $4
+      `, [slaDeadlines.policyId, slaDeadlines.firstResponseDueAt, slaDeadlines.resolutionDueAt, ticketId]);
+    }
+
+    // Aktivitaetslog (fehlte bisher: Mail-Tickets hatten leere Historie)
+    await logTicketActivity(ticketId, userId, null, 'created', null, null, {
+      ticketNumber, title: email.subject || '(Kein Betreff)', priority, source: 'email',
+    });
 
     // Save email to ticket_emails table
     await saveEmailToTicket(organizationId, ticketId, email, messageId, 'inbound');
@@ -1032,6 +1185,11 @@ router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), validat
       `, [email.conversationId, email.from.email, ticketId]);
     }
 
+    // Statuswechsel (waiting/resolved/closed → open), Aktivitaetseintrag und
+    // Bearbeiter-Benachrichtigung — vorher blieb das Ticket unsichtbar auf
+    // "Wartend" und tauchte in keiner Liste auf
+    await applyInboundEmailSideEffects(organizationId, ticketId, email, req.user!.id, 'manual');
+
     // Mark email as read
     await mailboxMonitorService.markAsRead(organizationId, messageId, 'support');
 
@@ -1076,24 +1234,25 @@ router.get('/support/emails/:id/ticket-info', requireOrgRole('member'), async (r
       });
     }
 
-    // Check if we can find a ticket by conversation ID
+    // Vorschlag ueber die volle Zuordnungs-Kaskade (Betreff-Ticketnummer →
+    // conversationId) — damit matchen auch Antworten auf SMTP-Benachrichtigungen
     const emailResult = await mailboxMonitorService.getEmailById(organizationId, messageId, 'support');
-    if (emailResult.success && emailResult.email?.conversationId) {
-      const ticketResult = await query(`
-        SELECT id as ticket_id, ticket_number, title, status
-        FROM tickets
-        WHERE organization_id = $1 AND email_conversation_id = $2
-        LIMIT 1
-      `, [organizationId, emailResult.email.conversationId]);
-
-      if (ticketResult.rows.length > 0) {
-        return res.json({
-          success: true,
-          data: {
-            linked: false,
-            suggestedTicket: ticketResult.rows[0],
-          },
-        });
+    if (emailResult.success && emailResult.email) {
+      const match = await findTicketForEmail(organizationId, emailResult.email, messageId);
+      if (match) {
+        const ticketResult = await query(`
+          SELECT id as ticket_id, ticket_number, title, status
+          FROM tickets WHERE id = $1
+        `, [match.id]);
+        if (ticketResult.rows.length > 0) {
+          return res.json({
+            success: true,
+            data: {
+              linked: false,
+              suggestedTicket: ticketResult.rows[0],
+            },
+          });
+        }
       }
     }
 

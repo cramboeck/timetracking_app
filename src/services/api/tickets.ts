@@ -233,7 +233,7 @@ export const ticketsApi = {
       notifyCustomer?: boolean;  // Send email notification to customer
       replyViaEmail?: boolean;   // Reply in original email thread (for email-sourced tickets)
     }
-  ): Promise<{ success: boolean; data: TicketComment }> => {
+  ): Promise<{ success: boolean; data: TicketComment; emailReplySent?: boolean }> => {
     return authFetch(`/tickets/${ticketId}/comments`, {
       method: 'POST',
       body: JSON.stringify({
