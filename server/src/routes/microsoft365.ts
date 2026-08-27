@@ -13,6 +13,7 @@ import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { saveTicketFileFromBuffer } from '../middleware/upload';
 import { generateTicketNumber, calculateSlaDeadlines, logTicketActivity } from './tickets';
+import { htmlToText, emailBodyToTicketDescription } from '../utils/emailText';
 import multer from 'multer';
 
 // ============================================================================
@@ -626,11 +627,12 @@ export async function saveEmailToTicket(
 ): Promise<string> {
   const emailRecordId = crypto.randomUUID();
 
-  // Extract plain text from HTML if needed
-  let bodyText = email.body.content;
-  if (email.body.contentType === 'html') {
-    bodyText = bodyText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  }
+  // Extract plain text from HTML if needed (Entities dekodiert,
+  // Zeilenstruktur erhalten; KEIN Signatur-Schnitt — der Verlauf
+  // zeigt immer die vollstaendige Mail)
+  const bodyText = email.body.contentType === 'html'
+    ? htmlToText(email.body.content)
+    : email.body.content;
 
   const insertResult = await query(`
     INSERT INTO ticket_emails (
@@ -969,12 +971,10 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), valid
     const ticketNumber = await generateTicketNumber(organizationId);
     const ticketId = crypto.randomUUID();
 
-    // Create description from email body
-    let description = email.body.content;
-    if (email.body.contentType === 'html') {
-      // Strip HTML tags for plain text description
-      description = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    }
+    // Beschreibung aus dem Mail-Body: Entities dekodieren, Zeilenstruktur
+    // erhalten, Signatur/Footer ab Grussformel abschneiden. Die VOLLSTAENDIGE
+    // Mail bleibt im E-Mail-Verlauf des Tickets erhalten.
+    const description = emailBodyToTicketDescription(email.body.content, email.body.contentType);
 
     // Create ticket with email tracking fields
     await query(`
