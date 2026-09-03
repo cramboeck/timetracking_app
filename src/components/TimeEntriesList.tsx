@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar } from 'lucide-react';
 import { TimeEntry, TimeEntryUpdate, Project, Customer, Activity, EntryScope } from '../types';
-import { formatDuration, formatTime, formatDate, calculateDuration } from '../utils/time';
+import { formatDuration, formatTime, formatDate, calculateDuration, toLocalDateString } from '../utils/time';
 import { Modal } from './Modal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SearchableSelect } from './SearchableSelect';
@@ -1518,9 +1518,11 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                 </div>
               </div>
 
-              {/* Datum + Zeitraum in einer Reihe, Live-Dauer als Chip */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
+              {/* Datum & Zeitraum als zusammenhaengende Karte:
+                  beschriftete Von/Bis-Felder, Heute/Gestern-Schnellwahl,
+                  Live-Dauer als Chip, Enter speichert */}
+              <div className="rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50/60 dark:bg-dark-50/60 p-4 space-y-3">
+                <div className="flex items-center justify-between">
                   <label className="text-sm font-medium text-gray-700 dark:text-dark-500">
                     Datum &amp; Zeitraum *
                   </label>
@@ -1536,35 +1538,72 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-[1.4fr,1fr,1fr] gap-3">
-                  <div className="col-span-2 sm:col-span-1">
-                    <ModernDatePicker value={editDate} onChange={setEditDate} />
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={editStartTime}
-                    onChange={(e) => setEditStartTime(e.target.value)}
-                    onBlur={(e) => setEditStartTime(normalizeTimeInput(e.target.value))}
-                    placeholder="08:00"
-                    required
-                    className={`${inputClasses} tabular-nums text-center ${
-                      editStartTime && !isValidTime(editStartTime) ? 'border-red-400 dark:border-red-500' : ''
-                    }`}
-                  />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={editEndTime}
-                    onChange={(e) => setEditEndTime(e.target.value)}
-                    onBlur={(e) => setEditEndTime(normalizeTimeInput(e.target.value))}
-                    placeholder="17:00"
-                    required
-                    className={`${inputClasses} tabular-nums text-center ${
-                      editEndTime && !isValidTime(editEndTime) ? 'border-red-400 dark:border-red-500' : ''
-                    }`}
-                  />
-                </div>
+                {(() => {
+                  const todayISO = toLocalDateString(new Date());
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const yesterdayISO = toLocalDateString(yesterday);
+                  const quickChip = (label: string, iso: string) => (
+                    <button
+                      type="button"
+                      onClick={() => setEditDate(iso)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        editDate === iso
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-600 dark:text-dark-400 hover:border-accent-primary hover:text-accent-primary'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                  const timeField = (
+                    fieldLabel: string,
+                    value: string,
+                    setValue: (v: string) => void,
+                    placeholder: string,
+                  ) => (
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-[11px] uppercase tracking-wider font-medium text-gray-400 dark:text-dark-400 mb-1">
+                        {fieldLabel}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        onBlur={(e) => setValue(normalizeTimeInput(e.target.value))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                            // kurz warten, bis der Blur den Wert normalisiert hat
+                            setTimeout(() => handleSaveEdit(), 0);
+                          }
+                        }}
+                        placeholder={placeholder}
+                        required
+                        className={`${inputClasses} tabular-nums text-center text-base font-semibold ${
+                          value && !isValidTime(value) ? 'border-red-400 dark:border-red-500' : ''
+                        }`}
+                      />
+                    </div>
+                  );
+                  return (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex-1 min-w-[170px]">
+                          <ModernDatePicker value={editDate} onChange={setEditDate} compact />
+                        </div>
+                        {quickChip('Heute', todayISO)}
+                        {quickChip('Gestern', yesterdayISO)}
+                      </div>
+                      <div className="flex items-end gap-2">
+                        {timeField('Von', editStartTime, setEditStartTime, '08:00')}
+                        <span className="pb-2.5 text-gray-400 dark:text-dark-400 select-none">–</span>
+                        {timeField('Bis', editEndTime, setEditEndTime, '17:00')}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <div>

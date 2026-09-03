@@ -8,12 +8,17 @@ interface ModernDatePickerProps {
   onChange: (value: string) => void;
   label?: string;
   maxDate?: string;
+  /** Nur Datums-Button + Aufklapp-Kalender — ohne Schnellauswahl/Tagesstreifen.
+   *  Fuer schmale Grid-Spalten (Edit-Dialog): die volle Variante sprengte dort
+   *  das Raster und schob die Zeitfelder aus dem sichtbaren Bereich. */
+  compact?: boolean;
 }
 
 export const ModernDatePicker = ({
   value,
   onChange,
   label,
+  compact = false,
 }: ModernDatePickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState(() => {
@@ -138,6 +143,7 @@ export const ModernDatePicker = ({
       )}
 
       {/* Quick Date Buttons */}
+      {!compact && (
       <div className="flex gap-2 mb-3">
         {quickDates.map(({ label, date, shortLabel }) => (
           <button
@@ -156,8 +162,10 @@ export const ModernDatePicker = ({
           </button>
         ))}
       </div>
+      )}
 
       {/* Week Scroll */}
+      {!compact && (
       <div className="overflow-x-auto pb-2 scrollbar-hide mb-3">
         <div className="flex gap-2" style={{ width: 'max-content' }}>
           {weekDays.map((d, i) => {
@@ -197,8 +205,29 @@ export const ModernDatePicker = ({
           })}
         </div>
       </div>
+      )}
 
       {/* Calendar Trigger */}
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={`
+            w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm
+            bg-white dark:bg-dark-50 text-gray-900 dark:text-white
+            border transition-all duration-200
+            ${isOpen
+              ? 'border-accent-primary ring-2 ring-accent-primary/20'
+              : 'border-gray-300 dark:border-dark-border hover:border-gray-400 dark:hover:border-dark-border'
+            }
+          `}
+        >
+          <Calendar size={16} className="text-accent-primary shrink-0" />
+          <span className="font-medium truncate">
+            {value ? formatDisplayDate(value) : 'Datum wählen'}
+          </span>
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -225,10 +254,11 @@ export const ModernDatePicker = ({
         </div>
         <ChevronRight size={20} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
       </button>
+      )}
 
       {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-2 w-full bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border shadow-xl p-4">
+        <div className={`absolute z-50 mt-2 bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border shadow-xl p-4 ${compact ? 'min-w-[300px] left-0' : 'w-full'}`}>
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-4">
             <IconButton
