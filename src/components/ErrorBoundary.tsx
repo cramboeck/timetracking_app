@@ -111,7 +111,7 @@ Time: ${new Date().toISOString()}
                 Etwas ist schiefgelaufen
               </h1>
               <p className="text-gray-600 dark:text-dark-400 text-sm">
-                Ein unerwarteter Fehler ist aufgetreten. Keine Sorge, Ihre Daten sind sicher.
+                Ein unerwarteter Fehler ist aufgetreten. Keine Sorge, deine Daten sind sicher.
               </p>
             </div>
 
@@ -182,7 +182,7 @@ Time: ${new Date().toISOString()}
             {/* Footer hint */}
             <div className="px-6 py-4 bg-gray-50 dark:bg-dark-50 border-t border-gray-100 dark:border-dark-200">
               <p className="text-xs text-gray-500 dark:text-dark-400 text-center">
-                Wenn das Problem weiterhin besteht, kontaktieren Sie bitte den Support.
+                Wenn das Problem weiterhin besteht, kontaktiere bitte den Support.
               </p>
             </div>
           </div>

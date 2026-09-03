@@ -80,7 +80,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
 
   const handleTestConnection = async () => {
     if (!apiToken) {
-      setError('Bitte geben Sie einen API-Token ein');
+      setError('Bitte gib einen API-Token ein');
       return;
     }
 
@@ -382,8 +382,8 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
             <p className="font-medium mb-1">So funktioniert die sevDesk-Integration:</p>
             <ol className="list-decimal list-inside space-y-1 text-accent-dark dark:text-accent-primary">
               <li>Verbinden Sie Ihr sevDesk-Konto mit dem API-Token</li>
-              <li>Verknüpfen Sie Ihre Kunden mit sevDesk-Kontakten</li>
-              <li>Wählen Sie im Bereich "Abrechnung" die zu fakturierenden Zeiten</li>
+              <li>Verknüpfe deine Kunden mit sevDesk-Kontakten</li>
+              <li>Wähle im Bereich "Abrechnung" die zu fakturierenden Zeiten</li>
               <li>Rechnungen werden automatisch in sevDesk erstellt</li>
             </ol>
           </div>

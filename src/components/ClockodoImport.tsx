@@ -379,11 +379,11 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
               <>
                 <div>
                   <strong>API Import:</strong>
-                  <p className="mt-1">Mit der Clockodo API können Sie Zeiteinträge direkt importieren - ohne CSV-Export. Geben Sie Ihre API-Zugangsdaten ein und wählen Sie den Zeitraum.</p>
+                  <p className="mt-1">Mit der Clockodo API kannst du Zeiteinträge direkt importieren - ohne CSV-Export. Gib deine API-Zugangsdaten ein und wähle den Zeitraum.</p>
                 </div>
                 <div>
                   <strong>API Key finden:</strong>
-                  <p className="mt-1">Ihren API Key finden Sie unter <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Clockodo → Einstellungen → API</code>.</p>
+                  <p className="mt-1">Deinen API Key findest du unter <code className="bg-accent-lighter dark:bg-accent-primary/50 px-1 rounded">Clockodo → Einstellungen → API</code>.</p>
                 </div>
               </>
             ) : (
@@ -404,7 +404,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
             </div>
             <div>
               <strong>Import-Aliase konfigurieren:</strong>
-              <p className="mt-1">Sie können für jeden Kunden alternative Namen (Aliase) hinterlegen unter <em>Kunden → Bearbeiten → Import-Aliase</em>.</p>
+              <p className="mt-1">Du kannst für jeden Kunden alternative Namen (Aliase) hinterlegen unter <em>Kunden → Bearbeiten → Import-Aliase</em>.</p>
             </div>
           </div>
         </div>
@@ -535,7 +535,7 @@ export const ClockodoImport = ({ onImportComplete }: ClockodoImportProps) => {
           ) : (
             <div>
               <p className="text-gray-600 dark:text-dark-400 mb-4">
-                Exportieren Sie Ihre Zeiteinträge aus Clockodo als CSV und laden Sie die Datei hier hoch.
+                Exportiere deine Zeiteinträge aus Clockodo als CSV und lade die Datei hier hoch.
               </p>
 
               <div

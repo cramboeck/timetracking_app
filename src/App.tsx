@@ -299,16 +299,29 @@ function App() {
     const hasSeenWelcome = localStorage.getItem(`welcome_shown_${currentUser.id}`);
 
     if (!hasSeenWelcome) {
-      // Show welcome modal immediately
-      setShowWelcomeModal(true);
-
-      // Show notification request after welcome modal is closed
-      // (will be handled when user closes welcome modal)
+      // Erst-Eindruck entzerren: Der Wizard wartet, bis der Cookie-Banner
+      // beantwortet ist — vorher stapelten sich beide Overlays uebereinander.
+      const showWhenCookieDecided = () => {
+        if (localStorage.getItem('cookieConsent')) {
+          setShowWelcomeModal(true);
+          return true;
+        }
+        return false;
+      };
+      if (!showWhenCookieDecided()) {
+        const poll = setInterval(() => {
+          if (showWhenCookieDecided()) clearInterval(poll);
+        }, 800);
+        return () => clearInterval(poll);
+      }
     } else {
-      // Show notification request after 2 seconds if welcome was already shown
+      // Benachrichtigungs-Prompt NICHT sofort in die erste Sitzung quetschen:
+      // fruehestens ab der Folgesitzung und erst nach 30 s Nutzung — der
+      // Browser-Permission-Dialog direkt nach dem Login wirkt aufdringlich
+      // und wird reflexhaft weggeklickt.
       const timer = setTimeout(() => {
         setShowNotificationRequest(true);
-      }, 2000);
+      }, 30_000);
 
       return () => clearTimeout(timer);
     }
@@ -409,14 +422,10 @@ function App() {
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
   }, [isAuthenticated]);
 
-  // When welcome modal closes, show notification request
+  // Wizard schliessen — der Benachrichtigungs-Prompt kommt bewusst NICHT
+  // direkt danach (Modal-Kette), sondern erst in einer spaeteren Sitzung
   const handleWelcomeClose = () => {
     setShowWelcomeModal(false);
-
-    // Show notification request after 1 second
-    setTimeout(() => {
-      setShowNotificationRequest(true);
-    }, 1000);
   };
 
   // Browser Notifications - Check conditions periodically

@@ -670,7 +670,7 @@ export const SupportInbox = () => {
             <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
               <Mail size={48} className="mb-3 opacity-30" />
               <p className="text-center">
-                Wählen Sie eine E-Mail aus,<br />um Details anzuzeigen
+                Wähle eine E-Mail aus,<br />um Details anzuzeigen
               </p>
             </div>
           )}
@@ -687,7 +687,7 @@ export const SupportInbox = () => {
             <h3 className="font-semibold text-gray-900 dark:text-white">E-Mail zu Ticket</h3>
           </div>
           <p className="text-sm text-gray-600 dark:text-dark-400">
-            Wählen Sie eine E-Mail aus und erstellen Sie daraus ein Support-Ticket —
+            Wähle eine E-Mail aus und erstelle daraus ein Support-Ticket —
             oder hängen Sie sie über „An Ticket anhängen…" an ein beliebiges
             bestehendes Ticket an.
           </p>

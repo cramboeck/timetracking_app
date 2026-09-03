@@ -189,7 +189,7 @@ export const PushNotificationSettings = () => {
             <div className="flex items-start gap-2">
               <AlertTriangle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" size={16} />
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                Benachrichtigungen wurden in Ihrem Browser blockiert. Bitte aktivieren Sie sie in den Browser-Einstellungen für diese Website.
+                Benachrichtigungen wurden in deinem Browser blockiert. Bitte aktiviere sie in den Browser-Einstellungen für diese Website.
               </p>
             </div>
           </div>
@@ -221,13 +221,13 @@ export const PushNotificationSettings = () => {
                 />
                 <PreferenceToggle
                   label="Neuer Kommentar"
-                  description="Benachrichtigung bei Kommentaren zu Ihren Tickets"
+                  description="Benachrichtigung bei Kommentaren zu deinen Tickets"
                   checked={preferences.push_on_ticket_comment}
                   onChange={(v) => handlePreferenceChange('push_on_ticket_comment', v)}
                 />
                 <PreferenceToggle
                   label="Ticket zugewiesen"
-                  description="Benachrichtigung wenn Ihnen ein Ticket zugewiesen wird"
+                  description="Benachrichtigung, wenn dir ein Ticket zugewiesen wird"
                   checked={preferences.push_on_ticket_assigned}
                   onChange={(v) => handlePreferenceChange('push_on_ticket_assigned', v)}
                 />
@@ -268,13 +268,13 @@ export const PushNotificationSettings = () => {
                 />
                 <PreferenceToggle
                   label="Ticket zugewiesen"
-                  description="E-Mail wenn Ihnen ein Ticket zugewiesen wird"
+                  description="E-Mail, wenn dir ein Ticket zugewiesen wird"
                   checked={preferences.email_on_ticket_assigned ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_ticket_assigned', v)}
                 />
                 <PreferenceToggle
                   label="Neuer Kommentar"
-                  description="E-Mail bei Kommentaren zu Ihren zugewiesenen Tickets"
+                  description="E-Mail bei Kommentaren zu deinen zugewiesenen Tickets"
                   checked={preferences.email_on_ticket_comment ?? true}
                   onChange={(v) => handlePreferenceChange('email_on_ticket_comment', v)}
                 />

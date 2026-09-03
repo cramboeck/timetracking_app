@@ -935,7 +935,7 @@ export const Microsoft365Settings = () => {
             <div className="text-center py-8 text-gray-500 dark:text-dark-400">
               <FileText size={32} className="mx-auto mb-2 opacity-50" />
               <p>Noch keine Rechnungen verarbeitet</p>
-              <p className="text-sm mt-1">Klicken Sie auf "Postfach verarbeiten" um E-Mails abzurufen</p>
+              <p className="text-sm mt-1">Klicke auf "Postfach verarbeiten", um E-Mails abzurufen</p>
             </div>
           )}
         </div>

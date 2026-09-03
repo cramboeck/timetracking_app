@@ -515,7 +515,7 @@ const BillingTab = () => {
             <div>
               <h4 className="font-medium text-yellow-800 dark:text-yellow-200">sevDesk nicht konfiguriert</h4>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                Konfigurieren Sie Ihren sevDesk API-Token in den Einstellungen.
+                Konfiguriere deinen sevDesk API-Token in den Einstellungen.
               </p>
             </div>
           </div>

@@ -458,7 +458,7 @@ function DeleteConfirmationDialog({
 
     // Check password - using a simple confirmation password
     if (password !== 'DELETE' && password !== 'LÖSCHEN') {
-      setError('Bitte geben Sie "DELETE" oder "LÖSCHEN" ein, um das Löschen zu bestätigen');
+      setError('Bitte gib "DELETE" oder "LÖSCHEN" ein, um das Löschen zu bestätigen');
       return;
     }
 
@@ -515,7 +515,7 @@ function DeleteConfirmationDialog({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Geben Sie <span className="font-mono bg-gray-100 dark:bg-dark-200 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
+              Gib <span className="font-mono bg-gray-100 dark:bg-dark-200 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -984,7 +984,7 @@ export default function MaintenanceView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Wartungsankündigungen</h1>
-          <p className="text-gray-500">Planen und verwalten Sie Wartungsfenster für Ihre Kunden</p>
+          <p className="text-gray-500">Plane und verwalte Wartungsfenster für deine Kunden</p>
         </div>
         <Button
           onClick={() => setShowCreateDialog(true)}
@@ -1089,7 +1089,7 @@ export default function MaintenanceView() {
               Keine Ankündigungen
             </h3>
             <p className="text-gray-500 mb-4">
-              Erstellen Sie Ihre erste Wartungsankündigung
+              Erstelle deine erste Wartungsankündigung
             </p>
             <Button
               onClick={() => setShowCreateDialog(true)}

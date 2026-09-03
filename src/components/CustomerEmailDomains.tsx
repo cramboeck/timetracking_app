@@ -71,7 +71,7 @@ export const CustomerEmailDomains = ({ isOpen, customer, onClose }: CustomerEmai
     const domain = formDomain.trim().toLowerCase();
 
     if (!domain) {
-      setFormError('Bitte geben Sie eine Domain ein');
+      setFormError('Bitte gib eine Domain ein');
       return;
     }
 

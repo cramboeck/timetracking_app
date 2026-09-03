@@ -198,7 +198,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">Verträge</h1>
               <p className="text-sm text-gray-500 dark:text-dark-400">
-                Verwalten Sie Ihre Service- und Wartungsverträge
+                Verwalte deine Service- und Wartungsverträge
               </p>
             </div>
           </div>
@@ -336,7 +336,7 @@ const ContractsList: React.FC<ContractsListProps> = ({ onSelectContract, onCreat
             <p className="text-gray-500 dark:text-dark-400 mb-4">
               {searchTerm || statusFilter || typeFilter || customerFilter
                 ? 'Versuchen Sie andere Filteroptionen'
-                : 'Erstellen Sie Ihren ersten Vertrag'}
+                : 'Erstelle deinen ersten Vertrag'}
             </p>
             {!searchTerm && !statusFilter && !typeFilter && !customerFilter && (
               <Button

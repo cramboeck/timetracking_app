@@ -1774,7 +1774,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
           <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50 dark:bg-dark-50">
             <div className="text-center text-gray-500 dark:text-dark-400">
               <Building2 size={64} className="mx-auto mb-4 opacity-30" />
-              <p className="text-lg">Wählen Sie einen Kunden</p>
+              <p className="text-lg">Wähle einen Kunden</p>
               <p className="text-sm mt-1">um die 360°-Ansicht anzuzeigen</p>
             </div>
           </div>

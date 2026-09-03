@@ -246,7 +246,7 @@ async function sendAssignedNotifications(
         assignedToUserId,
         { id: ticketId, ticketNumber: ticket.ticket_number, title: ticket.title },
         'push_on_ticket_assigned',
-        `${assignerName} hat Ihnen Ticket #${ticket.ticket_number} zugewiesen${bulkSuffix}`
+        `${assignerName} hat dir Ticket #${ticket.ticket_number} zugewiesen${bulkSuffix}`
       ).catch(err => logger.error('Push notification error (assigned):', err));
     }
 

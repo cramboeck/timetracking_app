@@ -42,6 +42,10 @@ export function useUserPreferences({
   // Without this, a stale currentUser reference change (refresh-token,
   // multi-device sync, etc.) could re-fire the loader and bounce the URL.
   const hasLoadedRef = useRef(false);
+  // Deep-Link-Regel: Eine explizit aufgerufene URL (Bookmark, geteilter
+  // Link, Push-Klick) gewinnt IMMER gegen die gespeicherte Lieblings-
+  // ansicht. Prefs greifen nur beim neutralen Einstieg auf "/".
+  const enteredAtRootRef = useRef(window.location.pathname === '/');
 
   // Load preferences from database on mount
   useEffect(() => {
@@ -64,7 +68,9 @@ export function useUserPreferences({
               !nowParsed ||
               nowParsed.area !== mountSnapshotRef.current.area ||
               nowParsed.subView !== mountSnapshotRef.current.subView;
-            if (userNavigated) {
+            if (!enteredAtRootRef.current) {
+              console.log('📋 [PREFS] Deep-Link aktiv — gespeicherte Ansicht wird nicht angewendet');
+            } else if (userNavigated) {
               console.log('📋 [PREFS] User navigated during load, keeping current URL');
             } else {
               navigateTo(prefs.currentArea as Area, prefs.currentSubView as SubView);

@@ -17,12 +17,12 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
   const steps = [
     {
       icon: Rocket,
-      title: 'Willkommen bei TimeTrack!',
+      title: 'Willkommen bei RamboFlow!',
       description: `Hallo ${currentUser?.username || 'dort'}! Schön, dass du hier bist. Lass uns gemeinsam deine Zeiterfassung einrichten.`,
       content: (
         <div className="space-y-4">
           <p className="text-gray-700 dark:text-dark-500">
-            TimeTrack ist deine professionelle Lösung für Zeiterfassung und Abrechnung. In wenigen Schritten bist du startklar!
+            RamboFlow ist deine professionelle Lösung für Zeiterfassung und Abrechnung. In wenigen Schritten bist du startklar!
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">

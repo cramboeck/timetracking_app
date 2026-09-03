@@ -373,7 +373,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
             <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-dark-400">
               <Mail size={48} className="mb-3 opacity-30" />
               <p className="text-center">
-                Wählen Sie eine E-Mail aus,<br />um Details anzuzeigen
+                Wähle eine E-Mail aus,<br />um Details anzuzeigen
               </p>
             </div>
           )}
@@ -390,7 +390,7 @@ export const PersonalInbox: React.FC<PersonalInboxProps> = ({ onEmailSaved }) =>
             </h4>
             <p className="text-sm text-accent-dark dark:text-accent-primary mt-1">
               Speichern Sie wichtige E-Mails direkt im CRM, um die komplette Kommunikationshistorie
-              mit Ihren Kunden zu dokumentieren. Die E-Mails erscheinen dann in der Timeline des Kunden.
+              mit deinen Kunden zu dokumentieren. Die E-Mails erscheinen dann in der Timeline des Kunden.
             </p>
           </div>
         </div>

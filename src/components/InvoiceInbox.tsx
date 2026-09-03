@@ -1069,7 +1069,7 @@ export const InvoiceInbox = () => {
           <div className="text-center py-12 text-gray-500 dark:text-dark-400">
             <FileText size={48} className="mx-auto mb-3 opacity-50" />
             <p className="text-lg font-medium">Noch keine Rechnungen verarbeitet</p>
-            <p className="text-sm mt-1">Klicken Sie auf "Neue E-Mails" um das Postfach abzurufen</p>
+            <p className="text-sm mt-1">Klicke auf "Neue E-Mails", um das Postfach abzurufen</p>
           </div>
         )}
       </div>
