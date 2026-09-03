@@ -86,12 +86,17 @@ export const Button = ({
   fullWidth = false,
   className = '',
   disabled,
+  // Ohne explizites type ist ein <button> im Formular ein Submit-Button —
+  // das liess z.B. die Zeit-Stepper der manuellen Erfassung den Eintrag
+  // speichern. Submit-Buttons muessen type="submit" explizit setzen.
+  type = 'button',
   ...props
 }: ButtonProps) => {
   const isDisabled = disabled || loading;
 
   return (
     <button
+      type={type}
       className={`
         inline-flex items-center justify-center
         transition-colors duration-150
@@ -150,6 +155,8 @@ export const IconButton = ({
   size = 'md',
   tooltip,
   className = '',
+  // Gleiche Regel wie bei Button: nie implizit submitten
+  type = 'button',
   ...props
 }: IconButtonProps) => {
   const variantStyles: Record<IconButtonVariant, string> = {
@@ -183,6 +190,7 @@ export const IconButton = ({
 
   return (
     <button
+      type={type}
       className={`
         transition-colors duration-150
         focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-1
