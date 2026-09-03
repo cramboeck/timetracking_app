@@ -115,7 +115,34 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ---
 
-## Aktueller Stand (Stand 27.8.2026)
+## Aktueller Stand (Stand 3.9.2026)
+
+### Berechtigungs-Härtung „Paket S" (3.9.2026) — ✅ abgeschlossen (c913521)
+
+> Anlass: „wie können wir sicherstellen dass die dashboard ansicht für normale mitarbeiter nicht alles zeigt … jeder mitarbeiter nur seine eigene stunden einsehen kann". Audit ergab echte Lücken: GET/PUT/DELETE /entries waren org-weit (jedes Mitglied konnte fremde Einträge lesen/ändern/löschen), Vertrags-API komplett ungeschützt (UI-Gating ≠ API-Gating), Stundensätze gingen an alle. Abgestimmter Scope: „nur der teamlead sollte alle zeiten sehen dürfen aber gerne in einer eigenen ansicht" + „auch die projektzeiten wären wichtig zu trennen".
+
+| Bereich | Änderung |
+|---|---|
+| **Zeiten nur eigene** | `GET /entries` liefert jedem nur die EIGENEN Einträge (auch Admins — Teamsicht bleibt `/entries/team` unter Berichte → Team). `GET/PUT/DELETE /:id` + bulk-update: fremde Einträge nur für Org-Admin/Owner (Korrekturen), sonst 403/404. Dashboard-Kacheln (abrechenbare Stunden etc.) sind damit automatisch nur-eigene. |
+| **Verträge API-geschützt** | Alle contracts-Routen mit `requireOrgRole`: Mitglieder nur Liste + je-Kunde-Lesen (fürs Ticket), alles andere Admin/Owner. `stripPricesForNonAdmins()` nullt basePrice/hourlyRate/overageRate; Inklusiv-Stunden + SLA bleiben sichtbar (braucht der Support). |
+| **Vertrags-Org-Scope** | contractService von Ersteller- auf Org-Scope (Zweit-Admins sahen sonst NIE Verträge): gemeinsames `orgScopeSql`-Fragment in allen Queries, INSERT schreibt endlich `organization_id`, Legacy-NULL-Zeilen über die Org-Mitgliedschaft des Erstellers zugerechnet, User ohne Org behalten Eigen-Scope. |
+| **Stundensätze gestrippt** | `GET /projects` + `GET /customers` nullen `hourlyRate` für Nicht-Admins — fürs Zeiterfassen reicht der Projektname. |
+
+Verifiziert per Zwei-User-Test (Owner + eingeladenes Mitglied, lokale DB): eigene/fremde Einträge, Teamsicht-403, Preis-Stripping, Owner-Sicht unverändert. **Bewusst offen:** feingranulare „Abrechnungs-Rolle" (z.B. Buchhaltung ohne Owner-Rechte) — lässt sich später auf die Org-Rollen aufsetzen; Rollenmodell bleibt owner/admin/member/viewer. Feature-Schalter sind Lizenz-Pakete, KEINE Berechtigungen.
+
+### UX-Programm Pakete 1–3 + Interne Tickets (1.–2.9.2026) — ✅ abgeschlossen
+
+> Aus dem UX-Review („was würdest du generell verbessern…") mit Freigabe „starte durch und lass uns dazwischen immer wieder validieren".
+
+| Sprint | Änderung | Commit |
+|---|---|---|
+| **E-Mail-Beschreibung sauber** | `emailText.ts`: HTML→Text mit Entity-Decode + Block→Newline, `stripEmailSignature()` (deutsche/englische Marker + Firmen-Footer-Fallback, MIN_KEEP_CHARS 40) — Mail-Tickets ohne Signatur-Müll | a5e7ffe |
+| **Login-503-Vorfall (nginx)** | SSE-Streams zählten in die per-IP `limit_conn`-Zone (HTTP/2: jeder Stream = 1 Conn) → Login bekam 503. SSE eigene Location ohne Shared-Zone + eigene `sse_conn`-Zone (20/IP, 1h Timeouts), `/api/` 10→25, Login 5→10. Brute-Force-Schutz unverändert (limit_req 5r/m + authLimiter). | a81d7c9, dff06c3 |
+| **Edit-Dialog repariert + neu** | ModernDatePicker sprengte das Grid → Zeitfelder außerhalb des Modals („kann Zeiten nicht mehr verändern"). `compact`-Prop, Karten-Layout Datum & Zeitraum, VON/BIS, Heute/Gestern-Chips, Enter speichert; SearchableSelect zeigt Sublabel (Kunde) im zugeklappten Zustand; Fehler beim Speichern → Toast + Dialog bleibt offen (vorher still verschluckt). Lehre: Playwright scrollt unsichtbare Elemente an — Layout nur mit Screenshots verifizieren. | f9ae1f3, ea3414b, b3d3cb0 |
+| **UX-Paket 1+2** | Modal-Kette beim Erststart entzerrt (Wizard wartet auf Cookie-Entscheidung, Notification-Prompt erst ab 2. Session +30 s), RamboFlow-Branding statt TimeTrack, ~30 Sie→Du (kundenseitige Templates + Portal bleiben Sie), Deep-Links schlagen gespeicherte Prefs (`enteredAtRootRef`) | c5c3165 |
+| **Stepper-Submit-Bug (Klasse)** | Pfeil-Klick im Zeit-Stepper legte Eintrag an: ui/Button + IconButton ohne `type` → implizites Submit im `<form>`. Root-Fix: Default `type='button'`; alle 19 onSubmit-Formulare haben genau einen expliziten `type="submit"`. | 82cae24 |
+| **UX-Paket 3** | „Heute im Fokus"-Leiste auf dem Dashboard (Meine Tickets / Unzugewiesen / SLA-Fokus, gated auf `hasFeature('tickets')`; Gestern-Lücke via Coverage → Deep-Link auf Tages-Timeline); Sidebar: Ein-SubView-Bereiche als Einzeleintrag | aca8b47 |
+| **Interne Tickets + Bereiche** | `customer_id NULL` = internes Ticket (Toggle im CreateTicketDialog blendet Kunde/Projekt aus, Badge „Intern", Listen-Filter `customer=none`, Vertragswarnung unterdrückt); `category` als leichte Queue (Freitext + datalist „1st Level/2nd Level/Intern-IT/…", in Sidebar editierbar, Filter); Timer aus internem Ticket → `entry_scope='internal'`/`internal_support`. Echte Bearbeitergruppen (Mitgliedschaften) bewusst verschoben bis das Team wächst. | 8dfc505 |
 
 ### Ticket-Zuweisungs-Sprint (27.8.2026) — ✅ abgeschlossen (80efbea)
 
@@ -723,7 +750,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 27.8.2026 — Ticket-Zuweisungs-Sprint ✅ (80efbea): Zuweisen im Detail/Erstellen/Aufgaben, „Meine Tickets“-Filter, Bulk benachrichtigt endlich, Namen statt UUIDs im Feed. Davor: E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
+*Zuletzt aktualisiert: 3.9.2026 — Berechtigungs-Härtung „Paket S" ✅ (c913521): Zeiten nur-eigene (Teamsicht bleibt Admin-Ansicht), Verträge API-geschützt + Org-Scope (INSERT schrieb nie organization_id!), Stundensätze für Nicht-Admins genullt. Davor (1.–2.9.): UX-Pakete 1–3, Signatur-Filter, nginx-SSE-Login-Vorfall, Edit-Dialog-Redesign, Button-type-Root-Fix, interne Tickets + Bereiche. Offen aus UX-Programm: Undo-Toast statt Confirm, CommandPalette→globale Suche, Formular-Kit. — Vorheriger Stand 27.8.2026: Ticket-Zuweisungs-Sprint ✅ (80efbea): Zuweisen im Detail/Erstellen/Aufgaben, „Meine Tickets“-Filter, Bulk benachrichtigt endlich, Namen statt UUIDs im Feed. Davor: E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
