@@ -707,8 +707,9 @@ function App() {
       await entriesApi.delete(id);
       console.log('✅ [ENTRY] Entry deleted');
       setEntries(prev => prev.filter(e => e.id !== id));
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [ENTRY] Failed to delete entry:', error);
+      showToast(`Eintrag konnte nicht gelöscht werden: ${error?.message || 'Unbekannter Fehler'}`, 'error', 8000);
     }
   };
 
@@ -718,8 +719,13 @@ function App() {
       const response = await entriesApi.update(id, updates);
       console.log('✅ [ENTRY] Entry edited:', response);
       setEntries(prev => prev.map(e => e.id === id ? response.data : e));
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [ENTRY] Failed to edit entry:', error);
+      // Fehler SICHTBAR machen und weiterwerfen, damit der Edit-Dialog offen
+      // bleibt — vorher schloss er sich kommentarlos und die Änderung war
+      // stillschweigend weg (Symptom: "kann Zeiten nicht mehr ändern")
+      showToast(`Änderung konnte nicht gespeichert werden: ${error?.message || 'Unbekannter Fehler'}`, 'error', 8000);
+      throw error;
     }
   };
 

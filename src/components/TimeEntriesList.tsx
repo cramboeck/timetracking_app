@@ -607,15 +607,21 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     // Await the update so the subsequent refetch reads the new value —
     // otherwise the parallel GET races the PUT and may show stale data
     // until the user manually refreshes.
-    await onEdit(editingEntry.id, {
-      projectId: editProjectId,
-      description: editDescription,
-      startTime: startDateTime,
-      endTime: endDateTime,
-      duration,
-      isBillable: editIsBillable,
-      activityId: editActivityId === '' ? null : editActivityId
-    });
+    try {
+      await onEdit(editingEntry.id, {
+        projectId: editProjectId,
+        description: editDescription,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        duration,
+        isBillable: editIsBillable,
+        activityId: editActivityId === '' ? null : editActivityId
+      });
+    } catch {
+      // Fehler-Toast kommt aus handleEditEntry — Dialog offen lassen,
+      // damit die Eingaben nicht verloren gehen
+      return;
+    }
 
     setEditingEntry(null);
     triggerRefetch();
