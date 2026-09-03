@@ -38,7 +38,7 @@ interface StopwatchProps {
   activities: Activity[];
   entries: TimeEntry[];
   onOpenManualEntry?: () => void;
-  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string } | null;
+  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string; entryScope?: 'internal' } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
@@ -197,12 +197,20 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   // Handle prefilled entry (from repeat action or ticket)
   useEffect(() => {
     if (prefilledEntry && !isRunning) {
-      // Find the customer for this project
-      const project = projects.find(p => p.id === prefilledEntry.projectId);
-      if (project) {
-        setCustomerId(project.customerId);
+      if (prefilledEntry.entryScope === 'internal') {
+        // Internes Ticket: als interne Zeit vorbelegen (nicht abrechenbar)
+        setEntryScope('internal');
+        setInternalCategory('internal_support');
+        setCustomerId('');
+        setProjectId('');
+      } else {
+        // Find the customer for this project
+        const project = projects.find(p => p.id === prefilledEntry.projectId);
+        if (project) {
+          setCustomerId(project.customerId);
+        }
+        setProjectId(prefilledEntry.projectId);
       }
-      setProjectId(prefilledEntry.projectId);
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
       setTicketId(prefilledEntry.ticketId);

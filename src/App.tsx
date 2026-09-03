@@ -113,7 +113,7 @@ function App() {
   // customers/projects/entries are still in flight.
   const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
-  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string } | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string; entryScope?: 'internal' } | null>(null);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -1132,6 +1132,18 @@ function App() {
             customers={customers}
             projects={projects}
             onStartTimer={(ticket: Ticket) => {
+              // Internes Ticket (ohne Kunde): Timer startet als INTERNE Zeit —
+              // nie versehentlich als abrechenbare Projektzeit
+              if (!ticket.customerId) {
+                setPrefilledEntry({
+                  projectId: '',
+                  description: `${ticket.ticketNumber}: ${ticket.title}`,
+                  ticketId: ticket.id,
+                  entryScope: 'internal',
+                });
+                navigateTo('arbeiten', 'stopwatch');
+                return;
+              }
               // Set prefilled entry with ticket info and switch to stopwatch
               // Use ticket's project or find first active project for the customer
               let projectId = ticket.projectId;

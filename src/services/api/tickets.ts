@@ -157,12 +157,13 @@ export interface TicketTemplate {
 
 // Tickets API
 export const ticketsApi = {
-  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority; limit?: number; searchText?: string; assignedTo?: string }): Promise<{ success: boolean; data: Ticket[] }> => {
+  getAll: async (filters?: { status?: TicketStatus; customerId?: string; priority?: TicketPriority; limit?: number; searchText?: string; assignedTo?: string; category?: string }): Promise<{ success: boolean; data: Ticket[] }> => {
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
     if (filters?.customerId) params.append('customerId', filters.customerId);
     if (filters?.priority) params.append('priority', filters.priority);
     if (filters?.assignedTo) params.append('assignedTo', filters.assignedTo); // 'none' = unzugewiesen
+    if (filters?.category) params.append('category', filters.category);
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.searchText) params.append('searchText', filters.searchText);
     const query = params.toString() ? `?${params.toString()}` : '';
@@ -197,12 +198,13 @@ export const ticketsApi = {
   },
 
   create: async (ticket: {
-    customerId: string;
+    customerId?: string | null; // null/weggelassen = internes Ticket
     projectId?: string;
     title: string;
     description?: string;
     priority?: TicketPriority;
     assignedToUserId?: string | null;
+    category?: string | null;
   }): Promise<{ success: boolean; data: Ticket }> => {
     return authFetch('/tickets', {
       method: 'POST',
@@ -218,6 +220,7 @@ export const ticketsApi = {
     status: TicketStatus;
     priority: TicketPriority;
     assignedToUserId: string | null;
+    category: string | null;
     solution: string;
     resolutionType: TicketResolutionType;
     deviceId: string | null;

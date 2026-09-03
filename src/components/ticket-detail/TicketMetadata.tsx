@@ -1,4 +1,4 @@
-import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone, FileCheck, AlertTriangle, UserPlus, Loader2 } from 'lucide-react';
+import { Building2, Clock, Play, User, Mail, Globe, AlertCircle, Smartphone, FileCheck, AlertTriangle, UserPlus, Loader2, FolderKanban } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { SlaStatus } from '../SlaStatus';
 import { Ticket, Customer, TimeEntry, formatDuration } from './types';
@@ -16,6 +16,8 @@ interface TicketMetadataProps {
   currentUserId?: string;
   onAssign?: (userId: string | null) => void;
   assigning?: boolean;
+  // Bereich/Queue
+  onCategoryChange?: (category: string | null) => void;
 }
 
 const sourceConfig: Record<TicketSource, { label: string; icon: typeof Mail; color: string }> = {
@@ -35,8 +37,10 @@ export const TicketMetadata = ({
   currentUserId,
   onAssign,
   assigning = false,
+  onCategoryChange,
 }: TicketMetadataProps) => {
-  const getCustomerName = (customerId: string) => {
+  const getCustomerName = (customerId?: string | null) => {
+    if (!customerId) return 'Intern';
     return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
   };
 
@@ -115,6 +119,38 @@ export const TicketMetadata = ({
           </div>
         </div>
 
+        {/* Bereich/Queue — direkt editierbar */}
+        {onCategoryChange && (
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-dark-200 rounded-lg flex items-center justify-center">
+              <FolderKanban className="text-gray-500 dark:text-dark-400" size={16} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-gray-500 dark:text-dark-400">Bereich</div>
+              <input
+                type="text"
+                defaultValue={ticket.category || ''}
+                key={ticket.category || ''}
+                list="ticket-bereiche-detail"
+                placeholder="z.B. 1st Level"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (ticket.category || '')) onCategoryChange(v || null);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                className="w-full mt-0.5 px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+              />
+              <datalist id="ticket-bereiche-detail">
+                <option value="1st Level" />
+                <option value="2nd Level" />
+                <option value="Intern-IT" />
+                <option value="Infrastruktur" />
+                <option value="Buchhaltung" />
+              </datalist>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 w-8 h-8 bg-gray-100 dark:bg-dark-200 rounded-lg flex items-center justify-center">
             <Clock className="text-gray-500 dark:text-dark-400" size={16} />
@@ -169,8 +205,8 @@ export const TicketMetadata = ({
         </div>
       )}
 
-      {/* No Contract Warning */}
-      {!activeContract && (
+      {/* No Contract Warning — bei internen Tickets (ohne Kunde) sinnlos */}
+      {!activeContract && ticket.customerId && (
         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <div className="flex items-center gap-2">
             <AlertTriangle className="text-yellow-600 dark:text-yellow-400" size={16} />

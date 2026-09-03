@@ -22,13 +22,16 @@ const ticketPrioritySchema = z.enum(['low', 'normal', 'high', 'critical']);
 const ticketStatusSchema = z.enum(['open', 'in_progress', 'waiting', 'resolved', 'closed', 'archived']);
 
 const createTicketSchema = z.object({
-  customerId: z.string().uuid(),
+  // optional: interne Tickets (IT-intern, Infrastruktur, ...) haben keinen Kunden
+  customerId: z.string().uuid().optional().nullable(),
   projectId: z.string().uuid().optional().nullable(),
   title: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).optional(),
   priority: ticketPrioritySchema.optional(),
   // users.id ist TEXT (nicht zwingend UUID) — kein .uuid() erzwingen
   assignedToUserId: z.string().min(1).max(100).optional().nullable(),
+  // Bereich/Queue (frei definierbar, nutzt tickets.category)
+  category: z.string().trim().max(100).optional().nullable(),
 });
 
 const updateTicketSchema = z.object({
@@ -40,6 +43,7 @@ const updateTicketSchema = z.object({
   priority: ticketPrioritySchema.optional(),
   // users.id ist TEXT (nicht zwingend UUID) — kein .uuid() erzwingen
   assignedToUserId: z.string().min(1).max(100).optional().nullable(),
+  category: z.string().trim().max(100).optional().nullable(),
   solution: z.string().max(50_000).optional().nullable(),
   resolutionType: z.string().max(100).optional().nullable(),
   deviceId: z.string().max(200).optional().nullable(),
@@ -328,6 +332,7 @@ function transformTicket(row: any) {
     description: row.description,
     status: row.status,
     priority: row.priority,
+    category: row.category ?? null,
     assignedToUserId: row.assigned_to,
     dueDate: row.due_date?.toISOString() || null,
     createdAt: row.created_at?.toISOString(),
@@ -390,7 +395,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { status, customerId, priority, searchText, assignedTo } = req.query;
+    const { status, customerId, priority, searchText, assignedTo, category } = req.query;
 
     // Legacy support: ?all=true bypasses pagination
     const returnAll = req.query.all === 'true';
@@ -410,9 +415,17 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
       whereClause += ` AND t.status = $${params.length}`;
     }
 
-    if (customerId) {
+    // 'none' = interne Tickets (ohne Kunde)
+    if (customerId === 'none') {
+      whereClause += ` AND t.customer_id IS NULL`;
+    } else if (customerId) {
       params.push(customerId);
       whereClause += ` AND t.customer_id = $${params.length}`;
+    }
+
+    if (category && typeof category === 'string') {
+      params.push(category);
+      whereClause += ` AND t.category = $${params.length}`;
     }
 
     if (priority) {
@@ -436,7 +449,7 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
     // Explicit column list (no SELECT *)
     const baseQuery = `
       SELECT t.id, t.ticket_number, t.organization_id, t.user_id, t.customer_id, t.project_id,
-             t.assigned_to, t.title, t.description, t.status, t.priority, t.source,
+             t.assigned_to, t.title, t.description, t.status, t.priority, t.source, t.category,
              t.due_date, t.first_response_at, t.resolved_at, t.closed_at,
              t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
              t.sla_response_breached, t.sla_resolution_breached,
@@ -848,10 +861,10 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = (req as any).user.id;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { customerId, projectId, title, description, priority = 'normal', assignedToUserId } = req.body;
+    const { customerId, projectId, title, description, priority = 'normal', assignedToUserId, category } = req.body;
 
-    if (!customerId || !title) {
-      return res.status(400).json({ success: false, error: 'Customer and title are required' });
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Title is required' });
     }
 
     if (assignedToUserId && !(await isOrgMember(organizationId, assignedToUserId))) {
@@ -862,10 +875,10 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const ticketNumber = await generateTicketNumber(organizationId);
 
     const result = await query(`
-      INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, project_id, title, description, priority, status, assigned_to)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', $10)
+      INSERT INTO tickets (id, ticket_number, user_id, organization_id, customer_id, project_id, title, description, priority, status, assigned_to, category)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', $10, $11)
       RETURNING *
-    `, [id, ticketNumber, userId, organizationId, customerId, projectId || null, title, description || '', priority, assignedToUserId || null]);
+    `, [id, ticketNumber, userId, organizationId, customerId || null, projectId || null, title, description || '', priority, assignedToUserId || null, category || null]);
 
     // Apply SLA if available
     const slaDeadlines = await calculateSlaDeadlines(organizationId, priority);
@@ -943,7 +956,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
-    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId } = req.body;
+    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId, category } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
@@ -1026,6 +1039,11 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       }
       updates.push(`assigned_to = $${paramIndex}`);
       params.push(assignedToUserId || null);
+      paramIndex++;
+    }
+    if (category !== undefined) {
+      updates.push(`category = $${paramIndex}`);
+      params.push(category || null);
       paramIndex++;
     }
     if (deviceId !== undefined) {

@@ -358,11 +358,13 @@ export const TicketKanban = ({ customers, onTicketSelect, config }: TicketKanban
     return map;
   }, [teamMembers]);
 
-  const getCustomerName = useCallback((customerId: string) => {
+  const getCustomerName = useCallback((customerId?: string | null) => {
+    if (!customerId) return 'Intern';
     return customerMap.get(customerId)?.name || 'Unbekannt';
   }, [customerMap]);
 
-  const getCustomerColor = useCallback((customerId: string) => {
+  const getCustomerColor = useCallback((customerId?: string | null) => {
+    if (!customerId) return '#6B7280';
     return customerMap.get(customerId)?.color || '#6B7280';
   }, [customerMap]);
 

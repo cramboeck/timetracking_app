@@ -29,6 +29,8 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
   const [priority, setPriority] = useState<TicketPriority>('normal');
   const [assignedToUserId, setAssignedToUserId] = useState('');
   const [teamMembers, setTeamMembers] = useState<OrganizationMember[]>([]);
+  const [isInternal, setIsInternal] = useState(false);
+  const [category, setCategory] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,20 +117,21 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
     e.preventDefault();
     setError(null);
 
-    if (!customerId || !title.trim()) {
-      setError('Bitte wähle einen Kunden und gib einen Titel ein.');
+    if (!title.trim() || (!isInternal && !customerId)) {
+      setError(isInternal ? 'Bitte gib einen Titel ein.' : 'Bitte wähle einen Kunden und gib einen Titel ein.');
       return;
     }
 
     try {
       setSubmitting(true);
       await ticketsApi.create({
-        customerId,
-        projectId: projectId || undefined,
+        customerId: isInternal ? undefined : customerId,
+        projectId: isInternal ? undefined : (projectId || undefined),
         title: title.trim(),
         description: description.trim() || undefined,
         priority,
         assignedToUserId: assignedToUserId || undefined,
+        category: category.trim() || undefined,
       });
 
       // Reset form and close
@@ -138,6 +141,8 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
       setDescription('');
       setPriority('normal');
       setAssignedToUserId('');
+      setIsInternal(false);
+      setCategory('');
       setSelectedTemplateId('');
       onCreated();
       onClose();
@@ -211,7 +216,24 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
               </div>
             )}
 
+            {/* Internes Ticket (ohne Kunde) */}
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50/60 dark:bg-dark-50/60 px-4 py-3 cursor-pointer">
+              <div>
+                <span className="font-medium text-gray-900 dark:text-white">Internes Ticket</span>
+                <p className="text-xs text-gray-500 dark:text-dark-400">
+                  Ohne Kundenbezug — z.B. eigene IT, Infrastruktur, Organisation
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={isInternal}
+                onChange={(e) => setIsInternal(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+              />
+            </label>
+
             {/* Customer */}
+            {!isInternal && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Kunde *
@@ -234,7 +256,10 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
               </select>
             </div>
 
+            )}
+
             {/* Project (optional) */}
+            {!isInternal && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                 Projekt (optional)
@@ -259,6 +284,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                 ))}
               </select>
             </div>
+            )}
 
             {/* Title */}
             <div>
@@ -304,24 +330,46 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
               </div>
             </div>
 
-            {/* Bearbeiter (optional) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Bearbeiter
-              </label>
-              <select
-                value={assignedToUserId}
-                onChange={(e) => setAssignedToUserId(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              >
-                <option value="">Nicht zugewiesen</option>
-                {teamMembers.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.display_name || m.username}
-                    {m.user_id === currentUser?.id ? ' (ich)' : ''}
-                  </option>
-                ))}
-              </select>
+            {/* Bearbeiter + Bereich */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  Bearbeiter
+                </label>
+                <select
+                  value={assignedToUserId}
+                  onChange={(e) => setAssignedToUserId(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                >
+                  <option value="">Nicht zugewiesen</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.display_name || m.username}
+                      {m.user_id === currentUser?.id ? ' (ich)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                  Bereich
+                </label>
+                <input
+                  type="text"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  list="ticket-bereiche"
+                  placeholder="z.B. 1st Level, Intern-IT"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                />
+                <datalist id="ticket-bereiche">
+                  <option value="1st Level" />
+                  <option value="2nd Level" />
+                  <option value="Intern-IT" />
+                  <option value="Infrastruktur" />
+                  <option value="Buchhaltung" />
+                </datalist>
+              </div>
             </div>
 
             {/* Description */}

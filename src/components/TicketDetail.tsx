@@ -691,6 +691,9 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 currentUserId={currentUser?.id}
                 onAssign={handleAssign}
                 assigning={updateTicketMutation.isPending}
+                onCategoryChange={(category) => updateTicketMutation.mutate({ category }, {
+                  onSuccess: () => showToast(category ? `Bereich „${category}" gesetzt` : 'Bereich entfernt', 'success'),
+                })}
               />
 
               {/* NinjaRMM Alert Info - for tickets from NinjaRMM */}

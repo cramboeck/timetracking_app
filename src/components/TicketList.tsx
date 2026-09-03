@@ -317,7 +317,8 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
     );
   });
 
-  const getCustomerName = (customerId: string) => {
+  const getCustomerName = (customerId?: string | null) => {
+    if (!customerId) return 'Intern';
     return customers.find(c => c.id === customerId)?.name || 'Unbekannt';
   };
 
@@ -503,6 +504,7 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
                 >
                   <option value="">Alle Kunden</option>
+                  <option value="none">— Interne Tickets —</option>
                   {customers.map(customer => (
                     <option key={customer.id} value={customer.id}>{customer.name}</option>
                   ))}
@@ -787,6 +789,16 @@ export const TicketList = forwardRef<TicketListHandle, TicketListProps>(
                             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${sourceInfo.color}`}>
                               <SourceIcon size={10} />
                               {sourceInfo.label}
+                            </span>
+                          )}
+                          {ticket.category && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400 border border-gray-200 dark:border-dark-border">
+                              {ticket.category}
+                            </span>
+                          )}
+                          {!ticket.customerId && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                              Intern
                             </span>
                           )}
                         </div>

@@ -203,7 +203,7 @@ export interface Ticket {
   id: string;
   ticketNumber: string; // e.g., TKT-000001
   userId: string; // Technician/Admin who owns/handles the ticket
-  customerId: string; // Which customer this ticket belongs to
+  customerId?: string | null; // Kunde — null/undefined = internes Ticket
   projectId?: string; // Optional: link to project
   createdByContactId?: string; // If created by customer contact
   title: string;
@@ -211,6 +211,7 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   assignedToUserId?: string; // For teams: who is working on it
+  category?: string | null; // Bereich/Queue (frei definierbar, z.B. '1st Level', 'Intern-IT')
   dueDate?: string | null; // Faelligkeitsdatum (tickets.due_date)
   createdAt: string;
   updatedAt: string;

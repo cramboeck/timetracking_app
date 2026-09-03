@@ -5,7 +5,7 @@ import { SearchableSelect } from '../SearchableSelect';
 
 interface TicketDeviceLinkProps {
   ticketId: string;
-  customerId: string;
+  customerId?: string | null;
   linkedDeviceId?: string;
   onDeviceChange: (deviceId: string | null) => Promise<void>;
 }
@@ -39,7 +39,7 @@ export const TicketDeviceLink = ({
     setLoading(true);
     setError(null);
     try {
-      const result = await ninjaApi.getDevices({ customerId });
+      const result = await ninjaApi.getDevices({ customerId: customerId || undefined });
       if (result.success) {
         setDevices(result.data);
       } else {
