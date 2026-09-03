@@ -85,7 +85,13 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name`, [organizationId]);
-    const customers = transformRows(result.rows);
+    let customers = transformRows(result.rows);
+
+    // Stundensaetze sind Umsatzdaten — Nicht-Admins bekommen sie nicht
+    const role = orgReq.organization.role;
+    if (role !== 'admin' && role !== 'owner') {
+      customers = customers.map((c: Record<string, unknown>) => ({ ...c, hourlyRate: null }));
+    }
 
     res.json({
       success: true,

@@ -43,7 +43,14 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     const organizationId = orgReq.organization.id;
 
     const result = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name`, [organizationId]);
-    const projects = transformRows(result.rows);
+    let projects = transformRows(result.rows);
+
+    // Stundensaetze sind Umsatzdaten — Nicht-Admins bekommen sie nicht
+    // (fuers Zeiterfassen reicht der Projektname)
+    const role = orgReq.organization.role;
+    if (role !== 'admin' && role !== 'owner') {
+      projects = projects.map((proj: Record<string, unknown>) => ({ ...proj, hourlyRate: null }));
+    }
 
     res.json({
       success: true,

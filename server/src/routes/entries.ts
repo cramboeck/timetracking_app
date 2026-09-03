@@ -119,6 +119,13 @@ async function logRetroChange(opts: {
   }
 }
 
+// Admin/Owner der Organisation duerfen fremde Eintraege sehen/aendern
+// (Team-Ansichten, Korrekturen); alle anderen nur die eigenen.
+function isOrgAdmin(req: AuthRequest): boolean {
+  const role = (req as unknown as OrganizationRequest).organization?.role;
+  return role === 'admin' || role === 'owner';
+}
+
 // Explicit column lists (no SELECT *)
 const TIME_ENTRY_COLUMNS = `
   id, organization_id, user_id, project_id, activity_id, ticket_id,
@@ -204,6 +211,11 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
 
     const params: unknown[] = [organizationId];
     let whereClause = 'WHERE organization_id = $1';
+
+    // Datenschutz: jeder sieht nur die EIGENEN Eintraege (auch Admins —
+    // die Teamsicht ist bewusst eine eigene Ansicht unter /entries/team)
+    params.push(req.userId!);
+    whereClause += ` AND user_id = $${params.length}`;
 
     if (startDate) {
       params.push(startDate);
@@ -298,11 +310,14 @@ router.put('/bulk-update', authenticateToken, attachOrganization, requireOrgRole
       return res.status(400).json({ error: 'Updates are required' });
     }
 
-    // Verify all entries belong to organization
+    // Verify all entries belong to organization — Nicht-Admins zusaetzlich
+    // nur die EIGENEN Eintraege (Admin/Owner duerfen teamweit korrigieren)
     const placeholders = entryIds.map((_, i) => `$${i + 2}`).join(', ');
+    const admin = isOrgAdmin(req);
     const verifyResult = await pool.query(
-      `SELECT id FROM time_entries WHERE id IN (${placeholders}) AND organization_id = $1`,
-      [organizationId, ...entryIds]
+      `SELECT id FROM time_entries WHERE id IN (${placeholders}) AND organization_id = $1` +
+        (admin ? '' : ` AND user_id = $${entryIds.length + 2}`),
+      admin ? [organizationId, ...entryIds] : [organizationId, ...entryIds, userId]
     );
 
     if (verifyResult.rows.length !== entryIds.length) {
@@ -728,6 +743,10 @@ router.get('/:id', authenticateToken, attachOrganization, async (req: AuthReques
       return res.status(404).json({ error: 'Entry not found' });
     }
 
+    if (entry.userId !== req.userId && !isOrgAdmin(req)) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
     res.json({
       success: true,
       data: entry
@@ -927,6 +946,11 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       return res.status(404).json({ error: 'Entry not found' });
     }
 
+    // Nur eigene Eintraege aendern — Admin/Owner duerfen korrigieren
+    if (entryResult.rows[0].user_id !== userId && !isOrgAdmin(req)) {
+      return res.status(403).json({ error: 'Du kannst nur deine eigenen Einträge bearbeiten' });
+    }
+
     // Verify project belongs to organization (if updating projectId)
     if (updates.projectId) {
       const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`, [updates.projectId, organizationId]);
@@ -1083,6 +1107,11 @@ router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('mem
     const entryResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1 AND organization_id = $2`, [id, organizationId]);
     if (entryResult.rows.length === 0) {
       return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    // Nur eigene Eintraege loeschen — Admin/Owner duerfen korrigieren
+    if (entryResult.rows[0].user_id !== req.userId && !isOrgAdmin(req)) {
+      return res.status(403).json({ error: 'Du kannst nur deine eigenen Einträge löschen' });
     }
 
     await pool.query('DELETE FROM time_entries WHERE id = $1', [id]);

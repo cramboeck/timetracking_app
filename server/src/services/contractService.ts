@@ -139,6 +139,24 @@ function mapPositionRow(row: any): ContractPosition {
   };
 }
 
+// Org-Scope-Fragment: Vertraege gehoeren der Organisation, nicht dem User,
+// der sie angelegt hat (Multi-Tenancy-Altlast — Member und Zweit-Admins sahen
+// sonst NIE Vertraege). Legacy-Zeilen ohne organization_id werden ueber die
+// Org-Mitgliedschaft des Erstellers zugerechnet; User ohne Organisation sehen
+// weiterhin nur ihre eigenen Vertraege.
+function orgScopeSql(col: string, ph: string): string {
+  return `(
+    ${col}organization_id = (SELECT organization_id FROM organization_members WHERE user_id = ${ph} LIMIT 1)
+    OR (${col}organization_id IS NULL AND (
+      ${col}user_id = ${ph}
+      OR ${col}user_id IN (
+        SELECT om.user_id FROM organization_members om
+        WHERE om.organization_id = (SELECT organization_id FROM organization_members WHERE user_id = ${ph} LIMIT 1)
+      )
+    ))
+  )`;
+}
+
 // ============================================
 // Contract CRUD
 // ============================================
@@ -157,7 +175,8 @@ export async function getContracts(
     FROM contracts c
     LEFT JOIN customers cu ON c.customer_id = cu.id
     LEFT JOIN projects p ON c.project_id = p.id
-    WHERE c.user_id = $1 AND c.deleted_at IS NULL
+    WHERE ${orgScopeSql('c.', '$1')}
+      AND c.deleted_at IS NULL
   `;
   const params: any[] = [userId];
   let paramIndex = 2;
@@ -198,7 +217,7 @@ export async function getContractById(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.id = $1 AND c.user_id = $2 AND c.deleted_at IS NULL`,
+     WHERE c.id = $1 AND ${orgScopeSql('c.', '$2')} AND c.deleted_at IS NULL`,
     [contractId, userId]
   );
 
@@ -209,7 +228,7 @@ export async function getContractById(
 export async function getNextContractNumber(userId: string): Promise<string> {
   const result = await query(
     `SELECT contract_number FROM contracts
-     WHERE user_id = $1 AND deleted_at IS NULL
+     WHERE ${orgScopeSql('', '$1')} AND deleted_at IS NULL
      ORDER BY created_at DESC
      LIMIT 1`,
     [userId]
@@ -244,11 +263,13 @@ export async function createContract(
       billing_cycle, base_price, currency,
       included_hours_monthly, hourly_rate, overage_rate,
       sla_response_hours, sla_resolution_hours, support_hours,
-      document_url, internal_notes, project_id, created_by
+      document_url, internal_notes, project_id, created_by,
+      organization_id
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
       $12, $13, $14, $15, $16, $17, $18, $19, $20,
-      $21, $22, $23, $24, $25, $26, $27
+      $21, $22, $23, $24, $25, $26, $27,
+      (SELECT organization_id FROM organization_members WHERE user_id = $2 LIMIT 1)
     ) RETURNING *`,
     [
       id,
@@ -321,7 +342,7 @@ export async function updateContract(
       internal_notes = $24,
       project_id = $25,
       updated_at = NOW()
-     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+     WHERE id = $1 AND ${orgScopeSql('', '$2')} AND deleted_at IS NULL
      RETURNING *`,
     [
       contractId,
@@ -369,10 +390,10 @@ export async function deleteContract(
   const existing = await getContractById(userId, contractId);
   if (!existing) return false;
 
-  await query('UPDATE contracts SET deleted_at = NOW() WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL', [
-    contractId,
-    userId,
-  ]);
+  await query(
+    `UPDATE contracts SET deleted_at = NOW() WHERE id = $1 AND ${orgScopeSql('', '$2')} AND deleted_at IS NULL`,
+    [contractId, userId]
+  );
 
   return true;
 }
@@ -577,7 +598,7 @@ export async function getContractSummary(userId: string): Promise<ContractSummar
       SUM(CASE WHEN status = 'active' AND billing_cycle = 'monthly' THEN COALESCE(base_price, 0) ELSE 0 END) as monthly_revenue,
       SUM(CASE WHEN status = 'active' THEN COALESCE(included_hours_monthly, 0) ELSE 0 END) as included_hours
      FROM contracts
-     WHERE user_id = $1 AND deleted_at IS NULL`,
+     WHERE ${orgScopeSql('', '$1')} AND deleted_at IS NULL`,
     [userId]
   );
 
@@ -599,7 +620,7 @@ export async function getExpiringContracts(
     `SELECT c.*, cu.name as customer_name
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
-     WHERE c.user_id = $1 AND c.deleted_at IS NULL
+     WHERE ${orgScopeSql('c.', '$1')} AND c.deleted_at IS NULL
        AND c.status = 'active'
        AND c.end_date IS NOT NULL
        AND c.end_date <= CURRENT_DATE + INTERVAL '1 day' * $2
@@ -619,7 +640,7 @@ export async function getContractsByCustomer(
      FROM contracts c
      LEFT JOIN customers cu ON c.customer_id = cu.id
      LEFT JOIN projects p ON c.project_id = p.id
-     WHERE c.user_id = $1 AND c.customer_id = $2 AND c.deleted_at IS NULL
+     WHERE ${orgScopeSql('c.', '$1')} AND c.customer_id = $2 AND c.deleted_at IS NULL
      ORDER BY c.status, c.created_at DESC`,
     [userId, customerId]
   );
@@ -670,7 +691,7 @@ export async function updateContractStatuses(userId: string): Promise<number> {
   const expiringResult = await query(
     `UPDATE contracts
      SET status = 'expiring', updated_at = NOW()
-     WHERE user_id = $1 AND deleted_at IS NULL
+     WHERE ${orgScopeSql('', '$1')} AND deleted_at IS NULL
        AND status = 'active'
        AND end_date IS NOT NULL
        AND end_date <= CURRENT_DATE + INTERVAL '30 days'
@@ -682,7 +703,7 @@ export async function updateContractStatuses(userId: string): Promise<number> {
   const expiredResult = await query(
     `UPDATE contracts
      SET status = 'expired', updated_at = NOW()
-     WHERE user_id = $1 AND deleted_at IS NULL
+     WHERE ${orgScopeSql('', '$1')} AND deleted_at IS NULL
        AND status IN ('active', 'expiring')
        AND end_date IS NOT NULL
        AND end_date < CURRENT_DATE`,

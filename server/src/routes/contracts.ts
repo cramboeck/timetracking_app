@@ -1,11 +1,21 @@
 import express, { Response } from 'express';
 import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { validate } from '../middleware/validation';
 import * as contractService from '../services/contractService';
 import { runContractHoursJobForOrganization, getContractHoursJobStatus } from '../jobs/contractHoursCron';
 
 const router = express.Router();
+
+// Preisfelder sind Umsatzdaten: Nicht-Admins bekommen Vertraege nur ohne
+// basePrice/hourlyRate/overageRate (operative Felder wie enthaltene
+// Stunden und SLA-Zeiten bleiben sichtbar — die braucht der Support).
+function stripPricesForNonAdmins<T extends object>(req: AuthRequest, contracts: T[]): T[] {
+  const role = (req as unknown as OrganizationRequest).organization?.role;
+  if (role === 'admin' || role === 'owner') return contracts;
+  return contracts.map(c => ({ ...c, basePrice: null, hourlyRate: null, overageRate: null }));
+}
 
 // ============================================================================
 // Zod validation schemas
@@ -63,7 +73,7 @@ const updateContractHoursSchema = z.object({
 // ============================================
 
 // GET /api/contracts - Get all contracts
-router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { customerId, status, contractType, search } = req.query;
@@ -75,7 +85,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       search: search as string | undefined,
     });
 
-    res.json({ success: true, data: contracts });
+    res.json({ success: true, data: stripPricesForNonAdmins(req, contracts) });
   } catch (error: any) {
     console.error('Get contracts error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -83,7 +93,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 });
 
 // GET /api/contracts/summary - Get contract summary/statistics
-router.get('/summary', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/summary', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const summary = await contractService.getContractSummary(userId);
@@ -95,7 +105,7 @@ router.get('/summary', authenticateToken, async (req: AuthRequest, res: Response
 });
 
 // GET /api/contracts/expiring - Get expiring contracts
-router.get('/expiring', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/expiring', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const daysAhead = parseInt(req.query.days as string) || 30;
@@ -109,7 +119,7 @@ router.get('/expiring', authenticateToken, async (req: AuthRequest, res: Respons
 });
 
 // GET /api/contracts/next-number - Get next contract number
-router.get('/next-number', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/next-number', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const nextNumber = await contractService.getNextContractNumber(userId);
@@ -121,13 +131,13 @@ router.get('/next-number', authenticateToken, async (req: AuthRequest, res: Resp
 });
 
 // GET /api/contracts/customer/:customerId - Get contracts by customer
-router.get('/customer/:customerId', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/customer/:customerId', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const { customerId } = req.params;
     const contracts = await contractService.getContractsByCustomer(userId, customerId);
 
-    res.json({ success: true, data: contracts });
+    res.json({ success: true, data: stripPricesForNonAdmins(req, contracts) });
   } catch (error: any) {
     console.error('Get customer contracts error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -135,7 +145,7 @@ router.get('/customer/:customerId', authenticateToken, async (req: AuthRequest, 
 });
 
 // GET /api/contracts/:id - Get single contract
-router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const contract = await contractService.getContractById(userId, req.params.id);
@@ -152,7 +162,7 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response) =>
 });
 
 // POST /api/contracts - Create new contract
-router.post('/', authenticateToken, validate(createContractSchema), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(createContractSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
@@ -225,7 +235,7 @@ router.post('/', authenticateToken, validate(createContractSchema), async (req: 
 });
 
 // PUT /api/contracts/:id - Update contract
-router.put('/:id', authenticateToken, validate(updateContractSchema), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(updateContractSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
@@ -247,7 +257,7 @@ router.put('/:id', authenticateToken, validate(updateContractSchema), async (req
 });
 
 // DELETE /api/contracts/:id - Delete contract
-router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const deleted = await contractService.deleteContract(userId, req.params.id);
@@ -268,7 +278,7 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
 // ============================================
 
 // GET /api/contracts/:id/positions - Get contract positions
-router.get('/:id/positions', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:id/positions', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const positions = await contractService.getContractPositions(req.params.id);
     res.json({ success: true, data: positions });
@@ -279,7 +289,7 @@ router.get('/:id/positions', authenticateToken, async (req: AuthRequest, res: Re
 });
 
 // POST /api/contracts/:id/positions - Create contract position
-router.post('/:id/positions', authenticateToken, validate(contractPositionSchema), async (req: AuthRequest, res: Response) => {
+router.post('/:id/positions', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(contractPositionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const position = await contractService.createContractPosition(req.params.id, req.body);
     res.status(201).json({ success: true, data: position });
@@ -338,7 +348,7 @@ router.delete(
 // ============================================
 
 // GET /api/contracts/:id/hours - Get hourly tracking
-router.get('/:id/hours', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:id/hours', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const year = req.query.year ? parseInt(req.query.year as string) : undefined;
     const month = req.query.month ? parseInt(req.query.month as string) : undefined;
@@ -352,7 +362,7 @@ router.get('/:id/hours', authenticateToken, async (req: AuthRequest, res: Respon
 });
 
 // PUT /api/contracts/:id/hours - Update hourly tracking
-router.put('/:id/hours', authenticateToken, validate(updateContractHoursSchema), async (req: AuthRequest, res: Response) => {
+router.put('/:id/hours', authenticateToken, attachOrganization, requireOrgRole('admin'), validate(updateContractHoursSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { year, month, usedHours } = req.body;
 
@@ -382,7 +392,7 @@ router.put('/:id/hours', authenticateToken, validate(updateContractHoursSchema),
 // ============================================
 
 // GET /api/contracts/:id/activity - Get activity log
-router.get('/:id/activity', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/:id/activity', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const activity = await contractService.getContractActivityLog(req.params.id);
     res.json({ success: true, data: activity });
@@ -393,7 +403,7 @@ router.get('/:id/activity', authenticateToken, async (req: AuthRequest, res: Res
 });
 
 // POST /api/contracts/update-statuses - Update contract statuses (cron job endpoint)
-router.post('/update-statuses', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/update-statuses', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const updatedCount = await contractService.updateContractStatuses(userId);
@@ -409,7 +419,7 @@ router.post('/update-statuses', authenticateToken, async (req: AuthRequest, res:
 // ============================================
 
 // GET /api/contracts/hours-check/status - Get contract hours job status
-router.get('/hours-check/status', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/hours-check/status', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const status = getContractHoursJobStatus();
     res.json({ success: true, data: status });
@@ -420,7 +430,7 @@ router.get('/hours-check/status', authenticateToken, async (req: AuthRequest, re
 });
 
 // POST /api/contracts/hours-check/run - Manually trigger contract hours check
-router.post('/hours-check/run', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/hours-check/run', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
 
