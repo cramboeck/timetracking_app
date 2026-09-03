@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Clock, Ticket, Receipt, Users, Play, Plus,
   Calendar, CheckCircle2,
   ArrowRight, FileText, FolderKanban,
 } from 'lucide-react';
 import { TimeEntry, Project, Customer, Ticket as TicketType, TicketStatus } from '../types';
+import { ticketsApi, workSessionsApi } from '../services/api';
+import { useFeatures } from '../contexts/FeaturesContext';
+import { toLocalDateString } from '../utils/time';
 import { QuickAction } from './ui/StatWidget';
 import { useAuth } from '../contexts/AuthContext';
 import { Area, SubView } from './AreaNavigation';
@@ -192,6 +197,115 @@ export const DashboardOverview = ({
     return `Guten Abend, ${name}`;
   }, [currentUser]);
 
+  // ── "Heute im Fokus": handlungsorientierte Chips statt reiner KPIs ──────
+  const navigate = useNavigate();
+  const { hasFeature } = useFeatures();
+  const ticketsEnabled = hasFeature('tickets');
+
+  // Mir zugewiesene, offene Tickets
+  const myTicketsQuery = useQuery({
+    queryKey: ['tickets', 'focus', 'mine', currentUser?.id],
+    queryFn: async () => {
+      const res = await ticketsApi.getAll({ assignedTo: currentUser!.id, limit: 200 });
+      return (res.data || []).filter(t => ['open', 'in_progress', 'waiting'].includes(t.status));
+    },
+    enabled: ticketsEnabled && !!currentUser?.id,
+    staleTime: 60_000,
+  });
+
+  // Unzugewiesene offene Tickets (Triage)
+  const unassignedQuery = useQuery({
+    queryKey: ['tickets', 'focus', 'unassigned'],
+    queryFn: async () => {
+      const res = await ticketsApi.getAll({ assignedTo: 'none', status: 'open', limit: 200 });
+      return res.data || [];
+    },
+    enabled: ticketsEnabled,
+    staleTime: 60_000,
+  });
+
+  // SLA-Risiko (faellig in <2h oder ueberfaellig) aus dem Ticket-Dashboard
+  const slaFocusQuery = useQuery({
+    queryKey: ['tickets', 'focus', 'sla'],
+    queryFn: async () => (await ticketsApi.getDashboard()).data.urgentTickets,
+    enabled: ticketsEnabled,
+    staleTime: 60_000,
+  });
+
+  // Gestern: eingestempelte Zeit ohne zugeordnete Eintraege (>15 min Luecke)
+  const yesterdayISO = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return toLocalDateString(d);
+  }, []);
+  const yesterdayGapQuery = useQuery({
+    queryKey: ['workSessions', 'focus', yesterdayISO],
+    queryFn: async () => {
+      const res = await workSessionsApi.getCoverage(yesterdayISO, yesterdayISO);
+      const day = (res.data || [])[0];
+      if (!day || day.attendanceSeconds <= 0) return 0;
+      return day.unassignedSeconds > 900 ? day.unassignedSeconds : 0;
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const focusItems = [
+    ticketsEnabled && (myTicketsQuery.data?.length ?? 0) > 0 && {
+      key: 'mine',
+      count: myTicketsQuery.data!.length,
+      label: 'Meine Tickets',
+      description: 'dir zugewiesen und offen',
+      tone: 'accent' as const,
+      onClick: () => onNavigate('support', 'tickets'),
+    },
+    ticketsEnabled && (slaFocusQuery.data?.length ?? 0) > 0 && {
+      key: 'sla',
+      count: slaFocusQuery.data!.length,
+      label: 'SLA-Risiko',
+      description: 'fällig in unter 2 Stunden',
+      tone: 'red' as const,
+      onClick: () => onNavigate('support', 'tickets'),
+    },
+    ticketsEnabled && (unassignedQuery.data?.length ?? 0) > 0 && {
+      key: 'unassigned',
+      count: unassignedQuery.data!.length,
+      label: 'Ohne Bearbeiter',
+      description: 'offene Tickets ohne Zuweisung',
+      tone: 'amber' as const,
+      onClick: () => onNavigate('support', 'tickets'),
+    },
+    (yesterdayGapQuery.data ?? 0) > 0 && {
+      key: 'gap',
+      // ab 90 min in Stunden anzeigen ("7,5 h" statt "450 min")
+      count: Math.round((yesterdayGapQuery.data as number) / 60) >= 90
+        ? Number(((yesterdayGapQuery.data as number) / 3600).toFixed(1))
+        : Math.round((yesterdayGapQuery.data as number) / 60),
+      unit: Math.round((yesterdayGapQuery.data as number) / 60) >= 90 ? 'h' : 'min',
+      label: 'Zeiten von gestern',
+      description: 'eingestempelt, aber nicht erfasst',
+      tone: 'amber' as const,
+      onClick: () => navigate(`/arbeiten/zeiten?view=day&date=${yesterdayISO}`),
+    },
+  ].filter(Boolean) as Array<{
+    key: string; count: number; unit?: string; label: string;
+    description: string; tone: 'accent' | 'red' | 'amber'; onClick: () => void;
+  }>;
+
+  const focusToneClasses: Record<'accent' | 'red' | 'amber', { card: string; badge: string }> = {
+    accent: {
+      card: 'border-accent-primary/30 hover:border-accent-primary bg-accent-lighter/40 dark:bg-accent-primary/10',
+      badge: 'bg-accent-primary text-white',
+    },
+    red: {
+      card: 'border-red-200 dark:border-red-900/50 hover:border-red-400 bg-red-50/60 dark:bg-red-900/10',
+      badge: 'bg-red-500 text-white',
+    },
+    amber: {
+      card: 'border-amber-200 dark:border-amber-900/50 hover:border-amber-400 bg-amber-50/60 dark:bg-amber-900/10',
+      badge: 'bg-amber-500 text-white',
+    },
+  };
+
   // Show skeleton if we're still loading the initial data — otherwise the
   // dashboard renders as a sea of zeros, which is more confusing than empty.
   const showSkeleton = isLoading && entries.length === 0 && customers.length === 0;
@@ -222,6 +336,35 @@ export const DashboardOverview = ({
           </div>
         )}
       </div>
+
+      {/* Heute im Fokus — was jetzt Aufmerksamkeit braucht */}
+      {focusItems.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-400 mb-2">
+            Heute im Fokus
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {focusItems.map(item => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={item.onClick}
+                className={`text-left rounded-xl border p-4 transition-colors ${focusToneClasses[item.tone].card}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`min-w-[40px] h-10 px-2 rounded-lg text-lg font-bold inline-flex items-center justify-center tabular-nums ${focusToneClasses[item.tone].badge}`}>
+                    {item.count}{item.unit ? ` ${item.unit}` : ''}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white truncate">{item.label}</div>
+                    <div className="text-xs text-gray-500 dark:text-dark-400 truncate">{item.description}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">

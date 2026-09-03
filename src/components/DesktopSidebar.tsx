@@ -150,6 +150,10 @@ export const DesktopSidebar = ({
           const config = areaConfig[area];
           const AreaIcon = config.icon;
           const isAreaActive = currentArea === area;
+          const visibleSubViews = getVisibleSubViews(area, currentUser?.role);
+          // Bereiche mit genau einem Unterpunkt (z.B. Dashboard -> Uebersicht)
+          // als EIN klickbares Item rendern statt Header + redundantem Kind
+          const singleSubView = visibleSubViews.length === 1;
 
           return (
             <div key={area} className={areaIndex > 0 ? 'mt-4 pt-4 border-t border-gray-100 dark:border-dark-border' : ''}>
@@ -173,8 +177,9 @@ export const DesktopSidebar = ({
               </button>
 
               {/* SubViews */}
+              {!singleSubView && (
               <div className={`mt-1 space-y-0.5 ${collapsed ? 'px-1' : 'px-2'}`}>
-                {getVisibleSubViews(area, currentUser?.role).map(({ view, icon: Icon, label }) => {
+                {visibleSubViews.map(({ view, icon: Icon, label }) => {
                   const isActive = currentSubView === view;
 
                   return (
@@ -202,6 +207,7 @@ export const DesktopSidebar = ({
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}
