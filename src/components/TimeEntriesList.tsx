@@ -1485,14 +1485,19 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                     Projekt *
                   </label>
                   <SearchableSelect
-                    options={projects.filter(p => p.isActive).map(project => {
-                      const customer = getCustomerById(project.customerId);
-                      return {
-                        value: project.id,
-                        label: project.name,
-                        sublabel: customer?.name,
-                      };
-                    })}
+                    options={projects
+                      // aktives Projekt ODER das aktuell zugewiesene — sonst
+                      // zeigt der Dialog bei deaktivierten Projekten ein
+                      // scheinbar leeres Projektfeld
+                      .filter(p => p.isActive || p.id === editProjectId)
+                      .map(project => {
+                        const customer = getCustomerById(project.customerId);
+                        return {
+                          value: project.id,
+                          label: project.isActive ? project.name : `${project.name} (inaktiv)`,
+                          sublabel: customer?.name,
+                        };
+                      })}
                     value={editProjectId}
                     onChange={setEditProjectId}
                     placeholder="Projekt oder Kunde suchen…"

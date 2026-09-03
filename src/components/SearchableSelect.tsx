@@ -156,7 +156,14 @@ export const SearchableSelect = ({
         ) : (
           <>
             <span className={`flex-1 truncate ${selectedOption ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-              {selectedOption ? selectedOption.label : placeholder}
+              {selectedOption ? (
+                <>
+                  {selectedOption.label}
+                  {selectedOption.sublabel && (
+                    <span className="text-gray-400 dark:text-dark-400"> · {selectedOption.sublabel}</span>
+                  )}
+                </>
+              ) : placeholder}
             </span>
           </>
         )}

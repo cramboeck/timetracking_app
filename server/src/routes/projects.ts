@@ -75,7 +75,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     await pool.query(
       `INSERT INTO projects (id, user_id, organization_id, customer_id, name, rate_type, hourly_rate, is_active, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [id, userId, organizationId, customerId, name, rateType, hourlyRate, isActive, createdAt]
+      [id, userId, organizationId, customerId, name, rateType, hourlyRate, isActive ?? true, createdAt]
     );
 
     const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND deleted_at IS NULL`, [id]);
