@@ -117,6 +117,14 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 ## Aktueller Stand (Stand 5.9.2026)
 
+### Kleinkram-Sprint: VAPID-Setup + Theme-Cleanup (5.9.2026) — ✅ abgeschlossen (fd7c334)
+
+| Bereich | Änderung |
+|---|---|
+| **VAPID im Admin-UI (Prio 4)** | Einstellungen → Benachrichtigungen: Admin-Warn-Block mit „Schlüssel erzeugen" → fertiger `.env`-Block + Copy-Button + Deploy-Anleitung. **Bugfix:** `GET /push/generate-vapid` lehnte JEDEN ab (Inline-Check las `req.user.role`, das `authenticateToken` nie setzt) → `requireAdmin`. `POST /push/subscribe` → 503 statt toter DB-Subscriptions ohne Keys. |
+| **text-gray-Cleanup (Prio 5 Rest)** | Finanzen.tsx (12) + MaintenanceView.tsx (26) manuell: `dark:text-dark-400/-300` ergänzt, STATUS_COLORS-Badges mit Dark-Varianten. Damit ist der pausierte Cleanup-Punkt abgeschlossen. |
+| **A5-Reste** | ModernDatePicker: deutsches numerisches Format inkl. Jahr („Fr., 05.09.2026"). Bereits erledigt vorgefunden: Mobile Bottom-Nav (flex-1/min-w-0), Anträge-Badge in Berichte-Tabs. |
+
 ### UX-Paket 4: Undo-Toast + globale Suche (5.9.2026) — ✅ abgeschlossen (de83d38)
 
 > Fortsetzung des UX-Programms nach Paket S. Verbleibender UX-Punkt: Formular-Kit vereinheitlichen (größter Brocken, eigener Sprint).
@@ -475,8 +483,8 @@ TS-Errors: 452 (= Baseline). Bundle: +3 KB für UIContext. 33 Files geändert, +
 | ~~1~~ ✅ | ~~**NinjaRMM: Diagnose-Endpoint + device-health-Aggregatzähler**~~ | erledigt | **Commit ad0d5ca (30.7.2026):** `GET /api/ninjarmm/diagnose` probt 7 Endpoints mit gespeichertem OAuth-Token (Diagnose-Karte im Sync-Tab der NinjaRMM-Settings); `syncDeviceHealthCounts()` synct `critical/high/medium/low_vuln_count` + `health_status` aus `/v2/queries/device-health` (cursor-paginiert, non-fatal in syncAll, manuell via `POST /sync-health`); VulnerabilitiesDashboard zeigt Tabelle „Schwachstellen-Zähler pro Gerät". CVE-Details bleiben API-bedingt unmöglich (siehe Limitierungs-Box). |
 | ~~2~~ ✅ | ~~**SocialMediaManager.tsx splitten**~~ | obsolet (22.8.) | Datei war seit dem features/social-media-Modul (SocialMediaLayout) **nirgends mehr importiert** → GELÖSCHT (1ad5bd8) statt gesplittet. Live-UI ist `src/features/social-media/`. |
 | ~~3~~ ✅ | ~~**TS-Fehler 374 → 0**~~ | erledigt (22.8.) | Commits 46ad2ef, 919f972, 1ad5bd8 — siehe Tech-Debt-Sprint-Tabelle. **Neue Regel: `npx tsc --noEmit` muss bei 0 bleiben.** |
-| 4 | **Push-Notifications: VAPID-Keys im Admin-Setup erzwingen** | 2-3h | Ohne Keys laufen Push-Subscriptions ins Leere; Setup-Check + Admin-UI-Hinweis. |
-| 5 | **text-gray-* Cleanup** | 3-4h | ⏸️ Pausiert wegen Regressionsrisiko — nur manuell pro Datei. Priorität: Finanzen (29), MaintenanceView (26). (SocialMediaManager mit 118 Stellen ist gelöscht.) |
+| ~~4~~ ✅ | ~~**Push-Notifications: VAPID-Keys im Admin-Setup erzwingen**~~ | erledigt (5.9.) | fd7c334: Admin-UI erzeugt Keys (fertiger .env-Block + Anleitung), subscribe → 503 ohne Keys, generate-vapid-403-Bug gefixt (req.user.role war nie gesetzt). |
+| ~~5~~ ✅ | ~~**text-gray-* Cleanup**~~ | erledigt (5.9.) | fd7c334: Finanzen + MaintenanceView manuell bereinigt (inkl. STATUS_COLORS-Dark-Varianten). |
 | 6 | **React Router v7 Upgrade** + echte `<Routes>`-Definitionen | 1 Tag | Von v6.22; danach Pass 5 (App.tsx switch → `<Route>`-Elemente). |
 | 7 | **Epic G Rest: Distributor-Integrationen** | je 1-3 Tage | ADN-Lizenzimport, Infinigate, Lywand-Security-Audits im Portal, Microsoft Security Center Scores. Reihenfolge nach Business-Priorität festlegen. |
 | 8 | **Social Media: echtes Posten an Plattformen** | 3-5 Tage | Aktuell nur DB-Einträge. Meta/LinkedIn-APIs, OAuth-Flows, Fehlerbehandlung. |
@@ -583,7 +591,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 | Task | Status |
 |---|---|
 | ~~CRM-Finanzen-Brücke: Angebote direkt aus Sales Pipeline erstellen~~ | ✅ Erledigt (Commit 7fb86c7) |
-| Push-Notifications: VAPID-Keys im Admin-Setup erzwingen | Offen |
+| ~~Push-Notifications: VAPID-Keys im Admin-Setup erzwingen~~ | ✅ Erledigt (fd7c334) |
 | Social Media: Echtes Posten an Plattformen (aktuell nur DB-Einträge) | Offen |
 | ~~Push Subscriptions: `push_subscriptions` + `portal_push_subscriptions` zusammenführen~~ | ✅ Erledigt |
 
@@ -759,7 +767,7 @@ Diese Punkte betreffen die visuelle Konsistenz (Theme-Switch) und Code-Hygiene.
 
 ---
 
-*Zuletzt aktualisiert: 5.9.2026 — UX-Paket 4 ✅ (de83d38): Undo-Toast beim Zeiteintrag-Löschen (Confirm-Dialoge raus, Wiederherstellen per Neuanlage), CommandPalette → globale Suche (Tickets/Kunden/Projekte, feature-/rollen-gegated). Offen aus UX-Programm: nur noch Formular-Kit. — Vorheriger Stand 3.9.2026: Berechtigungs-Härtung „Paket S" ✅ (c913521): Zeiten nur-eigene (Teamsicht bleibt Admin-Ansicht), Verträge API-geschützt + Org-Scope (INSERT schrieb nie organization_id!), Stundensätze für Nicht-Admins genullt. Davor (1.–2.9.): UX-Pakete 1–3, Signatur-Filter, nginx-SSE-Login-Vorfall, Edit-Dialog-Redesign, Button-type-Root-Fix, interne Tickets + Bereiche. Offen aus UX-Programm: Undo-Toast statt Confirm, CommandPalette→globale Suche, Formular-Kit. — Vorheriger Stand 27.8.2026: Ticket-Zuweisungs-Sprint ✅ (80efbea): Zuweisen im Detail/Erstellen/Aufgaben, „Meine Tickets“-Filter, Bulk benachrichtigt endlich, Namen statt UUIDs im Feed. Davor: E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
+*Zuletzt aktualisiert: 5.9.2026 — Kleinkram-Sprint ✅ (fd7c334): VAPID-Setup im Admin-UI (inkl. generate-vapid-403-Bugfix), text-gray-Cleanup Finanzen/Wartung abgeschlossen, deutsches Datumsformat im Edit-Dialog. Davor UX-Paket 4 ✅ (de83d38): Undo-Toast beim Zeiteintrag-Löschen (Confirm-Dialoge raus, Wiederherstellen per Neuanlage), CommandPalette → globale Suche (Tickets/Kunden/Projekte, feature-/rollen-gegated). Offen aus UX-Programm: nur noch Formular-Kit. — Vorheriger Stand 3.9.2026: Berechtigungs-Härtung „Paket S" ✅ (c913521): Zeiten nur-eigene (Teamsicht bleibt Admin-Ansicht), Verträge API-geschützt + Org-Scope (INSERT schrieb nie organization_id!), Stundensätze für Nicht-Admins genullt. Davor (1.–2.9.): UX-Pakete 1–3, Signatur-Filter, nginx-SSE-Login-Vorfall, Edit-Dialog-Redesign, Button-type-Root-Fix, interne Tickets + Bereiche. Offen aus UX-Programm: Undo-Toast statt Confirm, CommandPalette→globale Suche, Formular-Kit. — Vorheriger Stand 27.8.2026: Ticket-Zuweisungs-Sprint ✅ (80efbea): Zuweisen im Detail/Erstellen/Aufgaben, „Meine Tickets“-Filter, Bulk benachrichtigt endlich, Namen statt UUIDs im Feed. Davor: E-Mail-Ticket-Sprint ✅ (860bc0c): Zuordnungs-Kaskade (Betreff/conversationId/References), Support-Inbox-Cron mit Auto-Attach, TicketPickerDialog, 8 Bugs (u.a. Dringend-400, Mail-Tickets ohne SLA, Merge verlor Mails). — Vorheriger Stand 22.8.2026: Tech-Debt-Sprint ✅: TS-Fehler 374 → 0 (Frontend + Backend kompilieren fehlerfrei), SocialMediaManager.tsx als toter Code gelöscht (Split obsolet), 12 Laufzeitbugs nebenbei gefixt (CRM-Dashboard lud nie Daten!), guarded Migration email_on_new_ticket. Nächstes: React Router v7, text-gray-Cleanup (Finanzen/MaintenanceView), Portal-Pilot. — Vorheriger Stand 4.8.2026: Go-Live-Sprint Kundenportal + Stabilität ✅: Portal-Härtung (8 Blocker), 4 Phantom-Spalten-Prod-Bugs gefixt (Kommentar-Mails gingen NIE raus!), „still kaputt"-Klasse behoben (Features/Speichern/Boot), Session-Keep-Alive, Cache-Härtung nach Deploy-Vorfall, Arbeitszeit-Admin-Korrekturen, Nachtrags-Protokoll, neues Logo + Rechtstexte. Offen: Schema-Sweep (läuft), Fresh-Install-Fixes, Zeiterfassung Paket 3+4, Portal-Pilot — siehe „Neu hinzugekommen (August 2026)".*
 
 ---
 
