@@ -4712,6 +4712,30 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ Schema-Sweep-Angleichung (Prod-Parität) ready');
 
+    // Interne Tickets (customer_id NULL): die gewachsene Prod-Tabelle trägt
+    // noch NOT NULL auf tickets.customer_id — der Interne-Tickets-Sprint
+    // (8dfc505) lieferte die Migration nicht mit, dadurch schlug JEDES
+    // interne Ticket in Prod mit einem NOT-NULL-Verstoß fehl (500).
+    // Frische Installationen sind bereits nullable (CREATE TABLE oben).
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tickets' AND column_name='customer_id' AND is_nullable='NO'
+        ) THEN
+          ALTER TABLE tickets ALTER COLUMN customer_id DROP NOT NULL;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='tickets' AND column_name='project_id' AND is_nullable='NO'
+        ) THEN
+          ALTER TABLE tickets ALTER COLUMN project_id DROP NOT NULL;
+        END IF;
+      END $$;
+    `);
+    logger.info('✅ tickets.customer_id nullable (interne Tickets) ready');
+
     // Indexe für die (durch die Audit-Middleware wachsende) audit_logs
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_user_time ON audit_logs(user_id, timestamp DESC)');
