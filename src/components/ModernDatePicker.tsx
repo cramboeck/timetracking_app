@@ -104,13 +104,12 @@ export const ModernDatePicker = ({
 
   const formatDate = (d: Date) => toLocalDateString(d);
 
+  // Deutsches numerisches Format inkl. Jahr: "Fr., 05.09.2026"
   const formatDisplayDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('de-DE', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    });
+    const weekday = d.toLocaleDateString('de-DE', { weekday: 'short' });
+    const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${weekday}, ${date}`;
   };
 
   const isSelectedDate = (d: Date | null) => {

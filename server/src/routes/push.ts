@@ -12,6 +12,7 @@ import {
   generateVapidKeys,
 } from '../services/pushNotifications';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requireAdmin } from '../middleware/adminAuth';
 import { validate } from '../middleware/validation';
 
 const router = express.Router();
@@ -73,6 +74,15 @@ router.get('/vapid-public-key', (_req: Request, res: Response) => {
 // POST /api/push/subscribe - Subscribe a device for push notifications
 router.post('/subscribe', authenticateToken, validate(subscribeSchema), async (req: AuthRequest, res: Response) => {
   try {
+    // Ohne VAPID-Schlüssel würde die Subscription tot in der DB liegen —
+    // jeder Sendeversuch schlüge fehl. Lieber sauber ablehnen.
+    if (!isPushConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Push ist serverseitig nicht konfiguriert (VAPID-Schlüssel fehlen). Ein Admin kann sie unter Einstellungen → Benachrichtigungen erzeugen.',
+      });
+    }
+
     const { subscription, deviceName } = req.body;
     const userId = req.user!.id;
     // Validation handled by Zod
@@ -282,16 +292,11 @@ router.post('/test', authenticateToken, async (req: AuthRequest, res: Response) 
 });
 
 // GET /api/push/generate-vapid - Generate new VAPID keys (admin only)
-router.get('/generate-vapid', authenticateToken, async (req: AuthRequest, res: Response) => {
+// requireAdmin lädt die Rolle aus der DB — req.user.role ist nach
+// authenticateToken NICHT gesetzt (der frühere Inline-Check lehnte
+// deshalb JEDEN ab, auch Admins)
+router.get('/generate-vapid', authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
-    // Only allow admins to generate keys
-    if (req.user!.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Admin access required',
-      });
-    }
-
     const keys = generateVapidKeys();
 
     res.json({

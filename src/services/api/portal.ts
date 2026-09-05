@@ -665,6 +665,11 @@ export const pushApi = {
     });
   },
 
+  // Admin-only: neue VAPID-Schlüssel erzeugen (müssen danach in die .env)
+  generateVapidKeys: async (): Promise<{ success: boolean; message?: string; keys?: { VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string } }> => {
+    return authFetch('/push/generate-vapid');
+  },
+
   unsubscribe: async (endpoint: string): Promise<{ success: boolean }> => {
     return authFetch('/push/unsubscribe', {
       method: 'POST',

@@ -696,7 +696,7 @@ const BillingTab = () => {
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 dark:text-dark-400">
                         {formatHours(item.totalHours)}
                         {item.roundedHours && item.roundedHours !== item.totalHours && (
                           <span className="text-accent-primary ml-1">
@@ -710,7 +710,7 @@ const BillingTab = () => {
                     <div className="text-right">
                       <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
                       {item.roundedHours && item.roundedHours !== item.totalHours && (
-                        <div className="text-xs text-gray-400">aufgerundet</div>
+                        <div className="text-xs text-gray-400 dark:text-dark-400">aufgerundet</div>
                       )}
                     </div>
                     {item.sevdeskCustomerId && hasConfig ? (
@@ -771,7 +771,7 @@ const BillingTab = () => {
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-500 dark:text-dark-400">
                           {formatHours(item.totalHours)}
                           {item.roundedHours && item.roundedHours !== item.totalHours && (
                             <span className="text-accent-primary ml-1">
@@ -828,18 +828,18 @@ const BillingTab = () => {
         </div>
         {showCompleted && (
           invoiceExports.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">Keine erledigten Abrechnungen</div>
+            <div className="p-8 text-center text-gray-500 dark:text-dark-400">Keine erledigten Abrechnungen</div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-dark-border">
               {invoiceExports.map((exp) => (
                 <div key={exp.id} className="p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-900 dark:text-white truncate">{exp.customerName}</div>
-                    <div className="text-sm text-gray-500">{formatDate(exp.periodStart)} - {formatDate(exp.periodEnd)}</div>
+                    <div className="text-sm text-gray-500 dark:text-dark-400">{formatDate(exp.periodStart)} - {formatDate(exp.periodEnd)}</div>
                   </div>
                   <div className="text-right">
                     <div className="font-medium text-gray-900 dark:text-white">{formatCurrency(exp.totalAmount)}</div>
-                    <div className="text-sm text-gray-500">{exp.sevdeskInvoiceNumber || 'Manuell'}</div>
+                    <div className="text-sm text-gray-500 dark:text-dark-400">{exp.sevdeskInvoiceNumber || 'Manuell'}</div>
                   </div>
                   {!exp.sevdeskInvoiceNumber && (
                     <IconButton
@@ -1197,7 +1197,7 @@ const OutgoingInvoicesTab = () => {
 
       {/* Search */}
       <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
         <input
           type="text"
           value={searchQuery}
@@ -1250,7 +1250,7 @@ const OutgoingInvoicesTab = () => {
                 <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(invoice.sumGross)}</p>
                 <p className="text-sm text-gray-500 dark:text-dark-400">{formatDate(invoice.invoiceDate)}</p>
               </div>
-              <ChevronRight size={18} className="text-gray-400" />
+              <ChevronRight size={18} className="text-gray-400 dark:text-dark-400" />
             </div>
           ))}
         </div>
@@ -1326,7 +1326,7 @@ const QuotesTab = () => {
 
       {/* Search */}
       <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
         <input
           type="text"
           value={searchQuery}
@@ -1388,7 +1388,7 @@ const QuotesTab = () => {
                 }}
                 tooltip="Bearbeiten"
               />
-              <ChevronRight size={18} className="text-gray-400" />
+              <ChevronRight size={18} className="text-gray-400 dark:text-dark-400" />
             </div>
           ))}
         </div>
@@ -1494,7 +1494,7 @@ const IncomingReceiptsTab = () => {
 
         {/* Search */}
         <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
           <input
             type="text"
             value={searchQuery}
@@ -1554,7 +1554,7 @@ const IncomingReceiptsTab = () => {
                     className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <ExternalLink size={16} className="text-gray-400" />
+                    <ExternalLink size={16} className="text-gray-400 dark:text-dark-400" />
                   </a>
                 )}
               </div>

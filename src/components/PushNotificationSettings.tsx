@@ -13,8 +13,48 @@ import {
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { Button, IconButton } from './ui';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/UIContext';
+import { pushApi } from '../services/api';
 
 export const PushNotificationSettings = () => {
+  const { currentUser } = useAuth();
+  const showToast = useToast();
+  const isAdmin = currentUser?.role === 'admin';
+  const [generatedKeys, setGeneratedKeys] = useState<{ VAPID_PUBLIC_KEY: string; VAPID_PRIVATE_KEY: string } | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerateKeys = async () => {
+    setGenerating(true);
+    try {
+      const result = await pushApi.generateVapidKeys();
+      if (result.success && result.keys) {
+        setGeneratedKeys(result.keys);
+      } else {
+        showToast('Schlüssel konnten nicht erzeugt werden', 'error');
+      }
+    } catch (err: any) {
+      showToast(`Schlüssel konnten nicht erzeugt werden: ${err?.message || 'Unbekannter Fehler'}`, 'error');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCopyEnv = async () => {
+    if (!generatedKeys) return;
+    const envBlock = [
+      `VAPID_PUBLIC_KEY=${generatedKeys.VAPID_PUBLIC_KEY}`,
+      `VAPID_PRIVATE_KEY=${generatedKeys.VAPID_PRIVATE_KEY}`,
+      `VAPID_SUBJECT=mailto:support@ramboeck.it`,
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(envBlock);
+      showToast('Env-Variablen in die Zwischenablage kopiert');
+    } catch {
+      showToast('Kopieren fehlgeschlagen — bitte manuell markieren', 'warning');
+    }
+  };
+
   const {
     isSupported,
     isConfigured,
@@ -97,16 +137,52 @@ export const PushNotificationSettings = () => {
 
   if (!isConfigured) {
     return (
-      <div className="bg-gray-50 dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg p-4">
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <Settings className="text-gray-500 dark:text-dark-400 flex-shrink-0 mt-0.5" size={20} />
-          <div>
-            <h4 className="font-medium text-gray-800 dark:text-dark-500">
+          <AlertTriangle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" size={20} />
+          <div className="min-w-0 flex-1">
+            <h4 className="font-medium text-yellow-800 dark:text-yellow-200">
               Push-Benachrichtigungen nicht konfiguriert
             </h4>
-            <p className="text-sm text-gray-600 dark:text-dark-400 mt-1">
-              Der Server muss zunächst mit VAPID-Schlüsseln konfiguriert werden.
+            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+              {isAdmin
+                ? 'Dem Server fehlen die VAPID-Schlüssel — ohne sie können keine Push-Benachrichtigungen gesendet werden (z.B. bei Ticket-Zuweisungen).'
+                : 'Der Server muss zunächst mit VAPID-Schlüsseln konfiguriert werden. Bitte wende dich an deinen Administrator.'}
             </p>
+
+            {isAdmin && !generatedKeys && (
+              <Button
+                onClick={handleGenerateKeys}
+                variant="primary"
+                size="sm"
+                className="mt-3"
+                disabled={generating}
+                icon={generating ? <Loader2 size={16} className="animate-spin" /> : <Settings size={16} />}
+              >
+                VAPID-Schlüssel erzeugen
+              </Button>
+            )}
+
+            {isAdmin && generatedKeys && (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  Diese Zeilen in die <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900/40 px-1 py-0.5 rounded">.env.production</code> auf
+                  dem Server eintragen und danach neu deployen (<code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900/40 px-1 py-0.5 rounded">sudo ./scripts/deploy.sh</code>):
+                </p>
+                <pre className="text-xs font-mono bg-white dark:bg-dark-100 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
+{`VAPID_PUBLIC_KEY=${generatedKeys.VAPID_PUBLIC_KEY}
+VAPID_PRIVATE_KEY=${generatedKeys.VAPID_PRIVATE_KEY}
+VAPID_SUBJECT=mailto:support@ramboeck.it`}
+                </pre>
+                <Button onClick={handleCopyEnv} variant="secondary" size="sm" icon={<Check size={16} />}>
+                  In Zwischenablage kopieren
+                </Button>
+                <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Hinweis: Der private Schlüssel wird nur hier angezeigt und nirgends gespeichert.
+                  Nach dem Deploy erscheinen an dieser Stelle die Push-Einstellungen.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

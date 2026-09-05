@@ -42,12 +42,12 @@ const STATUS_LABELS: Record<MaintenanceStatus, string> = {
 };
 
 const STATUS_COLORS: Record<MaintenanceStatus, string> = {
-  draft: 'bg-gray-100 text-gray-800',
+  draft: 'bg-gray-100 text-gray-800 dark:bg-dark-200 dark:text-dark-500',
   scheduled: 'bg-accent-lighter text-accent-dark',
-  sent: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800'
+  sent: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  in_progress: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
 };
 
 // Default templates per maintenance type
@@ -351,7 +351,7 @@ function AnnouncementDialog({
             </label>
             <div className="border border-gray-300 dark:border-dark-border rounded-lg max-h-48 overflow-y-auto">
               {customers.length === 0 ? (
-                <p className="p-3 text-sm text-gray-500">Keine Kunden vorhanden</p>
+                <p className="p-3 text-sm text-gray-500 dark:text-dark-400">Keine Kunden vorhanden</p>
               ) : (
                 customers.map((customer) => (
                   <label
@@ -372,13 +372,13 @@ function AnnouncementDialog({
                     />
                     <span className="text-sm text-gray-900 dark:text-white">{customer.name}</span>
                     {customer.email && (
-                      <span className="text-xs text-gray-500 ml-auto">{customer.email}</span>
+                      <span className="text-xs text-gray-500 dark:text-dark-400 ml-auto">{customer.email}</span>
                     )}
                   </label>
                 ))
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
               {formData.customerIds.length} Kunde(n) ausgewählt
             </p>
           </div>
@@ -518,7 +518,7 @@ function DeleteConfirmationDialog({
               Gib <span className="font-mono bg-gray-100 dark:bg-dark-200 px-2 py-0.5 rounded">DELETE</span> ein, um das Löschen zu bestätigen:
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-dark-400" />
               <input
                 type="text"
                 value={password}
@@ -667,7 +667,7 @@ function AnnouncementDetail({
                 {STATUS_LABELS[announcement.status]}
               </span>
             </div>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
               {MAINTENANCE_TYPE_LABELS[announcement.maintenance_type]}
               {announcement.affected_systems && ` • ${announcement.affected_systems}`}
             </p>
@@ -690,7 +690,7 @@ function AnnouncementDetail({
           {/* Time Info */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
-              <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
                 <Calendar className="w-4 h-4" />
                 Start
               </div>
@@ -700,7 +700,7 @@ function AnnouncementDetail({
             </div>
             {announcement.scheduled_end && (
               <div className="p-4 bg-gray-50 dark:bg-dark-200/50 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
+                <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400 text-sm mb-1">
                   <Clock className="w-4 h-4" />
                   Ende
                 </div>
@@ -765,10 +765,10 @@ function AnnouncementDetail({
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-dark-200">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Gesendet</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Antwort</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Kunde</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Status</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Gesendet</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-dark-400 uppercase">Antwort</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
@@ -777,7 +777,7 @@ function AnnouncementDetail({
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900 dark:text-white">{customer.customer_name}</div>
                         {customer.customer_email && (
-                          <div className="text-xs text-gray-500">{customer.customer_email}</div>
+                          <div className="text-xs text-gray-500 dark:text-dark-400">{customer.customer_email}</div>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -794,15 +794,15 @@ function AnnouncementDetail({
                             <Clock className="w-3 h-3" /> Ausstehend
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400 text-xs rounded-full">
                             Nicht gesendet
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
                         {customer.notification_sent_at ? formatDateTime(customer.notification_sent_at) : '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-dark-400">
                         {customer.approved_at ? (
                           <div>
                             <div>{formatDateTime(customer.approved_at)}</div>
@@ -829,7 +829,7 @@ function AnnouncementDetail({
               <div className="space-y-2">
                 {activityLog.slice(0, 10).map((log) => (
                   <div key={log.id} className="flex items-start gap-3 text-sm">
-                    <span className="text-gray-400 whitespace-nowrap">
+                    <span className="text-gray-400 dark:text-dark-400 whitespace-nowrap">
                       {formatDateTime(log.created_at)}
                     </span>
                     <span className="text-gray-600 dark:text-dark-400">
@@ -984,7 +984,7 @@ export default function MaintenanceView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Wartungsankündigungen</h1>
-          <p className="text-gray-500">Plane und verwalte Wartungsfenster für deine Kunden</p>
+          <p className="text-gray-500 dark:text-dark-400">Plane und verwalte Wartungsfenster für deine Kunden</p>
         </div>
         <Button
           onClick={() => setShowCreateDialog(true)}
@@ -1012,7 +1012,7 @@ export default function MaintenanceView() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {dashboard.statistics.scheduled_count}
                 </p>
-                <p className="text-sm text-gray-500">Geplant</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">Geplant</p>
               </div>
             </div>
           </div>
@@ -1025,7 +1025,7 @@ export default function MaintenanceView() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {dashboard.pendingApprovals}
                 </p>
-                <p className="text-sm text-gray-500">Ausstehende Freigaben</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">Ausstehende Freigaben</p>
               </div>
             </div>
           </div>
@@ -1038,7 +1038,7 @@ export default function MaintenanceView() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {dashboard.statistics.in_progress_count}
                 </p>
-                <p className="text-sm text-gray-500">In Bearbeitung</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">In Bearbeitung</p>
               </div>
             </div>
           </div>
@@ -1051,7 +1051,7 @@ export default function MaintenanceView() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {dashboard.statistics.completed_count}
                 </p>
-                <p className="text-sm text-gray-500">Abgeschlossen</p>
+                <p className="text-sm text-gray-500 dark:text-dark-400">Abgeschlossen</p>
               </div>
             </div>
           </div>
@@ -1061,7 +1061,7 @@ export default function MaintenanceView() {
       {/* Filter */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
+          <Filter className="w-4 h-4 text-gray-400 dark:text-dark-400" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as MaintenanceStatus | '')}
@@ -1084,11 +1084,11 @@ export default function MaintenanceView() {
       <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         {announcements.length === 0 ? (
           <div className="p-12 text-center">
-            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <Calendar className="w-12 h-12 text-gray-300 dark:text-dark-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               Keine Ankündigungen
             </h3>
-            <p className="text-gray-500 mb-4">
+            <p className="text-gray-500 dark:text-dark-400 mb-4">
               Erstelle deine erste Wartungsankündigung
             </p>
             <Button
@@ -1117,7 +1117,7 @@ export default function MaintenanceView() {
                         {STATUS_LABELS[announcement.status]}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-dark-400">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         {formatDateTime(announcement.scheduled_start)}
