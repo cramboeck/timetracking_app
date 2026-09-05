@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateUUID } from '../utils/uuid';
 import { aiApi } from '../services/api';
 import { SearchableSelect } from './SearchableSelect';
-import { Button } from './ui';
+import { Button, Select, Label } from './ui';
 import { useToast } from '../contexts/UIContext';
 
 // Internal time categories
@@ -549,9 +549,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
             {entryScope === 'customer_project' ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                    Kunde
-                  </label>
+                  <Label>Kunde</Label>
                   <SearchableSelect
                     options={customerOptions}
                     value={customerId}
@@ -571,33 +569,26 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </div>
               </>
             ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                  {entryScope === 'internal' ? 'Kategorie' : 'Abwesenheitsgrund'}
-                </label>
-                <select
-                  value={internalCategory}
-                  onChange={(e) => setInternalCategory(e.target.value)}
-                  disabled={isRunning}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Bitte wählen...</option>
-                  {(entryScope === 'internal' ? INTERNAL_CATEGORIES : ABSENCE_CATEGORIES).map(cat => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label={entryScope === 'internal' ? 'Kategorie' : 'Abwesenheitsgrund'}
+                value={internalCategory}
+                onChange={(e) => setInternalCategory(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Bitte wählen...</option>
+                {(entryScope === 'internal' ? INTERNAL_CATEGORIES : ABSENCE_CATEGORIES).map(cat => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </Select>
             )}
 
             {/* Project Selection (only for customer_project scope) */}
             {entryScope === 'customer_project' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                    Projekt
-                  </label>
+                  <Label>Projekt</Label>
                   <SearchableSelect
                     options={projectOptions}
                     value={projectId}
@@ -609,9 +600,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                    Tätigkeit (optional)
-                  </label>
+                  <Label>Tätigkeit (optional)</Label>
                   <SearchableSelect
                     options={activityOptions}
                     value={activityId}
@@ -684,7 +673,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
                   }
                 }}
                 rows={3}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 resize-none"
               />
               {isRunning && (
                 <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">

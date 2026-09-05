@@ -10,6 +10,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { useToast } from '../contexts/UIContext';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+import { Select, Textarea, Label } from './ui';
 
 // Internal time categories
 const INTERNAL_CATEGORIES = [
@@ -449,9 +450,7 @@ export const ManualEntryModern = ({
           {entryScope === 'customer_project' ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                  Kunde
-                </label>
+                <Label>Kunde</Label>
                 <SearchableSelect
                   options={customerOptions}
                   value={selectedCustomerId}
@@ -463,9 +462,7 @@ export const ManualEntryModern = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                  Projekt *
-                </label>
+                <Label required>Projekt</Label>
                 <SearchableSelect
                   options={projectOptions}
                   value={projectId}
@@ -479,59 +476,44 @@ export const ManualEntryModern = ({
               </div>
             </>
           ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                {entryScope === 'internal' ? 'Kategorie *' : 'Abwesenheitsgrund *'}
-              </label>
-              <select
-                value={internalCategory}
-                onChange={(e) => setInternalCategory(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
-              >
-                <option value="">Bitte wählen...</option>
-                {currentCategories.map(cat => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label={entryScope === 'internal' ? 'Kategorie' : 'Abwesenheitsgrund'}
+              required
+              value={internalCategory}
+              onChange={(e) => setInternalCategory(e.target.value)}
+            >
+              <option value="">Bitte wählen...</option>
+              {currentCategories.map(cat => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </Select>
           )}
 
           {/* Activity selector only for project time */}
           {entryScope === 'customer_project' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Tätigkeit
-              </label>
-              <select
-                value={activityId}
-                onChange={(e) => setActivityId(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 transition-all"
-              >
-                <option value="">Keine Tätigkeit</option>
-                {activities.map(activity => (
-                  <option key={activity.id} value={activity.id}>
-                    {activity.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Tätigkeit"
+              value={activityId}
+              onChange={(e) => setActivityId(e.target.value)}
+            >
+              <option value="">Keine Tätigkeit</option>
+              {activities.map(activity => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
+            </Select>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Beschreibung
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={entryScope === 'customer_project' ? 'Was wurde gemacht?' : entryScope === 'internal' ? 'Details zur internen Tätigkeit...' : 'Anmerkungen (optional)...'}
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-primary/20 resize-none transition-all"
-            />
-          </div>
+          <Textarea
+            label="Beschreibung"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={entryScope === 'customer_project' ? 'Was wurde gemacht?' : entryScope === 'internal' ? 'Details zur internen Tätigkeit...' : 'Anmerkungen (optional)...'}
+            rows={3}
+          />
         </div>
 
         {/* Submit Button */}
