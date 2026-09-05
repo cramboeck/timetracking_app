@@ -42,7 +42,8 @@ import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
 import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity, Ticket } from './types';
 import { useAuth } from './contexts/AuthContext';
-import { useToast } from './contexts/UIContext';
+import { useToast, useUndoToast } from './contexts/UIContext';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSidebarCollapsed } from './hooks/useSidebarCollapsed';
 import { useCurrentNavigation } from './hooks/useCurrentNavigation';
 import { useUserPreferences } from './hooks/useUserPreferences';
@@ -61,6 +62,8 @@ import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi,
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
   const showToast = useToast();
+  const showUndoToast = useUndoToast();
+  const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
   const { isOnline, wasOffline } = useOnlineStatus();
 
@@ -710,12 +713,49 @@ function App() {
     }
   }, [runningEntry]);
 
-  const handleDeleteEntry = async (id: string) => {
+  const handleDeleteEntry = async (id: string, entry?: TimeEntry) => {
+    // Kopie VOR dem Löschen sichern, damit „Rückgängig" den Eintrag
+    // wiederherstellen kann (Undo-Toast statt Bestätigungsdialog).
+    // Paginierte Listen liefern den Eintrag mit, da er nicht zwingend
+    // im globalen entries-State liegt.
+    const deletedEntry = entry ?? entries.find(e => e.id === id);
     try {
       console.log('🗑️ [ENTRY] Deleting entry:', id);
       await entriesApi.delete(id);
       console.log('✅ [ENTRY] Entry deleted');
       setEntries(prev => prev.filter(e => e.id !== id));
+
+      if (deletedEntry && !deletedEntry.isRunning) {
+        showUndoToast('Eintrag gelöscht', async () => {
+          try {
+            // Wiederherstellen = Neuanlage mit denselben Daten (neue ID);
+            // nur Felder senden, die das Create-Schema kennt
+            const payload: Parameters<typeof entriesApi.create>[0] = {
+              startTime: deletedEntry.startTime,
+              duration: deletedEntry.duration || 0,
+              isRunning: false,
+              isBillable: deletedEntry.isBillable ?? true,
+              entryScope: deletedEntry.entryScope || 'customer_project',
+              clientId: generateUUID(),
+            } as Parameters<typeof entriesApi.create>[0];
+            if (deletedEntry.endTime) payload.endTime = deletedEntry.endTime;
+            if (deletedEntry.projectId) payload.projectId = deletedEntry.projectId;
+            if (deletedEntry.activityId) payload.activityId = deletedEntry.activityId;
+            if (deletedEntry.ticketId) payload.ticketId = deletedEntry.ticketId;
+            if (deletedEntry.description) payload.description = deletedEntry.description;
+            if (deletedEntry.internalCategory) payload.internalCategory = deletedEntry.internalCategory;
+            if (deletedEntry.customerVisibility) payload.customerVisibility = deletedEntry.customerVisibility;
+
+            const response = await entriesApi.create(payload);
+            setEntries(prev => [...prev, response.data]);
+            queryClient.invalidateQueries({ queryKey: ['entries'] });
+            showToast('Eintrag wiederhergestellt');
+          } catch (error: any) {
+            console.error('❌ [ENTRY] Failed to restore entry:', error);
+            showToast(`Wiederherstellen fehlgeschlagen: ${error?.message || 'Unbekannter Fehler'}`, 'error', 8000);
+          }
+        });
+      }
     } catch (error: any) {
       console.error('❌ [ENTRY] Failed to delete entry:', error);
       showToast(`Eintrag konnte nicht gelöscht werden: ${error?.message || 'Unbekannter Fehler'}`, 'error', 8000);
@@ -982,8 +1022,14 @@ function App() {
         onStopTimer={handleFABStopTimer}
       />
 
-      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
-      <CommandPalette onNavigate={handleSubViewChange} />
+      {/* Global Command Palette (Cmd+K / Ctrl+K) — inkl. globaler Suche */}
+      <CommandPalette
+        onNavigate={handleSubViewChange}
+        customers={customers}
+        projects={projects}
+        onOpenTicket={handleOpenTicket}
+        onOpenCustomer={handleOpenCustomer}
+      />
 
       {/* Top Navigation Header */}
       <AreaNavigation

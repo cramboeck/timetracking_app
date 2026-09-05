@@ -3,12 +3,18 @@ import { Check, X, AlertCircle, Info } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastProps {
   message: string;
   type?: ToastType;
   duration?: number;
   onClose: () => void;
   visible: boolean;
+  action?: ToastAction;
 }
 
 const toastConfig = {
@@ -40,6 +46,7 @@ export const Toast = ({
   duration = 3000,
   onClose,
   visible,
+  action,
 }: ToastProps) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -71,6 +78,18 @@ export const Toast = ({
     >
       <Icon size={18} className="flex-shrink-0" />
       <span className="font-medium">{message}</span>
+      {action && (
+        <button
+          onClick={() => {
+            action.onClick();
+            setIsAnimating(false);
+            setTimeout(onClose, 300);
+          }}
+          className="ml-1 px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 font-semibold text-sm whitespace-nowrap transition-colors"
+        >
+          {action.label}
+        </button>
+      )}
       <button
         onClick={() => {
           setIsAnimating(false);

@@ -1,16 +1,23 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Search, Timer, PenLine, List, Calendar, LayoutDashboard,
-  Ticket, Monitor, Bell, Wrench, Mail, BarChart2,
+  Ticket as TicketIcon, Monitor, Bell, Wrench, Mail, BarChart2,
   Handshake, Share2, Settings, X, ArrowRight, Clock,
-  CheckSquare, FileInput, History
+  CheckSquare, FileInput, History, Building2, FolderKanban, Loader2
 } from 'lucide-react';
 import { SubView, isSubViewAllowed } from './AreaNavigation';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatures } from '../contexts/FeaturesContext';
+import { ticketsApi } from '../services/api';
+import { Ticket, TicketStatus, Customer, Project } from '../types';
 
 // LocalStorage key for command history
 const COMMAND_HISTORY_KEY = 'command_palette_history';
 const MAX_HISTORY_ITEMS = 5;
+// Ab so vielen Zeichen wird global gesucht (Tickets/Kunden/Projekte)
+const MIN_SEARCH_CHARS = 2;
+const MAX_RESULTS_PER_SECTION = 5;
 
 interface CommandItem {
   id: string;
@@ -68,7 +75,7 @@ const COMMANDS: CommandItem[] = [
     id: 'tickets',
     label: 'Tickets',
     description: 'Support-Tickets verwalten',
-    icon: <Ticket size={18} />,
+    icon: <TicketIcon size={18} />,
     subView: 'tickets',
     keywords: ['support', 'ticket', 'anfrage', 'problem', 'issue'],
   },
@@ -164,9 +171,39 @@ const COMMANDS: CommandItem[] = [
   },
 ];
 
+const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  waiting: 'Wartend',
+  resolved: 'Gelöst',
+  closed: 'Geschlossen',
+  archived: 'Archiviert',
+};
+
 interface CommandPaletteProps {
   onNavigate: (subView: SubView) => void;
+  // Globale Suche: Stammdaten kommen aus dem App-State, Tickets vom Server
+  customers?: Customer[];
+  projects?: Project[];
+  onOpenTicket?: (ticketId: string) => void;
+  onOpenCustomer?: (customerId: string) => void;
 }
+
+// Eine Zeile in der Ergebnisliste — Befehl oder Suchtreffer
+type PaletteEntry =
+  | { kind: 'command'; cmd: CommandItem }
+  | { kind: 'ticket'; ticket: Ticket }
+  | { kind: 'customer'; customer: Customer }
+  | { kind: 'project'; project: Project };
+
+const entryKey = (entry: PaletteEntry, prefix = ''): string => {
+  switch (entry.kind) {
+    case 'command': return `${prefix}cmd-${entry.cmd.id}`;
+    case 'ticket': return `ticket-${entry.ticket.id}`;
+    case 'customer': return `customer-${entry.customer.id}`;
+    case 'project': return `project-${entry.project.id}`;
+  }
+};
 
 // Load command history from localStorage
 const loadHistory = (): string[] => {
@@ -192,9 +229,16 @@ const saveToHistory = (commandId: string) => {
   }
 };
 
-export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
+export const CommandPalette = ({
+  onNavigate,
+  customers = [],
+  projects = [],
+  onOpenTicket,
+  onOpenCustomer,
+}: CommandPaletteProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [history, setHistory] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -207,9 +251,56 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
     }
   }, [isOpen]);
 
+  // Debounce fuer die Server-Suche (Tickets)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
   // Rollen-Gating: nur Befehle anbieten, deren Ziel-View erlaubt ist
   const { currentUser } = useAuth();
+  const { hasFeature } = useFeatures();
   const allowedCommands = COMMANDS.filter(cmd => isSubViewAllowed(cmd.subView, currentUser?.role));
+
+  const trimmedQuery = query.trim();
+  const isSearching = trimmedQuery.length >= MIN_SEARCH_CHARS;
+
+  // ─── Globale Suche ─────────────────────────────────────────────────────────
+  const ticketSearchEnabled =
+    isOpen && isSearching && !!onOpenTicket &&
+    hasFeature('tickets') && isSubViewAllowed('tickets', currentUser?.role) &&
+    debouncedQuery.length >= MIN_SEARCH_CHARS;
+
+  const { data: ticketData, isFetching: ticketsLoading } = useQuery({
+    queryKey: ['tickets', 'palette-search', debouncedQuery],
+    queryFn: () => ticketsApi.getAll({ searchText: debouncedQuery, limit: MAX_RESULTS_PER_SECTION }),
+    enabled: ticketSearchEnabled,
+    staleTime: 30_000,
+  });
+  const ticketResults: Ticket[] = ticketSearchEnabled ? (ticketData?.data ?? []).slice(0, MAX_RESULTS_PER_SECTION) : [];
+
+  const customersAllowed = !!onOpenCustomer && isSubViewAllowed('customers', currentUser?.role);
+  const customerById = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
+
+  const customerResults: Customer[] = useMemo(() => {
+    if (!isSearching || !customersAllowed) return [];
+    const q = trimmedQuery.toLowerCase();
+    return customers
+      .filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.contactPerson?.toLowerCase().includes(q) ||
+        c.customerNumber?.toLowerCase().includes(q)
+      )
+      .slice(0, MAX_RESULTS_PER_SECTION);
+  }, [isSearching, customersAllowed, trimmedQuery, customers]);
+
+  const projectResults: Project[] = useMemo(() => {
+    if (!isSearching || !customersAllowed) return [];
+    const q = trimmedQuery.toLowerCase();
+    return projects
+      .filter(p => p.name.toLowerCase().includes(q))
+      .slice(0, MAX_RESULTS_PER_SECTION);
+  }, [isSearching, customersAllowed, trimmedQuery, projects]);
 
   // Get recent commands from history
   const recentCommands = history
@@ -217,10 +308,10 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
     .filter((cmd): cmd is CommandItem => cmd !== undefined);
 
   // Filter commands based on query
-  const filteredCommands = query.trim() === ''
+  const filteredCommands = trimmedQuery === ''
     ? allowedCommands
     : allowedCommands.filter((cmd) => {
-        const q = query.toLowerCase();
+        const q = trimmedQuery.toLowerCase();
         return (
           cmd.label.toLowerCase().includes(q) ||
           cmd.description?.toLowerCase().includes(q) ||
@@ -229,26 +320,56 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
       });
 
   // Combined list: show recent section when no query, otherwise just filtered
-  const showRecent = query.trim() === '' && recentCommands.length > 0;
-  const filtered = filteredCommands;
+  const showRecent = trimmedQuery === '' && recentCommands.length > 0;
+
+  // Flache Liste in Anzeige-Reihenfolge — Grundlage der Tastatur-Navigation
+  const flatItems: PaletteEntry[] = [
+    ...(showRecent ? recentCommands.map(cmd => ({ kind: 'command' as const, cmd })) : []),
+    ...filteredCommands.map(cmd => ({ kind: 'command' as const, cmd })),
+    ...ticketResults.map(ticket => ({ kind: 'ticket' as const, ticket })),
+    ...customerResults.map(customer => ({ kind: 'customer' as const, customer })),
+    ...projectResults.map(project => ({ kind: 'project' as const, project })),
+  ];
+
+  const hasAnyResult = flatItems.length > 0;
 
   // Open / close
   const open = useCallback(() => {
     setIsOpen(true);
     setQuery('');
+    setDebouncedQuery('');
     setSelectedIndex(0);
   }, []);
 
   const close = useCallback(() => {
     setIsOpen(false);
     setQuery('');
+    setDebouncedQuery('');
   }, []);
 
-  const execute = useCallback((cmd: CommandItem) => {
-    saveToHistory(cmd.id);
-    onNavigate(cmd.subView);
+  const execute = useCallback((entry: PaletteEntry) => {
+    switch (entry.kind) {
+      case 'command':
+        saveToHistory(entry.cmd.id);
+        onNavigate(entry.cmd.subView);
+        break;
+      case 'ticket':
+        onOpenTicket?.(entry.ticket.id);
+        break;
+      case 'customer':
+        onOpenCustomer?.(entry.customer.id);
+        break;
+      case 'project':
+        // Projekt hat keine eigene Detailseite — öffnet den Kunden (360°-Sicht)
+        if (entry.project.customerId && onOpenCustomer) {
+          onOpenCustomer(entry.project.customerId);
+        } else {
+          onNavigate('zeiten');
+        }
+        break;
+    }
     close();
-  }, [onNavigate, close]);
+  }, [onNavigate, onOpenTicket, onOpenCustomer, close]);
 
   // Global keyboard listener: Cmd+K / Ctrl+K
   useEffect(() => {
@@ -277,42 +398,119 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
     setSelectedIndex(0);
   }, [query]);
 
-  // Total items for keyboard navigation (recent + all when showing recent)
-  const totalItems = showRecent ? recentCommands.length + filtered.length : filtered.length;
-
-  // Get command at index (accounting for recent section)
-  const getCommandAtIndex = (index: number): CommandItem | undefined => {
-    if (showRecent) {
-      if (index < recentCommands.length) {
-        return recentCommands[index];
-      }
-      return filtered[index - recentCommands.length];
-    }
-    return filtered[index];
-  };
-
   // Keyboard navigation within list
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, totalItems - 1));
+      setSelectedIndex((i) => Math.min(i + 1, flatItems.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const cmd = getCommandAtIndex(selectedIndex);
-      if (cmd) execute(cmd);
+      const entry = flatItems[selectedIndex];
+      if (entry) execute(entry);
     }
   };
 
   // Scroll selected item into view
   useEffect(() => {
-    const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+    const el = listRef.current?.querySelector('[data-selected="true"]') as HTMLElement | null;
     el?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
 
   if (!isOpen) return null;
+
+  // ─── Rendering ─────────────────────────────────────────────────────────────
+
+  const renderEntryContent = (entry: PaletteEntry, isSelected: boolean) => {
+    let icon: React.ReactNode;
+    let label: string;
+    let description: string | undefined;
+
+    switch (entry.kind) {
+      case 'command':
+        icon = entry.cmd.icon;
+        label = entry.cmd.label;
+        description = entry.cmd.description;
+        break;
+      case 'ticket': {
+        const t = entry.ticket;
+        icon = <TicketIcon size={18} />;
+        label = `${t.ticketNumber} · ${t.title}`;
+        const customerName = t.customerId
+          ? (t.customerName || customerById.get(t.customerId)?.name || 'Unbekannt')
+          : 'Intern';
+        description = `${customerName} · ${TICKET_STATUS_LABELS[t.status] || t.status}`;
+        break;
+      }
+      case 'customer': {
+        const c = entry.customer;
+        icon = <Building2 size={18} />;
+        label = c.name;
+        description = [c.customerNumber, c.contactPerson].filter(Boolean).join(' · ') || 'Kunde';
+        break;
+      }
+      case 'project': {
+        const p = entry.project;
+        icon = <FolderKanban size={18} />;
+        label = p.name;
+        const customerName = customerById.get(p.customerId)?.name;
+        description = customerName ? `Projekt bei ${customerName}` : 'Projekt';
+        break;
+      }
+    }
+
+    return (
+      <>
+        <span className={isSelected ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
+          {icon}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-medium truncate">{label}</span>
+          {description && (
+            <span className={`block text-xs truncate ${isSelected ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
+              {description}
+            </span>
+          )}
+        </span>
+        <ArrowRight size={14} className={isSelected ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
+      </>
+    );
+  };
+
+  const renderEntryRow = (entry: PaletteEntry, flatIndex: number, keyPrefix = '') => {
+    const isSelected = flatIndex === selectedIndex;
+    return (
+      <li key={entryKey(entry, keyPrefix)}>
+        <button
+          data-selected={isSelected || undefined}
+          onClick={() => execute(entry)}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+            isSelected
+              ? 'bg-accent-primary text-white'
+              : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
+          }`}
+        >
+          {renderEntryContent(entry, isSelected)}
+        </button>
+      </li>
+    );
+  };
+
+  const sectionHeader = (label: string, icon?: React.ReactNode, withBorder = false) => (
+    <li className={`px-4 py-1.5 text-xs font-medium text-gray-400 dark:text-dark-400 flex items-center gap-2 ${withBorder ? 'mt-2 border-t border-gray-100 dark:border-dark-200' : ''}`}>
+      {icon}
+      {label}
+    </li>
+  );
+
+  // Abschnitts-Offsets in der flachen Liste
+  const recentCount = showRecent ? recentCommands.length : 0;
+  const commandsOffset = recentCount;
+  const ticketsOffset = commandsOffset + filteredCommands.length;
+  const customersOffset = ticketsOffset + ticketResults.length;
+  const projectsOffset = customersOffset + customerResults.length;
 
   return (
     <div
@@ -336,7 +534,7 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Wohin möchtest du? (z.B. Tickets, Stoppuhr, Einstellungen…)"
+            placeholder="Suchen oder springen… (Tickets, Kunden, Projekte, Befehle)"
             className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 outline-none text-sm"
           />
           <button
@@ -352,79 +550,63 @@ export const CommandPalette = ({ onNavigate }: CommandPaletteProps) => {
           ref={listRef}
           className="max-h-72 overflow-y-auto py-2"
         >
-          {filtered.length === 0 && (
+          {!hasAnyResult && !ticketsLoading && (
             <li className="px-4 py-6 text-center text-sm text-gray-400 dark:text-dark-400">
-              Keine Ergebnisse für „{query}"
+              Keine Ergebnisse für „{trimmedQuery}"
             </li>
           )}
 
           {/* Recent commands section */}
           {showRecent && (
             <>
-              <li className="px-4 py-1.5 text-xs font-medium text-gray-400 dark:text-dark-400 flex items-center gap-2">
-                <History size={12} />
-                Zuletzt verwendet
-              </li>
-              {recentCommands.map((cmd, idx) => (
-                <li key={`recent-${cmd.id}`}>
-                  <button
-                    onClick={() => execute(cmd)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                      idx === selectedIndex
-                        ? 'bg-accent-primary text-white'
-                        : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
-                    }`}
-                  >
-                    <span className={idx === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
-                      {cmd.icon}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium truncate">{cmd.label}</span>
-                      {cmd.description && (
-                        <span className={`block text-xs truncate ${idx === selectedIndex ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
-                          {cmd.description}
-                        </span>
-                      )}
-                    </span>
-                    <ArrowRight size={14} className={idx === selectedIndex ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
-                  </button>
-                </li>
-              ))}
-              <li className="px-4 py-1.5 mt-2 text-xs font-medium text-gray-400 dark:text-dark-400 border-t border-gray-100 dark:border-dark-200">
-                Alle Befehle
-              </li>
+              {sectionHeader('Zuletzt verwendet', <History size={12} />)}
+              {recentCommands.map((cmd, idx) =>
+                renderEntryRow({ kind: 'command', cmd }, idx, 'recent-')
+              )}
+              {sectionHeader('Alle Befehle', undefined, true)}
             </>
           )}
 
-          {/* All commands */}
-          {filtered.map((cmd, idx) => {
-            const actualIndex = showRecent ? idx + recentCommands.length : idx;
-            return (
-              <li key={cmd.id}>
-                <button
-                  onClick={() => execute(cmd)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                    actualIndex === selectedIndex
-                      ? 'bg-accent-primary text-white'
-                      : 'text-gray-700 dark:text-dark-500 hover:bg-gray-100 dark:hover:bg-dark-200'
-                  }`}
-                >
-                  <span className={actualIndex === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-dark-400'}>
-                    {cmd.icon}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-medium truncate">{cmd.label}</span>
-                    {cmd.description && (
-                      <span className={`block text-xs truncate ${actualIndex === selectedIndex ? 'text-white/70' : 'text-gray-400 dark:text-dark-400'}`}>
-                        {cmd.description}
-                      </span>
-                    )}
-                  </span>
-                  <ArrowRight size={14} className={actualIndex === selectedIndex ? 'text-white/70' : 'text-gray-300 dark:text-dark-300'} />
-                </button>
-              </li>
-            );
-          })}
+          {/* Commands */}
+          {filteredCommands.map((cmd, idx) =>
+            renderEntryRow({ kind: 'command', cmd }, commandsOffset + idx)
+          )}
+
+          {/* Tickets */}
+          {(ticketResults.length > 0 || (ticketSearchEnabled && ticketsLoading)) && (
+            <>
+              {sectionHeader('Tickets', <TicketIcon size={12} />, filteredCommands.length > 0)}
+              {ticketResults.map((ticket, idx) =>
+                renderEntryRow({ kind: 'ticket', ticket }, ticketsOffset + idx)
+              )}
+              {ticketSearchEnabled && ticketsLoading && ticketResults.length === 0 && (
+                <li className="px-4 py-2 text-xs text-gray-400 dark:text-dark-400 flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" />
+                  Tickets werden durchsucht…
+                </li>
+              )}
+            </>
+          )}
+
+          {/* Kunden */}
+          {customerResults.length > 0 && (
+            <>
+              {sectionHeader('Kunden', <Building2 size={12} />, true)}
+              {customerResults.map((customer, idx) =>
+                renderEntryRow({ kind: 'customer', customer }, customersOffset + idx)
+              )}
+            </>
+          )}
+
+          {/* Projekte */}
+          {projectResults.length > 0 && (
+            <>
+              {sectionHeader('Projekte', <FolderKanban size={12} />, true)}
+              {projectResults.map((project, idx) =>
+                renderEntryRow({ kind: 'project', project }, projectsOffset + idx)
+              )}
+            </>
+          )}
         </ul>
 
         {/* Footer hint */}

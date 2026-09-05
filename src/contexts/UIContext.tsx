@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
-import { Toast, ToastType } from '../components/Toast';
+import { Toast, ToastType, ToastAction } from '../components/Toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 type ConfirmOptions = {
@@ -12,6 +12,9 @@ type ConfirmOptions = {
 
 type UIContextValue = {
   showToast: (message: string, type?: ToastType, duration?: number) => void;
+  // Undo-Pattern für Alltagsaktionen: Aktion sofort ausführen, Toast mit
+  // „Rückgängig" statt vorherigem Bestätigungsdialog
+  showUndoToast: (message: string, onUndo: () => void, duration?: number) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
 };
 
@@ -22,6 +25,7 @@ type ToastState = {
   message: string;
   type: ToastType;
   duration: number;
+  action?: ToastAction;
   // bump to force re-mount and restart timer if the same message is shown again
   key: number;
 };
@@ -51,7 +55,19 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
 
   const showToast = useCallback((message: string, type: ToastType = 'success', duration = 3000) => {
     toastKeyRef.current += 1;
-    setToast({ visible: true, message, type, duration, key: toastKeyRef.current });
+    setToast({ visible: true, message, type, duration, action: undefined, key: toastKeyRef.current });
+  }, []);
+
+  const showUndoToast = useCallback((message: string, onUndo: () => void, duration = 6000) => {
+    toastKeyRef.current += 1;
+    setToast({
+      visible: true,
+      message,
+      type: 'info',
+      duration,
+      action: { label: 'Rückgängig', onClick: onUndo },
+      key: toastKeyRef.current,
+    });
   }, []);
 
   const hideToast = useCallback(() => {
@@ -79,7 +95,7 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <UIContext.Provider value={{ showToast, confirm }}>
+    <UIContext.Provider value={{ showToast, showUndoToast, confirm }}>
       {children}
       <Toast
         key={toast.key}
@@ -87,6 +103,7 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
         type={toast.type}
         duration={toast.duration}
         visible={toast.visible}
+        action={toast.action}
         onClose={hideToast}
       />
       <ConfirmDialog
@@ -112,6 +129,11 @@ export const useUI = (): UIContextValue => {
 export const useToast = () => {
   const { showToast } = useUI();
   return showToast;
+};
+
+export const useUndoToast = () => {
+  const { showUndoToast } = useUI();
+  return showUndoToast;
 };
 
 export const useConfirm = () => {

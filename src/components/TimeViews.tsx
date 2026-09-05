@@ -19,7 +19,7 @@ interface TimeViewsProps {
   activities: Activity[];
   onCreateEntry: (entry: TimeEntry) => void | Promise<boolean | void>;
   onEditEntry: (id: string, updates: TimeEntryUpdate) => void | Promise<void>;
-  onDeleteEntry: (id: string) => void | Promise<void>;
+  onDeleteEntry: (id: string, entry?: TimeEntry) => void | Promise<void>;
   onRepeatEntry: (entry: TimeEntry) => void;
   onBulkUpdate: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
   onCalendarCreate: (entry: Omit<TimeEntry, 'id' | 'userId' | 'createdAt'>) => Promise<void>;

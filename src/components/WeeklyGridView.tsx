@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Plus, X, Lock, History, Pencil } from 'lucide-react';
 import { TimeEntry, Customer, Project, Activity } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { useToast, useConfirm } from '../contexts/UIContext';
+import { useToast } from '../contexts/UIContext';
 import { toLocalDateString } from '../utils/time';
 import { generateUUID } from '../utils/uuid';
 import { Button } from './ui/Button';
@@ -14,7 +14,7 @@ interface WeeklyGridViewProps {
   activities: Activity[];
   onCreateEntry: (entry: TimeEntry) => void | Promise<boolean | void>;
   onEditEntry: (id: string, updates: Partial<TimeEntry>) => void | Promise<void>;
-  onDeleteEntry: (id: string) => void | Promise<void>;
+  onDeleteEntry: (id: string, entry?: TimeEntry) => void | Promise<void>;
 }
 
 type CellData = { totalSeconds: number; entries: TimeEntry[] };
@@ -111,7 +111,6 @@ export const WeeklyGridView = ({
 }: WeeklyGridViewProps) => {
   const { currentUser } = useAuth();
   const showToast = useToast();
-  const confirm = useConfirm();
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfISOWeek(new Date()));
   const [editingCell, setEditingCell] = useState<{ rowKey: string; dayISO: string } | null>(null);
@@ -403,15 +402,9 @@ export const WeeklyGridView = ({
     } else if (cellEntries.length === 1) {
       const entry = cellEntries[0];
       if (newSeconds === 0) {
-        const ok = await confirm({
-          title: 'Eintrag löschen?',
-          message: `Soll der Eintrag (${formatHoursDecimalAlways(entry.duration)} h) wirklich gelöscht werden?`,
-          variant: 'danger',
-          confirmText: 'Löschen',
-        });
-        if (!ok) { cancelEdit(); return; }
+        // Direkt löschen — der Undo-Toast ersetzt den Bestätigungsdialog
         try {
-          await onDeleteEntry(entry.id);
+          await onDeleteEntry(entry.id, entry);
         } catch (err) {
           console.error('[WeeklyGrid] delete failed', err);
           showToast('Löschen fehlgeschlagen', 'error');
@@ -428,7 +421,7 @@ export const WeeklyGridView = ({
     }
     setEditingCell(null);
     setEditBuffer('');
-  }, [editingCell, editBuffer, weekData.data, currentUser, onCreateEntry, onEditEntry, onDeleteEntry, confirm, showToast, cancelEdit, synthesizeTimes]);
+  }, [editingCell, editBuffer, weekData.data, currentUser, onCreateEntry, onEditEntry, onDeleteEntry, showToast, cancelEdit, synthesizeTimes]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {

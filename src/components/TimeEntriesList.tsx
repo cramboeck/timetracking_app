@@ -35,7 +35,7 @@ interface TimeEntriesListProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
-  onDelete: (id: string) => void | Promise<void>;
+  onDelete: (id: string, entry?: TimeEntry) => void | Promise<void>;
   onEdit: (id: string, updates: TimeEntryUpdate) => void | Promise<void>;
   onRepeatEntry?: (entry: TimeEntry) => void;
   onBulkUpdate?: (entryIds: string[], updates: { projectId?: string; description?: string; activityId?: string }) => Promise<void>;
@@ -241,11 +241,6 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   }, [entries]);
 
   // Confirm dialogs
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string; name: string }>({
-    isOpen: false,
-    id: '',
-    name: ''
-  });
   const [repeatConfirm, setRepeatConfirm] = useState<{ isOpen: boolean; entry: TimeEntry | null }>({
     isOpen: false,
     entry: null
@@ -627,16 +622,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     triggerRefetch();
   };
 
-  const handleDeleteClick = (entry: TimeEntry) => {
-    setDeleteConfirm({
-      isOpen: true,
-      id: entry.id,
-      name: getProjectDisplay(entry)
-    });
-  };
-
-  const confirmDelete = async () => {
-    await onDelete(deleteConfirm.id);
+  // Direkt löschen — der Undo-Toast (App.handleDeleteEntry) ersetzt den
+  // frueheren Bestaetigungsdialog
+  const handleDeleteClick = async (entry: TimeEntry) => {
+    await onDelete(entry.id, entry);
     triggerRefetch();
   };
 
@@ -1813,16 +1802,6 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
         </div>
       </Modal>
 
-      {/* Delete Confirmation */}
-      <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
-        onClose={() => setDeleteConfirm({ isOpen: false, id: '', name: '' })}
-        onConfirm={confirmDelete}
-        title="Eintrag löschen?"
-        message={`Möchtest du den Eintrag "${deleteConfirm.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`}
-        confirmText="Löschen"
-        variant="danger"
-      />
 
       {/* Repeat Confirmation */}
       {repeatConfirm.entry && (
