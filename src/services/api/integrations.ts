@@ -1326,10 +1326,13 @@ export interface ProcessedInvoice {
   invoiceNumber?: string | null;
   supplierName?: string | null;
   invoiceDate?: string | null;
+  dueDate?: string | null;
   netAmount?: number | null;
   grossAmount?: number | null;
   vatAmount?: number | null;
   currency?: string | null;
+  // true = gleiche Rechnungsnummer existiert in einem weiteren Beleg (Duplikat-Verdacht)
+  hasDuplicate?: boolean;
 }
 
 export interface InvoiceDocument {
@@ -1550,6 +1553,17 @@ export interface ExtractedInvoiceData {
 
   // sevDesk linking
   sevdeskContactId?: string | null;
+
+  // Duplikat-Verdacht: andere Belege der Org mit derselben Rechnungsnummer
+  possibleDuplicates?: Array<{
+    id: string;
+    status: string;
+    receivedAt: string;
+    supplierName: string | null;
+    grossAmount: number | null;
+    sevdeskVoucherNumber: string | null;
+    source: string;
+  }>;
 }
 
 export interface SupportEmail {

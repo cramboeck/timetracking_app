@@ -111,10 +111,13 @@ export interface ProcessedInvoice {
   invoiceNumber: string | null;
   supplierName: string | null;
   invoiceDate: string | null;
+  dueDate: string | null;
   netAmount: number | null;
   grossAmount: number | null;
   vatAmount: number | null;
   currency: string | null;
+  // true = gleiche Rechnungsnummer existiert in einem weiteren Beleg der Org
+  hasDuplicate?: boolean;
 }
 
 export interface InvoiceDocument {
@@ -809,11 +812,22 @@ class InvoiceProcessorService {
     );
     const total = parseInt(countResult.rows[0].count, 10);
 
-    // Get invoices
+    // Get invoices — has_duplicate markiert Belege, deren Rechnungsnummer
+    // (nach Extraktion) noch in einem anderen nicht-verworfenen Beleg der
+    // Org auftaucht (Mahnung/Weiterleitung/Doppel-Upload)
     params.push(limit, offset);
     const result = await query(
-      `SELECT * FROM processed_invoices ${whereClause}
-       ORDER BY received_at DESC
+      `SELECT pi.*,
+        EXISTS (
+          SELECT 1 FROM processed_invoices d
+          WHERE d.organization_id = pi.organization_id
+            AND d.id <> pi.id
+            AND pi.invoice_number IS NOT NULL AND pi.invoice_number <> ''
+            AND LOWER(TRIM(d.invoice_number)) = LOWER(TRIM(pi.invoice_number))
+            AND d.status NOT IN ('failed', 'skipped')
+        ) AS has_duplicate
+       FROM processed_invoices pi ${whereClause}
+       ORDER BY pi.received_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
@@ -839,13 +853,61 @@ class InvoiceProcessorService {
       invoiceNumber: row.invoice_number,
       supplierName: row.supplier_name,
       invoiceDate: row.invoice_date,
+      dueDate: row.due_date,
       netAmount: row.net_amount !== null ? Number(row.net_amount) : null,
       grossAmount: row.gross_amount !== null ? Number(row.gross_amount) : null,
       vatAmount: row.vat_amount !== null ? Number(row.vat_amount) : null,
       currency: row.currency,
+      hasDuplicate: !!row.has_duplicate,
     }));
 
     return { invoices, total };
+  }
+
+  /**
+   * Moegliche Duplikate eines Belegs finden: gleiche Rechnungsnummer in
+   * einem anderen nicht-verworfenen Beleg der Organisation. Faengt Mahnungen
+   * mit identischem PDF, Weiterleitungen und Doppel-Uploads ab, BEVOR ein
+   * zweiter sevDesk-Beleg entsteht.
+   */
+  async findPossibleDuplicates(
+    organizationId: string,
+    processedInvoiceId: string
+  ): Promise<Array<{
+    id: string;
+    status: string;
+    receivedAt: string;
+    supplierName: string | null;
+    grossAmount: number | null;
+    sevdeskVoucherNumber: string | null;
+    source: string;
+  }>> {
+    const result = await query(
+      `SELECT d.id, d.status, d.received_at, d.supplier_name, d.gross_amount,
+              d.sevdesk_voucher_number, d.source
+       FROM processed_invoices pi
+       JOIN processed_invoices d
+         ON d.organization_id = pi.organization_id
+        AND d.id <> pi.id
+        AND LOWER(TRIM(d.invoice_number)) = LOWER(TRIM(pi.invoice_number))
+       WHERE pi.id = $1
+         AND pi.organization_id = $2
+         AND pi.invoice_number IS NOT NULL AND pi.invoice_number <> ''
+         AND d.status NOT IN ('failed', 'skipped')
+       ORDER BY d.received_at DESC
+       LIMIT 5`,
+      [processedInvoiceId, organizationId]
+    );
+
+    return result.rows.map(row => ({
+      id: row.id,
+      status: row.status,
+      receivedAt: row.received_at,
+      supplierName: row.supplier_name,
+      grossAmount: row.gross_amount !== null ? Number(row.gross_amount) : null,
+      sevdeskVoucherNumber: row.sevdesk_voucher_number,
+      source: row.source || 'email',
+    }));
   }
 
   /**

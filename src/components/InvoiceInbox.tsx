@@ -21,6 +21,44 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
+// Extrahierten Betrag fuer die Liste formatieren (z.B. "1.234,56 €")
+const formatMoney = (amount: number | null | undefined, currency?: string | null): string => {
+  if (amount === null || amount === undefined) return '—';
+  const symbol = !currency || currency === 'EUR' ? '€' : currency;
+  return `${amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+};
+
+const formatShortDate = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// Faelligkeit nur fuer unbestaetigte Belege einfaerben — bestaetigte liegen
+// in sevDesk, deren Zahlstatus kennt die Inbox nicht
+const isDueSoonOrOverdue = (invoice: ProcessedInvoice): 'overdue' | 'soon' | null => {
+  if (!invoice.dueDate || invoice.status === 'processed') return null;
+  const due = new Date(invoice.dueDate);
+  if (isNaN(due.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0) return 'overdue';
+  if (diffDays <= 7) return 'soon';
+  return null;
+};
+
+// Gelber "Duplikat?"-Chip — gleiche Rechnungsnummer existiert mehrfach
+const DuplicateChip = () => (
+  <span
+    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+    title="Ein weiterer Beleg mit derselben Rechnungsnummer existiert bereits"
+  >
+    <AlertTriangle size={12} />
+    Duplikat?
+  </span>
+);
+
 export const InvoiceInbox = () => {
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
@@ -156,11 +194,11 @@ export const InvoiceInbox = () => {
         const mailbox = configResponse.data.invoiceMailbox || '';
         setInvoiceMailbox(mailbox);
         setIsConfigured(!!configResponse.data.configured && !!mailbox);
-
-        if (mailbox) {
-          await loadProcessedInvoices();
-        }
       }
+      // Belege IMMER laden — manueller Upload + sevDesk-Import funktionieren
+      // auch ohne konfiguriertes M365-Postfach (vorher blockierte die
+      // fehlende Mailbox die komplette Ansicht)
+      await loadProcessedInvoices();
     } catch (err) {
       console.error('Failed to load config:', err);
       setError('Fehler beim Laden der Konfiguration');
@@ -520,25 +558,6 @@ export const InvoiceInbox = () => {
     );
   }
 
-  if (!isConfigured) {
-    return (
-      <div className="p-6">
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6 text-center">
-          <AlertTriangle className="mx-auto mb-3 text-amber-500" size={48} />
-          <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-2">
-            Rechnungspostfach nicht konfiguriert
-          </h3>
-          <p className="text-amber-700 dark:text-amber-300 mb-4">
-            Bitte konfigurieren Sie zuerst das Rechnungspostfach in den Microsoft 365 Einstellungen.
-          </p>
-          <p className="text-sm text-amber-600 dark:text-amber-400">
-            Einstellungen → Microsoft 365 → Rechnungspostfach
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Full-screen review view
   if (reviewingInvoice) {
     return (
@@ -562,30 +581,42 @@ export const InvoiceInbox = () => {
             <Mail className="text-accent-primary" />
             Rechnungseingang
           </h1>
-          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-            Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{invoiceMailbox}</span>
-          </p>
+          {isConfigured ? (
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+              Postfach: <span className="font-medium text-gray-700 dark:text-dark-500">{invoiceMailbox}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5">
+              <AlertTriangle size={14} />
+              Kein Rechnungspostfach konfiguriert — automatischer E-Mail-Import inaktiv
+              (Einstellungen → Microsoft 365). Manueller Upload funktioniert weiterhin.
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Button
-            variant="primary"
-            onClick={() => handleProcessInvoices(false)}
-            disabled={processingInvoices}
-            loading={processingInvoices}
-            icon={<RefreshCw size={16} />}
-          >
-            Neue E-Mails
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => handleProcessInvoices(true)}
-            disabled={processingInvoices}
-            loading={processingInvoices}
-            icon={<RefreshCw size={16} />}
-          >
-            Alle erneut
-          </Button>
+          {isConfigured && (
+            <>
+              <Button
+                variant="primary"
+                onClick={() => handleProcessInvoices(false)}
+                disabled={processingInvoices}
+                loading={processingInvoices}
+                icon={<RefreshCw size={16} />}
+              >
+                Neue E-Mails
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleProcessInvoices(true)}
+                disabled={processingInvoices}
+                loading={processingInvoices}
+                icon={<RefreshCw size={16} />}
+              >
+                Alle erneut
+              </Button>
+            </>
+          )}
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
@@ -753,15 +784,45 @@ export const InvoiceInbox = () => {
                     </div>
                   </div>
 
-                  {/* Absender */}
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {invoice.senderName || invoice.senderEmail}
+                  {/* Lieferant + Betrag */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white truncate">
+                        {invoice.supplierName || invoice.senderName || invoice.senderEmail}
+                      </div>
+                      {invoice.vendorName && (
+                        <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                      )}
+                      {invoice.invoiceNumber && (
+                        <div className="text-xs text-gray-500 dark:text-dark-400 tabular-nums">
+                          Re-Nr. {invoice.invoiceNumber}
+                        </div>
+                      )}
                     </div>
-                    {invoice.vendorName && (
-                      <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
+                    {invoice.grossAmount !== null && invoice.grossAmount !== undefined && (
+                      <div className="shrink-0 text-right">
+                        <div className="font-semibold text-gray-900 dark:text-white tabular-nums">
+                          {formatMoney(invoice.grossAmount, invoice.currency)}
+                        </div>
+                        {invoice.dueDate && (() => {
+                          const urgency = isDueSoonOrOverdue(invoice);
+                          return (
+                            <div className={`text-xs tabular-nums ${
+                              urgency === 'overdue'
+                                ? 'text-red-600 dark:text-red-400 font-semibold'
+                                : urgency === 'soon'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-gray-500 dark:text-dark-400'
+                            }`}>
+                              fällig {formatShortDate(invoice.dueDate)}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     )}
                   </div>
+
+                  {invoice.hasDuplicate && <DuplicateChip />}
 
                   {/* Betreff */}
                   <div className="text-sm text-gray-600 dark:text-dark-400 line-clamp-2">
@@ -890,8 +951,10 @@ export const InvoiceInbox = () => {
                 <thead>
                   <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
                     <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Datum</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Absender</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Betreff</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Lieferant</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Rechnung</th>
+                    <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Betrag</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Fällig</th>
                     <th className="text-center py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Anhänge</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Status</th>
                     <th className="text-right py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Aktionen</th>
@@ -911,17 +974,45 @@ export const InvoiceInbox = () => {
                           })}
                         </td>
                         <td className="py-3 px-4 text-gray-900 dark:text-white">
-                          <div className="truncate max-w-[200px]" title={invoice.senderEmail ?? undefined}>
-                            {invoice.senderName || invoice.senderEmail || '—'}
+                          <div className="truncate max-w-[200px] font-medium" title={invoice.supplierName || invoice.senderEmail || undefined}>
+                            {invoice.supplierName || invoice.senderName || invoice.senderEmail || '—'}
                           </div>
                           {invoice.vendorName && (
                             <div className="text-xs text-accent-primary">→ {invoice.vendorName}</div>
                           )}
+                          {invoice.supplierName && invoice.senderName && invoice.supplierName !== invoice.senderName && (
+                            <div className="text-xs text-gray-400 dark:text-dark-400 truncate max-w-[200px]">{invoice.senderName}</div>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-gray-700 dark:text-dark-500">
-                          <div className="truncate max-w-[250px]" title={invoice.emailSubject ?? undefined}>
+                          {invoice.invoiceNumber && (
+                            <div className="font-medium text-gray-900 dark:text-white tabular-nums truncate max-w-[180px]" title={invoice.invoiceNumber}>
+                              {invoice.invoiceNumber}
+                            </div>
+                          )}
+                          <div className="truncate max-w-[220px] text-xs text-gray-500 dark:text-dark-400" title={invoice.emailSubject ?? undefined}>
                             {invoice.emailSubject || invoice.originalFilename || '—'}
                           </div>
+                        </td>
+                        <td className="py-3 px-4 text-right text-gray-900 dark:text-white font-medium tabular-nums whitespace-nowrap">
+                          {formatMoney(invoice.grossAmount, invoice.currency)}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {(() => {
+                            const urgency = isDueSoonOrOverdue(invoice);
+                            return (
+                              <span className={`tabular-nums text-sm ${
+                                urgency === 'overdue'
+                                  ? 'text-red-600 dark:text-red-400 font-semibold'
+                                  : urgency === 'soon'
+                                  ? 'text-amber-600 dark:text-amber-400 font-medium'
+                                  : 'text-gray-700 dark:text-dark-500'
+                              }`}>
+                                {formatShortDate(invoice.dueDate)}
+                                {urgency === 'overdue' && ' !'}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4 text-center">
                           {invoice.attachmentCount > 0 ? (
@@ -968,6 +1059,7 @@ export const InvoiceInbox = () => {
                                invoice.status === 'failed' ? 'Fehlgeschlagen' :
                                invoice.status === 'skipped' ? 'Übersprungen' : 'Ausstehend'}
                             </span>
+                            {invoice.hasDuplicate && <DuplicateChip />}
                           </div>
                           {invoice.errorMessage && (
                             <div className="text-xs text-red-500 mt-1 truncate max-w-[150px]" title={invoice.errorMessage}>
@@ -1007,7 +1099,7 @@ export const InvoiceInbox = () => {
                       {/* Expandable documents row */}
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
-                          <td colSpan={6} className="py-3 px-4">
+                          <td colSpan={8} className="py-3 px-4">
                             <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
                               <div className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                                 Anhänge

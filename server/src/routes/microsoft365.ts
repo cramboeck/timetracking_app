@@ -1649,9 +1649,14 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
     const extractedData = await invoiceProcessorService.extractInvoiceData(organizationId, processedInvoiceId, { force });
 
     if (extractedData) {
+      // Duplikat-Check NACH der Extraktion — braucht die Rechnungsnummer
+      const possibleDuplicates = await invoiceProcessorService
+        .findPossibleDuplicates(organizationId, processedInvoiceId)
+        .catch(() => []);
+
       res.json({
         success: true,
-        data: extractedData,
+        data: { ...extractedData, possibleDuplicates },
       });
     } else {
       res.status(404).json({

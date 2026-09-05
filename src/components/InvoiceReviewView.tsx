@@ -319,6 +319,46 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
             </div>
           ) : extractedData ? (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Duplikat-Warnung: gleiche Rechnungsnummer existiert bereits —
+                  verhindert doppelte sevDesk-Belege bei Mahnungen/Weiterleitungen */}
+              {extractedData.possibleDuplicates && extractedData.possibleDuplicates.length > 0 && (
+                <div className="px-3 py-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+                  <div className="flex items-center gap-2 font-semibold mb-1">
+                    <AlertTriangle size={16} />
+                    Mögliches Duplikat
+                  </div>
+                  <p className="mb-1.5">
+                    Rechnungsnummer <span className="font-mono font-medium">{extractedData.invoiceNumber}</span> existiert
+                    bereits in {extractedData.possibleDuplicates.length === 1 ? 'einem weiteren Beleg' : `${extractedData.possibleDuplicates.length} weiteren Belegen`}:
+                  </p>
+                  <ul className="space-y-0.5 text-xs">
+                    {extractedData.possibleDuplicates.map(dup => (
+                      <li key={dup.id} className="flex items-center gap-2">
+                        <span className="tabular-nums">{new Date(dup.receivedAt).toLocaleDateString('de-DE')}</span>
+                        <span>·</span>
+                        <span className="truncate">{dup.supplierName || 'Unbekannter Lieferant'}</span>
+                        {dup.grossAmount !== null && (
+                          <>
+                            <span>·</span>
+                            <span className="tabular-nums">{formatAmount(dup.grossAmount)} €</span>
+                          </>
+                        )}
+                        <span>·</span>
+                        <span className="font-medium">
+                          {dup.status === 'processed'
+                            ? `bereits bestätigt${dup.sevdeskVoucherNumber ? ` (${dup.sevdeskVoucherNumber})` : ''}`
+                            : dup.status === 'draft' ? 'als Entwurf' : dup.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 text-xs">
+                    Prüfe vor dem Bestätigen, ob es sich um eine Mahnung, Weiterleitung oder einen Doppel-Upload handelt —
+                    sonst entsteht ein zweiter sevDesk-Beleg.
+                  </p>
+                </div>
+              )}
+
               {/* Confidence Indicator */}
               {extractedData.confidence > 0 && (
                 <div className={`text-sm px-3 py-2 rounded-lg flex items-center gap-2 ${

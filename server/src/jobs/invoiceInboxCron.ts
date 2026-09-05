@@ -1,6 +1,8 @@
 import cron from 'node-cron';
 import { pool } from '../config/database';
 import { invoiceProcessorService } from '../services/invoiceProcessorService';
+import { emailService } from '../services/emailService';
+import { sendPushToUser } from '../services/pushNotifications';
 import { logger } from '../utils/logger';
 
 /**
@@ -95,11 +97,60 @@ async function processAllInvoiceMailboxes() {
 
         // Auto-extract data for drafts
         await autoExtractDraftData(row.organization_id);
+
+        // Admins benachrichtigen — vorher entstanden Entwuerfe still und
+        // wurden erst beim naechsten manuellen Blick in die Inbox entdeckt
+        await notifyAdminsAboutNewDrafts(row.organization_id, processResult.processedCount)
+          .catch(err => logger.error(`Beleg-Benachrichtigung fehlgeschlagen: ${err.message}`));
       }
     } catch (err: any) {
       logger.error(`Org ${row.organization_id}: Invoice processing failed: ${err.message}`);
     }
   }
+}
+
+/**
+ * Org-Admins/Owner ueber neue Beleg-Entwuerfe informieren (E-Mail + Push).
+ * Wird nur bei processedCount > 0 aufgerufen — der 15-Minuten-Cron feuert
+ * also nur, wenn wirklich neue Belege eingegangen sind (kein Spam).
+ */
+async function notifyAdminsAboutNewDrafts(organizationId: string, count: number) {
+  const admins = await pool.query(
+    `SELECT u.id, u.email, u.username
+     FROM organization_members om
+     JOIN users u ON u.id = om.user_id
+     WHERE om.organization_id = $1 AND om.role IN ('owner', 'admin')
+       AND u.email IS NOT NULL AND u.email <> ''`,
+    [organizationId]
+  );
+  if (admins.rows.length === 0) return;
+
+  const baseUrl = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+  const link = `${baseUrl}/finanzen/invoices`;
+  const label = count === 1 ? '1 neuer Beleg' : `${count} neue Belege`;
+
+  for (const admin of admins.rows) {
+    // Push (laeuft ins Leere, solange VAPID nicht konfiguriert ist — ok)
+    await sendPushToUser(admin.id, {
+      title: 'Rechnungseingang',
+      body: `${label} zur Prüfung`,
+      tag: 'invoice-inbox',
+      data: { url: '/finanzen/invoices', type: 'invoice_inbox' },
+    }).catch(() => { /* Push ist best effort */ });
+
+    await emailService.sendEmail({
+      to: admin.email,
+      subject: `RamboFlow: ${label} im Rechnungseingang`,
+      html: `<p>Hallo ${admin.username},</p>
+        <p>im Rechnungspostfach ${count === 1 ? 'ist' : 'sind'} <strong>${label}</strong> eingegangen
+        und ${count === 1 ? 'wartet' : 'warten'} als Entwurf auf deine Prüfung.</p>
+        <p><a href="${link}" style="display:inline-block;background-color:#F27024;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;">Rechnungseingang öffnen</a></p>
+        <p style="font-size:12px;color:#6b7280;">Nach der Bestätigung wird der Beleg automatisch in sevDesk angelegt.</p>`,
+      text: `Hallo ${admin.username},\n\nim Rechnungspostfach ${count === 1 ? 'ist' : 'sind'} ${label} eingegangen und ${count === 1 ? 'wartet' : 'warten'} als Entwurf auf deine Prüfung.\n\n${link}`,
+    }).catch(err => logger.error(`Beleg-Mail an ${admin.email} fehlgeschlagen: ${err.message}`));
+  }
+
+  logger.info(`Rechnungseingang: ${admins.rows.length} Admin(s) über ${label} benachrichtigt`);
 }
 
 /**

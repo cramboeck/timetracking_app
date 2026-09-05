@@ -8,8 +8,10 @@ import {
   LayoutDashboard, Building2, Receipt,
   CircleUser, Clock3, Palmtree
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
+import { microsoft365Api } from '../services/api';
 import { Area, SubView, isAreaAllowed, getVisibleSubViews } from './AreaNavigation';
 
 interface DesktopSidebarProps {
@@ -124,6 +126,18 @@ export const DesktopSidebar = ({
     ...(hasPackage('business') ? ['crm' as Area, 'finanzen' as Area] : []),
   ] as Area[]).filter(a => isAreaAllowed(a, currentUser?.role));
 
+  // Offene Beleg-Entwürfe als Badge am „Rechnungen"-Eintrag — Entwürfe
+  // entstehen per Cron im Hintergrund und sollen sichtbar sein, ohne dass
+  // man aktiv in die Inbox schauen muss (analog Anträge-Badge in Berichten)
+  const invoiceDraftsQuery = useQuery({
+    queryKey: ['invoices', 'draft-count'],
+    queryFn: async () => (await microsoft365Api.getProcessedInvoices({ status: 'draft', limit: 1 })).total,
+    enabled: isAdmin && hasPackage('business'),
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
+  });
+  const draftCount = invoiceDraftsQuery.data ?? 0;
+
   return (
     <aside
       className={`fixed left-0 top-0 h-full z-40 flex flex-col overflow-hidden
@@ -189,7 +203,7 @@ export const DesktopSidebar = ({
                         onAreaChange(area);
                         onSubViewChange(view);
                       }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all
+                      className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all
                         ${collapsed ? 'justify-center' : ''}
                         ${isActive
                           ? 'bg-accent-primary text-white shadow-sm'
@@ -201,6 +215,13 @@ export const DesktopSidebar = ({
                       {!collapsed && (
                         <span className={`text-sm ${isActive ? 'font-medium' : ''}`}>
                           {label}
+                        </span>
+                      )}
+                      {view === 'invoices' && draftCount > 0 && (
+                        <span className={`${collapsed ? 'absolute top-0.5 right-0.5' : 'ml-auto'} min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold inline-flex items-center justify-center ${
+                          isActive ? 'bg-white text-accent-primary' : 'bg-accent-primary text-white'
+                        }`}>
+                          {draftCount > 99 ? '99+' : draftCount}
                         </span>
                       )}
                     </button>
