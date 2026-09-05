@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, FileText } from 'lucide-react';
 import { Customer, Project, TicketPriority } from '../types';
 import { ticketsApi, TicketTemplate, organizationsApi, OrganizationMember } from '../services/api';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, Input, Textarea, Select, Label } from './ui';
 import { useAuth } from '../contexts/AuthContext';
 
 interface CreateTicketDialogProps {
@@ -188,16 +188,15 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
             {/* Template Selector */}
             {templates.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
+                <Label>
                   <span className="flex items-center gap-2">
                     <FileText size={16} />
                     Vorlage (optional)
                   </span>
-                </label>
-                <select
+                </Label>
+                <Select
                   value={selectedTemplateId}
                   onChange={(e) => handleTemplateSelect(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   disabled={loadingTemplates}
                 >
                   <option value="">
@@ -212,7 +211,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </Select>
               </div>
             )}
 
@@ -234,18 +233,14 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Customer */}
             {!isInternal && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Kunde *
-              </label>
-              <select
+              <Select
+                label="Kunde"
+                required
                 value={customerId}
                 onChange={(e) => {
                   setCustomerId(e.target.value);
                   setProjectId(''); // Reset project when customer changes
                 }}
-                required
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
               >
                 <option value="">Kunde wählen...</option>
                 {customers.map(customer => (
@@ -253,22 +248,16 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                     {customer.name}
                   </option>
                 ))}
-              </select>
-            </div>
-
+              </Select>
             )}
 
             {/* Project (optional) */}
             {!isInternal && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Projekt (optional)
-              </label>
-              <select
+              <Select
+                label="Projekt (optional)"
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
                 disabled={!customerId || filteredProjects.length === 0}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary disabled:opacity-50"
               >
                 <option value="">
                   {!customerId
@@ -282,30 +271,22 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                     {project.name}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
             )}
 
             {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Titel *
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                placeholder="Kurze Beschreibung des Problems"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-              />
-            </div>
+            <Input
+              type="text"
+              label="Titel"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Kurze Beschreibung des Problems"
+            />
 
             {/* Priority */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Priorität
-              </label>
+              <Label>Priorität</Label>
               <div className="grid grid-cols-4 gap-2">
                 {priorityOptions.map(option => (
                   <button
@@ -332,35 +313,27 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
 
             {/* Bearbeiter + Bereich */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Bearbeiter"
+                value={assignedToUserId}
+                onChange={(e) => setAssignedToUserId(e.target.value)}
+              >
+                <option value="">Nicht zugewiesen</option>
+                {teamMembers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.display_name || m.username}
+                    {m.user_id === currentUser?.id ? ' (ich)' : ''}
+                  </option>
+                ))}
+              </Select>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                  Bearbeiter
-                </label>
-                <select
-                  value={assignedToUserId}
-                  onChange={(e) => setAssignedToUserId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                >
-                  <option value="">Nicht zugewiesen</option>
-                  {teamMembers.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.display_name || m.username}
-                      {m.user_id === currentUser?.id ? ' (ich)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                  Bereich
-                </label>
-                <input
+                <Input
                   type="text"
+                  label="Bereich"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   list="ticket-bereiche"
                   placeholder="z.B. 1st Level, Intern-IT"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
                 <datalist id="ticket-bereiche">
                   <option value="1st Level" />
@@ -373,18 +346,13 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
             </div>
 
             {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-                Beschreibung
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                placeholder="Detaillierte Beschreibung des Problems oder der Anfrage..."
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary resize-none"
-              />
-            </div>
+            <Textarea
+              label="Beschreibung"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+              placeholder="Detaillierte Beschreibung des Problems oder der Anfrage..."
+            />
           </div>
 
           {/* Footer */}
@@ -406,7 +374,7 @@ export const CreateTicketDialog = ({ isOpen, onClose, onCreated, customers, proj
                 fullWidth
                 icon={<Save size={20} />}
                 loading={submitting}
-                disabled={!customerId || !title.trim()}
+                disabled={submitting || !title.trim() || (!isInternal && !customerId)}
               >
                 {submitting ? 'Erstelle...' : 'Erstellen'}
               </Button>

@@ -5,9 +5,12 @@
 
 import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, ReactNode } from 'react';
 
-// Base input styles used across all form elements
+// Base input styles used across all form elements.
+// EINE Feldgröße für die ganze App (px-3.5 py-2.5 ≈ 42 px Höhe — auf
+// Mobile gut tippbar, auf Desktop nicht klobig). Formulare sollen nicht
+// mehr zwischen px-3 py-2 und px-4 py-3 variieren.
 const baseInputStyles = `
-  w-full px-3 py-2 rounded-lg
+  w-full px-3.5 py-2.5 rounded-lg
   border border-gray-300 dark:border-dark-border
   bg-white dark:bg-dark-200
   text-gray-900 dark:text-white
@@ -59,7 +62,7 @@ export const HelperText = ({ error, children, className = '' }: HelperTextProps)
 
 // Input component
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+  label?: ReactNode;
   error?: string;
   helperText?: string;
 }
@@ -92,7 +95,7 @@ export const Input = ({
 
 // Textarea component
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
+  label?: ReactNode;
   error?: string;
   helperText?: string;
 }
@@ -127,7 +130,7 @@ export const Textarea = ({
 
 // Select component
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
+  label?: ReactNode;
   error?: string;
   helperText?: string;
   children: ReactNode;
@@ -182,10 +185,11 @@ interface FormRowProps {
 }
 
 export const FormRow = ({ children, cols = 2, className = '' }: FormRowProps) => {
+  // Mobile first: einspaltig stapeln, erst ab sm nebeneinander
   const colsClass = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-3',
-    4: 'grid-cols-4',
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
   };
 
   return (

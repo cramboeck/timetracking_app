@@ -15,7 +15,7 @@ import {
   Circle,
   Sparkles,
 } from 'lucide-react';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, Input, Textarea, Select, Label, FormRow } from './ui';
 import { tasksApi, customersApi, projectsApi } from '../services/api';
 import type {
   Task,
@@ -213,7 +213,7 @@ export default function TaskModal({
         />
 
         {/* Modal */}
-        <div className="relative bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full mx-auto transform transition-all">
+        <div className="relative bg-white dark:bg-dark-100 rounded-xl shadow-xl max-w-2xl w-full mx-auto transform transition-all text-left">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -237,111 +237,81 @@ export default function TaskModal({
 
             <div className="space-y-4">
               {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                  Titel *
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Was muss erledigt werden?"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  autoFocus
-                />
-              </div>
+              <Input
+                type="text"
+                label="Titel"
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Was muss erledigt werden?"
+                autoFocus
+              />
 
               {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                  Beschreibung
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Weitere Details..."
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary resize-none"
-                />
-              </div>
+              <Textarea
+                label="Beschreibung"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Weitere Details..."
+                rows={3}
+              />
 
               {/* Priority & Status */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Priorität
-                  </label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  >
-                    <option value="low">Niedrig</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Hoch</option>
-                    <option value="urgent">Dringend</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  >
-                    <option value="pending">Ausstehend</option>
-                    <option value="in_progress">In Arbeit</option>
-                    <option value="completed">Erledigt</option>
-                    <option value="cancelled">Abgebrochen</option>
-                  </select>
-                </div>
-              </div>
+              <FormRow>
+                <Select
+                  label="Priorität"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                >
+                  <option value="low">Niedrig</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">Hoch</option>
+                  <option value="urgent">Dringend</option>
+                </Select>
+                <Select
+                  label="Status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                >
+                  <option value="pending">Ausstehend</option>
+                  <option value="in_progress">In Arbeit</option>
+                  <option value="completed">Erledigt</option>
+                  <option value="cancelled">Abgebrochen</option>
+                </Select>
+              </FormRow>
 
               {/* Due Date & Time */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    <Calendar className="w-4 h-4 inline mr-1" />
-                    Fällig am
-                  </label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    <Clock className="w-4 h-4 inline mr-1" />
-                    Uhrzeit
-                  </label>
-                  <input
-                    type="time"
-                    value={dueTime}
-                    onChange={(e) => setDueTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  />
-                </div>
-              </div>
+              <FormRow className="!grid-cols-2">
+                <Input
+                  type="date"
+                  label={<><Calendar className="w-4 h-4 inline mr-1" />Fällig am</>}
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+                <Input
+                  type="time"
+                  label={<><Clock className="w-4 h-4 inline mr-1" />Uhrzeit</>}
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                />
+              </FormRow>
 
               {/* Estimated Time */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                <Label>
                   <Clock className="w-4 h-4 inline mr-1" />
                   Geschätzte Zeit (Minuten)
-                </label>
+                </Label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    value={estimatedMinutes}
-                    onChange={(e) => setEstimatedMinutes(e.target.value ? parseInt(e.target.value) : '')}
-                    placeholder="z.B. 30"
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  />
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={estimatedMinutes}
+                      onChange={(e) => setEstimatedMinutes(e.target.value ? parseInt(e.target.value) : '')}
+                      placeholder="z.B. 30"
+                    />
+                  </div>
                   {suggestedMinutes && !estimatedMinutes && (
                     <Button
                       onClick={() => setEstimatedMinutes(suggestedMinutes)}
@@ -358,59 +328,41 @@ export default function TaskModal({
               </div>
 
               {/* Customer & Project */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    <Building2 className="w-4 h-4 inline mr-1" />
-                    Kunde
-                  </label>
-                  <select
-                    value={customerId}
-                    onChange={(e) => {
-                      setCustomerId(e.target.value);
-                      setProjectId(''); // Reset project when customer changes
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  >
-                    <option value="">Kein Kunde</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                    <Folder className="w-4 h-4 inline mr-1" />
-                    Projekt
-                  </label>
-                  <select
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                    disabled={filteredProjects.length === 0}
-                  >
-                    <option value="">Kein Projekt</option>
-                    {filteredProjects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <FormRow>
+                <Select
+                  label={<><Building2 className="w-4 h-4 inline mr-1" />Kunde</>}
+                  value={customerId}
+                  onChange={(e) => {
+                    setCustomerId(e.target.value);
+                    setProjectId(''); // Reset project when customer changes
+                  }}
+                >
+                  <option value="">Kein Kunde</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
+                <Select
+                  label={<><Folder className="w-4 h-4 inline mr-1" />Projekt</>}
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  disabled={filteredProjects.length === 0}
+                >
+                  <option value="">Kein Projekt</option>
+                  {filteredProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              </FormRow>
 
               {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                  <Tag className="w-4 h-4 inline mr-1" />
-                  Kategorie
-                </label>
-                <input
-                  type="text"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  placeholder="z.B. Entwicklung, Support, Admin"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                />
-              </div>
+              <Input
+                type="text"
+                label={<><Tag className="w-4 h-4 inline mr-1" />Kategorie</>}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="z.B. Entwicklung, Support, Admin"
+              />
 
               {/* Recurrence */}
               <div className="border-t border-gray-200 dark:border-dark-border pt-4">
@@ -428,36 +380,26 @@ export default function TaskModal({
                 </label>
 
                 {isRecurring && (
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                        Wiederholung
-                      </label>
-                      <select
-                        value={recurrencePattern}
-                        onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                      >
-                        <option value="">Auswählen...</option>
-                        <option value="daily">Täglich</option>
-                        <option value="weekly">Wöchentlich</option>
-                        <option value="monthly">Monatlich</option>
-                        <option value="yearly">Jährlich</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-                        Intervall
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={recurrenceInterval}
-                        onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                      />
-                    </div>
-                  </div>
+                  <FormRow className="mt-3">
+                    <Select
+                      label="Wiederholung"
+                      value={recurrencePattern}
+                      onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern)}
+                    >
+                      <option value="">Auswählen...</option>
+                      <option value="daily">Täglich</option>
+                      <option value="weekly">Wöchentlich</option>
+                      <option value="monthly">Monatlich</option>
+                      <option value="yearly">Jährlich</option>
+                    </Select>
+                    <Input
+                      type="number"
+                      label="Intervall"
+                      min="1"
+                      value={recurrenceInterval}
+                      onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
+                    />
+                  </FormRow>
                 )}
               </div>
 
@@ -498,14 +440,15 @@ export default function TaskModal({
                 )}
 
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newChecklistItem}
-                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addChecklistItem()}
-                    placeholder="Neuer Punkt..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-accent-primary"
-                  />
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={newChecklistItem}
+                      onChange={(e) => setNewChecklistItem(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addChecklistItem()}
+                      placeholder="Neuer Punkt..."
+                    />
+                  </div>
                   <IconButton
                     onClick={addChecklistItem}
                     disabled={!newChecklistItem.trim()}
