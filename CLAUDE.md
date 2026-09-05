@@ -123,7 +123,7 @@ Der Stack ist solide, aber teilweise veraltet. Eine Modernisierung lohnt sich vo
 
 | Bereich | Änderung |
 |---|---|
-| **Kit gehärtet** | EINE Feldgröße app-weit (`px-3.5 py-2.5`); FormRow mobile-first (`grid-cols-1 sm:grid-cols-N`); `label`-Prop akzeptiert ReactNode (Inline-Icons). |
+| **Kit gehärtet** | EINE Feldgröße app-weit (`px-3.5 py-2.5`); FormRow mobile-first (`grid-cols-1 sm:grid-cols-N`); `label`-Prop akzeptiert ReactNode (Inline-Icons). **Look modernisiert (a910be0):** Soft-Filled (getönte Fläche, `rounded-xl`, Fokus = weißer Grund + Accent-Glow `ring-4/15`) — nur in `ui/Input.tsx`, alle Kit-Nutzer erben ihn. |
 | **Pass 1 migriert** | CreateTicketDialog + TaskModal komplett auf Kit-Komponenten. TaskModal: `text-left` aufs Panel (Wrapper-`text-center` zentrierte alle Labels). |
 | **Bugfix nebenbei** | „Erstellen" blieb bei INTERNEN Tickets deaktiviert (disabled verlangte weiter einen Kunden) — interne Tickets waren per UI gar nicht anlegbar. |
 
