@@ -9,24 +9,30 @@ import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, Reac
 // EINE Feldgröße für die ganze App (px-3.5 py-2.5 ≈ 42 px Höhe — auf
 // Mobile gut tippbar, auf Desktop nicht klobig). Formulare sollen nicht
 // mehr zwischen px-3 py-2 und px-4 py-3 variieren.
+//
+// Look: „soft filled" — leicht getönte Fläche mit dezentem Rahmen,
+// beim Fokus weißer Grund + weicher Accent-Glow (ring/15) statt hartem
+// Ring. Ruhiger als der klassische Border-Input, Fokus bleibt deutlich.
 const baseInputStyles = `
-  w-full px-3.5 py-2.5 rounded-lg
-  border border-gray-300 dark:border-dark-border
-  bg-white dark:bg-dark-200
+  w-full px-3.5 py-2.5 rounded-xl
+  bg-gray-50 dark:bg-dark-200
+  border border-gray-200 dark:border-dark-border
   text-gray-900 dark:text-white
   placeholder:text-gray-400 dark:placeholder:text-dark-400
-  transition-colors duration-150
-  focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-accent-primary
-  dark:focus:ring-accent-primary dark:focus:border-accent-primary
+  transition-all duration-150
+  hover:border-gray-300 dark:hover:border-dark-400/40
+  focus:outline-none focus:bg-white dark:focus:bg-dark-100
+  focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15
   disabled:bg-gray-100 dark:disabled:bg-dark-100
   disabled:text-gray-500 dark:disabled:text-dark-400
+  disabled:border-transparent
   disabled:cursor-not-allowed
 `;
 
 const errorStyles = `
-  border-red-500 dark:border-red-500
-  focus:ring-red-500 focus:border-red-500
-  dark:focus:ring-red-400 dark:focus:border-red-400
+  border-red-400 dark:border-red-500 bg-red-50/50 dark:bg-red-900/10
+  focus:border-red-500 focus:ring-red-500/15
+  dark:focus:border-red-400 dark:focus:ring-red-400/15
 `;
 
 // Label component
