@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { CheckCircle, XCircle, Clock, Calendar, User, DollarSign, AlertCircle, Loader } from 'lucide-react';
 
 interface ReportData {

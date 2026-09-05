@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LogIn, LogOut, Coffee, Play, AlertTriangle, ChevronDown, History, ClipboardList, X } from 'lucide-react';
 import { workSessionsApi, entriesApi, WorkSession } from '../services/api';

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, X, Coffee } from 'lucide-react';
 import { TimeEntry, Customer, Project, Activity } from '../types';
 import { workSessionsApi } from '../services/api';

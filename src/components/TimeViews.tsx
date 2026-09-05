@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { LayoutGrid, List as ListIcon, Calendar as CalendarIcon, CalendarClock } from 'lucide-react';
 import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity } from '../types';
 import { WeeklyGridView } from './WeeklyGridView';
