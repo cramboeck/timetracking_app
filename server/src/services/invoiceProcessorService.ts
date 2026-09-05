@@ -87,6 +87,7 @@ export interface ExtractedInvoiceData {
 
   // sevDesk linking
   sevdeskContactId?: string | null;
+  sevdeskContactName?: string | null;
 }
 
 export interface ProcessedInvoice {
@@ -908,6 +909,93 @@ class InvoiceProcessorService {
       sevdeskVoucherNumber: row.sevdesk_voucher_number,
       source: row.source || 'email',
     }));
+  }
+
+  /**
+   * Lieferanten-Gedächtnis: Zuordnung supplier → sevDesk-Kontakt merken
+   * (beim Bestätigen) und beim nächsten Beleg desselben Lieferanten
+   * vorschlagen — vorher musste der Kontakt jedes Mal neu gesucht werden.
+   */
+  private supplierKey(supplierName: string): string {
+    return supplierName.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 300);
+  }
+
+  async rememberSupplierContact(
+    organizationId: string,
+    supplierName: string,
+    sevdeskContactId: string,
+    sevdeskContactName?: string | null
+  ): Promise<void> {
+    const key = this.supplierKey(supplierName);
+    if (!key) return;
+    await query(
+      `INSERT INTO supplier_sevdesk_contacts (organization_id, supplier_key, sevdesk_contact_id, sevdesk_contact_name, last_used_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (organization_id, supplier_key)
+       DO UPDATE SET sevdesk_contact_id = $3,
+                     sevdesk_contact_name = COALESCE($4, supplier_sevdesk_contacts.sevdesk_contact_name),
+                     last_used_at = NOW()`,
+      [organizationId, key, sevdeskContactId, sevdeskContactName || null]
+    );
+  }
+
+  async suggestSupplierContact(
+    organizationId: string,
+    supplierName: string | null
+  ): Promise<{ id: string; name: string | null } | null> {
+    if (!supplierName) return null;
+    const key = this.supplierKey(supplierName);
+    if (!key) return null;
+    const result = await query(
+      `SELECT sevdesk_contact_id, sevdesk_contact_name
+       FROM supplier_sevdesk_contacts
+       WHERE organization_id = $1 AND supplier_key = $2`,
+      [organizationId, key]
+    );
+    if (result.rows.length === 0) return null;
+    return { id: result.rows[0].sevdesk_contact_id, name: result.rows[0].sevdesk_contact_name };
+  }
+
+  /**
+   * Fälligkeits-Radar: offene Belege mit Fälligkeitsdatum — überfällig
+   * bzw. in den nächsten 7 Tagen fällig. Als bezahlt markierte Belege
+   * (payment_status='paid', gesynct aus sevDesk) werden ausgenommen.
+   */
+  async getDueRadar(organizationId: string): Promise<{
+    overdue: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+    dueSoon: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+    overdueSum: number;
+    dueSoonSum: number;
+  }> {
+    const result = await query(
+      `SELECT id, supplier_name, invoice_number, gross_amount, due_date, status,
+              (due_date < CURRENT_DATE) AS is_overdue
+       FROM processed_invoices
+       WHERE organization_id = $1
+         AND due_date IS NOT NULL
+         AND due_date <= CURRENT_DATE + INTERVAL '7 days'
+         AND status IN ('draft', 'processed', 'imported')
+         AND (payment_status IS NULL OR payment_status <> 'paid')
+       ORDER BY due_date ASC
+       LIMIT 100`,
+      [organizationId]
+    );
+
+    const mapRow = (row: any) => ({
+      id: row.id,
+      supplierName: row.supplier_name,
+      invoiceNumber: row.invoice_number,
+      grossAmount: row.gross_amount !== null ? Number(row.gross_amount) : null,
+      dueDate: row.due_date,
+      status: row.status,
+    });
+
+    const overdue = result.rows.filter(r => r.is_overdue).map(mapRow);
+    const dueSoon = result.rows.filter(r => !r.is_overdue).map(mapRow);
+    const sum = (list: Array<{ grossAmount: number | null }>) =>
+      Math.round(list.reduce((acc, r) => acc + (r.grossAmount || 0), 0) * 100) / 100;
+
+    return { overdue, dueSoon, overdueSum: sum(overdue), dueSoonSum: sum(dueSoon) };
   }
 
   /**
@@ -2562,6 +2650,18 @@ MUSTER FÜR KUNDENERKENNUNG:
       [processedInvoiceId, organizationId, sevdeskVoucherId]
     );
 
+    // Lieferanten-Gedächtnis: gewählten sevDesk-Kontakt für diesen
+    // Lieferanten merken — der nächste Beleg schlägt ihn automatisch vor
+    const supplierForMemory = extractedData.supplierName || invoice.supplier_name;
+    if (updateResult.rows.length > 0 && extractedData.sevdeskContactId && supplierForMemory) {
+      await this.rememberSupplierContact(
+        organizationId,
+        supplierForMemory,
+        extractedData.sevdeskContactId,
+        extractedData.sevdeskContactName || null
+      ).catch(err => logger.error(`Supplier-Kontakt-Merken fehlgeschlagen: ${err.message}`));
+    }
+
     return updateResult.rows.length > 0;
   }
 
@@ -2650,6 +2750,9 @@ MUSTER FÜR KUNDENERKENNUNG:
           [organizationId, v.id]
         );
         if (existing.rows.length > 0) {
+          // sevDesk-Voucher-Status: >=1000 = bezahlt, 100 = offen — damit das
+          // Fälligkeits-Radar bezahlte Belege nicht anmahnt
+          const paymentStatus = v.status >= 1000 ? 'paid' : v.status >= 100 ? 'open' : null;
           await query(
             `UPDATE processed_invoices SET
                sevdesk_voucher_number = $1,
@@ -2660,8 +2763,10 @@ MUSTER FÜR KUNDENERKENNUNG:
                gross_amount = COALESCE($6, gross_amount),
                vat_amount = COALESCE($7, vat_amount),
                currency = COALESCE($8, currency),
+               payment_status = COALESCE($9, payment_status),
+               paid_at = COALESCE($10, paid_at),
                status = CASE WHEN status NOT IN ('processed', 'imported') THEN 'processed' ELSE status END
-             WHERE id = $9`,
+             WHERE id = $11`,
             [
               v.voucherNumber,
               v.supplier?.name ?? null,
@@ -2671,6 +2776,8 @@ MUSTER FÜR KUNDENERKENNUNG:
               v.sumGross,
               v.sumTax,
               v.currency,
+              paymentStatus,
+              v.paidAt || null,
               existing.rows[0].id,
             ]
           );
@@ -2714,9 +2821,10 @@ MUSTER FÜR KUNDENERKENNUNG:
             sevdesk_voucher_id, sevdesk_voucher_number, original_filename,
             supplier_name, invoice_number, invoice_date,
             net_amount, gross_amount, vat_amount, currency,
+            payment_status, paid_at,
             processed_at
           ) VALUES ($1, $2, NULL, $3, NULL, $4, $5, $6, $7, 'imported', 'sevdesk_import',
-                    $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW())
+                    $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
           ON CONFLICT (organization_id, sevdesk_voucher_id) WHERE sevdesk_voucher_id IS NOT NULL DO NOTHING`,
           [
             processedInvoiceId,
@@ -2736,6 +2844,8 @@ MUSTER FÜR KUNDENERKENNUNG:
             v.sumGross,
             v.sumTax,
             v.currency || 'EUR',
+            v.status >= 1000 ? 'paid' : v.status >= 100 ? 'open' : null,
+            v.paidAt || null,
           ]
         );
 

@@ -28,6 +28,60 @@ export function startInvoiceInboxJob() {
   });
 
   logger.info('✅ Invoice Inbox Cron gestartet (alle 15 Minuten)');
+
+  // Fälligkeits-Radar: werktags 08:15 eine Erinnerung an Org-Admins,
+  // wenn offene Belege überfällig sind (bezahlte sind ausgenommen)
+  cron.schedule('15 8 * * 1-5', async () => {
+    try {
+      await runOverdueReminder();
+    } catch (error: any) {
+      logger.error(`Overdue-Reminder error: ${error.message}`);
+    }
+  });
+  logger.info('✅ Beleg-Fälligkeits-Erinnerung registriert (werktags 08:15)');
+}
+
+async function runOverdueReminder() {
+  const orgs = await pool.query(`
+    SELECT organization_id, COUNT(*)::int AS overdue_count, COALESCE(SUM(gross_amount), 0) AS overdue_sum
+    FROM processed_invoices
+    WHERE due_date IS NOT NULL
+      AND due_date < CURRENT_DATE
+      AND status IN ('draft', 'processed', 'imported')
+      AND (payment_status IS NULL OR payment_status <> 'paid')
+    GROUP BY organization_id
+  `);
+
+  for (const row of orgs.rows) {
+    const sum = Number(row.overdue_sum).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const admins = await pool.query(
+      `SELECT u.email, u.username
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       WHERE om.organization_id = $1 AND om.role IN ('owner', 'admin')
+         AND u.email IS NOT NULL AND u.email <> ''`,
+      [row.organization_id]
+    );
+    const baseUrl = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+    const link = `${baseUrl}/finanzen/invoices`;
+
+    for (const admin of admins.rows) {
+      await emailService.sendEmail({
+        to: admin.email,
+        subject: `RamboFlow: ${row.overdue_count} überfällige${row.overdue_count === 1 ? 'r' : ''} Beleg${row.overdue_count === 1 ? '' : 'e'} (${sum} €)`,
+        html: `<p>Hallo ${admin.username},</p>
+          <p>im Rechnungseingang ${row.overdue_count === 1 ? 'ist' : 'sind'} <strong>${row.overdue_count} Beleg${row.overdue_count === 1 ? '' : 'e'}</strong>
+          über <strong>${sum} €</strong> überfällig und noch nicht als bezahlt markiert.</p>
+          <p><a href="${link}" style="display:inline-block;background-color:#F27024;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;">Fälligkeits-Radar öffnen</a></p>
+          <p style="font-size:12px;color:#6b7280;">Bereits in sevDesk als bezahlt markierte Belege werden automatisch aussortiert (Sync alle 30 Minuten).</p>`,
+        text: `Hallo ${admin.username},\n\nim Rechnungseingang ${row.overdue_count === 1 ? 'ist' : 'sind'} ${row.overdue_count} Beleg(e) über ${sum} € überfällig und noch nicht als bezahlt markiert.\n\n${link}`,
+      }).catch(err => logger.error(`Überfällig-Mail an ${admin.email} fehlgeschlagen: ${err.message}`));
+    }
+  }
+
+  if (orgs.rows.length > 0) {
+    logger.info(`Fälligkeits-Erinnerung: ${orgs.rows.length} Org(s) mit überfälligen Belegen benachrichtigt`);
+  }
 }
 
 /**

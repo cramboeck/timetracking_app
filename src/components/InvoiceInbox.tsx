@@ -84,6 +84,18 @@ export const InvoiceInbox = () => {
   // Full-screen review view state (new UX)
   const [reviewingInvoice, setReviewingInvoice] = useState<ProcessedInvoice | null>(null);
 
+  // Fälligkeits-Radar (überfällig / ≤7 Tage, ohne bezahlte Belege)
+  const [dueRadar, setDueRadar] = useState<{
+    overdue: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+    dueSoon: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+    overdueSum: number;
+    dueSoonSum: number;
+  } | null>(null);
+
+  // Batch-Freigabe: ausgewählte Entwurfs-IDs
+  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
+  const [batchApproving, setBatchApproving] = useState(false);
+
   // Confirmation modal state (legacy, still used for some flows)
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmingInvoice, setConfirmingInvoice] = useState<ProcessedInvoice | null>(null);
@@ -199,6 +211,7 @@ export const InvoiceInbox = () => {
       // auch ohne konfiguriertes M365-Postfach (vorher blockierte die
       // fehlende Mailbox die komplette Ansicht)
       await loadProcessedInvoices();
+      await loadDueRadar();
     } catch (err) {
       console.error('Failed to load config:', err);
       setError('Fehler beim Laden der Konfiguration');
@@ -215,6 +228,56 @@ export const InvoiceInbox = () => {
       }
     } catch (err) {
       console.error('Failed to load processed invoices:', err);
+    }
+  };
+
+  const loadDueRadar = async () => {
+    try {
+      const response = await microsoft365Api.getInvoiceDueRadar();
+      if (response.success) {
+        setDueRadar(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load due radar:', err);
+    }
+  };
+
+  const toggleDraftSelection = (invoiceId: string) => {
+    setSelectedDraftIds(prev => {
+      const next = new Set(prev);
+      if (next.has(invoiceId)) next.delete(invoiceId); else next.add(invoiceId);
+      return next;
+    });
+  };
+
+  const handleBatchApprove = async () => {
+    if (selectedDraftIds.size === 0) return;
+    setBatchApproving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await microsoft365Api.batchApproveInvoices(Array.from(selectedDraftIds));
+      if (response.success && response.data) {
+        const { approved, skipped, failed, results } = response.data;
+        const parts = [`${approved} freigegeben`];
+        if (skipped > 0) parts.push(`${skipped} übersprungen (Duplikat-Verdacht)`);
+        if (failed > 0) parts.push(`${failed} fehlgeschlagen`);
+        if (failed > 0 || skipped > 0) {
+          const detail = results.filter(r => r.status !== 'approved' && r.reason).map(r => r.reason).join('; ');
+          setError(`${parts.join(', ')}${detail ? ` — ${detail}` : ''}`);
+        } else {
+          setSuccess(parts.join(', '));
+        }
+        setSelectedDraftIds(new Set());
+        await loadProcessedInvoices();
+        await loadDueRadar();
+      } else {
+        setError(response.error || 'Batch-Freigabe fehlgeschlagen');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Batch-Freigabe fehlgeschlagen');
+    } finally {
+      setBatchApproving(false);
     }
   };
 
@@ -636,6 +699,78 @@ export const InvoiceInbox = () => {
         </div>
       </div>
 
+      {/* Fälligkeits-Radar: nur zeigen, wenn etwas ansteht. Bezahlte Belege
+          (sevDesk-Zahlstatus-Sync) sind bereits herausgefiltert. */}
+      {dueRadar && (dueRadar.overdue.length > 0 || dueRadar.dueSoon.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {dueRadar.overdue.length > 0 && (
+            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                  <AlertTriangle size={15} />
+                  {dueRadar.overdue.length} überfällig
+                </span>
+                <span className="text-sm font-bold text-red-700 dark:text-red-300 tabular-nums">
+                  {formatMoney(dueRadar.overdueSum, 'EUR')}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-red-600 dark:text-red-400 space-y-0.5">
+                {dueRadar.overdue.slice(0, 3).map(item => (
+                  <div key={item.id} className="truncate tabular-nums">
+                    {formatShortDate(item.dueDate)} · {item.supplierName || 'Unbekannt'}{item.invoiceNumber ? ` · ${item.invoiceNumber}` : ''}{item.grossAmount !== null ? ` · ${formatMoney(item.grossAmount, 'EUR')}` : ''}
+                  </div>
+                ))}
+                {dueRadar.overdue.length > 3 && <div>+{dueRadar.overdue.length - 3} weitere</div>}
+              </div>
+            </div>
+          )}
+          {dueRadar.dueSoon.length > 0 && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                  {dueRadar.dueSoon.length} fällig in ≤ 7 Tagen
+                </span>
+                <span className="text-sm font-bold text-amber-700 dark:text-amber-300 tabular-nums">
+                  {formatMoney(dueRadar.dueSoonSum, 'EUR')}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
+                {dueRadar.dueSoon.slice(0, 3).map(item => (
+                  <div key={item.id} className="truncate tabular-nums">
+                    {formatShortDate(item.dueDate)} · {item.supplierName || 'Unbekannt'}{item.invoiceNumber ? ` · ${item.invoiceNumber}` : ''}{item.grossAmount !== null ? ` · ${formatMoney(item.grossAmount, 'EUR')}` : ''}
+                  </div>
+                ))}
+                {dueRadar.dueSoon.length > 3 && <div>+{dueRadar.dueSoon.length - 3} weitere</div>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Batch-Freigabe-Leiste */}
+      {selectedDraftIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-accent-primary/10 dark:bg-accent-primary/20 px-4 py-2.5">
+          <span className="text-sm font-medium text-accent-primary">
+            {selectedDraftIds.size} Entwurf{selectedDraftIds.size !== 1 ? 'e' : ''} ausgewählt
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDraftIds(new Set())}>
+              Abwählen
+            </Button>
+            <Button
+              variant="success"
+              size="sm"
+              onClick={handleBatchApprove}
+              loading={batchApproving}
+              disabled={batchApproving}
+              icon={<Check size={14} />}
+            >
+              Auswahl freigeben
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Full-text search */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400 pointer-events-none" />
@@ -950,6 +1085,7 @@ export const InvoiceInbox = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-dark-200 border-b border-gray-200 dark:border-dark-300">
+                    <th className="w-8 py-3 pl-4 pr-1"></th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Datum</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Lieferant</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600 dark:text-dark-400">Rechnung</th>
@@ -964,6 +1100,17 @@ export const InvoiceInbox = () => {
                   {processedInvoices.map((invoice) => (
                     <Fragment key={invoice.id}>
                       <tr className="border-b border-gray-100 dark:border-dark-300 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors">
+                        <td className="py-3 pl-4 pr-1">
+                          {invoice.status === 'draft' && (
+                            <input
+                              type="checkbox"
+                              checked={selectedDraftIds.has(invoice.id)}
+                              onChange={() => toggleDraftSelection(invoice.id)}
+                              className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                              aria-label="Entwurf für Batch-Freigabe auswählen"
+                            />
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-gray-900 dark:text-white whitespace-nowrap">
                           {new Date(invoice.receivedAt).toLocaleDateString('de-DE', {
                             day: '2-digit',
@@ -1099,7 +1246,7 @@ export const InvoiceInbox = () => {
                       {/* Expandable documents row */}
                       {expandedInvoiceId === invoice.id && (
                         <tr className="bg-gray-50 dark:bg-dark-200">
-                          <td colSpan={8} className="py-3 px-4">
+                          <td colSpan={9} className="py-3 px-4">
                             <div className="pl-4 border-l-2 border-accent-primary/40 dark:border-accent-primary">
                               <div className="text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                                 Anhänge

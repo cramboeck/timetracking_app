@@ -96,6 +96,15 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
       const response = await microsoft365Api.extractInvoiceData(invoice.id);
       if (response.success && response.data) {
         setExtractedData(response.data);
+        // Lieferanten-Gedächtnis: zuletzt für diesen Lieferanten gewählten
+        // sevDesk-Kontakt vorbelegen — spart die Suche bei jedem Beleg
+        if (response.data.suggestedSevdeskContact) {
+          setSelectedSevdeskContact({
+            id: response.data.suggestedSevdeskContact.id,
+            name: response.data.suggestedSevdeskContact.name || response.data.supplierName || '',
+            customerNumber: '',
+          });
+        }
         // Load persisted line items if any
         if (response.data.lineItems && response.data.lineItems.length > 0) {
           await loadLineItems();
@@ -202,6 +211,7 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
       const approvalData = {
         ...extractedData,
         sevdeskContactId: selectedSevdeskContact?.id || null,
+        sevdeskContactName: selectedSevdeskContact?.name || null,
       };
 
       const response = await microsoft365Api.approveInvoiceDraft(invoice.id, approvalData);

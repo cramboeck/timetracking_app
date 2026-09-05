@@ -111,6 +111,7 @@ const extractedDataSchema = z.object({
   lineItems: z.array(z.any()).optional(),
   // sevDesk linking
   sevdeskContactId: z.string().max(50).nullable().optional(),
+  sevdeskContactName: z.string().max(500).nullable().optional(),
 }).passthrough().optional();
 
 const finalizeVoucherSchema = z.object({
@@ -1654,9 +1655,17 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
         .findPossibleDuplicates(organizationId, processedInvoiceId)
         .catch(() => []);
 
+      // Lieferanten-Gedächtnis: zuletzt gewählten sevDesk-Kontakt für
+      // diesen Lieferanten vorschlagen (sofern noch keiner verknüpft ist)
+      const suggestedSevdeskContact = extractedData.sevdeskContactId
+        ? null
+        : await invoiceProcessorService
+            .suggestSupplierContact(organizationId, extractedData.supplierName)
+            .catch(() => null);
+
       res.json({
         success: true,
-        data: { ...extractedData, possibleDuplicates },
+        data: { ...extractedData, possibleDuplicates, suggestedSevdeskContact },
       });
     } else {
       res.status(404).json({
@@ -1670,6 +1679,63 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
       success: false,
       error: error.message || 'Failed to extract invoice data',
     });
+  }
+});
+
+// GET /api/microsoft365/invoices/due-radar - Faellige/ueberfaellige offene Belege
+router.get('/invoices/due-radar', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const radar = await invoiceProcessorService.getDueRadar(orgReq.organization.id);
+    res.json({ success: true, data: radar });
+  } catch (error: any) {
+    logger.error('Due radar error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to load due radar' });
+  }
+});
+
+// POST /api/microsoft365/invoices/batch-approve - Mehrere Entwuerfe auf einmal
+// bestaetigen. Nutzt die persistierte Extraktion; Belege mit Duplikat-Verdacht
+// oder ohne Betrag werden uebersprungen und einzeln gemeldet.
+const batchApproveSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(20),
+});
+router.post('/invoices/batch-approve', requireOrgRole('admin'), validate(batchApproveSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { ids } = req.body as { ids: string[] };
+
+    const results: Array<{ id: string; status: 'approved' | 'skipped' | 'failed'; reason?: string }> = [];
+
+    for (const id of ids) {
+      try {
+        const duplicates = await invoiceProcessorService.findPossibleDuplicates(organizationId, id).catch(() => []);
+        if (duplicates.length > 0) {
+          results.push({ id, status: 'skipped', reason: 'Duplikat-Verdacht — bitte einzeln prüfen' });
+          continue;
+        }
+        const ok = await invoiceProcessorService.approveDraft(organizationId, id);
+        results.push(ok
+          ? { id, status: 'approved' }
+          : { id, status: 'failed', reason: 'Kein Entwurf oder Freigabe fehlgeschlagen' });
+      } catch (err: any) {
+        results.push({ id, status: 'failed', reason: err.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        approved: results.filter(r => r.status === 'approved').length,
+        skipped: results.filter(r => r.status === 'skipped').length,
+        failed: results.filter(r => r.status === 'failed').length,
+        results,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Batch approve error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Batch approve failed' });
   }
 });
 

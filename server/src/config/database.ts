@@ -4403,6 +4403,34 @@ export async function initializeDatabase() {
     `);
     logger.info('✅ Infinigate integration tables/columns ready');
 
+    // Rechnungseingang Teil 2: Zahlstatus aus sevDesk (Fälligkeits-Radar
+    // soll bezahlte Belege nicht anmahnen) + Lieferanten-Gedächtnis
+    // (supplier → sevDesk-Kontakt beim Bestätigen merken)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='payment_status') THEN
+          ALTER TABLE processed_invoices ADD COLUMN payment_status TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='processed_invoices' AND column_name='paid_at') THEN
+          ALTER TABLE processed_invoices ADD COLUMN paid_at TIMESTAMP;
+        END IF;
+      END $$;
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS supplier_sevdesk_contacts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL,
+        supplier_key TEXT NOT NULL,
+        sevdesk_contact_id TEXT NOT NULL,
+        sevdesk_contact_name TEXT,
+        last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(organization_id, supplier_key)
+      )
+    `);
+    logger.info('✅ Invoice payment status + supplier contact memory ready');
+
     // Migration: processed_at nullable machen. revertToDraft setzt beim
     // Zurücksetzen auf Entwurf processed_at = NULL — mit dem NOT-NULL-
     // Constraint aus dem CREATE TABLE schlug das Zurücksetzen immer fehl.

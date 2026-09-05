@@ -1553,6 +1553,10 @@ export interface ExtractedInvoiceData {
 
   // sevDesk linking
   sevdeskContactId?: string | null;
+  sevdeskContactName?: string | null;
+
+  // Lieferanten-Gedächtnis: zuletzt für diesen Lieferanten gewählter Kontakt
+  suggestedSevdeskContact?: { id: string; name: string | null } | null;
 
   // Duplikat-Verdacht: andere Belege der Org mit derselben Rechnungsnummer
   possibleDuplicates?: Array<{
@@ -1799,6 +1803,36 @@ export const microsoft365Api = {
 
   revertInvoiceToDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     return authFetch(`/microsoft365/invoices/${invoiceId}/revert`, { method: 'POST' });
+  },
+
+  // Fälligkeits-Radar: offene Belege, die überfällig oder ≤7 Tage fällig sind
+  getInvoiceDueRadar: async (): Promise<{
+    success: boolean;
+    data: {
+      overdue: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+      dueSoon: Array<{ id: string; supplierName: string | null; invoiceNumber: string | null; grossAmount: number | null; dueDate: string; status: string }>;
+      overdueSum: number;
+      dueSoonSum: number;
+    };
+  }> => {
+    return authFetch('/microsoft365/invoices/due-radar');
+  },
+
+  // Mehrere Entwürfe auf einmal freigeben (Duplikat-Verdacht wird übersprungen)
+  batchApproveInvoices: async (ids: string[]): Promise<{
+    success: boolean;
+    data: {
+      approved: number;
+      skipped: number;
+      failed: number;
+      results: Array<{ id: string; status: 'approved' | 'skipped' | 'failed'; reason?: string }>;
+    };
+    error?: string;
+  }> => {
+    return authFetch('/microsoft365/invoices/batch-approve', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
   },
 
   deleteInvoiceDraft: async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
