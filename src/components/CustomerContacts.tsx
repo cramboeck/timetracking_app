@@ -439,9 +439,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
                     className="w-5 h-5 rounded border-gray-300"
                   />
                   <div>
-                    <span className="text-gray-900 dark:text-white font-medium">Kann Lizenzen sehen</span>
+                    <span className="text-gray-900 dark:text-white font-medium">Kann Lizenzen sehen <span className="text-amber-600 dark:text-amber-400 text-xs font-normal">(vorübergehend deaktiviert)</span></span>
                     <p className="text-xs text-gray-500 dark:text-dark-400">
-                      Lizenzen & Abos inkl. Beträgen im Portal
+                      Serverseitig abgeschaltet, bis ein VK-Preiskonzept existiert — die Ansicht zeigte Einkaufspreise
                     </p>
                   </div>
                 </label>

@@ -15,7 +15,8 @@ export interface PortalLicenseProduct {
   contractId: string | null;
   contractName: string | null;
   totalQuantity: number;
-  totalAmount: number;
+  // null seit 6.9.2026: EK-Preise werden nicht mehr ausgeliefert
+  totalAmount: number | null;
   lineCount: number;
   firstSeen: string | null;
   lastSeen: string | null;
@@ -27,14 +28,14 @@ export interface PortalLicenseData {
   products: PortalLicenseProduct[];
   monthlyBreakdown: Array<{
     month: string;
-    totalAmount: number;
+    totalAmount: number | null; // EK — nicht mehr ausgeliefert
     itemCount: number;
   }>;
   summary: {
     uniqueProducts: number;
-    billedAmount: number;
-    includedAmount: number;
-    totalAmount: number;
+    billedAmount: number | null; // EK — nicht mehr ausgeliefert
+    includedAmount: number | null;
+    totalAmount: number | null;
   };
 }
 

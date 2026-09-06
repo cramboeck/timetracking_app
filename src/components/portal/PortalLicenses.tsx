@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Package, TrendingUp, Loader2, AlertCircle, CheckCircle, DollarSign } from 'lucide-react';
 import { customerPortalApi, PortalLicenseData, PortalLicenseProduct } from '../../services/api';
 
-const formatCurrency = (amount: number): string => {
+const formatCurrency = (amount: number | null): string => {
+  if (amount === null) return '—';
   return new Intl.NumberFormat('de-DE', {
     style: 'currency',
     currency: 'EUR',
@@ -119,7 +120,7 @@ export const PortalLicenses = () => {
           </div>
         </div>
 
-        {summary.includedAmount > 0 && (
+        {(summary.includedAmount ?? 0) > 0 && (
           <div className="bg-white dark:bg-dark-100 rounded-lg p-4 border border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm mb-1">
               <CheckCircle size={14} />
@@ -141,8 +142,8 @@ export const PortalLicenses = () => {
           </h3>
           <div className="flex items-end gap-2 h-24">
             {monthlyBreakdown.slice().reverse().map((month) => {
-              const maxAmount = Math.max(...monthlyBreakdown.map(m => m.totalAmount));
-              const height = maxAmount > 0 ? (month.totalAmount / maxAmount) * 100 : 0;
+              const maxAmount = Math.max(...monthlyBreakdown.map(m => m.totalAmount ?? 0));
+              const height = maxAmount > 0 ? ((month.totalAmount ?? 0) / maxAmount) * 100 : 0;
               return (
                 <div key={month.month} className="flex-1 flex flex-col items-center">
                   <div
@@ -231,7 +232,7 @@ const ProductRow = ({ product }: ProductRowProps) => {
             {product.description || 'Ohne Beschreibung'}
           </div>
           <div className="text-sm text-gray-500 dark:text-dark-400 flex items-center gap-2 flex-wrap mt-0.5">
-            <span>{product.totalQuantity}× Lizenzen</span>
+            <span>{product.totalQuantity}× {product.itemType === 'hardware' ? 'Stück' : 'Lizenzen'}</span>
             {product.vendors.length > 0 && (
               <>
                 <span>•</span>

@@ -308,7 +308,12 @@ router.post('/login', authLimiter, async (req, res) => {
         canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
         canViewTimeReport: permissions?.can_view_time_report ?? false,
         canViewContract: permissions?.can_view_contract ?? false,
-        canViewLicenses: permissions?.can_view_licenses ?? false,
+        // HART deaktiviert (Entscheidung 6.9.2026): Die Lizenzansicht zeigte
+        // die EINKAUFSPREISE aus den Distributoren-Rechnungen. Bleibt aus,
+        // bis ein VK-Preiskonzept existiert (fester angebotener Preis pro
+        // Kunde/Produkt — kein Prozentsatz). Gespeicherte Berechtigungen
+        // bleiben erhalten, wirken aber nicht.
+        canViewLicenses: false,
       },
     });
   } catch (error) {
@@ -369,7 +374,8 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
       canViewTimeReport: permissions?.can_view_time_report ?? false,
       canViewContract: permissions?.can_view_contract ?? false,
-      canViewLicenses: permissions?.can_view_licenses ?? false,
+      // HART deaktiviert — siehe Kommentar im Login-Handler (EK-Preis-Leak)
+      canViewLicenses: false,
     });
   } catch (error) {
     logger.error('Get contact error:', error);
@@ -3076,8 +3082,13 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
   try {
     const customerId = req.customerId;
 
-    // Lizenz-Daten enthalten Lieferanten-Namen und Betraege -> explizite
-    // Berechtigung noetig (Go-Live-Haertung, vorher fuer alle sichtbar)
+    // HART deaktiviert (6.9.2026): Die Betraege in invoice_line_items sind
+    // die EINKAUFSPREISE der Distributoren-Rechnungen — die duerfen Kunden
+    // niemals sehen. Reaktivierung erst mit VK-Preiskonzept (fester
+    // angebotener Preis pro Kunde/Produkt, kein Prozentsatz).
+    return res.status(403).json({ error: 'Die Lizenzübersicht ist vorübergehend deaktiviert.' });
+
+    // eslint-disable-next-line no-unreachable -- bewusst: Code bleibt fuer die Reaktivierung
     const permissions = await getContactPermissions(req.contactId!);
     if (!permissions?.can_view_licenses) {
       return res.status(403).json({ error: 'Not allowed to view licenses' });
@@ -3147,7 +3158,8 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
           contractId: row.contract_id,
           contractName: row.contract_name,
           totalQuantity: parseInt(row.total_quantity) || 0,
-          totalAmount: parseFloat(row.total_amount) || 0,
+          // EK-Preis — wird NICHT mehr ausgeliefert (siehe 403 oben)
+          totalAmount: null,
           lineCount: parseInt(row.line_count) || 0,
           firstSeen: row.first_seen,
           lastSeen: row.last_seen,
@@ -3156,14 +3168,14 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         })),
         monthlyBreakdown: monthlyResult.rows.map(row => ({
           month: row.month,
-          totalAmount: parseFloat(row.total_amount) || 0,
+          totalAmount: null, // EK — nicht ausliefern
           itemCount: parseInt(row.item_count) || 0,
         })),
         summary: {
           uniqueProducts: parseInt(summary.unique_products) || 0,
-          billedAmount: parseFloat(summary.billed_amount) || 0,
-          includedAmount: parseFloat(summary.included_amount) || 0,
-          totalAmount: (parseFloat(summary.billed_amount) || 0) + (parseFloat(summary.included_amount) || 0),
+          billedAmount: null, // EK — nicht ausliefern
+          includedAmount: null,
+          totalAmount: null,
         },
       },
     });
