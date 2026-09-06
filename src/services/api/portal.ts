@@ -10,6 +10,8 @@ import { TrustedDevice } from './auth';
 export interface PortalLicenseProduct {
   description: string;
   productSku: string | null;
+  // 'hardware' | 'license' | 'subscription' | 'service' | null — Portal trennt Hardware
+  itemType?: string | null;
   contractId: string | null;
   contractName: string | null;
   totalQuantity: number;
@@ -86,6 +88,11 @@ const getPortalAuthToken = (): string | null => {
   return localStorage.getItem('portal_auth_token');
 };
 
+// Wird gefeuert, wenn das Portal-JWT (7 Tage, ohne Refresh) mid-session
+// abläuft — CustomerPortal hört darauf und zeigt den Login mit Hinweis,
+// statt dass jede Aktion still mit einem generischen Fehler scheitert.
+export const PORTAL_SESSION_EXPIRED_EVENT = 'portal:session-expired';
+
 const portalAuthFetch = async (url: string, options: RequestInit = {}) => {
   const token = getPortalAuthToken();
   if (!token) {
@@ -102,6 +109,11 @@ const portalAuthFetch = async (url: string, options: RequestInit = {}) => {
     ...options,
     headers,
   });
+
+  if (response.status === 401) {
+    localStorage.removeItem('portal_auth_token');
+    window.dispatchEvent(new Event(PORTAL_SESSION_EXPIRED_EVENT));
+  }
 
   return handleResponse(response);
 };

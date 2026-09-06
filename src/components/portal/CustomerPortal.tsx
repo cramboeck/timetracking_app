@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings } from '../../services/api';
+import { customerPortalApi, PortalContact, PortalTicket, publicKbApi, PortalSettings, PORTAL_SESSION_EXPIRED_EVENT } from '../../services/api';
 import { PortalLogin } from './PortalLogin';
 import { PortalLayout } from './PortalLayout';
 import { PortalTicketList } from './PortalTicketList';
@@ -32,6 +32,7 @@ export const CustomerPortal = () => {
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Check for activation token in URL. Works on both hosts: the main app
   // serves the portal under /portal/activate, the dedicated portal host
@@ -68,16 +69,11 @@ export const CustomerPortal = () => {
     if (!contact || !('serviceWorker' in navigator)) return;
 
     const handleMessage = (event: MessageEvent) => {
-      console.log('📬 [Portal SW Message] Received:', event.data);
-
       if (event.data?.type === 'NAVIGATE_TO') {
         const url = event.data.url;
-        console.log('📬 [Portal SW Message] Navigating to:', url);
-
         // Handle portal ticket URLs: /portal/tickets/{id}
         if (url?.startsWith('/portal/tickets/')) {
           const ticketId = url.replace('/portal/tickets/', '').split('?')[0];
-          console.log('📬 [Portal SW Message] Opening ticket:', ticketId);
           setSelectedTicketId(ticketId);
           setCurrentView('ticket-detail');
         }
@@ -110,6 +106,17 @@ export const CustomerPortal = () => {
     checkSession();
   }, []);
 
+  // Mid-Session-Ablauf des 7-Tage-Portal-JWT: sauber zum Login zurueck
+  // statt still scheiternder Aktionen (kein Refresh-Token im Portal)
+  useEffect(() => {
+    const handler = () => {
+      setContact(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener(PORTAL_SESSION_EXPIRED_EVENT, handler);
+    return () => window.removeEventListener(PORTAL_SESSION_EXPIRED_EVENT, handler);
+  }, []);
+
   const checkSession = async () => {
     const token = localStorage.getItem('portal_auth_token');
     if (!token) {
@@ -137,6 +144,7 @@ export const CustomerPortal = () => {
 
   const handleLoginSuccess = async (contactData: PortalContact) => {
     setContact(contactData);
+    setSessionExpired(false);
     // Load portal settings for branding
     try {
       const settingsRes = await publicKbApi.getSettings(contactData.userId);
@@ -282,7 +290,16 @@ export const CustomerPortal = () => {
 
   // Show login page
   if (!contact) {
-    return <PortalLogin onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <>
+        {sessionExpired && (
+          <div className="fixed top-0 inset-x-0 z-50 bg-amber-500 text-white text-sm text-center px-4 py-2.5 shadow">
+            Ihre Sitzung ist abgelaufen — bitte melden Sie sich erneut an.
+          </div>
+        )}
+        <PortalLogin onLoginSuccess={handleLoginSuccess} />
+      </>
+    );
   }
 
   // Show portal

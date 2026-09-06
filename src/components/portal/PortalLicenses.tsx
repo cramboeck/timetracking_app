@@ -85,6 +85,10 @@ export const PortalLicenses = () => {
   }
 
   const { products, monthlyBreakdown, summary } = data;
+  // Hardware-Käufe (Einmalkosten, Seriennummern) getrennt von wiederkehrenden
+  // Lizenzen/Abos listen — vorher stand ein gekaufter Switch zwischen den Abos
+  const hardwareProducts = products.filter(p => p.itemType === 'hardware');
+  const licenseProducts = products.filter(p => p.itemType !== 'hardware');
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-6">
@@ -159,20 +163,42 @@ export const PortalLicenses = () => {
         </div>
       )}
 
-      {/* Products List */}
-      <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-200/50">
-          <h3 className="font-semibold text-gray-900 dark:text-white">
-            Aktive Lizenzen ({products.length})
-          </h3>
-        </div>
+      {/* Products List: Lizenzen & Abos */}
+      {licenseProducts.length > 0 && (
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-200/50">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Lizenzen & Abonnements ({licenseProducts.length})
+            </h3>
+          </div>
 
-        <div className="divide-y divide-gray-100 dark:divide-dark-border">
-          {products.map((product, index) => (
-            <ProductRow key={`${product.description}-${index}`} product={product} />
-          ))}
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
+            {licenseProducts.map((product, index) => (
+              <ProductRow key={`${product.description}-${index}`} product={product} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Hardware-Käufe (Einmalkosten) */}
+      {hardwareProducts.length > 0 && (
+        <div className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-200/50">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Hardware-Käufe ({hardwareProducts.length})
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
+              Einmalige Anschaffungen — nicht Teil der monatlichen Abrechnung
+            </p>
+          </div>
+
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
+            {hardwareProducts.map((product, index) => (
+              <ProductRow key={`${product.description}-${index}`} product={product} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="text-sm text-gray-500 dark:text-dark-400 space-y-1">

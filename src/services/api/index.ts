@@ -48,7 +48,7 @@ export type {
 } from './tickets';
 
 // Portal API
-export { portalSettingsApi, customerPortalApi, pushApi } from './portal';
+export { portalSettingsApi, customerPortalApi, pushApi, PORTAL_SESSION_EXPIRED_EVENT } from './portal';
 export type {
   PortalSettings,
   PortalContact,

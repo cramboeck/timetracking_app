@@ -3089,6 +3089,7 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
       SELECT
         li.description,
         li.product_sku,
+        li.item_type,
         li.contract_id,
         c.name AS contract_name,
         SUM(li.quantity) AS total_quantity,
@@ -3103,7 +3104,7 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
       LEFT JOIN contracts c ON c.id = li.contract_id
       WHERE li.customer_id = $1
         AND li.rebilling_status IN ('billed', 'included')
-      GROUP BY li.description, li.product_sku, li.contract_id, c.name
+      GROUP BY li.description, li.product_sku, li.item_type, li.contract_id, c.name
       ORDER BY MAX(pi.received_at) DESC
     `, [customerId]);
 
@@ -3141,6 +3142,8 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         products: productsResult.rows.map(row => ({
           description: row.description,
           productSku: row.product_sku,
+          // 'hardware' wird im Portal getrennt von Lizenzen/Abos gelistet
+          itemType: row.item_type || null,
           contractId: row.contract_id,
           contractName: row.contract_name,
           totalQuantity: parseInt(row.total_quantity) || 0,
