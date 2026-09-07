@@ -93,6 +93,16 @@ export function useOfflineEntrySync({
         successCount++;
         console.log('✅ [SYNC] Synced entry:', entry.id);
       } catch (error) {
+        // Update auf einen serverseitig geloeschten Eintrag (404): kann nie
+        // gelingen — still aus der Queue nehmen statt ewig rot zu bannern
+        // (der Eintrag wurde bewusst geloescht; ein queued Create fuer
+        // dieselbe ID waere in der Queue davor gelaufen)
+        const status = (error as { status?: number })?.status;
+        if (action === 'update' && status === 404) {
+          removePendingEntry(entry.id);
+          console.log('🗑️ [SYNC] Queued update verworfen — Eintrag existiert nicht mehr:', entry.id);
+          continue;
+        }
         const retryable = isRetryableError(error);
         const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
         markEntryFailed(entry.id, errorMessage, !retryable);

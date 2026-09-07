@@ -26,6 +26,15 @@ export function isRetryableError(error: unknown): boolean {
     return true;
   }
 
+  // ApiError traegt den Status direkt — zuverlaessiger als Message-Parsing
+  // (der Server-Fehlertext enthaelt den Status meist nicht)
+  const directStatus = (error as { status?: unknown })?.status;
+  if (typeof directStatus === 'number') {
+    if (directStatus === 408 || directStatus === 429) return true;
+    if (directStatus >= 400 && directStatus < 500) return false;
+    if (directStatus >= 500) return true;
+  }
+
   // Check for HTTP status codes in error messages
   if (error instanceof Error) {
     const msg = error.message;

@@ -13,6 +13,19 @@ export const getAuthToken = (): string | null => {
   return localStorage.getItem('auth_token');
 };
 
+// Fehler mit HTTP-Status — der Offline-Sync braucht den Status zur
+// Klassifizierung (4xx = permanent, 5xx/Netz = retry). Vorher ging der
+// Status verloren, sobald der Server einen Fehlertext lieferte, und
+// z.B. ein 404 wurde endlos retried.
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Helper to handle API errors
 export const handleResponse = async (response: Response) => {
   if (!response.ok) {
@@ -29,7 +42,7 @@ export const handleResponse = async (response: Response) => {
         .join('; ');
       if (detailText) message = `${message} (${detailText})`;
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
   return response.json();
 };
