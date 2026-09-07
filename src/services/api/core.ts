@@ -628,6 +628,11 @@ export interface WorkSession {
   clockOutLat?: number | null;
   clockOutLng?: number | null;
   clockOutAccuracy?: number | null;
+  // Phase 2: beim Stempeln gematchter Kunde (Distanz zur Kundenadresse)
+  clockInCustomerId?: string | null;
+  clockInCustomerName?: string | null;
+  clockOutCustomerId?: string | null;
+  clockOutCustomerName?: string | null;
 }
 
 // Position im Stempel-Moment (Browser-Geolocation)

@@ -14,6 +14,7 @@ import { startInfinigateSyncJob } from './jobs/infinigateSync';
 import { startContractHoursJob } from './jobs/contractHoursCron';
 import { startCoverageReminderJob } from './jobs/coverageReminderCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
+import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
@@ -243,6 +244,7 @@ startCoverageReminderJob();
 // Start Invoice Inbox Cron (every 15 minutes)
 // Polls invoice mailbox, extracts attachments, runs OCR, creates draft entries
 startInvoiceInboxJob();
+startGeocodeCustomersJob();
 startSupportInboxJob();
 
 // Start server

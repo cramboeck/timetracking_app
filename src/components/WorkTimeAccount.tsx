@@ -116,6 +116,8 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
       // GPS-Stempelung (A6): Position der ersten Ein- / letzten Ausstempelung
       startGps: { lat: number; lng: number } | null;
       endGps: { lat: number; lng: number } | null;
+      startCustomer: string | null;
+      endCustomer: string | null;
     }
 
     const rows: DayRow[] = [];
@@ -172,6 +174,8 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
             ? { lat: first.clockInLat, lng: first.clockInLng } : null,
           endGps: !open && last?.clockOutLat != null && last?.clockOutLng != null
             ? { lat: last.clockOutLat, lng: last.clockOutLng } : null,
+          startCustomer: first?.clockInCustomerName ?? null,
+          endCustomer: (!open && last?.clockOutCustomerName) || null,
         });
       }
     }
@@ -325,10 +329,13 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
                               <a
                                 href={`https://www.openstreetmap.org/?mlat=${r.startGps.lat}&mlon=${r.startGps.lng}#map=17/${r.startGps.lat}/${r.startGps.lng}`}
                                 target="_blank" rel="noopener noreferrer"
-                                title="Einstempel-Position auf Karte anzeigen"
-                                className="text-accent-primary hover:text-accent-dark"
+                                title={r.startCustomer ? `Eingestempelt bei ${r.startCustomer} — auf Karte anzeigen` : 'Einstempel-Position auf Karte anzeigen'}
+                                className="inline-flex items-center gap-0.5 text-accent-primary hover:text-accent-dark"
                               >
                                 <MapPin size={13} />
+                                {r.startCustomer && (
+                                  <span className="text-xs truncate max-w-[8rem]">{r.startCustomer}</span>
+                                )}
                               </a>
                             )}
                           </span>
@@ -340,10 +347,13 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
                               <a
                                 href={`https://www.openstreetmap.org/?mlat=${r.endGps.lat}&mlon=${r.endGps.lng}#map=17/${r.endGps.lat}/${r.endGps.lng}`}
                                 target="_blank" rel="noopener noreferrer"
-                                title="Ausstempel-Position auf Karte anzeigen"
-                                className="text-accent-primary hover:text-accent-dark"
+                                title={r.endCustomer ? `Ausgestempelt bei ${r.endCustomer} — auf Karte anzeigen` : 'Ausstempel-Position auf Karte anzeigen'}
+                                className="inline-flex items-center gap-0.5 text-accent-primary hover:text-accent-dark"
                               >
                                 <MapPin size={13} />
+                                {r.endCustomer && (
+                                  <span className="text-xs truncate max-w-[8rem]">{r.endCustomer}</span>
+                                )}
                               </a>
                             )}
                           </span>

@@ -52,6 +52,8 @@ interface DayRow {
   // GPS-Stempelung (A6): Position der ersten Ein- / letzten Ausstempelung
   startGps: { lat: number; lng: number } | null;
   endGps: { lat: number; lng: number } | null;
+  startCustomer: string | null;
+  endCustomer: string | null;
 }
 
 // OpenStreetMap-Link fuer eine Stempel-Position
@@ -191,6 +193,8 @@ export const TeamAttendanceView = () => {
           ? { lat: sessions[0].clockInLat, lng: sessions[0].clockInLng } : null,
         endGps: !open && last.clockOutLat != null && last.clockOutLng != null
           ? { lat: last.clockOutLat, lng: last.clockOutLng } : null,
+        startCustomer: sessions[0].clockInCustomerName ?? null,
+        endCustomer: (!open && last.clockOutCustomerName) || null,
       });
     }
     return result.sort((a, b) => b.workDate.localeCompare(a.workDate) || a.userName.localeCompare(b.userName));
@@ -341,9 +345,12 @@ export const TeamAttendanceView = () => {
                         {fmtTime(r.firstStart)}
                         {r.startGps && (
                           <a href={osmLink(r.startGps)} target="_blank" rel="noopener noreferrer"
-                             title="Einstempel-Position auf Karte anzeigen"
-                             className="text-accent-primary hover:text-accent-dark">
+                             title={r.startCustomer ? `Eingestempelt bei ${r.startCustomer} — auf Karte anzeigen` : 'Einstempel-Position auf Karte anzeigen'}
+                             className="inline-flex items-center gap-0.5 text-accent-primary hover:text-accent-dark">
                             <MapPin size={13} />
+                            {r.startCustomer && (
+                              <span className="text-xs truncate max-w-[8rem]">{r.startCustomer}</span>
+                            )}
                           </a>
                         )}
                       </span>
@@ -353,9 +360,12 @@ export const TeamAttendanceView = () => {
                         {r.open ? <span className="text-green-600 dark:text-green-400 font-medium">läuft</span> : fmtTime(r.lastEnd)}
                         {r.endGps && (
                           <a href={osmLink(r.endGps)} target="_blank" rel="noopener noreferrer"
-                             title="Ausstempel-Position auf Karte anzeigen"
-                             className="text-accent-primary hover:text-accent-dark">
+                             title={r.endCustomer ? `Ausgestempelt bei ${r.endCustomer} — auf Karte anzeigen` : 'Ausstempel-Position auf Karte anzeigen'}
+                             className="inline-flex items-center gap-0.5 text-accent-primary hover:text-accent-dark">
                             <MapPin size={13} />
+                            {r.endCustomer && (
+                              <span className="text-xs truncate max-w-[8rem]">{r.endCustomer}</span>
+                            )}
                           </a>
                         )}
                       </span>

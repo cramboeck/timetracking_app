@@ -6,6 +6,7 @@ import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../middleware/organization';
 import { validate } from '../middleware/validation';
 import { auditLog } from '../services/auditLog';
+import { matchCustomerByPosition } from '../services/geocodingService';
 import { logger } from '../utils/logger';
 
 /**
@@ -45,7 +46,8 @@ const WORK_SESSION_COLUMNS = `
   id, user_id, organization_id, work_date, started_at, ended_at,
   break_seconds, break_started_at, note, created_at, updated_at,
   clock_in_lat, clock_in_lng, clock_in_accuracy,
-  clock_out_lat, clock_out_lng, clock_out_accuracy
+  clock_out_lat, clock_out_lng, clock_out_accuracy,
+  clock_in_customer_id, clock_out_customer_id
 `;
 
 // Org-Schalter: GPS-Koordinaten werden nur persistiert, wenn die
@@ -75,6 +77,10 @@ interface WorkSessionRow {
   clock_out_lat: string | null;
   clock_out_lng: string | null;
   clock_out_accuracy: number | null;
+  clock_in_customer_id: string | null;
+  clock_out_customer_id: string | null;
+  clock_in_customer_name?: string | null;
+  clock_out_customer_name?: string | null;
 }
 
 const toApi = (row: WorkSessionRow) => ({
@@ -92,6 +98,11 @@ const toApi = (row: WorkSessionRow) => ({
   clockOutLat: row.clock_out_lat !== null && row.clock_out_lat !== undefined ? Number(row.clock_out_lat) : null,
   clockOutLng: row.clock_out_lng !== null && row.clock_out_lng !== undefined ? Number(row.clock_out_lng) : null,
   clockOutAccuracy: row.clock_out_accuracy ?? null,
+  // GPS-Kunden-Zuordnung (Phase 2): beim Stempeln gematchter Kunde
+  clockInCustomerId: row.clock_in_customer_id ?? null,
+  clockInCustomerName: row.clock_in_customer_name ?? null,
+  clockOutCustomerId: row.clock_out_customer_id ?? null,
+  clockOutCustomerName: row.clock_out_customer_name ?? null,
 });
 
 async function getOpenSession(userId: string): Promise<WorkSessionRow | null> {
@@ -187,17 +198,23 @@ router.post('/clock-in', authenticateToken, attachOrganization, validate(clockIn
     // Autoritaet — Koordinaten von Clients ohne Freigabe werden verworfen)
     const gpsAllowed = gps ? await isGpsStampingEnabled(orgReq.organization?.id) : false;
 
+    // Phase 2: naechstgelegener Kunde im Umkreis (best effort, blockiert nie)
+    const matchedCustomerId = gpsAllowed && orgReq.organization?.id
+      ? await matchCustomerByPosition(orgReq.organization.id, { lat: gps!.lat, lng: gps!.lng }, gps!.accuracy).catch(() => null)
+      : null;
+
     const id = crypto.randomUUID();
     const result = await query(
       `INSERT INTO work_sessions (id, user_id, organization_id, work_date, started_at,
-                                  clock_in_lat, clock_in_lng, clock_in_accuracy)
-       VALUES ($1, $2, $3, CURRENT_DATE, NOW(), $4, $5, $6)
+                                  clock_in_lat, clock_in_lng, clock_in_accuracy, clock_in_customer_id)
+       VALUES ($1, $2, $3, CURRENT_DATE, NOW(), $4, $5, $6, $7)
        RETURNING ${WORK_SESSION_COLUMNS}`,
       [
         id, userId, orgReq.organization?.id || null,
         gpsAllowed ? gps!.lat : null,
         gpsAllowed ? gps!.lng : null,
         gpsAllowed ? Math.round(gps!.accuracy ?? 0) || null : null,
+        matchedCustomerId,
       ]
     );
 
@@ -230,6 +247,10 @@ router.post('/clock-out', authenticateToken, attachOrganization, validate(clockO
 
     const gpsAllowed = gps ? await isGpsStampingEnabled(orgReq.organization?.id) : false;
 
+    const matchedCustomerId = gpsAllowed && orgReq.organization?.id
+      ? await matchCustomerByPosition(orgReq.organization.id, { lat: gps!.lat, lng: gps!.lng }, gps!.accuracy).catch(() => null)
+      : null;
+
     const result = await query(
       `UPDATE work_sessions
        SET ended_at = NOW(),
@@ -239,6 +260,7 @@ router.post('/clock-out', authenticateToken, attachOrganization, validate(clockO
            clock_out_lat = $3,
            clock_out_lng = $4,
            clock_out_accuracy = $5,
+           clock_out_customer_id = $6,
            updated_at = NOW()
        WHERE id = $1
        RETURNING ${WORK_SESSION_COLUMNS}`,
@@ -247,6 +269,7 @@ router.post('/clock-out', authenticateToken, attachOrganization, validate(clockO
         gpsAllowed ? gps!.lat : null,
         gpsAllowed ? gps!.lng : null,
         gpsAllowed ? Math.round(gps!.accuracy ?? 0) || null : null,
+        matchedCustomerId,
       ]
     );
 
@@ -339,9 +362,17 @@ router.get('/', authenticateToken, validate(rangeSchema), async (req: AuthReques
     const to = (req.query.to as string) || new Date().toISOString().slice(0, 10);
 
     const result = await query(
-      `SELECT ${WORK_SESSION_COLUMNS} FROM work_sessions
-       WHERE user_id = $1 AND work_date BETWEEN $2 AND $3
-       ORDER BY started_at DESC`,
+      `SELECT ws.id, ws.user_id, ws.organization_id, ws.work_date, ws.started_at, ws.ended_at,
+              ws.break_seconds, ws.break_started_at, ws.note, ws.created_at, ws.updated_at,
+              ws.clock_in_lat, ws.clock_in_lng, ws.clock_in_accuracy,
+              ws.clock_out_lat, ws.clock_out_lng, ws.clock_out_accuracy,
+              ws.clock_in_customer_id, ws.clock_out_customer_id,
+              ci.name AS clock_in_customer_name, co.name AS clock_out_customer_name
+       FROM work_sessions ws
+       LEFT JOIN customers ci ON ci.id = ws.clock_in_customer_id
+       LEFT JOIN customers co ON co.id = ws.clock_out_customer_id
+       WHERE ws.user_id = $1 AND ws.work_date BETWEEN $2 AND $3
+       ORDER BY ws.started_at DESC`,
       [userId, from, to]
     );
 
@@ -623,9 +654,13 @@ router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin
               ws.break_seconds, ws.break_started_at, ws.note, ws.created_at, ws.updated_at,
               ws.clock_in_lat, ws.clock_in_lng, ws.clock_in_accuracy,
               ws.clock_out_lat, ws.clock_out_lng, ws.clock_out_accuracy,
+              ws.clock_in_customer_id, ws.clock_out_customer_id,
+              ci.name AS clock_in_customer_name, co.name AS clock_out_customer_name,
               COALESCE(u.display_name, u.username) AS user_name
        FROM work_sessions ws
        JOIN users u ON u.id = ws.user_id
+       LEFT JOIN customers ci ON ci.id = ws.clock_in_customer_id
+       LEFT JOIN customers co ON co.id = ws.clock_out_customer_id
        WHERE ws.organization_id = $1 AND ws.work_date BETWEEN $2 AND $3
        ORDER BY ws.work_date DESC, user_name ASC, ws.started_at ASC`,
       [organizationId, from, to]

@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
 import { logger } from '../utils/logger';
+import { geocodeCustomer } from '../services/geocodingService';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -123,6 +124,13 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const newCustomer = transformRow(customerResult.rows[0]);
 
+    // GPS-Kunden-Zuordnung (A6 Phase 2): Adresse geocodieren — best effort,
+    // blockiert das Anlegen nie
+    if (address) {
+      geocodeCustomer(id, address).catch(err =>
+        logger.error(`Geocoding beim Kunden-Anlegen fehlgeschlagen: ${err.message}`));
+    }
+
     auditLog.log({
       userId,
       action: 'customer.create',
@@ -184,6 +192,8 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.address !== undefined) {
       fields.push(`address = $${paramCount++}`);
       values.push(updates.address || null);
+      // Adressaenderung: alte Koordinaten verwerfen; neues Geocoding unten
+      fields.push(`latitude = NULL`, `longitude = NULL`, `geocoded_at = NULL`);
     }
     if (updates.reportTitle !== undefined) {
       fields.push(`report_title = $${paramCount++}`);
@@ -264,6 +274,12 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
 
     const updatedResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const updatedCustomer = transformRow(updatedResult.rows[0]);
+
+    // Adressaenderung: neu geocodieren (fire-and-forget)
+    if (updates.address !== undefined && updates.address) {
+      geocodeCustomer(id, updates.address).catch(err =>
+        logger.error(`Geocoding beim Kunden-Update fehlgeschlagen: ${err.message}`));
+    }
 
     auditLog.log({
       userId,
