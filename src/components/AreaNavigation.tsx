@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import {
   Clock, CalendarClock,
   Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
@@ -160,6 +161,13 @@ export const AreaNavigation = ({
   const currentAreaConfig = areaConfig[currentArea];
   const visibleSubViews = getVisibleSubViews(currentArea, role);
 
+  // Aktiven Tab in der (scrollbaren) SubView-Leiste sichtbar halten — sonst
+  // steht z.B. „Zeiten" halb abgeschnitten am rechten Rand (iPhone)
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [currentSubView, currentArea]);
+
   // Desktop: Show sidebar instead of mobile navigation
   if (isDesktop) {
     return (
@@ -188,22 +196,30 @@ export const AreaNavigation = ({
             <currentAreaConfig.icon size={20} className="text-accent-primary" />
           </div>
 
-          {/* Sub-View Tabs */}
+          {/* Sub-View Tabs — nur der aktive Tab trägt sein Label, inaktive
+              sind Icon-only: so passen auch 3+ Tabs neben Suche/Settings auf
+              schmale Screens, ohne dass Labels abgeschnitten werden */}
           <div className="flex gap-1 flex-1 overflow-x-auto scrollbar-hide">
-            {visibleSubViews.map(({ view, icon: Icon, label }) => (
-              <button
-                key={view}
-                onClick={() => onSubViewChange(view)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm whitespace-nowrap transition-all duration-200 ${
-                  currentSubView === view
-                    ? 'bg-accent-primary/20 text-accent-primary font-semibold shadow-sm'
-                    : 'text-gray-600 dark:text-dark-400 hover:bg-white/50 dark:hover:bg-dark-100/50 active:scale-95'
-                }`}
-              >
-                <Icon size={16} />
-                <span>{label}</span>
-              </button>
-            ))}
+            {visibleSubViews.map(({ view, icon: Icon, label }) => {
+              const isActive = currentSubView === view;
+              return (
+                <button
+                  key={view}
+                  ref={isActive ? activeTabRef : undefined}
+                  onClick={() => onSubViewChange(view)}
+                  aria-label={label}
+                  title={label}
+                  className={`flex items-center gap-1.5 py-1.5 rounded-xl text-sm whitespace-nowrap transition-all duration-200 ${
+                    isActive
+                      ? 'px-3 bg-accent-primary/20 text-accent-primary font-semibold shadow-sm'
+                      : 'px-2.5 text-gray-600 dark:text-dark-400 hover:bg-white/50 dark:hover:bg-dark-100/50 active:scale-95'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {isActive && <span>{label}</span>}
+                </button>
+              );
+            })}
           </div>
 
           {/* Suche-Button (öffnet Command Palette) */}

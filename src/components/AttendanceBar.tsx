@@ -318,11 +318,16 @@ export const AttendanceBar = () => {
       {coverage && coverage.attendanceSeconds > 0 && (() => {
         const pct = Math.min(100, Math.round((coverage.recordedSeconds / Math.max(1, coverage.attendanceSeconds)) * 100));
         const hasGap = coverage.unassignedSeconds > UNASSIGNED_TOLERANCE_SECONDS;
+        // Mehr Projektzeit erfasst als Anwesenheit da ist (z.B. Zeiten
+        // nachgetragen, ohne eingestempelt zu sein): eigener Zustand statt
+        // irreführendem „Alles zugeordnet"-Grün bei vollem Balken
+        const overbooked = !hasGap &&
+          coverage.recordedSeconds > coverage.attendanceSeconds + UNASSIGNED_TOLERANCE_SECONDS;
         return (
           <div className="border-t border-gray-100 dark:border-dark-border px-3 sm:px-4 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <div className="flex-1 min-w-[120px] h-2 bg-gray-100 dark:bg-dark-200 rounded overflow-hidden">
               <div
-                className={`h-full rounded ${hasGap ? 'bg-amber-400' : 'bg-green-500'}`}
+                className={`h-full rounded ${hasGap || overbooked ? 'bg-amber-400' : 'bg-green-500'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -332,6 +337,13 @@ export const AttendanceBar = () => {
             {hasGap ? (
               <span className="text-xs font-medium text-amber-600 dark:text-amber-400 tabular-nums">
                 {fmt(coverage.unassignedSeconds)} h nicht zugeordnet
+              </span>
+            ) : overbooked ? (
+              <span
+                className="text-xs font-medium text-amber-600 dark:text-amber-400 tabular-nums"
+                title="Es sind mehr Projekt-/interne Zeiten erfasst als Anwesenheit gestempelt ist — Stempelzeiten prüfen oder Einträge korrigieren."
+              >
+                {fmt(coverage.recordedSeconds - coverage.attendanceSeconds)} h mehr als Anwesenheit
               </span>
             ) : (
               <span className="text-xs font-medium text-green-600 dark:text-green-400">

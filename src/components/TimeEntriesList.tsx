@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar } from 'lucide-react';
+import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar, MoreVertical } from 'lucide-react';
 import { TimeEntry, TimeEntryUpdate, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration, toLocalDateString } from '../utils/time';
 import { Modal } from './Modal';
@@ -242,6 +242,9 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
   }, [entries]);
 
   // Confirm dialogs
+  // Mobile: Karten-Aktionen (Wiederholen/Bearbeiten/Löschen) hinter einem
+  // „…"-Menü — drei Icon-Buttons pro Zeile fraßen ein Drittel der Breite
+  const [actionMenuFor, setActionMenuFor] = useState<string | null>(null);
   const [repeatConfirm, setRepeatConfirm] = useState<{ isOpen: boolean; entry: TimeEntry | null }>({
     isOpen: false,
     entry: null
@@ -743,15 +746,64 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
     );
   }
 
+  // Mobile-Aktionsmenü pro Eintrag („…"): ersetzt die drei Icon-Buttons in
+  // der Kartenzeile, damit der Titel die volle Breite bekommt
+  const renderMobileActionMenu = (entry: TimeEntry, isRunning: boolean | undefined) => (
+    <div className="relative sm:hidden flex-shrink-0">
+      <IconButton
+        onClick={() => setActionMenuFor(actionMenuFor === entry.id ? null : entry.id)}
+        icon={<MoreVertical size={18} />}
+        variant="default"
+        size="sm"
+        aria-label="Aktionen"
+      />
+      {actionMenuFor === entry.id && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setActionMenuFor(null)} />
+          <div className="absolute right-0 top-8 z-30 w-44 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1">
+            {onRepeatEntry && !isRunning && (
+              <button
+                type="button"
+                onClick={() => { setActionMenuFor(null); setRepeatConfirm({ isOpen: true, entry }); }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 dark:text-dark-500 active:bg-gray-100 dark:active:bg-dark-200"
+              >
+                <RotateCcw size={16} className="text-accent-primary" /> Wiederholen
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setActionMenuFor(null); openEditModal(entry); }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 dark:text-dark-500 active:bg-gray-100 dark:active:bg-dark-200"
+            >
+              <Edit2 size={16} /> Bearbeiten
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActionMenuFor(null); handleDeleteClick(entry); }}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400 active:bg-red-50 dark:active:bg-red-900/20"
+            >
+              <Trash2 size={16} /> Löschen
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="sticky top-0 bg-white dark:bg-dark-50 border-b border-gray-200 dark:border-dark-border p-3 sm:p-6 pb-3 sm:pb-4 z-10">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 sm:mb-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold dark:text-white">Übersicht</h1>
-            <div className="text-base sm:text-lg font-semibold text-accent-primary">
-              Gesamt: {formatDuration(totalHours)}
+        {/* Mobile: eine kompakte Zeile (Gesamt + Aktionen) statt großer
+            „Übersicht"-Headline — die Liste soll ohne Scrollen sichtbar sein */}
+        <div className="flex flex-row justify-between items-center gap-2 mb-2 sm:mb-4 sm:items-start">
+          <div className="min-w-0">
+            <h1 className="hidden sm:block text-2xl font-bold dark:text-white">Übersicht</h1>
+            <div className="text-base sm:text-lg font-semibold text-accent-primary truncate">
+              {/* Mobil ohne Sekunden — sonst schneidet die Aktions-Leiste
+                  den Monats-Gesamtwert ab („11:30:…") */}
+              <span className="sm:hidden">Gesamt: {formatDuration(totalHours).replace(/:\d{2}$/, '')} h</span>
+              <span className="hidden sm:inline">Gesamt: {formatDuration(totalHours)}</span>
               {hasActiveFilters && (
                 <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
                   ({filteredEntries.length}/{pagination?.total ?? entries.length})
@@ -759,7 +811,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
               )}
             </div>
           </div>
-          <div className="flex gap-1.5 sm:gap-2">
+          <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
             {/* View Toggle */}
             <IconButton
               onClick={() => setCompactView(!compactView)}
@@ -787,9 +839,10 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
             </Button>
             <Button
               onClick={exportToCSV}
-              variant="success"
+              variant="secondary"
               size="md"
               icon={<Download size={18} />}
+              title="CSV Export"
             >
               <span className="hidden sm:inline">CSV Export</span>
             </Button>
@@ -798,7 +851,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
 
         {/* Month stepper — always-visible quick month navigation */}
         {monthStepper && (
-          <div className="flex justify-center sm:justify-start mb-3">
+          <div className="flex justify-center sm:justify-start mb-1 sm:mb-3">
             {monthStepper}
           </div>
         )}
@@ -1122,33 +1175,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                               </span>
                             )}
                             <div className="flex-1" />
-                            {!selectionMode && (
-                              <div className="flex gap-0.5 flex-shrink-0">
-                                {onRepeatEntry && !isRunning && (
-                                  <IconButton
-                                    onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                    icon={<RotateCcw size={14} />}
-                                    variant="primary"
-                                    size="sm"
-                                    tooltip="Wiederholen"
-                                  />
-                                )}
-                                <IconButton
-                                  onClick={() => openEditModal(entry)}
-                                  icon={<Edit2 size={14} />}
-                                  variant="default"
-                                  size="sm"
-                                  tooltip="Bearbeiten"
-                                />
-                                <IconButton
-                                  onClick={() => handleDeleteClick(entry)}
-                                  icon={<Trash2 size={14} />}
-                                  variant="danger"
-                                  size="sm"
-                                  tooltip="Löschen"
-                                />
-                              </div>
-                            )}
+                            {!selectionMode && renderMobileActionMenu(entry, isRunning)}
                           </div>
                           {/* Time and duration row */}
                           <div className={`flex items-center justify-between ${isRunning ? 'pl-7' : 'pl-5'}`}>
@@ -1375,34 +1402,37 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                           </div>
                         </div>
                         {!selectionMode && (
-                          <div className="flex gap-2">
-                            {onRepeatEntry && !isRunningNormal && (
+                          <>
+                            {renderMobileActionMenu(entry, isRunningNormal)}
+                            <div className="hidden sm:flex gap-2">
+                              {onRepeatEntry && !isRunningNormal && (
+                                <IconButton
+                                  onClick={() => setRepeatConfirm({ isOpen: true, entry })}
+                                  icon={<RotateCcw size={18} />}
+                                  variant="primary"
+                                  size="lg"
+                                  tooltip="Eintrag wiederholen"
+                                  aria-label="Wiederholen"
+                                />
+                              )}
                               <IconButton
-                                onClick={() => setRepeatConfirm({ isOpen: true, entry })}
-                                icon={<RotateCcw size={18} />}
-                                variant="primary"
+                                onClick={() => openEditModal(entry)}
+                                icon={<Edit2 size={18} />}
+                                variant="default"
                                 size="lg"
-                                tooltip="Eintrag wiederholen"
-                                aria-label="Wiederholen"
+                                tooltip="Bearbeiten"
+                                aria-label="Bearbeiten"
                               />
-                            )}
-                            <IconButton
-                              onClick={() => openEditModal(entry)}
-                              icon={<Edit2 size={18} />}
-                              variant="default"
-                              size="lg"
-                              tooltip="Bearbeiten"
-                              aria-label="Bearbeiten"
-                            />
-                            <IconButton
-                              onClick={() => handleDeleteClick(entry)}
-                              icon={<Trash2 size={18} />}
-                              variant="danger"
-                              size="lg"
-                              tooltip="Löschen"
-                              aria-label="Löschen"
-                            />
-                          </div>
+                              <IconButton
+                                onClick={() => handleDeleteClick(entry)}
+                                icon={<Trash2 size={18} />}
+                                variant="danger"
+                                size="lg"
+                                tooltip="Löschen"
+                                aria-label="Löschen"
+                              />
+                            </div>
+                          </>
                         )}
                       </div>
                       <div className="flex items-center justify-between text-sm text-gray-500 dark:text-dark-400">
