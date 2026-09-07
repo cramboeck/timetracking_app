@@ -577,6 +577,18 @@ export const sevdeskApi = {
     });
   },
 
+  // VK-Preis pro Einheit setzen (null = entfernen). Standardmäßig wird der
+  // Preis für Kunde+Produkt gemerkt und gilt für künftige Positionen.
+  updateLineItemResellPrice: async (lineItemId: string, resellPrice: number | null, remember = true): Promise<{
+    success: boolean;
+    data: { message: string };
+  }> => {
+    return authFetch(`/sevdesk/line-items/${lineItemId}/resell-price`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resellPrice, remember }),
+    });
+  },
+
   getInternalExpenses: async (months = 12): Promise<{ success: boolean; data: InternalExpenseSummary }> => {
     return authFetch(`/sevdesk/line-items/internal-summary?months=${months}`);
   },
@@ -1390,6 +1402,10 @@ export interface LineItemWithMatch {
   periodStart: string | null;
   periodEnd: string | null;
   productSku: string | null;
+  // VK-Preis pro Einheit (Position); Vorschlag = Kunde+Produkt-Gedächtnis.
+  // Effektiv gilt resellPrice ?? suggestedResellPrice (COALESCE serverseitig).
+  resellPrice: number | null;
+  suggestedResellPrice: number | null;
   createdAt: string;
 }
 
@@ -1486,6 +1502,10 @@ export interface CustomerLicenseProduct {
   contractNumber: string | null;
   totalQuantity: number;
   totalAmount: number;
+  // VK-Summe (nur Positionen mit hinterlegtem VK-Preis); null = keine
+  resellAmount: number | null;
+  // Positionen ohne VK-Preis → im Portal fehlen (Teil-)Beträge
+  missingResellCount: number;
   lineCount: number;
   firstSeen: string | null;
   lastSeen: string | null;

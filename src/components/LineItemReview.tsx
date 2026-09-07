@@ -71,6 +71,9 @@ export const LineItemReview = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [saveAsAlias, setSaveAsAlias] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  // VK-Eingaben als String (deutsche Dezimal-Eingabe „12,50"), gespeichert
+  // wird erst beim Verlassen des Felds bzw. Enter
+  const [vkDrafts, setVkDrafts] = useState<Record<string, string>>({});
 
   // Load line items from backend
   useEffect(() => {
@@ -140,6 +143,36 @@ export const LineItemReview = ({
       }
     } catch (err) {
       console.error('Status update failed:', err);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  // VK-Preis speichern (blur/Enter). Leeres Feld = Preis entfernen. Der Preis
+  // wird serverseitig für Kunde+Produkt gemerkt und gilt automatisch für
+  // künftige Positionen desselben Produkts.
+  const handleResellPriceSave = async (item: LineItemWithMatch) => {
+    const draft = vkDrafts[item.id];
+    if (draft === undefined) return; // nie angefasst
+
+    const trimmed = draft.trim();
+    const parsed = trimmed === '' ? null : parseFloat(trimmed.replace(',', '.'));
+    if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) return;
+    // unverändert? (Vergleich gegen den gespeicherten Positions-Wert)
+    if (parsed === item.resellPrice) return;
+
+    try {
+      setUpdating(item.id);
+      await sevdeskApi.updateLineItemResellPrice(item.id, parsed);
+      setVkDrafts(prev => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      await loadLineItems();
+      onUpdate?.();
+    } catch (err) {
+      console.error('Failed to update resell price:', err);
     } finally {
       setUpdating(null);
     }
@@ -389,6 +422,32 @@ export const LineItemReview = ({
                     {item.totalPrice !== null && (
                       <div className="font-medium text-gray-900 dark:text-white">
                         {formatAmount(item.totalPrice)} €
+                      </div>
+                    )}
+
+                    {/* VK-Preis pro Einheit — das Portal zeigt NUR diesen
+                        (EK bleibt intern). Wird für Kunde+Produkt gemerkt. */}
+                    <div
+                      className="flex items-center justify-end gap-1"
+                      title="Angebotener Verkaufspreis pro Einheit. Wird für diesen Kunden und dieses Produkt gemerkt und gilt automatisch für künftige Positionen. Nur dieser Preis erscheint im Kundenportal."
+                    >
+                      <span className="text-xs text-gray-500 dark:text-dark-400">VK</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={vkDrafts[item.id] ?? (item.resellPrice !== null ? String(item.resellPrice).replace('.', ',') : '')}
+                        onChange={(e) => setVkDrafts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                        onBlur={() => handleResellPriceSave(item)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        placeholder={item.suggestedResellPrice !== null ? formatAmount(item.suggestedResellPrice) : '—'}
+                        disabled={updating === item.id}
+                        className="w-20 text-xs text-right px-1.5 py-0.5 rounded border border-gray-200 dark:border-dark-300 bg-white dark:bg-dark-200 text-gray-700 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-accent-primary"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-dark-400">€</span>
+                    </div>
+                    {item.resellPrice === null && item.suggestedResellPrice !== null && (
+                      <div className="text-[10px] text-gray-400 dark:text-dark-400">
+                        VK aus Preisliste
                       </div>
                     )}
 

@@ -304,6 +304,20 @@ const ProductRow = ({ product, isExpanded, onToggle }: ProductRowProps) => {
           <div className="font-semibold text-gray-900 dark:text-white">
             {formatCurrency(product.totalAmount)}
           </div>
+          {/* VK-Sicht: Was der Kunde im Portal sieht. Fehlende VK-Preise
+              werden im LineItemReview des jeweiligen Belegs gepflegt. */}
+          {product.missingResellCount > 0 ? (
+            <div
+              className="text-xs text-amber-600 dark:text-amber-400"
+              title={`${product.missingResellCount} Position(en) ohne VK-Preis — im Portal fehlt der Betrag. VK im Beleg-Review pflegen.`}
+            >
+              VK fehlt ({product.missingResellCount})
+            </div>
+          ) : product.resellAmount !== null ? (
+            <div className="text-xs text-green-600 dark:text-green-400">
+              VK {formatCurrency(product.resellAmount)}
+            </div>
+          ) : null}
           <div className="text-xs text-gray-500 dark:text-dark-400">
             {formatDate(product.firstSeen)} - {formatDate(product.lastSeen)}
           </div>

@@ -17,6 +17,7 @@ import * as m015 from './015-legacy-cleanups';
 import * as m016 from './016-line-items-vuln';
 import * as m017 from './017-gps-stamping';
 import * as m018 from './018-gps-customer-matching';
+import * as m019 from './019-resell-prices';
 
 export interface Migration {
   name: string;
@@ -47,4 +48,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '016-line-items-vuln', run: m016.run },
   { name: '017-gps-stamping', run: m017.run },
   { name: '018-gps-customer-matching', run: m018.run },
+  { name: '019-resell-prices', run: m019.run },
 ];

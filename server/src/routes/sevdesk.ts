@@ -264,6 +264,14 @@ const updateLineItemSchema = z.object({
   matchMethod: z.string().max(50).nullable().optional(),
 });
 
+// VK-Preis pro Einheit (fester angebotener Preis, KEIN Prozentaufschlag).
+// null = Preis entfernen. remember (Default true) pflegt das Preis-Gedächtnis
+// pro Kunde+Produkt mit, damit künftige Positionen den Preis automatisch erben.
+const resellPriceSchema = z.object({
+  resellPrice: z.number().min(0).max(9999999).nullable(),
+  remember: z.boolean().optional(),
+});
+
 const createAliasSchema = z.object({
   alias: z.string().min(1).max(500),
   source: z.enum(['manual', 'invoice_assignment']).optional(),
@@ -2294,9 +2302,15 @@ router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, a
         li.extracted_customer_name, li.extracted_customer_domain, li.extracted_customer_number,
         li.customer_id, li.match_confidence, li.match_method, li.rebilling_status,
         li.period_start, li.period_end, li.product_sku, li.item_type, li.created_at,
+        li.resell_price,
+        cpp.resell_price AS suggested_resell_price,
         c.name as customer_name, c.customer_number as crm_customer_number
       FROM invoice_line_items li
       LEFT JOIN customers c ON c.id = li.customer_id
+      LEFT JOIN customer_product_prices cpp
+        ON cpp.organization_id = li.organization_id
+       AND cpp.customer_id = li.customer_id
+       AND cpp.product_key = COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description))
       WHERE li.organization_id = $1 AND li.processed_invoice_id = $2
       ORDER BY li.position_number
     `, [organizationId, invoiceId]);
@@ -2542,6 +2556,71 @@ router.patch('/line-items/:id/status', authenticateToken, requireBillingFeature,
   }
 });
 
+// PATCH /api/sevdesk/line-items/:id/resell-price - VK-Preis (pro Einheit) setzen.
+// remember (Default true) schreibt den Preis zusätzlich ins Kunde+Produkt-
+// Gedächtnis (customer_product_prices) — künftige Positionen desselben
+// Produkts erben ihn dann automatisch via COALESCE beim Lesen; null + remember
+// löscht den gemerkten Preis wieder.
+router.patch('/line-items/:id/resell-price', authenticateToken, requireBillingFeature, validate(resellPriceSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const { resellPrice, remember = true } = req.body as { resellPrice: number | null; remember?: boolean };
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const itemResult = await query(`
+      SELECT customer_id, COALESCE(NULLIF(product_sku, ''), LOWER(description)) AS product_key
+      FROM invoice_line_items
+      WHERE id = $1 AND organization_id = $2
+    `, [id, organizationId]);
+
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Position nicht gefunden' });
+    }
+    const item = itemResult.rows[0];
+
+    await query(`
+      UPDATE invoice_line_items
+      SET resell_price = $1, updated_at = NOW()
+      WHERE id = $2 AND organization_id = $3
+    `, [resellPrice, id, organizationId]);
+
+    let remembered = false;
+    if (remember && item.customer_id && item.product_key) {
+      if (resellPrice !== null) {
+        await query(`
+          INSERT INTO customer_product_prices (organization_id, customer_id, product_key, resell_price)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (organization_id, customer_id, product_key)
+          DO UPDATE SET resell_price = EXCLUDED.resell_price, updated_at = NOW()
+        `, [organizationId, item.customer_id, item.product_key, resellPrice]);
+        remembered = true;
+      } else {
+        await query(`
+          DELETE FROM customer_product_prices
+          WHERE organization_id = $1 AND customer_id = $2 AND product_key = $3
+        `, [organizationId, item.customer_id, item.product_key]);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        message: resellPrice !== null
+          ? 'VK-Preis gespeichert' + (remembered ? ' (gilt für künftige Positionen dieses Produkts)' : '')
+          : 'VK-Preis entfernt',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Update line item resell price error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/line-items/:invoiceId/stats - Get matching statistics for an invoice
 router.get('/line-items/:invoiceId/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
@@ -2687,6 +2766,9 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
         c.contract_number,
         SUM(li.quantity) AS total_quantity,
         SUM(li.total_price) AS total_amount,
+        SUM(CASE WHEN COALESCE(li.resell_price, cpp.resell_price) IS NOT NULL
+                 THEN COALESCE(li.quantity, 1) * COALESCE(li.resell_price, cpp.resell_price) END) AS resell_amount,
+        COUNT(*) FILTER (WHERE COALESCE(li.resell_price, cpp.resell_price) IS NULL) AS missing_resell_count,
         COUNT(DISTINCT li.id) AS line_count,
         MIN(pi.received_at) AS first_seen,
         MAX(pi.received_at) AS last_seen,
@@ -2694,6 +2776,10 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
       LEFT JOIN contracts c ON c.id = li.contract_id
+      LEFT JOIN customer_product_prices cpp
+        ON cpp.organization_id = li.organization_id
+       AND cpp.customer_id = li.customer_id
+       AND cpp.product_key = COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description))
       WHERE li.organization_id = $1
         AND li.customer_id = $2
         AND li.rebilling_status IN ('pending', 'billed', 'included')
@@ -2763,6 +2849,10 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
           contractNumber: row.contract_number,
           totalQuantity: parseInt(row.total_quantity) || 0,
           totalAmount: parseFloat(row.total_amount) || 0,
+          // VK-Sicht: Summe der Positionen mit hinterlegtem VK-Preis;
+          // missingResellCount > 0 = im Portal fehlen (Teil-)Beträge
+          resellAmount: row.resell_amount !== null ? parseFloat(row.resell_amount) : null,
+          missingResellCount: parseInt(row.missing_resell_count) || 0,
           lineCount: parseInt(row.line_count) || 0,
           firstSeen: row.first_seen,
           lastSeen: row.last_seen,

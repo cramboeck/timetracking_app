@@ -308,12 +308,10 @@ router.post('/login', authLimiter, async (req, res) => {
         canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
         canViewTimeReport: permissions?.can_view_time_report ?? false,
         canViewContract: permissions?.can_view_contract ?? false,
-        // HART deaktiviert (Entscheidung 6.9.2026): Die Lizenzansicht zeigte
-        // die EINKAUFSPREISE aus den Distributoren-Rechnungen. Bleibt aus,
-        // bis ein VK-Preiskonzept existiert (fester angebotener Preis pro
-        // Kunde/Produkt — kein Prozentsatz). Gespeicherte Berechtigungen
-        // bleiben erhalten, wirken aber nicht.
-        canViewLicenses: false,
+        // Reaktiviert mit dem VK-Preiskonzept: Die Lizenzansicht liefert
+        // ausschließlich VK-Preise (resell_price + Kunde/Produkt-Gedächtnis),
+        // EK-Beträge verlassen den Server nicht mehr (siehe GET /licenses).
+        canViewLicenses: permissions?.can_view_licenses ?? false,
       },
     });
   } catch (error) {
@@ -374,8 +372,8 @@ router.get('/me', authenticateCustomerToken, async (req: CustomerAuthRequest, re
       canViewQuotes: permissions?.can_view_quotes ?? contact.can_view_quotes ?? false,
       canViewTimeReport: permissions?.can_view_time_report ?? false,
       canViewContract: permissions?.can_view_contract ?? false,
-      // HART deaktiviert — siehe Kommentar im Login-Handler (EK-Preis-Leak)
-      canViewLicenses: false,
+      // Reaktiviert mit dem VK-Preiskonzept — siehe Login-Handler
+      canViewLicenses: permissions?.can_view_licenses ?? false,
     });
   } catch (error) {
     logger.error('Get contact error:', error);
@@ -3082,17 +3080,23 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
   try {
     const customerId = req.customerId;
 
-    // HART deaktiviert (6.9.2026): Die Betraege in invoice_line_items sind
-    // die EINKAUFSPREISE der Distributoren-Rechnungen — die duerfen Kunden
-    // niemals sehen. Reaktivierung erst mit VK-Preiskonzept (fester
-    // angebotener Preis pro Kunde/Produkt, kein Prozentsatz).
-    return res.status(403).json({ error: 'Die Lizenzübersicht ist vorübergehend deaktiviert.' });
-
-    // eslint-disable-next-line no-unreachable -- bewusst: Code bleibt fuer die Reaktivierung
     const permissions = await getContactPermissions(req.contactId!);
     if (!permissions?.can_view_licenses) {
       return res.status(403).json({ error: 'Not allowed to view licenses' });
     }
+
+    // ⚠️ EK-Preis-Schutz (Entscheidung 6.9.2026): total_price/unit_price sind
+    // die EINKAUFSPREISE der Distributoren-Rechnungen und dürfen NIEMALS ins
+    // Portal. Alle Beträge hier kommen ausschließlich aus dem VK-Preis:
+    // COALESCE(li.resell_price, customer_product_prices.resell_price) —
+    // fester angebotener Preis pro Einheit, gepflegt im LineItemReview.
+    // Positionen ohne VK-Preis liefern NULL → Portal zeigt „—".
+    const effectiveVk = `COALESCE(li.resell_price, cpp.resell_price)`;
+    const cppJoin = `
+      LEFT JOIN customer_product_prices cpp
+        ON cpp.organization_id = li.organization_id
+       AND cpp.customer_id = li.customer_id
+       AND cpp.product_key = COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description))`;
 
     // Get all line items assigned to this customer (billed and included)
     // grouped by product description, with contract info
@@ -3104,7 +3108,8 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         li.contract_id,
         c.name AS contract_name,
         SUM(li.quantity) AS total_quantity,
-        SUM(li.total_price) AS total_amount,
+        SUM(CASE WHEN ${effectiveVk} IS NOT NULL
+                 THEN COALESCE(li.quantity, 1) * ${effectiveVk} END) AS resell_amount,
         COUNT(DISTINCT li.id) AS line_count,
         MIN(pi.received_at) AS first_seen,
         MAX(pi.received_at) AS last_seen,
@@ -3113,20 +3118,23 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
       LEFT JOIN contracts c ON c.id = li.contract_id
+      ${cppJoin}
       WHERE li.customer_id = $1
         AND li.rebilling_status IN ('billed', 'included')
       GROUP BY li.description, li.product_sku, li.item_type, li.contract_id, c.name
       ORDER BY MAX(pi.received_at) DESC
     `, [customerId]);
 
-    // Get monthly totals for last 6 months
+    // Get monthly totals for last 6 months (VK only)
     const monthlyResult = await pool.query(`
       SELECT
         DATE_TRUNC('month', pi.received_at) AS month,
-        SUM(li.total_price) AS total_amount,
+        SUM(CASE WHEN ${effectiveVk} IS NOT NULL
+                 THEN COALESCE(li.quantity, 1) * ${effectiveVk} END) AS resell_amount,
         COUNT(DISTINCT li.id) AS item_count
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      ${cppJoin}
       WHERE li.customer_id = $1
         AND li.rebilling_status IN ('billed', 'included')
         AND pi.received_at >= NOW() - INTERVAL '6 months'
@@ -3134,18 +3142,33 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
       ORDER BY month DESC
     `, [customerId]);
 
-    // Summary stats
+    // Summary: „Monatliche Kosten" = jüngster Monat mit Belegen (VK),
+    // nicht die Alltime-Summe — die wäre für den Kunden irreführend.
     const summaryResult = await pool.query(`
       SELECT
         COUNT(DISTINCT li.description) AS unique_products,
-        SUM(CASE WHEN li.rebilling_status = 'billed' THEN li.total_price ELSE 0 END) AS billed_amount,
-        SUM(CASE WHEN li.rebilling_status = 'included' THEN li.total_price ELSE 0 END) AS included_amount
+        SUM(CASE WHEN li.rebilling_status = 'billed' AND ${effectiveVk} IS NOT NULL
+                 AND DATE_TRUNC('month', pi.received_at) = latest.month
+                 THEN COALESCE(li.quantity, 1) * ${effectiveVk} END) AS billed_amount,
+        SUM(CASE WHEN li.rebilling_status = 'included' AND ${effectiveVk} IS NOT NULL
+                 AND DATE_TRUNC('month', pi.received_at) = latest.month
+                 THEN COALESCE(li.quantity, 1) * ${effectiveVk} END) AS included_amount
       FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      ${cppJoin}
+      CROSS JOIN (
+        SELECT DATE_TRUNC('month', MAX(pi2.received_at)) AS month
+        FROM invoice_line_items li2
+        JOIN processed_invoices pi2 ON pi2.id = li2.processed_invoice_id
+        WHERE li2.customer_id = $1 AND li2.rebilling_status IN ('billed', 'included')
+      ) latest
       WHERE li.customer_id = $1
         AND li.rebilling_status IN ('billed', 'included')
     `, [customerId]);
 
     const summary = summaryResult.rows[0] || {};
+    const toAmount = (v: unknown): number | null =>
+      v === null || v === undefined ? null : parseFloat(String(v));
 
     res.json({
       success: true,
@@ -3158,8 +3181,8 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
           contractId: row.contract_id,
           contractName: row.contract_name,
           totalQuantity: parseInt(row.total_quantity) || 0,
-          // EK-Preis — wird NICHT mehr ausgeliefert (siehe 403 oben)
-          totalAmount: null,
+          // NUR VK — null, wenn (noch) kein Preis hinterlegt ist
+          totalAmount: toAmount(row.resell_amount),
           lineCount: parseInt(row.line_count) || 0,
           firstSeen: row.first_seen,
           lastSeen: row.last_seen,
@@ -3168,14 +3191,14 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
         })),
         monthlyBreakdown: monthlyResult.rows.map(row => ({
           month: row.month,
-          totalAmount: null, // EK — nicht ausliefern
+          totalAmount: toAmount(row.resell_amount),
           itemCount: parseInt(row.item_count) || 0,
         })),
         summary: {
           uniqueProducts: parseInt(summary.unique_products) || 0,
-          billedAmount: null, // EK — nicht ausliefern
-          includedAmount: null,
-          totalAmount: null,
+          billedAmount: toAmount(summary.billed_amount),
+          includedAmount: toAmount(summary.included_amount),
+          totalAmount: toAmount(summary.billed_amount),
         },
       },
     });
