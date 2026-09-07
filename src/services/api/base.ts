@@ -17,7 +17,19 @@ export const getAuthToken = (): string | null => {
 export const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'An error occurred' }));
-    throw new Error(error.error || `HTTP error! status: ${response.status}`);
+    // Zod-Validierungsfehler tragen die eigentliche Ursache in details[]
+    // ("Validation failed" allein hilft niemandem — z.B. im Offline-Banner)
+    let message = error.error || `HTTP error! status: ${response.status}`;
+    if (Array.isArray(error.details) && error.details.length > 0) {
+      const detailText = error.details
+        .slice(0, 3)
+        .map((d: { field?: string; message?: string }) =>
+          d.field ? `${d.field}: ${d.message}` : d.message)
+        .filter(Boolean)
+        .join('; ');
+      if (detailText) message = `${message} (${detailText})`;
+    }
+    throw new Error(message);
   }
   return response.json();
 };
