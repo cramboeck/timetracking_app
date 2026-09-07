@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2, AlertTriangle, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, Plus, Pencil, Trash2, X, MapPin } from 'lucide-react';
 import { workSessionsApi, organizationsApi, WorkSession, TeamCoverageRow } from '../services/api';
 import { Button } from './ui/Button';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -49,7 +49,14 @@ interface DayRow {
   breakSeconds: number;
   netSeconds: number;
   open: boolean; // noch eingestempelt
+  // GPS-Stempelung (A6): Position der ersten Ein- / letzten Ausstempelung
+  startGps: { lat: number; lng: number } | null;
+  endGps: { lat: number; lng: number } | null;
 }
+
+// OpenStreetMap-Link fuer eine Stempel-Position
+const osmLink = (gps: { lat: number; lng: number }) =>
+  `https://www.openstreetmap.org/?mlat=${gps.lat}&mlon=${gps.lng}#map=17/${gps.lat}/${gps.lng}`;
 
 const startOfWeek = (): string => {
   const d = new Date();
@@ -180,6 +187,10 @@ export const TeamAttendanceView = () => {
         breakSeconds: Math.round(breakSum),
         netSeconds: Math.round(net),
         open,
+        startGps: sessions[0].clockInLat != null && sessions[0].clockInLng != null
+          ? { lat: sessions[0].clockInLat, lng: sessions[0].clockInLng } : null,
+        endGps: !open && last.clockOutLat != null && last.clockOutLng != null
+          ? { lat: last.clockOutLat, lng: last.clockOutLng } : null,
       });
     }
     return result.sort((a, b) => b.workDate.localeCompare(a.workDate) || a.userName.localeCompare(b.userName));
@@ -325,9 +336,29 @@ export const TeamAttendanceView = () => {
                       {new Date(r.workDate + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                     </td>
                     <td className="px-3 py-2 text-gray-900 dark:text-white">{r.userName}</td>
-                    <td className="px-3 py-2 tabular-nums">{fmtTime(r.firstStart)}</td>
                     <td className="px-3 py-2 tabular-nums">
-                      {r.open ? <span className="text-green-600 dark:text-green-400 font-medium">läuft</span> : fmtTime(r.lastEnd)}
+                      <span className="inline-flex items-center gap-1">
+                        {fmtTime(r.firstStart)}
+                        {r.startGps && (
+                          <a href={osmLink(r.startGps)} target="_blank" rel="noopener noreferrer"
+                             title="Einstempel-Position auf Karte anzeigen"
+                             className="text-accent-primary hover:text-accent-dark">
+                            <MapPin size={13} />
+                          </a>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">
+                      <span className="inline-flex items-center gap-1">
+                        {r.open ? <span className="text-green-600 dark:text-green-400 font-medium">läuft</span> : fmtTime(r.lastEnd)}
+                        {r.endGps && (
+                          <a href={osmLink(r.endGps)} target="_blank" rel="noopener noreferrer"
+                             title="Ausstempel-Position auf Karte anzeigen"
+                             className="text-accent-primary hover:text-accent-dark">
+                            <MapPin size={13} />
+                          </a>
+                        )}
+                      </span>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{fmtHours(r.breakSeconds)}</td>
                     <td className={`px-3 py-2 text-right tabular-nums font-semibold ${

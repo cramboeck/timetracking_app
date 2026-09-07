@@ -23,15 +23,42 @@ const rangeSchema = z.object({
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+// GPS-Stempelung (A6): Position NUR im Stempel-Moment, optional —
+// Stempeln funktioniert immer auch ohne Koordinaten
+const gpsSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().int().min(0).max(1_000_000).optional(),
+}).optional();
+
+const clockInSchema = z.object({
+  gps: gpsSchema,
+});
+
 // <input type="date"> liefert YYYY-MM-DD (Regel 14!)
 const clockOutSchema = z.object({
   note: z.string().max(500).optional(),
+  gps: gpsSchema,
 });
 
 const WORK_SESSION_COLUMNS = `
   id, user_id, organization_id, work_date, started_at, ended_at,
-  break_seconds, break_started_at, note, created_at, updated_at
+  break_seconds, break_started_at, note, created_at, updated_at,
+  clock_in_lat, clock_in_lng, clock_in_accuracy,
+  clock_out_lat, clock_out_lng, clock_out_accuracy
 `;
+
+// Org-Schalter: GPS-Koordinaten werden nur persistiert, wenn die
+// Organisation das Feature explizit aktiviert hat (Default AUS —
+// DSGVO/Mitbestimmung; siehe Roadmap A6)
+async function isGpsStampingEnabled(organizationId: string | null | undefined): Promise<boolean> {
+  if (!organizationId) return false;
+  const result = await query(
+    `SELECT settings->>'gpsStamping' AS gps FROM organizations WHERE id = $1`,
+    [organizationId]
+  );
+  return result.rows[0]?.gps === 'true';
+}
 
 interface WorkSessionRow {
   id: string;
@@ -42,6 +69,12 @@ interface WorkSessionRow {
   break_seconds: number;
   break_started_at: Date | null;
   note: string | null;
+  clock_in_lat: string | null;
+  clock_in_lng: string | null;
+  clock_in_accuracy: number | null;
+  clock_out_lat: string | null;
+  clock_out_lng: string | null;
+  clock_out_accuracy: number | null;
 }
 
 const toApi = (row: WorkSessionRow) => ({
@@ -53,6 +86,12 @@ const toApi = (row: WorkSessionRow) => ({
   breakSeconds: row.break_seconds || 0,
   breakStartedAt: row.break_started_at ? (row.break_started_at.toISOString?.() ?? row.break_started_at) : null,
   note: row.note,
+  clockInLat: row.clock_in_lat !== null && row.clock_in_lat !== undefined ? Number(row.clock_in_lat) : null,
+  clockInLng: row.clock_in_lng !== null && row.clock_in_lng !== undefined ? Number(row.clock_in_lng) : null,
+  clockInAccuracy: row.clock_in_accuracy ?? null,
+  clockOutLat: row.clock_out_lat !== null && row.clock_out_lat !== undefined ? Number(row.clock_out_lat) : null,
+  clockOutLng: row.clock_out_lng !== null && row.clock_out_lng !== undefined ? Number(row.clock_out_lng) : null,
+  clockOutAccuracy: row.clock_out_accuracy ?? null,
 });
 
 async function getOpenSession(userId: string): Promise<WorkSessionRow | null> {
@@ -133,28 +172,39 @@ router.get('/coverage', authenticateToken, validate(rangeSchema), async (req: Au
 });
 
 // POST /api/work-sessions/clock-in — Einstempeln
-router.post('/clock-in', authenticateToken, attachOrganization, async (req: AuthRequest, res: Response) => {
+router.post('/clock-in', authenticateToken, attachOrganization, validate(clockInSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const orgReq = req as unknown as OrganizationRequest;
+    const { gps } = req.body as { gps?: { lat: number; lng: number; accuracy?: number } };
 
     const existing = await getOpenSession(userId);
     if (existing) {
       return res.status(409).json({ success: false, error: 'Es läuft bereits eine Arbeitszeit', data: toApi(existing) });
     }
 
+    // GPS nur mit aktivem Org-Schalter persistieren (Server ist die
+    // Autoritaet — Koordinaten von Clients ohne Freigabe werden verworfen)
+    const gpsAllowed = gps ? await isGpsStampingEnabled(orgReq.organization?.id) : false;
+
     const id = crypto.randomUUID();
     const result = await query(
-      `INSERT INTO work_sessions (id, user_id, organization_id, work_date, started_at)
-       VALUES ($1, $2, $3, CURRENT_DATE, NOW())
+      `INSERT INTO work_sessions (id, user_id, organization_id, work_date, started_at,
+                                  clock_in_lat, clock_in_lng, clock_in_accuracy)
+       VALUES ($1, $2, $3, CURRENT_DATE, NOW(), $4, $5, $6)
        RETURNING ${WORK_SESSION_COLUMNS}`,
-      [id, userId, orgReq.organization?.id || null]
+      [
+        id, userId, orgReq.organization?.id || null,
+        gpsAllowed ? gps!.lat : null,
+        gpsAllowed ? gps!.lng : null,
+        gpsAllowed ? Math.round(gps!.accuracy ?? 0) || null : null,
+      ]
     );
 
     await auditLog.log({
       userId,
       action: 'work_session.clock_in',
-      details: JSON.stringify({ sessionId: id }),
+      details: JSON.stringify({ sessionId: id, gps: gpsAllowed }),
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -167,15 +217,18 @@ router.post('/clock-in', authenticateToken, attachOrganization, async (req: Auth
 });
 
 // POST /api/work-sessions/clock-out — Ausstempeln (laufende Pause wird eingerechnet)
-router.post('/clock-out', authenticateToken, validate(clockOutSchema), async (req: AuthRequest, res: Response) => {
+router.post('/clock-out', authenticateToken, attachOrganization, validate(clockOutSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { note } = req.body;
+    const orgReq = req as unknown as OrganizationRequest;
+    const { note, gps } = req.body as { note?: string; gps?: { lat: number; lng: number; accuracy?: number } };
 
     const open = await getOpenSession(userId);
     if (!open) {
       return res.status(409).json({ success: false, error: 'Keine laufende Arbeitszeit' });
     }
+
+    const gpsAllowed = gps ? await isGpsStampingEnabled(orgReq.organization?.id) : false;
 
     const result = await query(
       `UPDATE work_sessions
@@ -183,16 +236,24 @@ router.post('/clock-out', authenticateToken, validate(clockOutSchema), async (re
            break_seconds = break_seconds + COALESCE(EXTRACT(EPOCH FROM (NOW() - break_started_at))::int, 0),
            break_started_at = NULL,
            note = COALESCE($2, note),
+           clock_out_lat = $3,
+           clock_out_lng = $4,
+           clock_out_accuracy = $5,
            updated_at = NOW()
        WHERE id = $1
        RETURNING ${WORK_SESSION_COLUMNS}`,
-      [open.id, note ?? null]
+      [
+        open.id, note ?? null,
+        gpsAllowed ? gps!.lat : null,
+        gpsAllowed ? gps!.lng : null,
+        gpsAllowed ? Math.round(gps!.accuracy ?? 0) || null : null,
+      ]
     );
 
     await auditLog.log({
       userId,
       action: 'work_session.clock_out',
-      details: JSON.stringify({ sessionId: open.id }),
+      details: JSON.stringify({ sessionId: open.id, gps: gpsAllowed }),
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
     });
@@ -560,6 +621,8 @@ router.get('/team', authenticateToken, attachOrganization, requireOrgRole('admin
     const result = await query(
       `SELECT ws.id, ws.user_id, ws.work_date, ws.started_at, ws.ended_at,
               ws.break_seconds, ws.break_started_at, ws.note, ws.created_at, ws.updated_at,
+              ws.clock_in_lat, ws.clock_in_lng, ws.clock_in_accuracy,
+              ws.clock_out_lat, ws.clock_out_lng, ws.clock_out_accuracy,
               COALESCE(u.display_name, u.username) AS user_name
        FROM work_sessions ws
        JOIN users u ON u.id = ws.user_id

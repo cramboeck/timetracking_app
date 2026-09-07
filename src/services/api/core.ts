@@ -620,6 +620,21 @@ export interface WorkSession {
   breakStartedAt: string | null;
   note: string | null;
   userName?: string;       // nur in der Team-Auswertung befüllt
+  // GPS-Stempelung (A6): nur befüllt, wenn die Org das Feature aktiviert
+  // hat UND der Browser die Position geliefert hat
+  clockInLat?: number | null;
+  clockInLng?: number | null;
+  clockInAccuracy?: number | null;
+  clockOutLat?: number | null;
+  clockOutLng?: number | null;
+  clockOutAccuracy?: number | null;
+}
+
+// Position im Stempel-Moment (Browser-Geolocation)
+export interface GpsStamp {
+  lat: number;
+  lng: number;
+  accuracy?: number;
 }
 
 // Team-Abdeckung & Verrechenbarkeit (Berichte → Arbeitszeit, Admin)
@@ -658,14 +673,17 @@ export const workSessionsApi = {
     return authFetch(`/work-sessions/coverage${qs ? `?${qs}` : ''}`);
   },
 
-  clockIn: async (): Promise<{ success: boolean; data: WorkSession }> => {
-    return authFetch('/work-sessions/clock-in', { method: 'POST' });
+  clockIn: async (gps?: GpsStamp): Promise<{ success: boolean; data: WorkSession }> => {
+    return authFetch('/work-sessions/clock-in', {
+      method: 'POST',
+      body: JSON.stringify(gps ? { gps } : {}),
+    });
   },
 
-  clockOut: async (note?: string): Promise<{ success: boolean; data: WorkSession }> => {
+  clockOut: async (note?: string, gps?: GpsStamp): Promise<{ success: boolean; data: WorkSession }> => {
     return authFetch('/work-sessions/clock-out', {
       method: 'POST',
-      body: JSON.stringify(note ? { note } : {}),
+      body: JSON.stringify({ ...(note ? { note } : {}), ...(gps ? { gps } : {}) }),
     });
   },
 

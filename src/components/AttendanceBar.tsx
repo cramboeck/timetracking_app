@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LogIn, LogOut, Coffee, Play, AlertTriangle, ChevronDown, History, ClipboardList, X } from 'lucide-react';
-import { workSessionsApi, entriesApi, WorkSession } from '../services/api';
+import { workSessionsApi, entriesApi, organizationsApi, WorkSession, GpsStamp } from '../services/api';
 import { useToast } from '../contexts/UIContext';
 
 // Toleranz für den Ausstempel-Abgleich: unter 15 Min. nicht zugeordneter
@@ -109,13 +109,41 @@ export const AttendanceBar = () => {
     queryClient.invalidateQueries({ queryKey: ['workSessions'] });
   };
 
+  // GPS-Stempelung (A6): Org-Schalter, Default AUS. Geteilter Query-Key mit
+  // TicketDetail — der Request faellt praktisch immer in den Cache.
+  const orgQuery = useQuery({
+    queryKey: ['org', 'current'],
+    queryFn: async () => (await organizationsApi.getCurrent()).data,
+    staleTime: 5 * 60_000,
+  });
+  const gpsEnabled = orgQuery.data?.settings?.gpsStamping === true;
+
+  // Position NUR im Stempel-Moment, mit hartem Timeout — Stempeln darf
+  // niemals an GPS haengen (verweigerte Berechtigung, Indoor, kein Signal)
+  const captureGps = (): Promise<GpsStamp | undefined> => {
+    if (!gpsEnabled || !('geolocation' in navigator)) return Promise.resolve(undefined);
+    return new Promise((resolve) => {
+      const done = (v?: GpsStamp) => { clearTimeout(guard); resolve(v); };
+      const guard = window.setTimeout(() => done(undefined), 6000);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => done({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy),
+        }),
+        () => done(undefined),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60_000 }
+      );
+    });
+  };
+
   const mutationOpts = (errorFallback: string) => ({
     onSuccess: invalidate,
     onError: (err: any) => showToast(err?.message || errorFallback, 'error'),
   });
 
-  const clockIn = useMutation({ mutationFn: () => workSessionsApi.clockIn(), ...mutationOpts('Einstempeln fehlgeschlagen') });
-  const clockOut = useMutation({ mutationFn: () => workSessionsApi.clockOut(), ...mutationOpts('Ausstempeln fehlgeschlagen') });
+  const clockIn = useMutation({ mutationFn: async () => workSessionsApi.clockIn(await captureGps()), ...mutationOpts('Einstempeln fehlgeschlagen') });
+  const clockOut = useMutation({ mutationFn: async () => workSessionsApi.clockOut(undefined, await captureGps()), ...mutationOpts('Ausstempeln fehlgeschlagen') });
 
   // Ausstempeln mit Abgleich: erst frische Abdeckung holen — liegt mehr als
   // die Toleranz an nicht zugeordneter Zeit vor, fragt ein Dialog nach,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, Loader2, AlertTriangle, Scale, Clock3, Palmtree, Thermometer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Loader2, AlertTriangle, Scale, Clock3, Palmtree, Thermometer , MapPin } from 'lucide-react';
 import { workSessionsApi, userApi, WorkSession } from '../services/api';
 import { TimeEntry } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -113,6 +113,9 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
       absence: string | null;
       open: boolean;
       target: number;
+      // GPS-Stempelung (A6): Position der ersten Ein- / letzten Ausstempelung
+      startGps: { lat: number; lng: number } | null;
+      endGps: { lat: number; lng: number } | null;
     }
 
     const rows: DayRow[] = [];
@@ -153,16 +156,22 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
       ist += netSum;
 
       if (sessions.length > 0 || absence || isWorkday) {
+        const first = sessions[0];
+        const last = sessions[sessions.length - 1];
         rows.push({
           date,
           weekday,
-          firstStart: sessions[0]?.startedAt ?? null,
-          lastEnd: open ? null : (sessions[sessions.length - 1]?.endedAt ?? null),
+          firstStart: first?.startedAt ?? null,
+          lastEnd: open ? null : (last?.endedAt ?? null),
           breakSum: Math.round(breakSum),
           netSum: Math.round(netSum),
           absence,
           open,
           target,
+          startGps: first?.clockInLat != null && first?.clockInLng != null
+            ? { lat: first.clockInLat, lng: first.clockInLng } : null,
+          endGps: !open && last?.clockOutLat != null && last?.clockOutLng != null
+            ? { lat: last.clockOutLat, lng: last.clockOutLng } : null,
         });
       }
     }
@@ -309,9 +318,35 @@ export const WorkTimeAccount = ({ entries }: WorkTimeAccountProps) => {
                       </td>
                     ) : (
                       <>
-                        <td className="px-3 py-2 tabular-nums text-gray-600 dark:text-dark-400">{fmtClock(r.firstStart)}</td>
                         <td className="px-3 py-2 tabular-nums text-gray-600 dark:text-dark-400">
-                          {r.open ? <span className="text-green-600 dark:text-green-400 font-medium">läuft</span> : fmtClock(r.lastEnd)}
+                          <span className="inline-flex items-center gap-1">
+                            {fmtClock(r.firstStart)}
+                            {r.startGps && (
+                              <a
+                                href={`https://www.openstreetmap.org/?mlat=${r.startGps.lat}&mlon=${r.startGps.lng}#map=17/${r.startGps.lat}/${r.startGps.lng}`}
+                                target="_blank" rel="noopener noreferrer"
+                                title="Einstempel-Position auf Karte anzeigen"
+                                className="text-accent-primary hover:text-accent-dark"
+                              >
+                                <MapPin size={13} />
+                              </a>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-gray-600 dark:text-dark-400">
+                          <span className="inline-flex items-center gap-1">
+                            {r.open ? <span className="text-green-600 dark:text-green-400 font-medium">läuft</span> : fmtClock(r.lastEnd)}
+                            {r.endGps && (
+                              <a
+                                href={`https://www.openstreetmap.org/?mlat=${r.endGps.lat}&mlon=${r.endGps.lng}#map=17/${r.endGps.lat}/${r.endGps.lng}`}
+                                target="_blank" rel="noopener noreferrer"
+                                title="Ausstempel-Position auf Karte anzeigen"
+                                className="text-accent-primary hover:text-accent-dark"
+                              >
+                                <MapPin size={13} />
+                              </a>
+                            )}
+                          </span>
                         </td>
                         <td className="px-3 py-2 tabular-nums text-right text-gray-600 dark:text-dark-400">
                           <span className="inline-flex items-center gap-1">

@@ -22,6 +22,7 @@ import { AppearanceSettings } from './settings/AppearanceSettings';
 import { NotificationSettings } from './settings/NotificationSettings';
 import { CompanySettings } from './settings/CompanySettings';
 import { TeamSettings } from './settings/TeamSettings';
+import { GpsStampingSettings } from './GpsStampingSettings';
 import { TeamProvider } from '../contexts/TeamContext';
 import StorageMonitor from './admin/StorageMonitor';
 import { useAuth } from '../contexts/AuthContext';
@@ -1929,9 +1930,14 @@ export const Settings = ({
         )}
 
         {activeTab === 'team' && (
-          <TeamProvider>
-            <TeamSettings />
-          </TeamProvider>
+          <div className="space-y-6">
+            <TeamProvider>
+              <TeamSettings />
+            </TeamProvider>
+            <div className="max-w-4xl mx-auto">
+              <GpsStampingSettings />
+            </div>
+          </div>
         )}
 
         {activeTab === 'tickets' && (

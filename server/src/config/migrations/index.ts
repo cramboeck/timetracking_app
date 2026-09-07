@@ -15,6 +15,7 @@ import * as m013 from './013-invoice-ssot';
 import * as m014 from './014-ticket-email-misc';
 import * as m015 from './015-legacy-cleanups';
 import * as m016 from './016-line-items-vuln';
+import * as m017 from './017-gps-stamping';
 
 export interface Migration {
   name: string;
@@ -43,4 +44,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '014-ticket-email-misc', run: m014.run },
   { name: '015-legacy-cleanups', run: m015.run },
   { name: '016-line-items-vuln', run: m016.run },
+  { name: '017-gps-stamping', run: m017.run },
 ];
