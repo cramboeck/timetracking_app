@@ -3208,4 +3208,198 @@ router.get('/licenses', authenticateCustomerToken, async (req: CustomerAuthReque
   }
 });
 
+// ========================================================================
+// Lizenz-Self-Service: Kunde fragt Lizenzänderungen an (Sprint J)
+// Workflow: pending → approved/rejected → completed. Provisionierung
+// passiert manuell beim Distributor — der Admin bestätigt hier nur.
+// ========================================================================
+
+const licenseRequestSchema = z.object({
+  requestType: z.enum(['increase', 'decrease', 'new', 'cancel']),
+  productDescription: z.string().min(1).max(500),
+  productSku: z.string().max(200).nullable().optional(),
+  currentQuantity: z.number().int().min(0).max(100000).nullable().optional(),
+  requestedQuantity: z.number().int().min(0).max(100000).nullable().optional(),
+  note: z.string().max(2000).optional(),
+});
+
+const LICENSE_REQUEST_COLUMNS = `
+  id, request_type, product_description, product_sku,
+  current_quantity, requested_quantity, note,
+  status, admin_note, created_at, decided_at
+`;
+
+// POST /license-requests — neue Anfrage aus dem Portal
+router.post('/license-requests', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_licenses) {
+      return res.status(403).json({ error: 'Not allowed to view licenses' });
+    }
+
+    const validation = licenseRequestSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: 'Ungültige Anfrage', details: validation.error.errors });
+    }
+    const data = validation.data;
+
+    // Neuanlage/Erhöhung ohne Zielmenge ergibt keinen bearbeitbaren Auftrag
+    if ((data.requestType === 'increase' || data.requestType === 'new') && !data.requestedQuantity) {
+      return res.status(400).json({ error: 'Bitte eine gewünschte Anzahl angeben.' });
+    }
+
+    const customerResult = await pool.query(
+      `SELECT c.name, c.organization_id FROM customers c WHERE c.id = $1`,
+      [req.customerId]
+    );
+    const organizationId = customerResult.rows[0]?.organization_id;
+    const customerName = customerResult.rows[0]?.name;
+    if (!organizationId) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Spam-Bremse: max. 20 offene Anfragen pro Kunde
+    const openCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM license_requests WHERE customer_id = $1 AND status = 'pending'`,
+      [req.customerId]
+    );
+    if (openCount.rows[0].cnt >= 20) {
+      return res.status(429).json({ error: 'Zu viele offene Anfragen — bitte warten Sie auf die Bearbeitung.' });
+    }
+
+    // Requester-Identität auflösen (beide Portal-Identitäten möglich)
+    const requesterResult = await pool.query(
+      `SELECT COALESCE(cc.first_name || ' ' || cc.last_name, cc.last_name, cpu.name) AS name,
+              COALESCE(cc.email, cpu.email) AS email
+       FROM (SELECT 1) x
+       LEFT JOIN customer_contacts cc ON cc.id = $1
+       LEFT JOIN customer_portal_users cpu ON cpu.id = $1`,
+      [req.contactId]
+    );
+    const requester = requesterResult.rows[0] || {};
+
+    const insertResult = await pool.query(
+      `INSERT INTO license_requests (
+         organization_id, customer_id, requested_by_id, requested_by_name, requested_by_email,
+         request_type, product_description, product_sku, current_quantity, requested_quantity, note
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING ${LICENSE_REQUEST_COLUMNS}`,
+      [
+        organizationId, req.customerId, req.contactId,
+        requester.name ?? null, requester.email ?? null,
+        data.requestType, data.productDescription, data.productSku ?? null,
+        data.currentQuantity ?? null, data.requestedQuantity ?? null, data.note ?? null,
+      ]
+    );
+    const request = insertResult.rows[0];
+
+    // Org-Admins benachrichtigen (E-Mail + Push, best effort)
+    notifyAdminsAboutLicenseRequest(organizationId, customerName, request, requester.name)
+      .catch(err => logger.error(`Lizenz-Anfrage-Benachrichtigung fehlgeschlagen: ${err.message}`));
+
+    res.status(201).json({ success: true, data: toLicenseRequestApi(request) });
+  } catch (error) {
+    logger.error('Create license request error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /license-requests — eigene Anfragen des Kunden (neueste zuerst)
+router.get('/license-requests', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const permissions = await getContactPermissions(req.contactId!);
+    if (!permissions?.can_view_licenses) {
+      return res.status(403).json({ error: 'Not allowed to view licenses' });
+    }
+
+    const result = await pool.query(
+      `SELECT ${LICENSE_REQUEST_COLUMNS} FROM license_requests
+       WHERE customer_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.customerId]
+    );
+    res.json({ success: true, data: result.rows.map(toLicenseRequestApi) });
+  } catch (error) {
+    logger.error('Get license requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+const LICENSE_REQUEST_TYPE_LABELS: Record<string, string> = {
+  increase: 'Lizenzen aufstocken',
+  decrease: 'Lizenzen reduzieren',
+  new: 'Neues Produkt',
+  cancel: 'Kündigung',
+};
+
+function toLicenseRequestApi(row: any) {
+  return {
+    id: row.id,
+    requestType: row.request_type,
+    productDescription: row.product_description,
+    productSku: row.product_sku,
+    currentQuantity: row.current_quantity !== null ? Number(row.current_quantity) : null,
+    requestedQuantity: row.requested_quantity !== null ? Number(row.requested_quantity) : null,
+    note: row.note,
+    status: row.status,
+    adminNote: row.admin_note,
+    createdAt: row.created_at,
+    decidedAt: row.decided_at,
+  };
+}
+
+async function notifyAdminsAboutLicenseRequest(
+  organizationId: string,
+  customerName: string,
+  request: any,
+  requesterName?: string | null
+) {
+  const admins = await pool.query(
+    `SELECT u.id, u.email, u.username
+     FROM organization_members om
+     JOIN users u ON u.id = om.user_id
+     WHERE om.organization_id = $1 AND om.role IN ('owner', 'admin')
+       AND u.email IS NOT NULL AND u.email <> ''`,
+    [organizationId]
+  );
+  if (admins.rows.length === 0) return;
+
+  const typeLabel = LICENSE_REQUEST_TYPE_LABELS[request.request_type] || request.request_type;
+  const qtyText = request.requested_quantity !== null
+    ? (request.current_quantity !== null
+        ? ` (${request.current_quantity} → ${request.requested_quantity})`
+        : ` (${request.requested_quantity}×)`)
+    : '';
+  const summary = `${customerName}: ${typeLabel} — ${request.product_description}${qtyText}`;
+  const baseUrl = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
+  const link = `${baseUrl}/crm/customers`;
+
+  for (const admin of admins.rows) {
+    const { sendPushToUser } = await import('../services/pushNotifications');
+    await sendPushToUser(admin.id, {
+      title: 'Lizenz-Anfrage',
+      body: summary,
+      tag: 'license-request',
+      data: { url: '/crm/customers', type: 'license_request' },
+    }).catch(() => { /* Push ist best effort */ });
+
+    await emailService.sendEmail({
+      to: admin.email,
+      subject: `RamboFlow: Lizenz-Anfrage von ${customerName}`,
+      html: `<p>Hallo ${admin.username},</p>
+        <p><strong>${customerName}</strong>${requesterName ? ` (${requesterName})` : ''} hat über das Kundenportal eine Lizenz-Anfrage gestellt:</p>
+        <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;">
+          <strong>${typeLabel}</strong><br/>
+          ${request.product_description}${qtyText}
+          ${request.note ? `<br/><em>„${request.note}"</em>` : ''}
+        </p>
+        <p><a href="${link}" style="display:inline-block;background-color:#F27024;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;">Im CRM prüfen (Kunde → Lizenzen)</a></p>`,
+      text: `Hallo ${admin.username},\n\n${customerName}${requesterName ? ` (${requesterName})` : ''} hat über das Kundenportal eine Lizenz-Anfrage gestellt:\n\n${typeLabel}\n${request.product_description}${qtyText}\n${request.note ? `\nNotiz: ${request.note}` : ''}\n\n${link}`,
+    }).catch(err => logger.error(`Lizenz-Anfrage-Mail an ${admin.email} fehlgeschlagen: ${err.message}`));
+  }
+
+  logger.info(`Lizenz-Anfrage: ${admins.rows.length} Admin(s) benachrichtigt (${summary})`);
+}
+
 export default router;

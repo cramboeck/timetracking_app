@@ -625,7 +625,43 @@ export const customerPortalApi = {
   getLicenses: async (): Promise<{ success: boolean; data: PortalLicenseData }> => {
     return portalAuthFetch('/customer-portal/licenses');
   },
+
+  // Lizenz-Self-Service (Sprint J): Anfrage stellen + eigene Anfragen sehen
+  createLicenseRequest: async (payload: {
+    requestType: LicenseRequestType;
+    productDescription: string;
+    productSku?: string | null;
+    currentQuantity?: number | null;
+    requestedQuantity?: number | null;
+    note?: string;
+  }): Promise<{ success: boolean; data: PortalLicenseRequest }> => {
+    return portalAuthFetch('/customer-portal/license-requests', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getLicenseRequests: async (): Promise<{ success: boolean; data: PortalLicenseRequest[] }> => {
+    return portalAuthFetch('/customer-portal/license-requests');
+  },
 };
+
+export type LicenseRequestType = 'increase' | 'decrease' | 'new' | 'cancel';
+export type LicenseRequestStatus = 'pending' | 'approved' | 'rejected' | 'completed';
+
+export interface PortalLicenseRequest {
+  id: string;
+  requestType: LicenseRequestType;
+  productDescription: string;
+  productSku: string | null;
+  currentQuantity: number | null;
+  requestedQuantity: number | null;
+  note: string | null;
+  status: LicenseRequestStatus;
+  adminNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
 
 // Push Notifications API
 export interface PushSubscription {

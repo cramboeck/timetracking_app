@@ -684,7 +684,44 @@ export const sevdeskApi = {
   }> => {
     return authFetch(`/sevdesk/customers/${customerId}/licenses`);
   },
+
+  // Lizenz-Anfragen aus dem Portal (Self-Service): Liste + Entscheidung
+  getCustomerLicenseRequests: async (customerId: string): Promise<{
+    success: boolean;
+    data: AdminLicenseRequest[];
+  }> => {
+    return authFetch(`/sevdesk/customers/${customerId}/license-requests`);
+  },
+
+  decideLicenseRequest: async (
+    requestId: string,
+    status: 'approved' | 'rejected' | 'completed',
+    adminNote?: string
+  ): Promise<{ success: boolean; data: { message: string } }> => {
+    return authFetch(`/sevdesk/license-requests/${requestId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, adminNote }),
+    });
+  },
 };
+
+export interface AdminLicenseRequest {
+  id: string;
+  customerId: string;
+  requestedByName: string | null;
+  requestedByEmail: string | null;
+  requestType: 'increase' | 'decrease' | 'new' | 'cancel';
+  productDescription: string;
+  productSku: string | null;
+  currentQuantity: number | null;
+  requestedQuantity: number | null;
+  note: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  adminNote: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
 
 // ============================================
 // Infinigate API (Distributor-Integration)

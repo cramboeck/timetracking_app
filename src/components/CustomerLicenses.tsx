@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
   Package, TrendingUp, Building2, Loader2,
-  AlertCircle, CheckCircle, Clock, DollarSign, FileText, HardDrive
+  AlertCircle, CheckCircle, Clock, DollarSign, FileText, HardDrive,
+  Inbox, XCircle
 } from 'lucide-react';
-import { sevdeskApi, CustomerLicenseData, CustomerLicenseProduct } from '../services/api';
+import { sevdeskApi, CustomerLicenseData, CustomerLicenseProduct, AdminLicenseRequest } from '../services/api';
+import { useToast } from '../contexts/UIContext';
 
 interface CustomerLicensesProps {
   customerId: string;
@@ -32,14 +34,28 @@ const formatMonth = (dateStr: string): string => {
   });
 };
 
+const REQUEST_TYPE_LABELS: Record<AdminLicenseRequest['requestType'], string> = {
+  increase: 'Aufstocken',
+  decrease: 'Reduzieren',
+  new: 'Neues Produkt',
+  cancel: 'Kündigung',
+};
+
 export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
   const [data, setData] = useState<CustomerLicenseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  // Portal-Anfragen (Self-Service): pending zuerst, Entscheidung inline
+  const [requests, setRequests] = useState<AdminLicenseRequest[]>([]);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [decisionNote, setDecisionNote] = useState('');
+  const [actingId, setActingId] = useState<string | null>(null);
+  const showToast = useToast();
 
   useEffect(() => {
     loadLicenses();
+    loadRequests();
   }, [customerId]);
 
   const loadLicenses = async () => {
@@ -58,6 +74,143 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
       setLoading(false);
     }
   };
+
+  const loadRequests = async () => {
+    try {
+      const response = await sevdeskApi.getCustomerLicenseRequests(customerId);
+      if (response.success) setRequests(response.data);
+    } catch {
+      // Anfragen sind Zusatz — Lizenz-Tab bleibt ohne sie nutzbar
+    }
+  };
+
+  const handleDecide = async (id: string, status: 'approved' | 'rejected' | 'completed', note?: string) => {
+    try {
+      setActingId(id);
+      const result = await sevdeskApi.decideLicenseRequest(id, status, note || undefined);
+      showToast(result.data.message, 'success');
+      setRejectingId(null);
+      setDecisionNote('');
+      await loadRequests();
+    } catch (err: any) {
+      showToast(err.message || 'Entscheidung fehlgeschlagen', 'error');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const pendingRequests = requests.filter(r => r.status === 'pending');
+
+  // Anfragen-Sektion — auch sichtbar, wenn der Kunde (noch) keine
+  // zugeordneten Positionen hat (Neuprodukt-Anfragen!)
+  const requestsSection = requests.length > 0 ? (
+    <div className="bg-white dark:bg-dark-200 rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-300/50">
+        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <Inbox size={18} />
+          Lizenz-Anfragen aus dem Portal ({requests.length})
+          {pendingRequests.length > 0 && (
+            <span className="text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
+              {pendingRequests.length} offen
+            </span>
+          )}
+        </h3>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-dark-border">
+        {requests.map((request) => (
+          <div key={request.id} className="px-4 py-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-gray-900 dark:text-white text-sm">
+                  {REQUEST_TYPE_LABELS[request.requestType]} — {request.productDescription}
+                  {request.requestedQuantity !== null && (
+                    <span className="text-gray-500 dark:text-dark-400 font-normal">
+                      {' '}({request.currentQuantity !== null
+                        ? `${request.currentQuantity} → ${request.requestedQuantity}`
+                        : `${request.requestedQuantity}×`})
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
+                  {request.requestedByName || request.requestedByEmail || 'Portal-Nutzer'}
+                  {' • '}{new Date(request.createdAt).toLocaleDateString('de-DE')}
+                  {request.note && <> • „{request.note}"</>}
+                </div>
+                {request.adminNote && request.status !== 'pending' && (
+                  <div className="text-xs text-gray-600 dark:text-dark-500 mt-1">
+                    Anmerkung: {request.adminNote}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {request.status === 'pending' ? (
+                  <>
+                    <button
+                      onClick={() => handleDecide(request.id, 'approved')}
+                      disabled={actingId === request.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
+                    >
+                      <CheckCircle size={14} /> Genehmigen
+                    </button>
+                    <button
+                      onClick={() => { setRejectingId(rejectingId === request.id ? null : request.id); setDecisionNote(''); }}
+                      disabled={actingId === request.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle size={14} /> Ablehnen
+                    </button>
+                  </>
+                ) : request.status === 'approved' ? (
+                  <>
+                    <span className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <CheckCircle size={12} /> Genehmigt
+                    </span>
+                    <button
+                      onClick={() => handleDecide(request.id, 'completed')}
+                      disabled={actingId === request.id}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-dark-300 text-gray-700 dark:text-dark-500 hover:bg-gray-200 dark:hover:bg-dark-400 transition-colors disabled:opacity-50"
+                      title="Provisionierung beim Distributor erledigt"
+                    >
+                      Als erledigt markieren
+                    </button>
+                  </>
+                ) : request.status === 'rejected' ? (
+                  <span className="text-xs font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
+                    <XCircle size={12} /> Abgelehnt
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <CheckCircle size={12} /> Umgesetzt
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Ablehnungs-Begründung (geht per Mail an den Anfragenden) */}
+            {rejectingId === request.id && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={decisionNote}
+                  onChange={(e) => setDecisionNote(e.target.value)}
+                  placeholder="Begründung (optional, geht an den Kunden)…"
+                  className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+                />
+                <button
+                  onClick={() => handleDecide(request.id, 'rejected', decisionNote)}
+                  disabled={actingId === request.id}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-50"
+                >
+                  Ablehnung senden
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   if (loading) {
     return (
@@ -79,12 +232,15 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
 
   if (!data || data.products.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500 dark:text-dark-400">
-        <Package size={48} className="mx-auto mb-3 opacity-50" />
-        <p className="text-lg font-medium">Keine Lizenzen/Produkte</p>
-        <p className="text-sm mt-1">
-          Diesem Kunden wurden noch keine Positionen aus Eingangsrechnungen zugeordnet.
-        </p>
+      <div className="space-y-6">
+        {requestsSection}
+        <div className="text-center py-12 text-gray-500 dark:text-dark-400">
+          <Package size={48} className="mx-auto mb-3 opacity-50" />
+          <p className="text-lg font-medium">Keine Lizenzen/Produkte</p>
+          <p className="text-sm mt-1">
+            Diesem Kunden wurden noch keine Positionen aus Eingangsrechnungen zugeordnet.
+          </p>
+        </div>
       </div>
     );
   }
@@ -93,6 +249,8 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
 
   return (
     <div className="space-y-6">
+      {requestsSection}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-dark-200 rounded-lg p-4 border border-gray-200 dark:border-dark-border">

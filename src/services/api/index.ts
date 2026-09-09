@@ -64,6 +64,9 @@ export type {
   DeviceSubscription,
   PortalLicenseData,
   PortalLicenseProduct,
+  PortalLicenseRequest,
+  LicenseRequestType,
+  LicenseRequestStatus,
 } from './portal';
 
 // Integrations API (sevDesk, NinjaRMM, Microsoft 365, Infinigate)
@@ -98,6 +101,7 @@ export type {
   PendingLineItem,
   CustomerLicenseData,
   CustomerLicenseProduct,
+  AdminLicenseRequest,
   CustomerLicenseMonthly,
   CustomerLicenseSummary,
   ExtractedInvoiceData,

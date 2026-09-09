@@ -15,6 +15,7 @@ import { triggerInvoiceMailboxProcessing } from '../jobs/invoiceInboxCron';
 import { runCustomerSyncForUser } from '../jobs/sevdeskCustomerSync';
 import { logger } from '../utils/logger';
 import { transformRows } from '../utils/dbTransform';
+import { emailService } from '../services/emailService';
 
 const router = express.Router();
 
@@ -2886,6 +2887,144 @@ router.get('/customers/:customerId/licenses', authenticateToken, requireBillingF
     });
   } catch (error: any) {
     logger.error('Get customer licenses error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========================================================================
+// Lizenz-Anfragen (Portal-Self-Service, Admin-Seite)
+// ========================================================================
+
+const decideLicenseRequestSchema = z.object({
+  status: z.enum(['approved', 'rejected', 'completed']),
+  adminNote: z.string().max(2000).optional(),
+});
+
+// Entscheidungen (genehmigen/ablehnen/erledigen) nur für Org-Admin/Owner —
+// requireBillingFeature ist ein Lizenz-Paket, keine Berechtigung (Paket S)
+async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1 FROM organization_members
+     WHERE user_id = $1 AND organization_id = $2 AND role IN ('admin', 'owner')`,
+    [userId, organizationId]
+  );
+  return result.rows.length > 0;
+}
+
+const LICENSE_REQUEST_TYPE_LABELS_ADMIN: Record<string, string> = {
+  increase: 'Lizenzen aufstocken',
+  decrease: 'Lizenzen reduzieren',
+  new: 'Neues Produkt',
+  cancel: 'Kündigung',
+};
+
+// GET /api/sevdesk/customers/:customerId/license-requests - Anfragen eines Kunden
+router.get('/customers/:customerId/license-requests', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { customerId } = req.params;
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(
+      `SELECT id, customer_id, requested_by_name, requested_by_email,
+              request_type, product_description, product_sku,
+              current_quantity, requested_quantity, note,
+              status, admin_note, decided_by, decided_at, created_at
+       FROM license_requests
+       WHERE organization_id = $1 AND customer_id = $2
+       ORDER BY (status = 'pending') DESC, created_at DESC
+       LIMIT 100`,
+      [organizationId, customerId]
+    );
+    res.json({ success: true, data: transformRows(result.rows) });
+  } catch (error: any) {
+    logger.error('Get license requests error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/sevdesk/license-requests/:id - Anfrage entscheiden (Admin/Owner).
+// approved/rejected setzen decided_by/decided_at und mailen den Anfragenden;
+// completed markiert eine genehmigte Anfrage als provisioniert.
+router.patch('/license-requests/:id', authenticateToken, requireBillingFeature, validate(decideLicenseRequestSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    const { id } = req.params;
+    const { status, adminNote } = req.body as { status: 'approved' | 'rejected' | 'completed'; adminNote?: string };
+
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+    if (!(await isOrgAdmin(userId, organizationId))) {
+      return res.status(403).json({ success: false, error: 'Nur Admins können Lizenz-Anfragen entscheiden' });
+    }
+
+    const existing = await query(
+      `SELECT id, status, request_type, product_description, product_sku,
+              current_quantity, requested_quantity, requested_by_name, requested_by_email,
+              (SELECT name FROM customers c WHERE c.id = license_requests.customer_id) AS customer_name
+       FROM license_requests
+       WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Anfrage nicht gefunden' });
+    }
+    const request = existing.rows[0];
+
+    // Zustandsmaschine: pending → approved/rejected; approved → completed.
+    // Alles andere wäre eine stille Umdeutung einer bereits kommunizierten
+    // Entscheidung.
+    const allowed =
+      (request.status === 'pending' && (status === 'approved' || status === 'rejected')) ||
+      (request.status === 'approved' && status === 'completed');
+    if (!allowed) {
+      return res.status(400).json({
+        success: false,
+        error: `Übergang ${request.status} → ${status} ist nicht möglich`,
+      });
+    }
+
+    const decisionFields = status === 'completed'
+      ? '' // decided_* bleibt die ursprüngliche Genehmigung
+      : ', decided_by = $4, decided_at = NOW()';
+    await query(
+      `UPDATE license_requests
+       SET status = $1, admin_note = COALESCE($2, admin_note), updated_at = NOW()${decisionFields}
+       WHERE id = $3`,
+      status === 'completed' ? [status, adminNote ?? null, id] : [status, adminNote ?? null, id, userId]
+    );
+
+    // Anfragenden per Mail informieren (best effort)
+    if (request.requested_by_email && status !== 'completed') {
+      const typeLabel = LICENSE_REQUEST_TYPE_LABELS_ADMIN[request.request_type] || request.request_type;
+      const qtyText = request.requested_quantity !== null
+        ? (request.current_quantity !== null
+            ? ` (${request.current_quantity} → ${request.requested_quantity})`
+            : ` (${request.requested_quantity}×)`)
+        : '';
+      const decision = status === 'approved' ? 'genehmigt' : 'abgelehnt';
+      emailService.sendEmail({
+        to: request.requested_by_email,
+        subject: `Ihre Lizenz-Anfrage wurde ${decision}`,
+        html: `<p>Guten Tag${request.requested_by_name ? ` ${request.requested_by_name}` : ''},</p>
+          <p>Ihre Anfrage <strong>${typeLabel} — ${request.product_description}${qtyText}</strong> wurde <strong>${decision}</strong>.</p>
+          ${adminNote ? `<p>Anmerkung: ${adminNote}</p>` : ''}
+          ${status === 'approved' ? '<p>Wir setzen die Änderung nun um und melden uns, sobald sie aktiv ist.</p>' : ''}
+          <p>Mit freundlichen Grüßen<br/>Ihr Support-Team</p>`,
+        text: `Guten Tag${request.requested_by_name ? ` ${request.requested_by_name}` : ''},\n\nIhre Anfrage "${typeLabel} — ${request.product_description}${qtyText}" wurde ${decision}.${adminNote ? `\nAnmerkung: ${adminNote}` : ''}${status === 'approved' ? '\n\nWir setzen die Änderung nun um und melden uns, sobald sie aktiv ist.' : ''}`,
+      }).catch(err => logger.error(`Lizenz-Entscheidungs-Mail fehlgeschlagen: ${err.message}`));
+    }
+
+    logger.info(`Lizenz-Anfrage ${id} (${request.customer_name}): ${request.status} → ${status} durch ${userId}`);
+    res.json({ success: true, data: { message: status === 'completed' ? 'Als erledigt markiert' : `Anfrage ${status === 'approved' ? 'genehmigt' : 'abgelehnt'}` } });
+  } catch (error: any) {
+    logger.error('Decide license request error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
