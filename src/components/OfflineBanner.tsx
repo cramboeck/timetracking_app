@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WifiOff, Wifi, Loader2, Check, AlertCircle, RefreshCw, ChevronDown, ChevronUp, Trash2, RotateCcw } from 'lucide-react';
-import { getFailedEntries, type PendingEntry } from '../utils/offlineStorage';
+import { getFailedComments, getFailedEntries, type PendingEntry, type PendingTicketComment } from '../utils/offlineStorage';
 
 interface OfflineBannerProps {
   isOnline: boolean;
@@ -11,10 +11,12 @@ interface OfflineBannerProps {
   syncError?: string | null;
   onRetryFailed?: (entryId: string) => void;
   onDiscardFailed?: (entryId: string) => void;
+  onRetryFailedComment?: (clientId: string) => void;
+  onDiscardFailedComment?: (clientId: string) => void;
   onRetryAll?: () => void;
 }
 
-export function OfflineBanner({ isOnline, wasOffline, pendingCount, failedCount, isSyncing, syncError, onRetryFailed, onDiscardFailed, onRetryAll }: OfflineBannerProps) {
+export function OfflineBanner({ isOnline, wasOffline, pendingCount, failedCount, isSyncing, syncError, onRetryFailed, onDiscardFailed, onRetryFailedComment, onDiscardFailedComment, onRetryAll }: OfflineBannerProps) {
   const [showFailedDetails, setShowFailedDetails] = useState(false);
 
   // Don't show anything if online, no pending entries, no failed, and wasn't recently offline
@@ -50,6 +52,7 @@ export function OfflineBanner({ isOnline, wasOffline, pendingCount, failedCount,
   // Failed entries banner with details
   if (failedCount > 0) {
     const failedEntries = showFailedDetails ? getFailedEntries() : [];
+    const failedComments = showFailedDetails ? getFailedComments() : [];
 
     return (
       <div className="bg-red-500 text-white text-sm font-medium">
@@ -66,8 +69,34 @@ export function OfflineBanner({ isOnline, wasOffline, pendingCount, failedCount,
           </button>
         </div>
 
-        {showFailedDetails && failedEntries.length > 0 && (
+        {showFailedDetails && (failedEntries.length > 0 || failedComments.length > 0) && (
           <div className="border-t border-red-400 px-4 py-2 space-y-2 max-h-48 overflow-y-auto">
+            {failedComments.map((pc: PendingTicketComment) => (
+              <div key={pc.clientId} className="flex items-center gap-2 text-xs bg-red-600/50 rounded px-2 py-1.5">
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">
+                    Kommentar zu {pc.ticketNumber || 'Ticket'}: „{pc.content.slice(0, 60)}{pc.content.length > 60 ? '…' : ''}"
+                  </div>
+                  <div className="text-red-200 truncate">{pc.lastError}</div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => onRetryFailedComment?.(pc.clientId)}
+                    className="hover:bg-red-700 rounded p-1 transition-colors"
+                    title="Erneut versuchen"
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                  <button
+                    onClick={() => onDiscardFailedComment?.(pc.clientId)}
+                    className="hover:bg-red-700 rounded p-1 transition-colors"
+                    title="Verwerfen"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
             {failedEntries.map((pe: PendingEntry) => (
               <div key={pe.entry.id} className="flex items-center gap-2 text-xs bg-red-600/50 rounded px-2 py-1.5">
                 <div className="flex-1 min-w-0">

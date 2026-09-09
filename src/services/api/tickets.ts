@@ -242,6 +242,7 @@ export const ticketsApi = {
       isInternal?: boolean;
       notifyCustomer?: boolean;  // Send email notification to customer
       replyViaEmail?: boolean;   // Reply in original email thread (for email-sourced tickets)
+      clientId?: string;         // Offline-Sync: idempotente Wiederholung (Server nutzt sie als Kommentar-ID)
     }
   ): Promise<{ success: boolean; data: TicketComment; emailReplySent?: boolean }> => {
     return authFetch(`/tickets/${ticketId}/comments`, {
@@ -251,6 +252,7 @@ export const ticketsApi = {
         isInternal: options?.isInternal,
         notifyCustomer: options?.notifyCustomer,
         replyViaEmail: options?.replyViaEmail,
+        clientId: options?.clientId,
       }),
     });
   },

@@ -102,6 +102,8 @@ function App() {
     syncPendingEntries,
     handleRetryFailedEntry,
     handleDiscardFailedEntry,
+    handleRetryFailedComment,
+    handleDiscardFailedComment,
   } = useOfflineEntrySync({ isOnline, wasOffline, setEntries });
 
   // Server-Sent Events for real-time updates (alerts, tickets, etc.)
@@ -1012,6 +1014,8 @@ function App() {
         syncError={syncError}
         onRetryFailed={handleRetryFailedEntry}
         onDiscardFailed={handleDiscardFailedEntry}
+        onRetryFailedComment={handleRetryFailedComment}
+        onDiscardFailedComment={handleDiscardFailedComment}
         onRetryAll={syncPendingEntries}
       />
 

@@ -4,6 +4,7 @@ import { Bot } from 'lucide-react';
 import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
 import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, OrganizationMember, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { addPendingComment, isRetryableError } from '../utils/offlineStorage';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TicketMergeDialog } from './TicketMergeDialog';
 import { useToast, useConfirm } from '../contexts/UIContext';
@@ -330,6 +331,10 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   };
 
   const addCommentMutation = useMutation({
+    // Offline sofort scheitern lassen statt TanStack-Pause (networkMode
+    // 'online' hielte den Promise offen — beim Reload wäre der Kommentar
+    // weg). Der Fehler landet im Catch von handleAddComment → Offline-Queue.
+    networkMode: 'always',
     mutationFn: (vars: { content: string; isInternal: boolean; notifyCustomer: boolean; replyViaEmail: boolean }) =>
       ticketsApi.addComment(ticketId, vars.content, {
         isInternal: vars.isInternal,
@@ -354,7 +359,29 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   });
 
   const handleAddComment = async (content: string, isInternal: boolean, notifyCustomer: boolean, replyViaEmail: boolean) => {
-    await addCommentMutation.mutateAsync({ content, isInternal, notifyCustomer, replyViaEmail });
+    try {
+      await addCommentMutation.mutateAsync({ content, isInternal, notifyCustomer, replyViaEmail });
+    } catch (error) {
+      // Offline / Server nicht erreichbar: Kommentar in die Offline-Queue —
+      // gleiche clientId-Idempotenz wie bei Zeiteinträgen. Bei permanenten
+      // Fehlern (4xx) bleibt der Text im Formular stehen.
+      if (isRetryableError(error)) {
+        addPendingComment({
+          clientId: crypto.randomUUID(),
+          ticketId,
+          ticketNumber: ticket?.ticketNumber,
+          content,
+          isInternal,
+          notifyCustomer,
+          replyViaEmail,
+        });
+        showToast('Keine Verbindung — der Kommentar wird automatisch gesendet, sobald du wieder online bist.', 'info', 6000);
+        return; // Formular darf leeren, der Kommentar ist gesichert
+      }
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      showToast(`Kommentar konnte nicht gespeichert werden: ${message}`, 'error');
+      throw error;
+    }
   };
 
   const deleteMutation = useMutation({

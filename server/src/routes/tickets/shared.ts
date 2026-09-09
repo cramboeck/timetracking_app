@@ -54,6 +54,9 @@ export const createCommentSchema = z.object({
   isInternal: z.boolean().optional(),
   notifyCustomer: z.boolean().optional(),
   replyViaEmail: z.boolean().optional(),
+  // Offline-Sync: client-generierte ID für idempotente Wiederholung —
+  // ein Retry nach Netzabriss legt den Kommentar nicht doppelt an
+  clientId: z.string().uuid().optional(),
 });
 
 export const createContactSchema = z.object({

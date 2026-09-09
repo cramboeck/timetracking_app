@@ -250,3 +250,127 @@ export function hasPendingEntries(): boolean {
 export function getMaxRetryCount(): number {
   return MAX_RETRY_COUNT;
 }
+
+// ─── Offline-Puffer für Ticket-Kommentare (Sprint I) ────────────────────────
+// Gleiche Mechanik wie bei Zeiteinträgen: localStorage-Queue mit Status/
+// Retry-Zähler, Idempotenz über die client-generierte clientId (wird
+// serverseitig als Kommentar-ID verwendet — ein Retry legt nie doppelt an).
+
+const PENDING_COMMENTS_KEY = 'pending_ticket_comments';
+
+export interface PendingTicketComment {
+  clientId: string;
+  ticketId: string;
+  /** Fürs Fehler-Banner: „Kommentar zu TKT-000123" statt roher UUID */
+  ticketNumber?: string;
+  content: string;
+  isInternal: boolean;
+  notifyCustomer: boolean;
+  replyViaEmail: boolean;
+  timestamp: string;
+  retryCount: number;
+  status: PendingEntryStatus;
+  lastError?: string;
+  lastAttempt?: string;
+}
+
+export function getPendingComments(): PendingTicketComment[] {
+  try {
+    const stored = localStorage.getItem(PENDING_COMMENTS_KEY);
+    return stored ? (JSON.parse(stored) as PendingTicketComment[]) : [];
+  } catch (error) {
+    console.error('❌ [OFFLINE] Failed to read pending comments:', error);
+    return [];
+  }
+}
+
+function savePendingComments(comments: PendingTicketComment[]): void {
+  localStorage.setItem(PENDING_COMMENTS_KEY, JSON.stringify(comments));
+}
+
+export function getRetryableComments(): PendingTicketComment[] {
+  return getPendingComments().filter(
+    c => c.status !== 'failed' && c.retryCount < MAX_RETRY_COUNT
+  );
+}
+
+export function getFailedComments(): PendingTicketComment[] {
+  return getPendingComments().filter(
+    c => c.status === 'failed' || c.retryCount >= MAX_RETRY_COUNT
+  );
+}
+
+export function addPendingComment(
+  comment: Omit<PendingTicketComment, 'timestamp' | 'retryCount' | 'status'>
+): void {
+  try {
+    const pending = getPendingComments();
+    pending.push({
+      ...comment,
+      timestamp: new Date().toISOString(),
+      retryCount: 0,
+      status: 'pending',
+    });
+    savePendingComments(pending);
+    console.log('📝 [OFFLINE] Queued ticket comment:', comment.clientId);
+    // Der Sync-Hook lebt in App.tsx — per Event über die neue Queue informieren
+    window.dispatchEvent(new Event('offline-queue-changed'));
+  } catch (error) {
+    console.error('❌ [OFFLINE] Failed to queue comment:', error);
+  }
+}
+
+export function removePendingComment(clientId: string): void {
+  try {
+    savePendingComments(getPendingComments().filter(c => c.clientId !== clientId));
+  } catch (error) {
+    console.error('❌ [OFFLINE] Failed to remove pending comment:', error);
+  }
+}
+
+export function markCommentFailed(clientId: string, error: string, permanent: boolean): void {
+  try {
+    const pending = getPendingComments();
+    const comment = pending.find(c => c.clientId === clientId);
+    if (comment) {
+      comment.retryCount++;
+      comment.lastError = error;
+      comment.lastAttempt = new Date().toISOString();
+      if (permanent || comment.retryCount >= MAX_RETRY_COUNT) {
+        comment.status = 'failed';
+      }
+      savePendingComments(pending);
+    }
+  } catch (err) {
+    console.error('❌ [OFFLINE] Failed to mark comment as failed:', err);
+  }
+}
+
+export function resetFailedComment(clientId: string): void {
+  try {
+    const pending = getPendingComments();
+    const comment = pending.find(c => c.clientId === clientId);
+    if (comment) {
+      comment.status = 'pending';
+      comment.retryCount = 0;
+      comment.lastError = undefined;
+      comment.lastAttempt = undefined;
+      savePendingComments(pending);
+    }
+  } catch (err) {
+    console.error('❌ [OFFLINE] Failed to reset comment:', err);
+  }
+}
+
+export function discardFailedComment(clientId: string): void {
+  removePendingComment(clientId);
+  console.log('🗑️ [OFFLINE] Discarded failed comment:', clientId);
+}
+
+export function getPendingCommentCount(): number {
+  return getPendingComments().filter(c => c.status !== 'failed').length;
+}
+
+export function getFailedCommentCount(): number {
+  return getFailedComments().length;
+}

@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { TimeEntry } from '../types';
-import { entriesApi } from '../services/api';
+import { entriesApi, ticketsApi } from '../services/api';
+import { queryClient } from '../lib/queryClient';
 import {
+  discardFailedComment,
   discardFailedEntry,
+  getFailedCommentCount,
   getFailedCount,
+  getPendingCommentCount,
   getPendingCount,
+  getRetryableComments,
   getRetryableEntries,
   isRetryableError,
+  markCommentFailed,
   markEntryFailed,
+  removePendingComment,
   removePendingEntry,
+  resetFailedComment,
   resetFailedEntry,
 } from '../utils/offlineStorage';
 
@@ -31,6 +39,8 @@ interface UseOfflineEntrySyncReturn {
   syncPendingEntries: () => Promise<void>;
   handleRetryFailedEntry: (entryId: string) => void;
   handleDiscardFailedEntry: (entryId: string) => void;
+  handleRetryFailedComment: (clientId: string) => void;
+  handleDiscardFailedComment: (clientId: string) => void;
 }
 
 /**
@@ -52,13 +62,15 @@ export function useOfflineEntrySync({
 }: UseOfflineEntrySyncArgs): UseOfflineEntrySyncReturn {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [pendingCount, setPendingCount] = useState(() => getPendingCount());
-  const [failedCount, setFailedCount] = useState(() => getFailedCount());
+  // Zähler decken Zeiteinträge UND Ticket-Kommentare ab (eine Offline-Queue
+  // aus Nutzersicht — die Banner-Texte bleiben generisch „Einträge")
+  const [pendingCount, setPendingCount] = useState(() => getPendingCount() + getPendingCommentCount());
+  const [failedCount, setFailedCount] = useState(() => getFailedCount() + getFailedCommentCount());
   const syncMutexRef = useRef(false);
 
   const refreshCounts = useCallback(() => {
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
+    setPendingCount(getPendingCount() + getPendingCommentCount());
+    setFailedCount(getFailedCount() + getFailedCommentCount());
   }, []);
 
   const syncPendingEntries = useCallback(async () => {
@@ -68,10 +80,11 @@ export function useOfflineEntrySync({
     }
 
     const pending = getRetryableEntries();
-    if (pending.length === 0) return;
+    const pendingComments = getRetryableComments();
+    if (pending.length === 0 && pendingComments.length === 0) return;
 
     syncMutexRef.current = true;
-    console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries');
+    console.log('🔄 [SYNC] Starting sync of', pending.length, 'pending entries +', pendingComments.length, 'comments');
     setIsSyncing(true);
     setSyncError(null);
 
@@ -112,8 +125,33 @@ export function useOfflineEntrySync({
       }
     }
 
-    setPendingCount(getPendingCount());
-    setFailedCount(getFailedCount());
+    // Ticket-Kommentare nachschieben — clientId macht den Retry idempotent
+    // (Server nutzt sie als Kommentar-ID und liefert Bestehendes zurück)
+    for (const comment of pendingComments) {
+      try {
+        await ticketsApi.addComment(comment.ticketId, comment.content, {
+          isInternal: comment.isInternal,
+          notifyCustomer: comment.notifyCustomer,
+          replyViaEmail: comment.replyViaEmail,
+          clientId: comment.clientId,
+        });
+        removePendingComment(comment.clientId);
+        // Offenes Ticket-Detail zeigt den Kommentar beim nächsten Fokus
+        queryClient.invalidateQueries({ queryKey: ['ticket', comment.ticketId] });
+        successCount++;
+        console.log('✅ [SYNC] Synced ticket comment:', comment.clientId);
+      } catch (error) {
+        const retryable = isRetryableError(error);
+        const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+        markCommentFailed(comment.clientId, errorMessage, !retryable);
+        console.error('❌ [SYNC] Failed to sync comment:', comment.clientId, retryable ? '(will retry)' : '(permanent)', error);
+        failCount++;
+        if (!retryable) permanentFailCount++;
+      }
+    }
+
+    setPendingCount(getPendingCount() + getPendingCommentCount());
+    setFailedCount(getFailedCount() + getFailedCommentCount());
     setIsSyncing(false);
     syncMutexRef.current = false;
 
@@ -135,20 +173,32 @@ export function useOfflineEntrySync({
     }
   }, [isOnline, wasOffline, syncPendingEntries]);
 
-  // Periodic sync retry every 30 seconds while there are retryable pending entries
+  // Periodic sync retry every 30 seconds while there are retryable pending items
   useEffect(() => {
     if (!isOnline) return;
 
     const interval = setInterval(() => {
-      const retryable = getRetryableEntries();
-      if (retryable.length > 0) {
-        console.log('🔄 [SYNC] Periodic retry: found', retryable.length, 'retryable entries');
+      const retryable = getRetryableEntries().length + getRetryableComments().length;
+      if (retryable > 0) {
+        console.log('🔄 [SYNC] Periodic retry: found', retryable, 'retryable items');
         syncPendingEntries();
       }
     }, 30000);
 
     return () => clearInterval(interval);
   }, [isOnline, syncPendingEntries]);
+
+  // Andere Komponenten (z.B. TicketDetail) queuen direkt in offlineStorage —
+  // das Event hält Banner-Zähler aktuell und stößt sofort einen Sync-Versuch
+  // an (der Server kann trotz „online" gerade eben erreichbar geworden sein)
+  useEffect(() => {
+    const onQueueChanged = () => {
+      refreshCounts();
+      if (isOnline) syncPendingEntries();
+    };
+    window.addEventListener('offline-queue-changed', onQueueChanged);
+    return () => window.removeEventListener('offline-queue-changed', onQueueChanged);
+  }, [isOnline, refreshCounts, syncPendingEntries]);
 
   const handleRetryFailedEntry = useCallback((entryId: string) => {
     resetFailedEntry(entryId);
@@ -162,6 +212,17 @@ export function useOfflineEntrySync({
     refreshCounts();
   }, [setEntries, refreshCounts]);
 
+  const handleRetryFailedComment = useCallback((clientId: string) => {
+    resetFailedComment(clientId);
+    refreshCounts();
+    syncPendingEntries();
+  }, [syncPendingEntries, refreshCounts]);
+
+  const handleDiscardFailedComment = useCallback((clientId: string) => {
+    discardFailedComment(clientId);
+    refreshCounts();
+  }, [refreshCounts]);
+
   return {
     isSyncing,
     syncError,
@@ -171,5 +232,7 @@ export function useOfflineEntrySync({
     syncPendingEntries,
     handleRetryFailedEntry,
     handleDiscardFailedEntry,
+    handleRetryFailedComment,
+    handleDiscardFailedComment,
   };
 }

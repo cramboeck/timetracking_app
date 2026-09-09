@@ -40,7 +40,8 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       content,
       isInternal = false,
       notifyCustomer = true,  // Default: send email notification
-      replyViaEmail = false   // If true, reply in original email thread
+      replyViaEmail = false,  // If true, reply in original email thread
+      clientId                // Offline-Sync: idempotente Wiederholung
     } = req.body;
 
     if (!content) {
@@ -57,7 +58,22 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    const commentId = crypto.randomUUID();
+    // Idempotenz: Kommentar mit dieser clientId existiert schon (Retry nach
+    // Netzabriss, bei dem die Antwort verloren ging) → zurückgeben statt
+    // doppelt anlegen — und KEINE Benachrichtigungen erneut versenden
+    if (clientId) {
+      const existing = await query(`
+        SELECT tc.*, COALESCE(u.display_name, u.username) as author_name
+        FROM ticket_comments tc
+        LEFT JOIN users u ON tc.user_id = u.id
+        WHERE tc.id = $1 AND tc.ticket_id = $2
+      `, [clientId, ticketId]);
+      if (existing.rows.length > 0) {
+        return res.status(200).json({ success: true, data: transformComment(existing.rows[0]) });
+      }
+    }
+
+    const commentId = clientId || crypto.randomUUID();
     // undefined = kein Mail-Versand angefordert; true/false = Graph-Reply-Ergebnis
     let emailReplySent: boolean | undefined;
 
