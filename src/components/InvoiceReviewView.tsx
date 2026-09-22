@@ -623,7 +623,7 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
                                     </span>
                                     <button
                                       onClick={() => setEditingLineItem(itemId)}
-                                      className="text-xs text-gray-400 hover:text-gray-600"
+                                      className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-white"
                                     >
                                       ändern
                                     </button>
@@ -640,7 +640,7 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Kunde suchen..."
-                                        className="w-full pl-8 pr-3 py-1.5 text-xs rounded border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-100"
+                                        className="w-full pl-8 pr-3 py-1.5 text-xs rounded border border-gray-300 dark:border-dark-300 bg-white dark:bg-dark-100 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400"
                                       />
                                     </div>
                                     <div className="max-h-24 overflow-y-auto border border-gray-200 dark:border-dark-300 rounded bg-white dark:bg-dark-100">
@@ -649,13 +649,18 @@ export const InvoiceReviewView = ({ invoice, onClose, onApproved }: InvoiceRevie
                                           key={customer.id}
                                           onClick={() => handleAssignCustomer(itemId, customer.id)}
                                           disabled={updatingLineItem === itemId}
-                                          className="w-full px-2 py-1 text-left text-xs hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-50"
+                                          className="w-full px-2 py-1 text-left text-xs text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-200 disabled:opacity-50"
                                         >
                                           {customer.name}
                                         </button>
                                       ))}
+                                      {filteredCustomers.length === 0 && (
+                                        <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-dark-400">
+                                          Keine Kunden gefunden
+                                        </div>
+                                      )}
                                     </div>
-                                    <label className="flex items-center gap-1 text-xs text-gray-500">
+                                    <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-400">
                                       <input
                                         type="checkbox"
                                         checked={saveAsAlias}

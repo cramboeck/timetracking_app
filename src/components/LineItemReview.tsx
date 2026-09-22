@@ -374,7 +374,7 @@ export const LineItemReview = ({
                               key={customer.id}
                               onClick={() => handleAssignCustomer(item.id, customer.id)}
                               disabled={updating === item.id}
-                              className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-200 flex items-center justify-between disabled:opacity-50"
+                              className="w-full px-3 py-1.5 text-left text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-dark-200 flex items-center justify-between disabled:opacity-50"
                             >
                               <span className="truncate">{customer.name}</span>
                               {customer.customerNumber && (
