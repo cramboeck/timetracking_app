@@ -103,6 +103,7 @@ export type {
   CustomerLicenseProduct,
   AdminLicenseRequest,
   LicenseExpiryItem,
+  LineItemIdentifier,
   CustomerLicenseMonthly,
   CustomerLicenseSummary,
   ExtractedInvoiceData,

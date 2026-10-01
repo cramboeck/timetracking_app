@@ -11,6 +11,7 @@ import { useConfirm } from '../contexts/UIContext';
 import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
 import { LineItemReview } from './LineItemReview';
 import { InvoiceReviewView } from './InvoiceReviewView';
+import { IdentifierAssignment } from './IdentifierAssignment';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -698,6 +699,10 @@ export const InvoiceInbox = () => {
           />
         </div>
       </div>
+
+      {/* Sammel-Zuordnung offener Endkunden-Identifier aus Distributor-Belegen
+          (rendert sich nur, wenn welche existieren) */}
+      <IdentifierAssignment onAssigned={loadProcessedInvoices} />
 
       {/* Fälligkeits-Radar: nur zeigen, wenn etwas ansteht. Bezahlte Belege
           (sevDesk-Zahlstatus-Sync) sind bereits herausgefiltert. */}

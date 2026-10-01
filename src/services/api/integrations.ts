@@ -711,7 +711,35 @@ export const sevdeskApi = {
   getLicenseExpiry: async (days = 60): Promise<{ success: boolean; data: LicenseExpiryItem[] }> => {
     return authFetch(`/sevdesk/license-expiry?days=${days}`);
   },
+
+  // Offene Endkunden-Identifier (Distributor-Belege) org-weit gruppiert
+  getLineItemIdentifiers: async (): Promise<{ success: boolean; data: LineItemIdentifier[] }> => {
+    return authFetch('/sevdesk/line-items/identifiers');
+  },
+
+  // Sammel-Zuordnung: alle offenen Positionen eines Identifiers → Kunde
+  // (inkl. Alias + primary_domain) oder als intern markieren
+  assignIdentifier: async (input: {
+    identifier: string;
+    customerId?: string;
+    markInternal?: boolean;
+    saveAlias?: boolean;
+  }): Promise<{ success: boolean; data: { updated: number; aliasSaved?: boolean; domainSet?: boolean; internal?: boolean; customerName?: string } }> => {
+    return authFetch('/sevdesk/line-items/assign-identifier', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
 };
+
+export interface LineItemIdentifier {
+  identifier: string;
+  domain: string | null;
+  itemCount: number;
+  invoiceCount: number;
+  sampleDescription: string | null;
+  latestPeriodEnd: string | null;
+}
 
 export interface LicenseExpiryItem {
   customerId: string;

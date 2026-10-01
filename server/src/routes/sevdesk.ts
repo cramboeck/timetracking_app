@@ -1504,6 +1504,129 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
   }
 });
 
+// GET /api/sevdesk/line-items/identifiers - Offene Endkunden-Identifier über alle
+// Belege gruppiert (Distributor-Importe liefern z.B. Domains oder Kürzel).
+// MUSS vor GET /line-items/:invoiceId registriert sein (Route-Shadowing!).
+router.get('/line-items/identifiers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+    const result = await query(
+      `SELECT li.extracted_customer_name AS identifier,
+              MAX(li.extracted_customer_domain) AS domain,
+              COUNT(*)::int AS item_count,
+              COUNT(DISTINCT li.processed_invoice_id)::int AS invoice_count,
+              MIN(li.description) AS sample_description,
+              MAX(li.period_end)::date AS latest_period_end
+       FROM invoice_line_items li
+       WHERE li.organization_id = $1
+         AND li.customer_id IS NULL
+         AND li.rebilling_status = 'pending'
+         AND li.extracted_customer_name IS NOT NULL
+       GROUP BY li.extracted_customer_name
+       ORDER BY COUNT(*) DESC`,
+      [organizationId]
+    );
+    res.json({
+      success: true,
+      data: result.rows.map((row) => ({
+        identifier: row.identifier,
+        domain: row.domain,
+        itemCount: row.item_count,
+        invoiceCount: row.invoice_count,
+        sampleDescription: row.sample_description,
+        latestPeriodEnd: row.latest_period_end,
+      })),
+    });
+  } catch (error: any) {
+    logger.error('Get line item identifiers error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+const assignIdentifierSchema = z.object({
+  identifier: z.string().min(1).max(300),
+  customerId: z.string().min(1).max(100).optional(),
+  markInternal: z.boolean().optional(),
+  saveAlias: z.boolean().optional(),
+}).refine((b) => !!b.customerId !== !!b.markInternal, {
+  message: 'Entweder customerId oder markInternal angeben',
+});
+
+// POST /api/sevdesk/line-items/assign-identifier - Sammel-Zuordnung: ALLE offenen
+// Positionen mit diesem extracted_customer_name einem Kunden zuordnen (inkl.
+// Alias fürs künftige Auto-Matching und primary_domain, wenn der Identifier
+// eine Domain ist) — oder als intern (Eigenbedarf) markieren.
+router.post('/line-items/assign-identifier', authenticateToken, requireBillingFeature, validate(assignIdentifierSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+    const { identifier, customerId, markInternal } = req.body;
+    const saveAlias = req.body.saveAlias !== false;
+
+    if (markInternal) {
+      const updated = await query(
+        `UPDATE invoice_line_items
+         SET rebilling_status = 'internal', updated_at = NOW()
+         WHERE organization_id = $1 AND extracted_customer_name = $2
+           AND customer_id IS NULL AND rebilling_status = 'pending'
+         RETURNING id`,
+        [organizationId, identifier]
+      );
+      return res.json({
+        success: true,
+        data: { updated: updated.rows.length, internal: true },
+      });
+    }
+
+    const customer = await query(
+      `SELECT id, name, primary_domain FROM customers
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [customerId, organizationId]
+    );
+    if (customer.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Kunde nicht gefunden' });
+    }
+
+    const updated = await query(
+      `UPDATE invoice_line_items
+       SET customer_id = $1, match_method = 'manual', match_confidence = 1.0, updated_at = NOW()
+       WHERE organization_id = $2 AND extracted_customer_name = $3
+         AND customer_id IS NULL AND rebilling_status = 'pending'
+       RETURNING id`,
+      [customerId, organizationId, identifier]
+    );
+
+    let aliasSaved = false;
+    let domainSet = false;
+    if (saveAlias) {
+      await customerMatchingService.saveAlias(organizationId, customerId!, identifier, 'invoice_assignment');
+      aliasSaved = true;
+    }
+    // Identifier ist eine Domain und der Kunde hat noch keine → als
+    // primary_domain übernehmen (95%-Domain-Matching bei künftigen Syncs)
+    const looksLikeDomain = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(identifier);
+    if (looksLikeDomain && !customer.rows[0].primary_domain) {
+      await customerMatchingService.setCustomerDomain(organizationId, customerId!, identifier);
+      domainSet = true;
+    }
+
+    res.json({
+      success: true,
+      data: { updated: updated.rows.length, aliasSaved, domainSet, customerName: customer.rows[0].name },
+    });
+  } catch (error: any) {
+    logger.error('Assign identifier error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/line-items/internal-summary - Interne Ausgaben (Monatssummen + Positionen)
 router.get('/line-items/internal-summary', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
