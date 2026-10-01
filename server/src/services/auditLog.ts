@@ -13,6 +13,9 @@ export type AuditAction =
   | 'user.register'
   | 'user.login'
   | 'user.logout'
+  // API-Tokens (MCP/Integrationen)
+  | 'api_token.create'
+  | 'api_token.revoke'
   | 'user.change_password'
   | 'user.update_profile'
   | 'user.update'

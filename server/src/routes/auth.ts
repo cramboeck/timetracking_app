@@ -11,6 +11,7 @@ import { refreshTokenService } from '../services/refreshTokenService';
 import { authLimiter, refreshLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import { requireAdmin } from '../middleware/adminAuth';
 import { checkTrustedDevice } from './mfa';
 
 const router = Router();
@@ -548,6 +549,102 @@ router.patch('/profile', authenticateToken, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+// ─── API-Tokens (MCP-Server / Integrationen) ────────────────────────────────
+// Langlebige Maschinen-Tokens mit Präfix "rbf_". Der Klartext existiert NUR
+// in der Create-Response; gespeichert wird der SHA-256-Hash. Nur Admins.
+
+const createApiTokenSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+});
+
+router.post('/api-tokens', authenticateToken, requireAdmin, validate(createApiTokenSchema), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { name } = req.body;
+
+    const plaintext = `rbf_${crypto.randomBytes(32).toString('hex')}`;
+    const tokenHash = crypto.createHash('sha256').update(plaintext).digest('hex');
+
+    const result = await pool.query(
+      `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, token_prefix, created_at`,
+      [userId, name, tokenHash, plaintext.slice(0, 12)]
+    );
+
+    await auditLog.log({
+      userId,
+      action: 'api_token.create',
+      details: JSON.stringify({ tokenId: result.rows[0].id, name }),
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.rows[0].id,
+        name: result.rows[0].name,
+        tokenPrefix: result.rows[0].token_prefix,
+        createdAt: result.rows[0].created_at,
+        // ⚠️ Einmalig — wird nie wieder herausgegeben
+        token: plaintext,
+      },
+    });
+  } catch (error: any) {
+    console.error('Create API token error:', error);
+    res.status(500).json({ success: false, error: 'Token konnte nicht erstellt werden' });
+  }
+});
+
+router.get('/api-tokens', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, token_prefix, last_used_at, created_at, revoked_at
+       FROM api_tokens
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user!.id]
+    );
+    res.json({
+      success: true,
+      data: result.rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        tokenPrefix: r.token_prefix,
+        lastUsedAt: r.last_used_at,
+        createdAt: r.created_at,
+        revoked: r.revoked_at !== null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('List API tokens error:', error);
+    res.status(500).json({ success: false, error: 'Tokens konnten nicht geladen werden' });
+  }
+});
+
+router.delete('/api-tokens/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE api_tokens SET revoked_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+       RETURNING id, name`,
+      [req.params.id, req.user!.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Token nicht gefunden' });
+    }
+    await auditLog.log({
+      userId: req.user!.id,
+      action: 'api_token.revoke',
+      details: JSON.stringify({ tokenId: result.rows[0].id, name: result.rows[0].name }),
+    });
+    res.json({ success: true, data: { message: 'Token widerrufen' } });
+  } catch (error: any) {
+    console.error('Revoke API token error:', error);
+    res.status(500).json({ success: false, error: 'Token konnte nicht widerrufen werden' });
   }
 });
 

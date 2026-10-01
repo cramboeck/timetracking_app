@@ -97,7 +97,9 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
 
     if (searchText && typeof searchText === 'string' && searchText.trim()) {
       params.push(`%${searchText.trim()}%`);
-      whereClause += ` AND (t.title ILIKE $${params.length} OR t.description ILIKE $${params.length})`;
+      // ticket_number mitsuchen: "TKT-000123" in Suche/CommandPalette/MCP
+      // soll das Ticket direkt finden
+      whereClause += ` AND (t.title ILIKE $${params.length} OR t.description ILIKE $${params.length} OR t.ticket_number ILIKE $${params.length})`;
     }
 
     // Explicit column list (no SELECT *)
