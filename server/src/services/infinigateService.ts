@@ -179,17 +179,48 @@ async function infinigateFetchBinary(
   };
 }
 
-// Kandidaten als Funktionen (documentGuid, pdfDocumentGuid) → Pfad
+// Kandidaten als Funktionen (documentGuid, pdfDocumentGuid) → Pfad.
+// Runde 1 (6 Pfade mit /pdf, /document(s), document-management) war komplett
+// 404 „Resource not found" (APIM-Gateway: Route existiert nicht im Produkt).
+// Runde 2: pdfDocumentGuid ist vermutlich ein ZWEITES Dokument im selben
+// Store — daher der normale purchaseinvoice-Endpoint mit der PDF-GUID
+// (das mimeType-Feld der Overview ist per Dokument!), plus Format-Varianten.
 const PDF_ENDPOINT_CANDIDATES: Array<{ label: string; build: (dg: string, pg: string) => string }> = [
-  { label: 'purchaseinvoice/{documentGuid}/pdf', build: (dg) => `/invoice-management/v2/purchaseinvoice/${dg}/pdf` },
-  { label: 'purchaseinvoice/pdf/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/purchaseinvoice/pdf/${pg}` },
-  { label: 'invoice-management/v2/document/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/document/${pg}` },
-  { label: 'invoice-management/v2/documents/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/documents/${pg}` },
-  { label: 'document-management/v1/document/{pdfDocumentGuid}', build: (_dg, pg) => `/document-management/v1/document/${pg}` },
-  { label: 'document-management/v1/documents/{pdfDocumentGuid}', build: (_dg, pg) => `/document-management/v1/documents/${pg}` },
+  { label: 'purchaseinvoice/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/purchaseinvoice/${pg}` },
+  { label: 'purchaseinvoice/{documentGuid} (Accept pdf)', build: (dg) => `/invoice-management/v2/purchaseinvoice/${dg}` },
+  { label: 'purchaseinvoice/{documentGuid}?format=pdf', build: (dg) => `/invoice-management/v2/purchaseinvoice/${dg}?format=pdf` },
+  { label: 'purchaseinvoice/{documentGuid}/document', build: (dg) => `/invoice-management/v2/purchaseinvoice/${dg}/document` },
+  { label: 'purchaseinvoicepdf/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/purchaseinvoicepdf/${pg}` },
+  { label: 'invoice-management/v2/pdf/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/pdf/${pg}` },
+  { label: 'invoice-management/v1/purchaseinvoice/{documentGuid}/pdf', build: (dg) => `/invoice-management/v1/purchaseinvoice/${dg}/pdf` },
 ];
 
 const isPdfBuffer = (buffer: Buffer): boolean => buffer.subarray(0, 5).toString('latin1').startsWith('%PDF');
+
+// Manche Dokument-APIs liefern das PDF als JSON mit Base64-Feld — alle
+// String-Properties (bis Tiefe 2) auf dekodierbares %PDF prüfen.
+function extractPdfFromJson(buffer: Buffer): Buffer | null {
+  let parsed: any;
+  try { parsed = JSON.parse(buffer.toString('utf8')); } catch { return null; }
+  const scan = (obj: any, depth: number): Buffer | null => {
+    if (obj == null || depth > 2) return null;
+    if (typeof obj === 'string' && obj.length > 500) {
+      try {
+        const decoded = Buffer.from(obj, 'base64');
+        if (isPdfBuffer(decoded)) return decoded;
+      } catch { /* kein Base64 */ }
+      return null;
+    }
+    if (typeof obj === 'object') {
+      for (const value of Object.values(obj)) {
+        const hit = scan(value, depth + 1);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  };
+  return scan(parsed, 0);
+}
 
 // Index des zuletzt funktionierenden Kandidaten (pro Prozess gecacht)
 let workingPdfCandidate: number | null = null;
@@ -210,6 +241,13 @@ async function tryDownloadPdf(
       if (result.status === 200 && isPdfBuffer(result.buffer)) {
         workingPdfCandidate = idx;
         return result.buffer;
+      }
+      if (result.status === 200) {
+        const embedded = extractPdfFromJson(result.buffer);
+        if (embedded) {
+          workingPdfCandidate = idx;
+          return embedded;
+        }
       }
     } catch {
       // Kandidat nicht erreichbar → nächsten probieren
@@ -232,19 +270,27 @@ export async function probePdfEndpoints(userId: string): Promise<any> {
   for (const candidate of PDF_ENDPOINT_CANDIDATES) {
     try {
       const r = await infinigateFetchBinary(config, candidate.build(first.documentGuid, pg));
+      const embedded = r.status === 200 && !isPdfBuffer(r.buffer) ? extractPdfFromJson(r.buffer) : null;
       results.push({
         candidate: candidate.label,
         status: r.status,
         contentType: r.contentType,
         bytes: r.buffer.length,
         isPdf: isPdfBuffer(r.buffer),
-        bodyPreview: isPdfBuffer(r.buffer) ? '%PDF…' : r.buffer.subarray(0, 120).toString('utf8'),
+        hasEmbeddedBase64Pdf: !!embedded,
+        bodyPreview: isPdfBuffer(r.buffer) ? '%PDF…' : r.buffer.subarray(0, 160).toString('utf8'),
       });
     } catch (err: any) {
       results.push({ candidate: candidate.label, error: String(err.message).slice(0, 200) });
     }
   }
-  return { invoice: first.documentNumber, hasPdfDocumentGuid: !!first.pdfDocumentGuid, results };
+  // envelope des Details nie angeschaut — könnte den Dokument-Verweis tragen
+  let envelope: any = null;
+  try {
+    const detail = await infinigateFetch(config, `/invoice-management/v2/purchaseinvoice/${first.documentGuid}`);
+    envelope = describeStructure(detail?.envelope);
+  } catch { /* nur Diagnose */ }
+  return { invoice: first.documentNumber, hasPdfDocumentGuid: !!first.pdfDocumentGuid, results, envelope };
 }
 
 // Gleiche Ablage wie der E-Mail-/Upload-Weg (invoiceProcessorService):
