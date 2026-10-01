@@ -169,6 +169,9 @@ export interface BillingSummaryItem {
   roundedHours: number;
   totalAmount: number | null;
   isBilled?: boolean;
+  // Kunde hat ein sevdesk_position_template — der Dialog lässt dann seine
+  // Standard-Positionsbeschreibung weg (Text kommt serverseitig vom Template)
+  hasPositionTemplate?: boolean;
   entries: Array<{
     id: string;
     duration: number;

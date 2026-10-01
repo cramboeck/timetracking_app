@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Percent,
   Loader2,
+  Eye,
 } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem, PendingLineItem } from '../services/api';
@@ -53,6 +54,9 @@ export const InvoiceCreationDialog = ({
   onSuccess,
 }: InvoiceCreationDialogProps) => {
   const [positions, setPositions] = useState<InvoicePosition[]>([]);
+  // Rechnungs-Vorschau (zeigt, was an sevDesk geht — angelegt wird erst
+  // beim Klick auf „Rechnung erstellen", und dort als Entwurf)
+  const [showPreview, setShowPreview] = useState(false);
   const [expandedPositions, setExpandedPositions] = useState<Set<number>>(new Set());
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -132,7 +136,11 @@ export const InvoiceCreationDialog = ({
             ticketTitle: entry.ticketTitle,
           }],
           title: `IT-Consulting - ${projectName}`,
-          description: `Tätigkeit: IT Consulting\n\nsiehe ${reportFilename}`,
+          // Kunden mit Positions-Template bekommen den Text serverseitig aus
+          // dem Template — der alte Standardtext stünde sonst doppelt drin
+          description: customer.hasPositionTemplate
+            ? ''
+            : `Tätigkeit: IT Consulting\n\nsiehe ${reportFilename}`,
         });
       }
     });
@@ -472,6 +480,96 @@ export const InvoiceCreationDialog = ({
             </div>
           )}
 
+          {/* Rechnungs-Vorschau — bewusst als "Papier" mit festen Farben,
+              damit sie in Light und Dark wie das spätere Dokument aussieht */}
+          {showPreview && (
+            <div className="border border-gray-300 dark:border-dark-border rounded-xl overflow-hidden shadow-inner">
+              <div className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-xs text-gray-600 dark:text-dark-400 flex items-center gap-2">
+                <Eye size={14} />
+                Vorschau — die Rechnung wird beim Erstellen als <strong>Entwurf in sevDesk</strong> angelegt und kann dort noch geprüft werden
+              </div>
+              <div className="bg-white text-gray-900 p-6 space-y-4 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold">{customer.customerName}</p>
+                    <p className="text-xs text-gray-500">Anschrift laut sevDesk-Kontakt</p>
+                  </div>
+                  <div className="text-right text-xs text-gray-600">
+                    <p>Rechnungsdatum: {new Date().toLocaleDateString('de-DE')}</p>
+                    <p className="font-medium text-gray-900">
+                      Leistungszeitraum: {periodStart.toLocaleDateString('de-DE')} – {periodEnd.toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-base font-bold">{invoiceHeader || 'Ohne Betreff'}</p>
+                {headText && <p className="whitespace-pre-wrap text-gray-700">{headText}</p>}
+
+                <table className="w-full text-xs border-t border-b border-gray-300">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-200">
+                      <th className="py-1.5 pr-2 font-medium">Pos.</th>
+                      <th className="py-1.5 pr-2 font-medium">Bezeichnung</th>
+                      <th className="py-1.5 pr-2 font-medium text-right">Menge</th>
+                      <th className="py-1.5 pr-2 font-medium text-right">Einzelpreis</th>
+                      <th className="py-1.5 font-medium text-right">Gesamt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {positions.map((pos, idx) => (
+                      <tr key={idx} className="align-top">
+                        <td className="py-1.5 pr-2 text-gray-500">{idx + 1}</td>
+                        <td className="py-1.5 pr-2">
+                          <span className="font-medium">{pos.title}</span>
+                          {pos.description && (
+                            <span className="block whitespace-pre-wrap text-gray-500">{pos.description}</span>
+                          )}
+                          {customer.hasPositionTemplate && (
+                            <span className="block italic text-gray-400">+ Text aus Kunden-Template</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right whitespace-nowrap">{pos.roundedHours.toFixed(2).replace('.', ',')} Std.</td>
+                        <td className="py-1.5 pr-2 text-right whitespace-nowrap">
+                          {formatCurrency(pos.roundedHours > 0 ? pos.amount / pos.roundedHours : 0)}
+                        </td>
+                        <td className="py-1.5 text-right whitespace-nowrap font-medium">{formatCurrency(pos.amount)}</td>
+                      </tr>
+                    ))}
+                    {pendingExpenses
+                      .filter(e => selectedExpenses.has(e.id))
+                      .map((expense, idx) => (
+                        <tr key={expense.id} className="align-top">
+                          <td className="py-1.5 pr-2 text-gray-500">{positions.length + idx + 1}</td>
+                          <td className="py-1.5 pr-2">
+                            <span className="font-medium">{expense.description || 'Weiterberechnung'}</span>
+                            {expense.vendorName && (
+                              <span className="block text-gray-500">Lieferant: {expense.vendorName}</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-2 text-right whitespace-nowrap">{expense.quantity}×</td>
+                          <td className="py-1.5 pr-2 text-right whitespace-nowrap">
+                            {formatCurrency(expense.unitPrice * (1 + expenseMarkup / 100))}
+                          </td>
+                          <td className="py-1.5 text-right whitespace-nowrap font-medium">
+                            {formatCurrency(expense.totalPrice * (1 + expenseMarkup / 100))}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+
+                <div className="flex justify-end">
+                  <div className="text-right space-y-0.5">
+                    <p className="font-bold text-base">Summe netto: {formatCurrency(grandTotal)}</p>
+                    <p className="text-xs text-gray-500">zzgl. gesetzl. USt. — finale Beträge laut sevDesk-Entwurf</p>
+                  </div>
+                </div>
+
+                {footText && <p className="whitespace-pre-wrap text-gray-700 text-xs">{footText}</p>}
+              </div>
+            </div>
+          )}
+
           {/* AI Button */}
           <div className="flex items-center justify-between p-4 bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40">
             <div className="flex items-center gap-3">
@@ -783,6 +881,13 @@ export const InvoiceCreationDialog = ({
                 variant="secondary"
               >
                 Abbrechen
+              </Button>
+              <Button
+                onClick={() => setShowPreview(v => !v)}
+                variant="secondary"
+                icon={<Eye size={18} />}
+              >
+                {showPreview ? 'Vorschau ausblenden' : 'Vorschau'}
               </Button>
               <Button
                 onClick={handleCreateInvoice}

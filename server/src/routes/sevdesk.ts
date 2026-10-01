@@ -530,7 +530,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, validat
     const customerResult = await query(
       `SELECT
          c.id, c.name, c.hourly_rate, c.sevdesk_customer_id, c.time_rounding_interval,
-         c.sevdesk_position_template, c.default_contract_id,
+         c.sevdesk_position_template, c.default_contract_id, c.email,
          ct.contract_number AS default_contract_number,
          ct.name AS default_contract_title
        FROM customers c
@@ -606,6 +606,10 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, validat
       periodLabel: `${monthNames[periodEndDate.getMonth()]} ${periodEndDate.getFullYear()}`,
       reportFilename: reportFilename || undefined,
     };
+
+    // Kunden-E-Mail am sevDesk-Kontakt sicherstellen — sonst füllt sevDesk
+    // beim (E-)Rechnungs-Versand die eigene Adresse statt der des Kunden vor
+    await sevdeskService.ensureContactEmail(config.apiToken, customer.sevdesk_customer_id, customer.email);
 
     // Create invoice in sevDesk with custom texts and positions
     console.log('[create-invoice] Calling sevdeskService.createInvoice...');

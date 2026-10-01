@@ -353,6 +353,7 @@ export async function getBillingSummary(
   roundedHours: number;
   totalAmount: number | null;
   isBilled: boolean;
+  hasPositionTemplate: boolean;
   entries: TimeEntryForBilling[];
 }>> {
   // Get default hourly rate from config
@@ -364,7 +365,7 @@ export async function getBillingSummary(
   // Use DATE() cast to ensure full day inclusion for the end date
   const result = await query(
     `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
-            c.time_rounding_interval, c.payment_terms_days,
+            c.time_rounding_interval, c.payment_terms_days, c.sevdesk_position_template,
             te.id as entry_id, te.duration, te.description, te.start_time,
             te.invoice_export_id,
             t.ticket_number, t.title as ticket_title,
@@ -393,6 +394,7 @@ export async function getBillingSummary(
     totalSeconds: number;
     roundedSeconds: number;
     isBilled: boolean;
+    hasPositionTemplate: boolean;
     entries: TimeEntryForBilling[];
   }>();
 
@@ -413,6 +415,9 @@ export async function getBillingSummary(
         totalSeconds: 0,
         roundedSeconds: 0,
         isBilled,
+        // Dialog lässt seine Standard-Positionsbeschreibung weg, wenn das
+        // Kunden-Template den Text liefert (sonst doppelter Boilerplate)
+        hasPositionTemplate: !!(row.sevdesk_position_template && String(row.sevdesk_position_template).trim()),
         entries: [],
       });
     }
@@ -497,7 +502,54 @@ function buildPositionText(
   const tmpl = template?.trim();
   if (!tmpl) return baseText ?? '';
   const rendered = applyTemplate(tmpl, { ...ctx, projectName: projectName ?? ctx.projectName ?? '' });
+  // Doppelte Texte vermeiden: steckt das gerenderte Template schon in der
+  // Beschreibung (oder umgekehrt — z.B. weil der Dialog denselben Boilerplate
+  // vorbefüllt hat), nur die längere Variante behalten statt beide anzuhängen
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (baseText && baseText.trim()) {
+    const nBase = norm(baseText);
+    const nRendered = norm(rendered);
+    if (nBase.includes(nRendered)) return baseText;
+    if (nRendered.includes(nBase)) return rendered;
+  }
   return [baseText, rendered].filter(s => s && s.length > 0).join('\n\n');
+}
+
+/**
+ * Stellt sicher, dass der sevDesk-Kontakt eine E-Mail-Adresse trägt.
+ * Hintergrund: sevDesk befüllt die Empfänger-Adresse beim (E-)Rechnungs-
+ * Versand aus dem Kontakt (CommunicationWay type EMAIL) — fehlt sie, steht
+ * dort die eigene Absender-Adresse vorausgefüllt. Best effort: Fehler hier
+ * blockieren die Rechnungserstellung nie.
+ */
+export async function ensureContactEmail(
+  apiToken: string,
+  sevdeskContactId: string,
+  email: string | null | undefined
+): Promise<void> {
+  const trimmedEmail = email?.trim();
+  if (!trimmedEmail) return;
+  try {
+    const existing = await sevdeskFetch(
+      apiToken,
+      `/CommunicationWay?contact[id]=${encodeURIComponent(sevdeskContactId)}&contact[objectName]=Contact&type=EMAIL`
+    );
+    if (Array.isArray(existing?.objects) && existing.objects.length > 0) return;
+
+    await sevdeskFetch(apiToken, '/CommunicationWay', {
+      method: 'POST',
+      body: JSON.stringify({
+        contact: { id: parseInt(sevdeskContactId, 10), objectName: 'Contact' },
+        type: 'EMAIL',
+        value: trimmedEmail,
+        main: 1,
+        key: { id: 2, objectName: 'CommunicationWayKey' }, // 2 = Arbeit
+      }),
+    });
+    logger.info(`sevDesk-Kontakt ${sevdeskContactId}: E-Mail ${trimmedEmail} als CommunicationWay hinterlegt (E-Rechnungs-Empfänger)`);
+  } catch (err: any) {
+    logger.error(`ensureContactEmail für Kontakt ${sevdeskContactId} fehlgeschlagen (nicht blockierend): ${err.message}`);
+  }
 }
 
 // Create invoice in sevDesk
@@ -666,6 +718,10 @@ export async function createInvoice(
         objectName: 'Contact',
       },
       invoiceDate: invoiceDateTimestamp,
+      // Leistungszeitraum: sevDesk zeigt deliveryDate + deliveryDateUntil
+      // als Zeitraum ("Lieferdatum") auf der Rechnung an
+      deliveryDate: Math.floor(startDate.getTime() / 1000),
+      deliveryDateUntil: Math.floor(endDate.getTime() / 1000),
       header: invoiceHeader,
       headText: invoiceHeadText,
       footText: invoiceFootText,
