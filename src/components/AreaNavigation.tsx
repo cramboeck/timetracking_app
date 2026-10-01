@@ -5,7 +5,7 @@ import {
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   Target, Users, LayoutDashboard, Building2, Receipt, Search,
-  CircleUser, Clock3, Palmtree
+  CircleUser, Clock3, Palmtree, ShoppingCart
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -31,7 +31,7 @@ export type SubView =
   // CRM
   | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
   // Finanzen
-  | 'invoices' | 'billing' | 'reports' | 'documents-search'
+  | 'invoices' | 'billing' | 'orders' | 'reports' | 'documents-search'
   // Settings & Admin (special)
   | 'settings' | 'admin' | 'social-media';
 
@@ -96,6 +96,7 @@ const areaConfig = {
     subViews: [
       { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Abrechnung' },
+      { view: 'orders' as SubView, icon: ShoppingCart, label: 'Bestellungen' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
       { view: 'documents-search' as SubView, icon: Search, label: 'Suche' },
     ],
@@ -295,7 +296,7 @@ export const getAreaFromSubView = (subView: SubView): Area => {
   if (['arbeitszeit', 'abwesenheit'].includes(subView)) return 'personal';
   if (['tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
-  if (['invoices', 'billing', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
+  if (['invoices', 'billing', 'orders', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
   return 'dashboard'; // Default to dashboard
 };
 
@@ -325,7 +326,7 @@ const ALL_SUBVIEWS: SubView[] = [
   'arbeitszeit', 'abwesenheit',
   'tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
-  'invoices', 'billing', 'reports', 'documents-search',
+  'invoices', 'billing', 'orders', 'reports', 'documents-search',
   'settings', 'admin', 'social-media',
 ];
 

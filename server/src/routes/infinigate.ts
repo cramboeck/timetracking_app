@@ -102,6 +102,85 @@ router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthR
   }
 });
 
+// ─── Bestellungen (Phase 2b): Preisliste + Angebote ─────────────────────────
+
+// GET /api/infinigate/pricelist/search?q=&take=&skip= - EK-Preissuche
+router.get('/pricelist/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2 || q.length > 100) {
+      return res.status(400).json({ success: false, error: 'Suchbegriff muss 2–100 Zeichen lang sein' });
+    }
+    const take = Math.min(Math.max(parseInt(String(req.query.take)) || 25, 1), 100);
+    const skip = Math.max(parseInt(String(req.query.skip)) || 0, 0);
+    const result = await infinigateService.searchPricelist(req.user!.id, q, take, skip);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate pricelist search error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/infinigate/quotes - Angebote des Resellers
+router.get('/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const quotes = await infinigateService.getQuotes(req.user!.id);
+    res.json({ success: true, data: quotes });
+  } catch (error: any) {
+    logger.error('Infinigate quotes error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+const quoteActionSchema = z.object({
+  documentNumber: z.string().min(1).max(100),
+  documentRevision: z.number().int().min(0),
+  comment: z.string().max(1000).optional(),
+});
+
+// POST /api/infinigate/quotes/accept - ⚠️ Angebot annehmen = VERBINDLICHE
+// Bestellung beim Distributor (acceptedByUserMail = eingeloggter User)
+router.post('/quotes/accept', authenticateToken, requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await infinigateService.acceptQuote(req.user!.id, {
+      documentNumber: req.body.documentNumber,
+      documentRevision: req.body.documentRevision,
+    });
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate accept quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/infinigate/quotes/reject - Angebot ablehnen (optional mit Kommentar)
+router.post('/quotes/reject', authenticateToken, requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await infinigateService.rejectQuote(req.user!.id, {
+      documentNumber: req.body.documentNumber,
+      documentRevision: req.body.documentRevision,
+      comment: req.body.comment,
+    });
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate reject quote error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/infinigate/debug/orders?q= - Struktur-Dump Preisliste + Angebote
+// (echte Feldnamen, gekürzte Werte) zum Nachschärfen der Normalisierung
+router.get('/debug/orders', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const q = String(req.query.q || 'microsoft').trim().slice(0, 100);
+    const result = await infinigateService.inspectOrdersStructure(req.user!.id, q);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate debug orders error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/infinigate/debug/structure - Feldstruktur einer echten Rechnung
 // (Typen + gekürzte Beispielwerte) — zum Abgleich Mapping vs. echte API
 router.get('/debug/structure', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {

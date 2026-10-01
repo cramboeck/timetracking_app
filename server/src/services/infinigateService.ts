@@ -121,22 +121,30 @@ async function getToken(config: InfinigateConfig): Promise<string> {
   return token;
 }
 
-async function infinigateFetch(config: InfinigateConfig, path: string, retried = false): Promise<any> {
+async function infinigateFetch(
+  config: InfinigateConfig,
+  path: string,
+  init?: { method?: 'GET' | 'POST'; body?: unknown },
+  retried = false
+): Promise<any> {
   const baseUrl = BASE_URLS[config.environment];
   const token = await getToken(config);
 
   const response = await fetch(`${baseUrl}${path}`, {
+    method: init?.method || 'GET',
     headers: {
       'API-KEY': config.apiKey!,
       'Authorization': `Bearer ${token}`,
       'Accept': 'application/json',
+      ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
+    ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
   });
 
   if (response.status === 401 && !retried) {
     // Token abgelaufen/ungültig → einmal frisch holen und wiederholen
     tokenCache.delete(config.userId);
-    return infinigateFetch(config, path, true);
+    return infinigateFetch(config, path, init, true);
   }
 
   if (!response.ok) {
@@ -384,6 +392,185 @@ export async function fetchMissingInvoicePdfs(userId: string): Promise<{ checked
     }
   }
   logger.info(`Infinigate-PDF-Backfill: ${result.downloaded}/${result.checked} geladen, ${result.failed} fehlgeschlagen`);
+  return result;
+}
+
+// ─── Bestellungen: Preisliste + Angebote (Phase 2b) ─────────────────────────
+// Pfade + Parameter verifiziert gegen die Community-Implementierung
+// n8n-nodes-infinigate (github.com/affeldt28/n8n-nodes-infinigate):
+//   GET  /product-management/v1/pricelist/search/{searchword}?Take=&Skip=
+//   GET  /product-management/v1/pricelist/search/count/{searchword}
+//   GET  /order-management/v2/purchasequote?Take=&Skip=
+//   POST /order-management/v2/purchasequote/acceptance
+//        { documentNumber, documentRevision, acceptedByUserMail }
+//   POST /order-management/v2/purchasequote/reject
+//        { documentNumber, documentRevision, rejectedByUserMail, userComments }
+// Die RESPONSE-Formen sind nicht dokumentiert → tolerante Normalisierung
+// (Feld-Kandidaten) + debug/orders-Struktur-Dump zum Nachschärfen.
+
+const pick = (obj: any, ...keys: string[]): any => {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (value !== null && value !== undefined && value !== '') return value;
+  }
+  return null;
+};
+
+const pickNumber = (obj: any, ...keys: string[]): number | null => {
+  const value = pick(obj, ...keys);
+  const num = Number(value);
+  return value !== null && !isNaN(num) ? num : null;
+};
+
+export interface PricelistItem {
+  sku: string | null;
+  vendorSku: string | null;
+  description: string | null;
+  manufacturer: string | null;
+  productType: string | null;
+  endUserType: string | null;
+  price: number | null; // EK (Reseller-Einkauf)
+  listPrice: number | null; // UVP/Endkundenpreis, falls geliefert
+  currency: string;
+  stock: number | null;
+}
+
+function normalizePricelistItem(item: any): PricelistItem {
+  return {
+    sku: pick(item, 'sku', 'no', 'itemNumber', 'itemNo', 'number'),
+    vendorSku: pick(item, 'vendorItemNumber', 'vendorSku', 'manufacturerItemNumber', 'vendorNo'),
+    description: pick(item, 'description', 'itemDescription', 'name', 'productName', 'displayName'),
+    manufacturer: pick(item, 'manufacturerName', 'vendorName', 'manufacturer', 'vendorCode'),
+    productType: pick(item, 'productType', 'itemType', 'type'),
+    endUserType: pick(item, 'endUserType', 'licenseType'),
+    price: pickNumber(item, 'netPrice', 'resellerPrice', 'unitPrice', 'netUnitPrice', 'price', 'purchasePrice'),
+    listPrice: pickNumber(item, 'msrp', 'listPrice', 'recommendedEndUserPrice', 'endUserPrice', 'retailPrice'),
+    currency: pick(item, 'currencyCode', 'currency') || 'EUR',
+    stock: pickNumber(item, 'stock', 'availableQuantity', 'quantityAvailable', 'inventory', 'availableStock'),
+  };
+}
+
+export async function searchPricelist(
+  userId: string,
+  search: string,
+  take = 25,
+  skip = 0
+): Promise<{ count: number | null; items: PricelistItem[] }> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const encoded = encodeURIComponent(search);
+  const data = await infinigateFetch(
+    config,
+    `/product-management/v1/pricelist/search/${encoded}?Take=${take}&Skip=${skip}`
+  );
+  const rows: any[] = Array.isArray(data) ? data : data?.result || data?.items || [];
+  return {
+    count: typeof data?.count === 'number' ? data.count : Array.isArray(data) ? data.length : null,
+    items: rows.map(normalizePricelistItem),
+  };
+}
+
+export interface QuoteSummary {
+  documentGuid: string | null;
+  documentNumber: string | null;
+  documentRevision: number | null;
+  buyerReference: string | null;
+  createdAt: string | null;
+  validUntil: string | null;
+  status: string | null;
+  manufacturer: string | null;
+  totalNetPrice: number | null;
+  currency: string;
+}
+
+function normalizeQuote(row: any): QuoteSummary {
+  return {
+    documentGuid: pick(row, 'documentGuid', 'guid', 'id'),
+    documentNumber: pick(row, 'documentNumber', 'quoteNumber', 'number'),
+    documentRevision: pickNumber(row, 'documentRevision', 'revision'),
+    buyerReference: pick(row, 'buyerReference', 'reference'),
+    createdAt: pick(row, 'documentCreated', 'postingDate', 'createdAt', 'documentDate'),
+    validUntil: pick(row, 'documentValidUntil', 'validUntil', 'expiryDate', 'dueDate'),
+    status: pick(row, 'documentStatus', 'status', 'state'),
+    manufacturer: pick(row, 'manufacturerName', 'vendorCode', 'vendorName'),
+    totalNetPrice: pickNumber(row, 'totalNetPrice', 'netTotal', 'totalAmount', 'netAmount'),
+    currency: pick(row, 'currencyCode', 'currency') || 'EUR',
+  };
+}
+
+export async function getQuotes(userId: string, take = 50): Promise<QuoteSummary[]> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const data = await infinigateFetch(config, `/order-management/v2/purchasequote?Take=${take}&Skip=0`);
+  const rows: any[] = Array.isArray(data) ? data : data?.result || [];
+  return rows.map(normalizeQuote);
+}
+
+async function getUserEmail(userId: string): Promise<string> {
+  const result = await query('SELECT email FROM users WHERE id = $1', [userId]);
+  const email = result.rows[0]?.email;
+  if (!email) throw new Error('Keine E-Mail-Adresse für den User gefunden');
+  return email;
+}
+
+// ⚠️ Annehmen eines Angebots löst eine VERBINDLICHE Bestellung beim
+// Distributor aus — das UI bestätigt mit danger-Dialog, hier nur Durchreichen.
+export async function acceptQuote(
+  userId: string,
+  input: { documentNumber: string; documentRevision: number }
+): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const acceptedByUserMail = await getUserEmail(userId);
+  const response = await infinigateFetch(config, '/order-management/v2/purchasequote/acceptance', {
+    method: 'POST',
+    body: { documentNumber: input.documentNumber, documentRevision: input.documentRevision, acceptedByUserMail },
+  });
+  logger.info(`Infinigate-Angebot ${input.documentNumber} (Rev. ${input.documentRevision}) ANGENOMMEN von ${acceptedByUserMail}`);
+  return response;
+}
+
+export async function rejectQuote(
+  userId: string,
+  input: { documentNumber: string; documentRevision: number; comment?: string }
+): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const rejectedByUserMail = await getUserEmail(userId);
+  const response = await infinigateFetch(config, '/order-management/v2/purchasequote/reject', {
+    method: 'POST',
+    body: {
+      documentNumber: input.documentNumber,
+      documentRevision: input.documentRevision,
+      rejectedByUserMail,
+      ...(input.comment ? { userComments: input.comment } : {}),
+    },
+  });
+  logger.info(`Infinigate-Angebot ${input.documentNumber} abgelehnt von ${rejectedByUserMail}`);
+  return response;
+}
+
+// Struktur-Dump für Preisliste + Angebote (gleiches Muster wie debug/structure):
+// zeigt die ECHTEN Feldnamen, damit die Normalisierung nachgeschärft werden kann.
+export async function inspectOrdersStructure(userId: string, search: string): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const result: Record<string, any> = {};
+  try {
+    const pricelist = await infinigateFetch(
+      config,
+      `/product-management/v1/pricelist/search/${encodeURIComponent(search)}?Take=2&Skip=0`
+    );
+    result.pricelistSearch = describeStructure(pricelist);
+  } catch (err: any) {
+    result.pricelistSearch = { error: String(err.message).slice(0, 300) };
+  }
+  try {
+    const quotes = await infinigateFetch(config, '/order-management/v2/purchasequote?Take=2&Skip=0');
+    result.quotes = describeStructure(quotes);
+  } catch (err: any) {
+    result.quotes = { error: String(err.message).slice(0, 300) };
+  }
   return result;
 }
 

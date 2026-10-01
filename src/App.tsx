@@ -24,6 +24,7 @@ import SalesPipeline from './components/SalesPipeline';
 import Leads from './components/Leads';
 import { CRMDashboard } from './components/CRMDashboard';
 import { InvoiceInbox } from './components/InvoiceInbox';
+import { OrdersHub } from './components/OrdersHub';
 import { DocumentsSearch } from './components/DocumentsSearch';
 import { SupportInbox } from './components/SupportInbox';
 import { SocialMediaProvider } from './features/social-media/context';
@@ -1239,6 +1240,9 @@ function App() {
         )}
         {currentSubView === 'billing' && (
           <Finanzen onBack={() => navigateToSubView('overview')} />
+        )}
+        {currentSubView === 'orders' && (
+          <OrdersHub />
         )}
         {currentSubView === 'crm-dashboard' && (
           <CRMDashboard

@@ -815,7 +815,57 @@ export const infinigateApi = {
   syncNow: async (): Promise<{ success: boolean; data: InfinigateSyncResult }> => {
     return authFetch('/infinigate/sync', { method: 'POST' });
   },
+
+  // Bestellungen (Phase 2b): EK-Preissuche in der Infinigate-Preisliste
+  searchPricelist: async (q: string, take = 25, skip = 0): Promise<{ success: boolean; data: { count: number | null; items: PricelistItem[] } }> => {
+    return authFetch(`/infinigate/pricelist/search?q=${encodeURIComponent(q)}&take=${take}&skip=${skip}`);
+  },
+
+  getQuotes: async (): Promise<{ success: boolean; data: InfinigateQuote[] }> => {
+    return authFetch('/infinigate/quotes');
+  },
+
+  // ⚠️ Annehmen = verbindliche Bestellung beim Distributor
+  acceptQuote: async (documentNumber: string, documentRevision: number): Promise<{ success: boolean; data: unknown }> => {
+    return authFetch('/infinigate/quotes/accept', {
+      method: 'POST',
+      body: JSON.stringify({ documentNumber, documentRevision }),
+    });
+  },
+
+  rejectQuote: async (documentNumber: string, documentRevision: number, comment?: string): Promise<{ success: boolean; data: unknown }> => {
+    return authFetch('/infinigate/quotes/reject', {
+      method: 'POST',
+      body: JSON.stringify({ documentNumber, documentRevision, comment }),
+    });
+  },
 };
+
+export interface PricelistItem {
+  sku: string | null;
+  vendorSku: string | null;
+  description: string | null;
+  manufacturer: string | null;
+  productType: string | null;
+  endUserType: string | null;
+  price: number | null;
+  listPrice: number | null;
+  currency: string;
+  stock: number | null;
+}
+
+export interface InfinigateQuote {
+  documentGuid: string | null;
+  documentNumber: string | null;
+  documentRevision: number | null;
+  buyerReference: string | null;
+  createdAt: string | null;
+  validUntil: string | null;
+  status: string | null;
+  manufacturer: string | null;
+  totalNetPrice: number | null;
+  currency: string;
+}
 
 // ============================================
 // NinjaRMM API Types

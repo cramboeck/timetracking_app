@@ -111,6 +111,8 @@ export type {
   TicketEmail,
   InfinigateConfigStatus,
   InfinigateSyncResult,
+  PricelistItem,
+  InfinigateQuote,
   LineItemType,
   CustomerHardwareItem,
   InternalExpenseSummary,
