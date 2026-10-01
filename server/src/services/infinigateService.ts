@@ -200,21 +200,68 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
   if (!isConfigured(config)) {
     throw new Error('Infinigate ist nicht vollständig konfiguriert');
   }
-  const overview = await infinigateFetch(config, '/invoice-management/v2/purchaseinvoice?Take=1&Skip=0');
-  const first = overview?.result?.[0];
-  if (!first?.documentGuid) {
+  const overview = await infinigateFetch(config, '/invoice-management/v2/purchaseinvoice?Take=10&Skip=0');
+  const entries: any[] = overview?.result || [];
+  if (!entries[0]?.documentGuid) {
     return { overview: describeStructure(overview) };
   }
-  const detail = await infinigateFetch(config, `/invoice-management/v2/purchaseinvoice/${first.documentGuid}`);
-  // Nur Header + die ersten 2 Zeilen beschreiben — das reicht fürs Mapping
-  const lines: any[] = detail?.lines || [];
+
+  // Erste Rechnung komplett beschreiben; danach bis zu 10 Rechnungen nach den
+  // Stellen absuchen, an denen Endkunde/Vertrag WIRKLICH gefüllt sind
+  // (Prod-Befund: endCustomerDto/contractInformationDto sind auf den Zeilen
+  // null — Kandidat ist der bisher ignorierte Top-Level-Block
+  // mspDetailInformation).
+  let firstDetail: any = null;
+  let mspDetailSample: any = null;
+  let mspDetailInvoice: string | undefined;
+  let lineWithEndCustomer: any = null;
+  let lineWithEndCustomerInvoice: string | undefined;
+  let lineWithContract: any = null;
+  let lineWithContractInvoice: string | undefined;
+  const lineTypeCounts: Record<string, number> = {};
+
+  for (const entry of entries) {
+    if (!entry?.documentGuid) continue;
+    const detail = await infinigateFetch(config, `/invoice-management/v2/purchaseinvoice/${entry.documentGuid}`);
+    if (!firstDetail) firstDetail = detail;
+    const msp = detail?.mspDetailInformation;
+    const mspNonEmpty = msp != null && (!Array.isArray(msp) || msp.length > 0);
+    if (!mspDetailSample && mspNonEmpty) {
+      mspDetailSample = describeStructure(msp);
+      mspDetailInvoice = detail?.header?.documentNumber || entry.documentNumber;
+    }
+    for (const line of detail?.lines || []) {
+      const type = String(line?.lineType ?? 'unbekannt');
+      lineTypeCounts[type] = (lineTypeCounts[type] || 0) + 1;
+      if (!lineWithEndCustomer && line?.endCustomerDto != null) {
+        lineWithEndCustomer = describeStructure(line);
+        lineWithEndCustomerInvoice = detail?.header?.documentNumber || entry.documentNumber;
+      }
+      if (!lineWithContract && line?.contractInformationDto != null) {
+        lineWithContract = describeStructure(line);
+        lineWithContractInvoice = detail?.header?.documentNumber || entry.documentNumber;
+      }
+    }
+    // Alles gefunden? Dann keine weiteren API-Calls verschwenden.
+    if (mspDetailSample && lineWithEndCustomer && lineWithContract) break;
+  }
+
+  const lines: any[] = firstDetail?.lines || [];
   return {
-    overviewFirstEntry: describeStructure(first),
-    detailTopLevelKeys: Object.keys(detail || {}),
-    header: describeStructure(detail?.header),
+    scannedInvoices: entries.length,
+    overviewFirstEntry: describeStructure(entries[0]),
+    detailTopLevelKeys: Object.keys(firstDetail || {}),
+    header: describeStructure(firstDetail?.header),
     lineCount: lines.length,
     firstLine: describeStructure(lines[0]),
     secondLine: lines.length > 1 ? describeStructure(lines[1]) : undefined,
+    lineTypeCounts,
+    mspDetailInformation: mspDetailSample ?? 'in allen gescannten Rechnungen leer/null',
+    mspDetailInvoice,
+    lineWithEndCustomer: lineWithEndCustomer ?? 'endCustomerDto in allen gescannten Zeilen null',
+    lineWithEndCustomerInvoice,
+    lineWithContract: lineWithContract ?? 'contractInformationDto in allen gescannten Zeilen null',
+    lineWithContractInvoice,
   };
 }
 
