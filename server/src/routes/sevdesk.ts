@@ -2748,6 +2748,64 @@ router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature,
   }
 });
 
+// GET /api/sevdesk/license-expiry - Ablaufende Lizenzen/Abos (org-weit).
+// Infinigate-Phase-2-Baustein auf bereits gesyncten Daten: pro Kunde+Produkt
+// zählt das JÜNGSTE period_end (eine Verlängerung erzeugt eine neue Position
+// mit späterem Ende — dann wird nicht mehr gewarnt). Fenster: von 14 Tagen
+// abgelaufen bis ?days (Default 60, max 365) in die Zukunft.
+router.get('/license-expiry', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+    const days = Math.min(365, Math.max(1, parseInt(req.query.days as string) || 60));
+
+    const result = await query(`
+      SELECT * FROM (
+        SELECT DISTINCT ON (li.customer_id, COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description)))
+          li.customer_id, c.name AS customer_name,
+          li.description, li.product_sku, li.license_id, li.serial_number,
+          li.quantity, li.period_end
+        FROM invoice_line_items li
+        JOIN customers c ON c.id = li.customer_id AND c.deleted_at IS NULL
+        WHERE li.organization_id = $1
+          AND li.customer_id IS NOT NULL
+          AND li.period_end IS NOT NULL
+          AND li.item_type IN ('license', 'subscription')
+          AND li.rebilling_status <> 'skipped'
+        ORDER BY li.customer_id, COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description)), li.period_end DESC
+      ) latest
+      WHERE latest.period_end >= CURRENT_DATE - INTERVAL '14 days'
+        AND latest.period_end <= CURRENT_DATE + ($2 || ' days')::interval
+      ORDER BY latest.period_end ASC
+    `, [organizationId, days]);
+
+    res.json({
+      success: true,
+      data: result.rows.map((row: any) => {
+        const endDate = new Date(row.period_end);
+        const daysLeft = Math.ceil((endDate.getTime() - Date.now()) / (24 * 3600 * 1000));
+        return {
+          customerId: row.customer_id,
+          customerName: row.customer_name,
+          description: row.description,
+          productSku: row.product_sku,
+          licenseId: row.license_id,
+          serialNumber: row.serial_number,
+          quantity: row.quantity !== null ? Number(row.quantity) : null,
+          endDate: row.period_end,
+          daysLeft,
+        };
+      }),
+    });
+  } catch (error: any) {
+    logger.error('License expiry error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/sevdesk/customers/:customerId/licenses - Get aggregated license info for a customer
 router.get('/customers/:customerId/licenses', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {

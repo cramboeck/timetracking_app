@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import {
   Clock, Receipt, CheckCircle2,
-  TrendingUp, Users, Zap
+  TrendingUp, Users, Zap, CalendarClock
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { StatWidget } from './ui/StatWidget';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+import { sevdeskApi } from '../services/api';
 
 export interface BillingSummaryData {
   customerId: string;
@@ -33,6 +35,15 @@ export const BillingOverview = ({
   onMarkAllBilled,
   onNavigateToCustomer: _onNavigateToCustomer,
 }: BillingOverviewProps) => {
+  // Ablaufende Lizenzen/Abos (≤60 Tage, jüngste Laufzeit pro Kunde+Produkt) —
+  // Karte erscheint nur bei Treffern
+  const licenseExpiryQuery = useQuery({
+    queryKey: ['licenseExpiry'],
+    queryFn: async () => (await sevdeskApi.getLicenseExpiry(60)).data,
+    staleTime: 5 * 60 * 1000,
+  });
+  const expiringLicenses = licenseExpiryQuery.data ?? [];
+
   // Calculate stats
   const stats = useMemo(() => {
     const unbilled = billingSummary.filter(b => !b.isBilled);
@@ -168,6 +179,54 @@ export const BillingOverview = ({
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Ablaufende Lizenzen/Abos (aus Distributoren-Belegen, z.B. Infinigate) */}
+      {expiringLicenses.length > 0 && (
+        <Card className="rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <CalendarClock size={18} className="text-amber-500" />
+              Ablaufende Lizenzen ({expiringLicenses.length})
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
+              Jüngste bekannte Laufzeit pro Kunde und Produkt — Verlängerungen aus neuen Belegen entfernen den Eintrag automatisch
+            </p>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
+            {expiringLicenses.map((lic, idx) => {
+              const expired = lic.daysLeft < 0;
+              const urgent = lic.daysLeft <= 14;
+              const badgeClass = expired || urgent
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                : lic.daysLeft <= 30
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400';
+              return (
+                <div key={`${lic.customerId}-${idx}`} className="p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                      {lic.description}
+                      {lic.productSku && <span className="ml-2 text-xs font-mono text-gray-400">{lic.productSku}</span>}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
+                      {lic.customerName}
+                      {lic.quantity !== null && <> • {lic.quantity}×</>}
+                      {lic.serialNumber && <> • SN {lic.serialNumber}</>}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full ${badgeClass}`}>
+                      {expired
+                        ? `abgelaufen am ${new Date(lic.endDate).toLocaleDateString('de-DE')}`
+                        : `${lic.daysLeft} Tag${lic.daysLeft === 1 ? '' : 'e'} — ${new Date(lic.endDate).toLocaleDateString('de-DE')}`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

@@ -706,7 +706,24 @@ export const sevdeskApi = {
       body: JSON.stringify({ status, adminNote }),
     });
   },
+
+  // Ablaufende Lizenzen/Abos org-weit (jüngste Laufzeit pro Kunde+Produkt)
+  getLicenseExpiry: async (days = 60): Promise<{ success: boolean; data: LicenseExpiryItem[] }> => {
+    return authFetch(`/sevdesk/license-expiry?days=${days}`);
+  },
 };
+
+export interface LicenseExpiryItem {
+  customerId: string;
+  customerName: string;
+  description: string;
+  productSku: string | null;
+  licenseId: string | null;
+  serialNumber: string | null;
+  quantity: number | null;
+  endDate: string;
+  daysLeft: number;
+}
 
 export interface AdminLicenseRequest {
   id: string;

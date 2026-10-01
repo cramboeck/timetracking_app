@@ -200,6 +200,23 @@ server.tool(
   }
 );
 
+server.tool(
+  'lizenz_ablauf',
+  'Ablaufende Lizenzen/Abos (jüngste Laufzeit pro Kunde+Produkt). days: Fenster in Tagen (Default 60).',
+  { days: z.number().int().min(1).max(365).optional() },
+  async ({ days }) => {
+    const res = await api(`/sevdesk/license-expiry?days=${days ?? 60}`);
+    const items: any[] = res.data ?? [];
+    if (items.length === 0) return text('Keine ablaufenden Lizenzen im Zeitfenster.');
+    const lines = items.map(l => {
+      const end = new Date(l.endDate).toLocaleDateString('de-DE');
+      const status = l.daysLeft < 0 ? `ABGELAUFEN am ${end}` : `läuft ab am ${end} (${l.daysLeft} Tage)`;
+      return `- ${l.customerName}: ${l.description}${l.serialNumber ? ` (SN ${l.serialNumber})` : ''} — ${status}`;
+    });
+    return text(`${items.length} ablaufende Lizenz(en)/Abo(s):\n${lines.join('\n')}`);
+  }
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error(`RamboFlow MCP-Server verbunden (${API_URL})`);

@@ -15,6 +15,7 @@ import { startContractHoursJob } from './jobs/contractHoursCron';
 import { startCoverageReminderJob } from './jobs/coverageReminderCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
+import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import authRoutes from './routes/auth';
 import entriesRoutes from './routes/entries';
@@ -245,6 +246,7 @@ startCoverageReminderJob();
 // Polls invoice mailbox, extracts attachments, runs OCR, creates draft entries
 startInvoiceInboxJob();
 startGeocodeCustomersJob();
+startLicenseExpiryJob();
 startSupportInboxJob();
 
 // Start server
