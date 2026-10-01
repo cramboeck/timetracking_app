@@ -114,6 +114,30 @@ router.get('/debug/structure', authenticateToken, requireBillingFeature, async (
   }
 });
 
+// GET /api/infinigate/debug/pdf - Download-Endpoint-Kandidaten für Beleg-PDFs
+// gegen die echte API proben (Status/Content-Type/%PDF-Magic je Kandidat)
+router.get('/debug/pdf', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await infinigateService.probePdfEndpoints(req.user!.id);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate debug pdf error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/infinigate/fetch-pdfs - Beleg-PDFs für bereits importierte
+// Infinigate-Belege ohne Dokument nachladen (Backfill)
+router.post('/fetch-pdfs', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await infinigateService.fetchMissingInvoicePdfs(req.user!.id);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate fetch pdfs error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/infinigate/resync - Unbearbeitete Infinigate-Belege löschen und
 // komplett neu importieren (nach einem Mapping-Fix; bearbeitete bleiben)
 router.post('/resync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {

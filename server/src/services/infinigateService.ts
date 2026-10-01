@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { query } from '../config/database';
 import { customerMatchingService } from './customerMatchingService';
 import { classifyLineItemType } from './lineItemClassifier';
@@ -143,6 +145,200 @@ async function infinigateFetch(config: InfinigateConfig, path: string, retried =
   }
 
   return response.json();
+}
+
+// ─── PDF-Download (Beleg-Datei für sevDesk-Erfassung) ───────────────────────
+// Die Overview liefert pro Rechnung ein pdfDocumentGuid — der Download-
+// Endpoint ist im StarterKit aber nicht dokumentiert. Deshalb (NinjaOne-
+// Lehre): Kandidaten-Liste, die gegen die echte API probiert wird; der
+// erste Treffer wird gemerkt. debug/pdf macht die Probe sichtbar.
+
+async function infinigateFetchBinary(
+  config: InfinigateConfig,
+  apiPath: string,
+  retried = false
+): Promise<{ status: number; contentType: string; buffer: Buffer }> {
+  const baseUrl = BASE_URLS[config.environment];
+  const token = await getToken(config);
+  const response = await fetch(`${baseUrl}${apiPath}`, {
+    headers: {
+      'API-KEY': config.apiKey!,
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/pdf, application/octet-stream, */*',
+    },
+  });
+  if (response.status === 401 && !retried) {
+    tokenCache.delete(config.userId);
+    return infinigateFetchBinary(config, apiPath, true);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    status: response.status,
+    contentType: response.headers.get('content-type') || '',
+    buffer: Buffer.from(arrayBuffer),
+  };
+}
+
+// Kandidaten als Funktionen (documentGuid, pdfDocumentGuid) → Pfad
+const PDF_ENDPOINT_CANDIDATES: Array<{ label: string; build: (dg: string, pg: string) => string }> = [
+  { label: 'purchaseinvoice/{documentGuid}/pdf', build: (dg) => `/invoice-management/v2/purchaseinvoice/${dg}/pdf` },
+  { label: 'purchaseinvoice/pdf/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/purchaseinvoice/pdf/${pg}` },
+  { label: 'invoice-management/v2/document/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/document/${pg}` },
+  { label: 'invoice-management/v2/documents/{pdfDocumentGuid}', build: (_dg, pg) => `/invoice-management/v2/documents/${pg}` },
+  { label: 'document-management/v1/document/{pdfDocumentGuid}', build: (_dg, pg) => `/document-management/v1/document/${pg}` },
+  { label: 'document-management/v1/documents/{pdfDocumentGuid}', build: (_dg, pg) => `/document-management/v1/documents/${pg}` },
+];
+
+const isPdfBuffer = (buffer: Buffer): boolean => buffer.subarray(0, 5).toString('latin1').startsWith('%PDF');
+
+// Index des zuletzt funktionierenden Kandidaten (pro Prozess gecacht)
+let workingPdfCandidate: number | null = null;
+
+async function tryDownloadPdf(
+  config: InfinigateConfig,
+  documentGuid: string,
+  pdfDocumentGuid: string | null
+): Promise<Buffer | null> {
+  const order = workingPdfCandidate !== null
+    ? [workingPdfCandidate, ...PDF_ENDPOINT_CANDIDATES.map((_, i) => i).filter((i) => i !== workingPdfCandidate)]
+    : PDF_ENDPOINT_CANDIDATES.map((_, i) => i);
+  for (const idx of order) {
+    const candidate = PDF_ENDPOINT_CANDIDATES[idx];
+    const pg = pdfDocumentGuid || documentGuid;
+    try {
+      const result = await infinigateFetchBinary(config, candidate.build(documentGuid, pg));
+      if (result.status === 200 && isPdfBuffer(result.buffer)) {
+        workingPdfCandidate = idx;
+        return result.buffer;
+      }
+    } catch {
+      // Kandidat nicht erreichbar → nächsten probieren
+    }
+  }
+  return null;
+}
+
+// Probe für debug/pdf: alle Kandidaten gegen die erste Rechnung, Ergebnis je Kandidat
+export async function probePdfEndpoints(userId: string): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) {
+    throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  }
+  const overview = await infinigateFetch(config, '/invoice-management/v2/purchaseinvoice?Take=1&Skip=0');
+  const first = overview?.result?.[0];
+  if (!first?.documentGuid) return { error: 'Keine Rechnung in der Overview' };
+  const pg = first.pdfDocumentGuid || first.documentGuid;
+  const results = [];
+  for (const candidate of PDF_ENDPOINT_CANDIDATES) {
+    try {
+      const r = await infinigateFetchBinary(config, candidate.build(first.documentGuid, pg));
+      results.push({
+        candidate: candidate.label,
+        status: r.status,
+        contentType: r.contentType,
+        bytes: r.buffer.length,
+        isPdf: isPdfBuffer(r.buffer),
+        bodyPreview: isPdfBuffer(r.buffer) ? '%PDF…' : r.buffer.subarray(0, 120).toString('utf8'),
+      });
+    } catch (err: any) {
+      results.push({ candidate: candidate.label, error: String(err.message).slice(0, 200) });
+    }
+  }
+  return { invoice: first.documentNumber, hasPdfDocumentGuid: !!first.pdfDocumentGuid, results };
+}
+
+// Gleiche Ablage wie der E-Mail-/Upload-Weg (invoiceProcessorService):
+// /app/uploads/invoices/<orgId>/<uuid>.pdf + invoice_documents-Zeile +
+// document_ids/attachment_count am Beleg — damit funktionieren Vorschau
+// und sevDesk-Upload beim Bestätigen unverändert.
+const invoiceUploadDir = (): string =>
+  process.env.NODE_ENV === 'production' ? '/app/uploads/invoices' : path.join(__dirname, '../../uploads/invoices');
+
+export async function attachPdfToInvoice(
+  organizationId: string,
+  processedInvoiceId: string,
+  documentNumber: string | null,
+  buffer: Buffer
+): Promise<void> {
+  const orgDir = path.join(invoiceUploadDir(), organizationId);
+  await fs.promises.mkdir(orgDir, { recursive: true });
+  const filename = `${crypto.randomUUID()}.pdf`;
+  const storagePath = path.join(orgDir, filename);
+  await fs.promises.writeFile(storagePath, buffer);
+
+  const docId = crypto.randomUUID();
+  await query(
+    `INSERT INTO invoice_documents (
+      id, organization_id, processed_invoice_id, filename, original_filename,
+      mime_type, size, storage_path, created_at
+    ) VALUES ($1, $2, $3, $4, $5, 'application/pdf', $6, $7, NOW())`,
+    [docId, organizationId, processedInvoiceId, filename, `Infinigate_${documentNumber || processedInvoiceId}.pdf`, buffer.length, storagePath]
+  );
+  await query(
+    `UPDATE processed_invoices
+     SET document_ids = $1::jsonb, attachment_count = 1
+     WHERE id = $2`,
+    [JSON.stringify([docId]), processedInvoiceId]
+  );
+}
+
+// Backfill: PDFs für bereits importierte Infinigate-Belege ohne Dokument
+// nachladen. Overview (12 Monate) liefert die GUID-Zuordnung.
+export async function fetchMissingInvoicePdfs(userId: string): Promise<{ checked: number; downloaded: number; failed: number; errors: string[] }> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) {
+    throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  }
+  const orgResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  const organizationId: string | undefined = orgResult.rows[0]?.organization_id;
+  if (!organizationId) throw new Error('Keine Organisation für User gefunden');
+
+  // GUID → pdfDocumentGuid/documentNumber aus der Overview der letzten 12 Monate
+  const since = new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString();
+  const overviewByGuid = new Map<string, { pdfDocumentGuid: string | null; documentNumber: string | null }>();
+  for (let skip = 0; ; skip += 50) {
+    const page = await infinigateFetch(
+      config,
+      `/invoice-management/v2/purchaseinvoice?PeriodStart=${encodeURIComponent(since)}&Take=50&Skip=${skip}`
+    );
+    const rows: any[] = page?.result || [];
+    for (const row of rows) {
+      if (row?.documentGuid) {
+        overviewByGuid.set(row.documentGuid, {
+          pdfDocumentGuid: row.pdfDocumentGuid || null,
+          documentNumber: row.documentNumber || null,
+        });
+      }
+    }
+    if (rows.length < 50) break;
+    if (skip > 5000) break;
+  }
+
+  const missing = await query(
+    `SELECT id, infinigate_document_guid FROM processed_invoices
+     WHERE organization_id = $1 AND source = 'infinigate_api' AND attachment_count = 0`,
+    [organizationId]
+  );
+
+  const result = { checked: missing.rows.length, downloaded: 0, failed: 0, errors: [] as string[] };
+  for (const row of missing.rows) {
+    const meta = overviewByGuid.get(row.infinigate_document_guid);
+    if (!meta) { result.failed++; continue; }
+    try {
+      const buffer = await tryDownloadPdf(config, row.infinigate_document_guid, meta.pdfDocumentGuid);
+      if (!buffer) { result.failed++; continue; }
+      await attachPdfToInvoice(organizationId, row.id, meta.documentNumber, buffer);
+      result.downloaded++;
+    } catch (err: any) {
+      result.failed++;
+      if (result.errors.length < 5) result.errors.push(`${meta.documentNumber || row.id}: ${err.message}`);
+    }
+  }
+  logger.info(`Infinigate-PDF-Backfill: ${result.downloaded}/${result.checked} geladen, ${result.failed} fehlgeschlagen`);
+  return result;
 }
 
 // ─── Verbindungstest ────────────────────────────────────────────────────────
@@ -500,6 +696,17 @@ export async function syncInvoices(userId: string): Promise<InfinigateSyncResult
         ]
       );
       result.invoicesImported++;
+
+      // Beleg-PDF mitladen (best effort — Sync scheitert nie am PDF).
+      // Mit Dokument funktionieren Vorschau + sevDesk-Upload beim Bestätigen.
+      try {
+        const pdfBuffer = await tryDownloadPdf(config, documentGuid, overview?.pdfDocumentGuid || null);
+        if (pdfBuffer) {
+          await attachPdfToInvoice(organizationId, invoiceId, header.documentNumber || null, pdfBuffer);
+        }
+      } catch (pdfErr: any) {
+        logger.warn(`Infinigate-PDF für ${header.documentNumber || documentGuid} nicht geladen: ${pdfErr.message}`);
+      }
 
       const mspItemsRaw = detail?.mspDetailInformation;
       const mspItems: any[] = Array.isArray(mspItemsRaw) ? mspItemsRaw : [];
