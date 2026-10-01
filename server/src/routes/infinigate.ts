@@ -102,4 +102,28 @@ router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthR
   }
 });
 
+// GET /api/infinigate/debug/structure - Feldstruktur einer echten Rechnung
+// (Typen + gekürzte Beispielwerte) — zum Abgleich Mapping vs. echte API
+router.get('/debug/structure', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const structure = await infinigateService.inspectFirstInvoiceStructure(req.user!.id);
+    res.json({ success: true, data: structure });
+  } catch (error: any) {
+    logger.error('Infinigate debug structure error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/infinigate/resync - Unbearbeitete Infinigate-Belege löschen und
+// komplett neu importieren (nach einem Mapping-Fix; bearbeitete bleiben)
+router.post('/resync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await infinigateService.resyncInvoices(req.user!.id);
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate resync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

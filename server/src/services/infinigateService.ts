@@ -165,7 +165,96 @@ export async function testConnection(userId: string): Promise<{ ok: boolean; mes
   }
 }
 
+// ─── Diagnose: echte Response-Struktur sichtbar machen ──────────────────────
+// Die StarterKit-Doku und die echte API weichen ab (Prod-Befund 1.10.2026:
+// 190 Positionen, aber 0× Endkunde/Laufzeit/Lizenz-ID geparst). Dieser
+// Helfer beschreibt die Struktur einer echten Rechnung: Pfade + Typen +
+// GEKÜRZTE Beispielwerte (24 Zeichen), damit der Output ohne Kundendaten-
+// Leak teilbar ist und das Mapping gegen die Realität korrigiert werden kann.
+
+function describeStructure(value: unknown, depth = 0, maxDepth = 7): any {
+  if (depth > maxDepth) return '…(zu tief)';
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value)) {
+    return value.length === 0
+      ? 'array(leer)'
+      : { [`array(${value.length}), erstes Element:`]: describeStructure(value[0], depth + 1, maxDepth) };
+  }
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = describeStructure(v, depth + 1, maxDepth);
+    }
+    return out;
+  }
+  if (typeof value === 'string') {
+    const shortened = value.length > 24 ? `${value.slice(0, 24)}…` : value;
+    return `string "${shortened}"`;
+  }
+  return `${typeof value} ${String(value)}`;
+}
+
+export async function inspectFirstInvoiceStructure(userId: string): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) {
+    throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  }
+  const overview = await infinigateFetch(config, '/invoice-management/v2/purchaseinvoice?Take=1&Skip=0');
+  const first = overview?.result?.[0];
+  if (!first?.documentGuid) {
+    return { overview: describeStructure(overview) };
+  }
+  const detail = await infinigateFetch(config, `/invoice-management/v2/purchaseinvoice/${first.documentGuid}`);
+  // Nur Header + die ersten 2 Zeilen beschreiben — das reicht fürs Mapping
+  const lines: any[] = detail?.lines || [];
+  return {
+    overviewFirstEntry: describeStructure(first),
+    detailTopLevelKeys: Object.keys(detail || {}),
+    header: describeStructure(detail?.header),
+    lineCount: lines.length,
+    firstLine: describeStructure(lines[0]),
+    secondLine: lines.length > 1 ? describeStructure(lines[1]) : undefined,
+  };
+}
+
+// ─── Resync: unbearbeitete Infinigate-Belege neu importieren ────────────────
+// Nötig nach einem Mapping-Fix: die Dedupe-Logik (documentGuid) überspringt
+// bereits importierte Rechnungen für immer. Löscht NUR Belege, deren
+// Positionen komplett unbearbeitet sind (keine Kundenzuordnung, Status
+// pending) — Positionen via FK ON DELETE CASCADE — und setzt last_sync_at
+// zurück, damit der nächste Sync wieder 12 Monate zurückschaut.
+export async function resyncInvoices(userId: string): Promise<InfinigateSyncResult & { deletedInvoices: number }> {
+  const orgResult = await query(
+    'SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  const organizationId: string | undefined = orgResult.rows[0]?.organization_id;
+  if (!organizationId) {
+    throw new Error('Keine Organisation für User gefunden');
+  }
+
+  const deleted = await query(
+    `DELETE FROM processed_invoices pi
+     WHERE pi.organization_id = $1
+       AND pi.source = 'infinigate_api'
+       AND NOT EXISTS (
+         SELECT 1 FROM invoice_line_items li
+         WHERE li.processed_invoice_id = pi.id
+           AND (li.customer_id IS NOT NULL OR li.rebilling_status <> 'pending')
+       )
+     RETURNING pi.id`,
+    [organizationId]
+  );
+  await query('UPDATE infinigate_config SET last_sync_at = NULL WHERE user_id = $1', [userId]);
+  logger.info(`Infinigate-Resync: ${deleted.rows.length} unbearbeitete Belege entfernt, Sync startet neu`);
+
+  const result = await syncInvoices(userId);
+  return { ...result, deletedInvoices: deleted.rows.length };
+}
+
 // ─── Rechnungs-/Lizenz-Sync ─────────────────────────────────────────────────
+
 
 export interface InfinigateSyncResult {
   invoicesFetched: number;
