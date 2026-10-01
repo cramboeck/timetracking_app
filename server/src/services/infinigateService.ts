@@ -218,21 +218,56 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
   let lineWithEndCustomerInvoice: string | undefined;
   let lineWithContract: any = null;
   let lineWithContractInvoice: string | undefined;
+  let mspElementWithEndCustomer: any = null;
+  let mspElementWithReseller: any = null;
+  let mspElementWithContract: any = null;
   const lineTypeCounts: Record<string, number> = {};
+  // additionalInfos sind Schlüssel-Wert-Paare ({description, value}) —
+  // hier zählen wir pro Schlüssel, wie oft er befüllt ist, mit je einem
+  // gekürzten Beispielwert. Das verrät, wo Endkunde/Laufzeit wirklich stehen.
+  const mspAdditionalInfoKeys: Record<string, { filled: number; total: number; sample?: string }> = {};
+  const lineAdditionalInfoKeys: Record<string, { filled: number; total: number; sample?: string }> = {};
+  let mspElementCount = 0;
+
+  const tallyInfos = (
+    infos: any[] | undefined,
+    target: Record<string, { filled: number; total: number; sample?: string }>
+  ) => {
+    for (const info of infos || []) {
+      const key = String(info?.description ?? '?');
+      const rec = (target[key] ||= { filled: 0, total: 0 });
+      rec.total++;
+      if (info?.value != null && String(info.value).trim() !== '') {
+        rec.filled++;
+        if (rec.sample === undefined) {
+          const raw = String(info.value);
+          rec.sample = raw.length > 24 ? `${raw.slice(0, 24)}…` : raw;
+        }
+      }
+    }
+  };
 
   for (const entry of entries) {
     if (!entry?.documentGuid) continue;
     const detail = await infinigateFetch(config, `/invoice-management/v2/purchaseinvoice/${entry.documentGuid}`);
     if (!firstDetail) firstDetail = detail;
     const msp = detail?.mspDetailInformation;
-    const mspNonEmpty = msp != null && (!Array.isArray(msp) || msp.length > 0);
-    if (!mspDetailSample && mspNonEmpty) {
+    const mspItems: any[] = Array.isArray(msp) ? msp : msp != null ? [msp] : [];
+    if (!mspDetailSample && mspItems.length > 0) {
       mspDetailSample = describeStructure(msp);
       mspDetailInvoice = detail?.header?.documentNumber || entry.documentNumber;
+    }
+    for (const item of mspItems) {
+      mspElementCount++;
+      tallyInfos(item?.additionalInfos, mspAdditionalInfoKeys);
+      if (!mspElementWithEndCustomer && item?.endCustomer != null) mspElementWithEndCustomer = describeStructure(item);
+      if (!mspElementWithReseller && item?.reseller != null) mspElementWithReseller = describeStructure(item);
+      if (!mspElementWithContract && item?.contractInformation != null) mspElementWithContract = describeStructure(item);
     }
     for (const line of detail?.lines || []) {
       const type = String(line?.lineType ?? 'unbekannt');
       lineTypeCounts[type] = (lineTypeCounts[type] || 0) + 1;
+      tallyInfos(line?.additionalInfos, lineAdditionalInfoKeys);
       if (!lineWithEndCustomer && line?.endCustomerDto != null) {
         lineWithEndCustomer = describeStructure(line);
         lineWithEndCustomerInvoice = detail?.header?.documentNumber || entry.documentNumber;
@@ -242,22 +277,23 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
         lineWithContractInvoice = detail?.header?.documentNumber || entry.documentNumber;
       }
     }
-    // Alles gefunden? Dann keine weiteren API-Calls verschwenden.
-    if (mspDetailSample && lineWithEndCustomer && lineWithContract) break;
   }
 
   const lines: any[] = firstDetail?.lines || [];
   return {
     scannedInvoices: entries.length,
-    overviewFirstEntry: describeStructure(entries[0]),
     detailTopLevelKeys: Object.keys(firstDetail || {}),
-    header: describeStructure(firstDetail?.header),
-    lineCount: lines.length,
-    firstLine: describeStructure(lines[0]),
-    secondLine: lines.length > 1 ? describeStructure(lines[1]) : undefined,
     lineTypeCounts,
+    mspElementCount,
+    // Die Kernfrage: welche additionalInfos-Schlüssel existieren und wie oft
+    // sind sie befüllt? (filled/total über alle gescannten Rechnungen)
+    mspAdditionalInfoKeys,
+    lineAdditionalInfoKeys,
     mspDetailInformation: mspDetailSample ?? 'in allen gescannten Rechnungen leer/null',
     mspDetailInvoice,
+    mspElementWithEndCustomer: mspElementWithEndCustomer ?? 'endCustomer in allen MSP-Elementen null',
+    mspElementWithReseller: mspElementWithReseller ?? 'reseller in allen MSP-Elementen null',
+    mspElementWithContract: mspElementWithContract ?? 'contractInformation in allen MSP-Elementen null',
     lineWithEndCustomer: lineWithEndCustomer ?? 'endCustomerDto in allen gescannten Zeilen null',
     lineWithEndCustomerInvoice,
     lineWithContract: lineWithContract ?? 'contractInformationDto in allen gescannten Zeilen null',
