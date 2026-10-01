@@ -228,6 +228,9 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
   const mspAdditionalInfoKeys: Record<string, { filled: number; total: number; sample?: string }> = {};
   const lineAdditionalInfoKeys: Record<string, { filled: number; total: number; sample?: string }> = {};
   let mspElementCount = 0;
+  // Geräte (ObjectName) pro Endkunde (ClientName/clientName) — ungekürzt,
+  // eigene Bestandsdaten des Users
+  const deviceNamesByClient: Record<string, Set<string>> = {};
 
   const tallyInfos = (
     infos: any[] | undefined,
@@ -263,6 +266,11 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
       if (!mspElementWithEndCustomer && item?.endCustomer != null) mspElementWithEndCustomer = describeStructure(item);
       if (!mspElementWithReseller && item?.reseller != null) mspElementWithReseller = describeStructure(item);
       if (!mspElementWithContract && item?.contractInformation != null) mspElementWithContract = describeStructure(item);
+      const objectName = getMspInfo(item, 'ObjectName');
+      if (objectName) {
+        const client = getMspInfo(item, 'ClientName', 'clientName') || '(ohne Endkunde)';
+        (deviceNamesByClient[client] ||= new Set()).add(objectName);
+      }
     }
     for (const line of detail?.lines || []) {
       const type = String(line?.lineType ?? 'unbekannt');
@@ -289,6 +297,9 @@ export async function inspectFirstInvoiceStructure(userId: string): Promise<any>
     // sind sie befüllt? (filled/total über alle gescannten Rechnungen)
     mspAdditionalInfoKeys,
     lineAdditionalInfoKeys,
+    deviceNamesByClient: Object.fromEntries(
+      Object.entries(deviceNamesByClient).map(([client, names]) => [client, [...names].sort()])
+    ),
     mspDetailInformation: mspDetailSample ?? 'in allen gescannten Rechnungen leer/null',
     mspDetailInvoice,
     mspElementWithEndCustomer: mspElementWithEndCustomer ?? 'endCustomer in allen MSP-Elementen null',
@@ -351,6 +362,48 @@ const PAGE_SIZE = 50;
 // Erstlauf: 12 Monate zurück (Lizenz-Laufzeiten!), Folgeläufe: last_sync - 14 Tage Überlappung.
 const INITIAL_LOOKBACK_DAYS = 365;
 const RESYNC_OVERLAP_DAYS = 14;
+
+// ─── MSP-Detail-Parsing (Prod-verifiziert 1.10.2026 via debug/structure) ────
+// Bei MSP-Rechnungen (Hornetsecurity & Co.) sind endCustomerDto/
+// contractInformationDto auf den Zeilen IMMER null. Die echten Nutzdaten
+// liegen im Top-Level-Array `mspDetailInformation` (ein Element pro
+// Endkunde+Produkt, feiner als die Rechnungszeilen) — und dort in den
+// additionalInfos-Paaren ({description, value}):
+//   clientName  = Endkunden-DOMAIN (z.B. areg-mbh.de) → Domain-Matching
+//   ClientName  = Endkunden-Kürzel (z.B. IHE) bei Backup-Produkten
+//   ObjectName  = geschütztes Gerät (z.B. IHE-NB1100)
+//   vendorContractNumber = Lizenz-/Vertragsnummer (MSP-…)
+//   periodStart/periodEnd = Laufzeit im US-Format (6/1/2026 12:00:00 AM)
+//   SiteName    = Zeitraum als deutscher String (01.08.2026 - 31.08.2026)
+//   recommendedEndUserUnitPrice = VK-Empfehlung (bewusst nicht automatisch
+//     als resell_price übernommen — VK pflegt der User im LineItemReview)
+
+function getMspInfo(item: any, ...keys: string[]): string | null {
+  const infos: any[] = Array.isArray(item?.additionalInfos) ? item.additionalInfos : [];
+  for (const key of keys) {
+    const hit = infos.find((i) => String(i?.description ?? '').toLowerCase() === key.toLowerCase());
+    const value = hit?.value;
+    if (value != null && String(value).trim() !== '') return String(value).trim();
+  }
+  return null;
+}
+
+function parseMspDate(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function parseGermanPeriod(value: string | null): { start: Date; end: Date } | null {
+  const m = value?.match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2})\.(\d{2})\.(\d{4})/);
+  if (!m) return null;
+  return {
+    start: new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]))),
+    end: new Date(Date.UTC(Number(m[6]), Number(m[5]) - 1, Number(m[4]))),
+  };
+}
+
+const looksLikeDomain = (s: string): boolean => /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(s);
 
 export async function syncInvoices(userId: string): Promise<InfinigateSyncResult> {
   const result: InfinigateSyncResult = {
@@ -448,52 +501,130 @@ export async function syncInvoices(userId: string): Promise<InfinigateSyncResult
       );
       result.invoicesImported++;
 
-      for (const line of lines) {
-        const contract = line?.contractInformationDto || {};
-        const endCustomer = line?.endCustomerDto?.company || line?.endCustomer?.company || {};
-        const qty = Number(line?.quantity) || null;
-        const netUnit = Number(line?.netUnitPrice) || null;
+      const mspItemsRaw = detail?.mspDetailInformation;
+      const mspItems: any[] = Array.isArray(mspItemsRaw) ? mspItemsRaw : [];
 
-        const lineItemId = crypto.randomUUID();
-        const itemDescription = [line?.itemDescription, line?.itemDescription2].filter(Boolean).join(' ') || line?.itemNumber || 'Position';
-        const itemType = classifyLineItemType({
-          description: itemDescription,
-          sku: line?.itemNumber,
-          licenseId: contract.licenseId,
-          serialNumber: contract.serialNumber,
-          hasPeriod: !!(contract.StartDate && contract.EndDate),
-        });
-        await query(
-          `INSERT INTO invoice_line_items (
-            id, organization_id, processed_invoice_id, position_number,
-            description, article_number, quantity, unit_price, total_price, vat_rate,
-            period_start, period_end, product_sku,
-            extracted_customer_name, extracted_customer_number,
-            license_id, serial_number, item_type
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-          [
-            lineItemId,
-            organizationId,
-            invoiceId,
-            Number(line?.lineNumber) || null,
-            itemDescription,
-            line?.vendorItemNumber || null,
-            qty,
-            netUnit,
-            qty !== null && netUnit !== null ? qty * netUnit : null,
-            Number(line?.vatRate) || null,
-            contract.StartDate ? new Date(contract.StartDate) : null,
-            contract.EndDate ? new Date(contract.EndDate) : null,
-            line?.itemNumber || null,
-            endCustomer.name || null,
-            endCustomer.customerNumber || null,
-            contract.licenseId || null,
-            contract.serialNumber || null,
-            itemType,
-          ]
-        );
-        result.lineItemsCreated++;
-        newLineItemIds.push(lineItemId);
+      if (mspItems.length > 0) {
+        // MSP-Rechnung: Positionen aus mspDetailInformation (ein Element pro
+        // Endkunde+Produkt — feiner und mit echten Endkunden-Daten)
+        let position = 0;
+        for (const item of mspItems) {
+          position++;
+          const qty = Number(item?.quantity) || null;
+          const unitPrice = item?.price != null && !isNaN(Number(item.price)) ? Number(item.price) : null;
+
+          const endCustomerRaw = getMspInfo(item, 'clientName', 'ClientName');
+          const endCustomerDomain = endCustomerRaw && looksLikeDomain(endCustomerRaw)
+            ? endCustomerRaw.toLowerCase().replace(/^www\./, '')
+            : null;
+          const licenseId = getMspInfo(item, 'vendorContractNumber');
+          const objectName = getMspInfo(item, 'ObjectName');
+          const periodText = getMspInfo(item, 'SiteName');
+          let periodStartDate = parseMspDate(getMspInfo(item, 'periodStart'));
+          let periodEndDate = parseMspDate(getMspInfo(item, 'periodEnd'));
+          if (!periodStartDate || !periodEndDate) {
+            const germanPeriod = parseGermanPeriod(periodText);
+            if (germanPeriod) {
+              periodStartDate = periodStartDate || germanPeriod.start;
+              periodEndDate = periodEndDate || germanPeriod.end;
+            }
+          }
+
+          const description = [
+            item?.itemDescription || item?.itemSku || 'Position',
+            objectName ? `(${objectName})` : null,
+          ].filter(Boolean).join(' ');
+          const itemType = classifyLineItemType({
+            description,
+            sku: item?.itemSku,
+            licenseId,
+            serialNumber: null,
+            hasPeriod: !!(periodStartDate && periodEndDate),
+          });
+
+          const lineItemId = crypto.randomUUID();
+          await query(
+            `INSERT INTO invoice_line_items (
+              id, organization_id, processed_invoice_id, position_number,
+              description, quantity, unit_price, total_price,
+              period_start, period_end, period_text, product_sku,
+              extracted_customer_name, extracted_customer_domain,
+              license_id, item_type
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+            [
+              lineItemId,
+              organizationId,
+              invoiceId,
+              position,
+              description,
+              qty,
+              unitPrice,
+              qty !== null && unitPrice !== null ? Math.round(qty * unitPrice * 100) / 100 : null,
+              periodStartDate,
+              periodEndDate,
+              periodText,
+              item?.itemSku || null,
+              endCustomerRaw,
+              endCustomerDomain,
+              licenseId,
+              itemType,
+            ]
+          );
+          result.lineItemsCreated++;
+          newLineItemIds.push(lineItemId);
+        }
+      } else {
+        // Kein MSP-Block: klassischer Zeilen-Import (Resale-Rechnungen).
+        // Text-Zeilen sind Überschriften ohne Artikel/Preis — keine Positionen.
+        for (const line of lines) {
+          if (String(line?.lineType) === 'Text') continue;
+          const contract = line?.contractInformationDto || {};
+          const endCustomer = line?.endCustomerDto?.company || line?.endCustomer?.company || {};
+          const qty = Number(line?.quantity) || null;
+          const netUnit = Number(line?.netUnitPrice) || null;
+
+          const lineItemId = crypto.randomUUID();
+          const itemDescription = [line?.itemDescription, line?.itemDescription2].filter(Boolean).join(' ')
+            || line?.fullDescription || line?.itemNumber || 'Position';
+          const itemType = classifyLineItemType({
+            description: itemDescription,
+            sku: line?.itemNumber,
+            licenseId: contract.licenseId,
+            serialNumber: contract.serialNumber,
+            hasPeriod: !!(contract.StartDate && contract.EndDate),
+          });
+          await query(
+            `INSERT INTO invoice_line_items (
+              id, organization_id, processed_invoice_id, position_number,
+              description, article_number, quantity, unit_price, total_price, vat_rate,
+              period_start, period_end, product_sku,
+              extracted_customer_name, extracted_customer_number,
+              license_id, serial_number, item_type
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+            [
+              lineItemId,
+              organizationId,
+              invoiceId,
+              Number(line?.lineNumber) || null,
+              itemDescription,
+              line?.vendorItemNumber || null,
+              qty,
+              netUnit,
+              qty !== null && netUnit !== null ? qty * netUnit : null,
+              Number(line?.vatRate) || null,
+              contract.StartDate ? new Date(contract.StartDate) : null,
+              contract.EndDate ? new Date(contract.EndDate) : null,
+              line?.itemNumber || null,
+              endCustomer.name || null,
+              endCustomer.customerNumber || null,
+              contract.licenseId || null,
+              contract.serialNumber || null,
+              itemType,
+            ]
+          );
+          result.lineItemsCreated++;
+          newLineItemIds.push(lineItemId);
+        }
       }
     } catch (err: any) {
       result.errors.push(`Rechnung ${documentGuid}: ${err.message}`);
