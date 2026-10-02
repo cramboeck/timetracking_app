@@ -847,9 +847,12 @@ export interface PricelistItem {
   description: string | null;
   manufacturer: string | null;
   productType: string | null;
+  licenseType: string | null;
   endUserType: string | null;
   price: number | null;
   listPrice: number | null;
+  discountPercent: number | null;
+  priceOnRequest: boolean;
   currency: string;
   stock: number | null;
 }
@@ -859,12 +862,17 @@ export interface InfinigateQuote {
   documentNumber: string | null;
   documentRevision: number | null;
   buyerReference: string | null;
+  externalDocumentNumber: string | null;
   createdAt: string | null;
   validUntil: string | null;
   status: string | null;
+  businessType: string | null;
   manufacturer: string | null;
   totalNetPrice: number | null;
   currency: string;
+  canBeAccepted: boolean;
+  canBeRejected: boolean;
+  salesContactName: string | null;
 }
 
 // ============================================

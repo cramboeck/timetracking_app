@@ -119,7 +119,18 @@ export const OrdersHub = () => {
         {item.endUserType && <span className="ml-2 text-xs text-gray-400">{item.endUserType}</span>}
       </td>
       <td className="px-4 py-2.5 text-gray-500 dark:text-dark-400 whitespace-nowrap">{item.manufacturer ?? '—'}</td>
-      <td className="px-4 py-2.5 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap tabular-nums">{fmtEur(item.price, item.currency)}</td>
+      <td className="px-4 py-2.5 text-right whitespace-nowrap tabular-nums">
+        {item.priceOnRequest ? (
+          <span className="text-xs text-gray-500 dark:text-dark-400">auf Anfrage</span>
+        ) : (
+          <>
+            <span className="font-semibold text-gray-900 dark:text-white">{fmtEur(item.price, item.currency)}</span>
+            {item.discountPercent !== null && item.discountPercent > 0 && item.listPrice !== null && (
+              <span className="ml-1.5 text-xs text-gray-400 line-through">{fmtEur(item.listPrice, item.currency)}</span>
+            )}
+          </>
+        )}
+      </td>
       <td className="px-4 py-2.5 text-right text-gray-500 dark:text-dark-400 whitespace-nowrap tabular-nums">{item.stock ?? '—'}</td>
     </tr>
   );
@@ -131,7 +142,7 @@ export const OrdersHub = () => {
         {item.sku ?? '—'}{item.manufacturer ? ` · ${item.manufacturer}` : ''}
       </p>
       <p className="text-sm mt-1 font-semibold text-gray-900 dark:text-white">
-        {fmtEur(item.price, item.currency)}
+        {item.priceOnRequest ? 'Preis auf Anfrage' : fmtEur(item.price, item.currency)}
         {item.stock !== null && <span className="ml-2 font-normal text-xs text-gray-500 dark:text-dark-400">Bestand: {item.stock}</span>}
       </p>
     </div>
@@ -280,15 +291,22 @@ export const OrdersHub = () => {
           <div className="divide-y divide-gray-100 dark:divide-dark-border">
             {quotes.map((quote, idx) => {
               const statusKey = (quote.status || '').toLowerCase();
-              const isOpen = !['accepted', 'rejected', 'expired', 'ordered', 'closed'].includes(statusKey);
               return (
                 <div key={`${quote.documentNumber}-${idx}`} className="p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
                       {quote.documentNumber ?? '—'}
-                      {quote.status && (
+                      {quote.externalDocumentNumber && (
+                        <span className="text-xs font-mono text-gray-400">{quote.externalDocumentNumber}</span>
+                      )}
+                      {quote.status && quote.status !== 'Unknown' && (
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${QUOTE_STATUS_STYLES[statusKey] || 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400'}`}>
                           {quote.status}
+                        </span>
+                      )}
+                      {!quote.canBeAccepted && !quote.canBeRejected && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400">
+                          keine Aktion möglich
                         </span>
                       )}
                     </p>
@@ -297,21 +315,22 @@ export const OrdersHub = () => {
                       {quote.manufacturer && <>{quote.manufacturer} · </>}
                       Erstellt {fmtDate(quote.createdAt)}
                       {quote.validUntil && <> · gültig bis {fmtDate(quote.validUntil)}</>}
+                      {quote.salesContactName && <> · Ansprechpartner: {quote.salesContactName}</>}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap tabular-nums mr-1">
                       {fmtEur(quote.totalNetPrice, quote.currency)}
                     </span>
-                    {isOpen && quote.documentNumber && (
-                      <>
-                        <Button size="sm" disabled={busyQuote} icon={<CheckCircle2 size={14} />} onClick={() => handleAccept(quote)}>
-                          Annehmen
-                        </Button>
-                        <Button size="sm" variant="secondary" disabled={busyQuote} icon={<XCircle size={14} />} onClick={() => handleReject(quote)}>
-                          Ablehnen
-                        </Button>
-                      </>
+                    {quote.canBeAccepted && quote.documentNumber && (
+                      <Button size="sm" disabled={busyQuote} icon={<CheckCircle2 size={14} />} onClick={() => handleAccept(quote)}>
+                        Annehmen
+                      </Button>
+                    )}
+                    {quote.canBeRejected && quote.documentNumber && (
+                      <Button size="sm" variant="secondary" disabled={busyQuote} icon={<XCircle size={14} />} onClick={() => handleReject(quote)}>
+                        Ablehnen
+                      </Button>
                     )}
                   </div>
                 </div>

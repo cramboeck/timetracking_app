@@ -428,25 +428,36 @@ export interface PricelistItem {
   description: string | null;
   manufacturer: string | null;
   productType: string | null;
+  licenseType: string | null;
   endUserType: string | null;
-  price: number | null; // EK (Reseller-Einkauf)
-  listPrice: number | null; // UVP/Endkundenpreis, falls geliefert
+  price: number | null; // EK = listPrice.discountedPrice (inkl. Reseller-Rabatt)
+  listPrice: number | null; // Listenpreis vor Rabatt (listPrice.price)
+  discountPercent: number | null;
+  priceOnRequest: boolean;
   currency: string;
   stock: number | null;
 }
 
+// Felder verifiziert gegen Prod-Dump (debug/orders, 2.10.2026):
+// sku, vendorSku, productType, descriptionFullText, vendorName,
+// priceOnRequest, listPrice{discountPercent, discountedPrice, price,
+// CurrencyCode}, stockLevel, licenseType, endUserType, licenseBand{min,max}
 function normalizePricelistItem(item: any): PricelistItem {
+  const priceBlock = item?.listPrice && typeof item.listPrice === 'object' ? item.listPrice : {};
   return {
-    sku: pick(item, 'sku', 'no', 'itemNumber', 'itemNo', 'number'),
-    vendorSku: pick(item, 'vendorItemNumber', 'vendorSku', 'manufacturerItemNumber', 'vendorNo'),
-    description: pick(item, 'description', 'itemDescription', 'name', 'productName', 'displayName'),
-    manufacturer: pick(item, 'manufacturerName', 'vendorName', 'manufacturer', 'vendorCode'),
-    productType: pick(item, 'productType', 'itemType', 'type'),
-    endUserType: pick(item, 'endUserType', 'licenseType'),
-    price: pickNumber(item, 'netPrice', 'resellerPrice', 'unitPrice', 'netUnitPrice', 'price', 'purchasePrice'),
-    listPrice: pickNumber(item, 'msrp', 'listPrice', 'recommendedEndUserPrice', 'endUserPrice', 'retailPrice'),
-    currency: pick(item, 'currencyCode', 'currency') || 'EUR',
-    stock: pickNumber(item, 'stock', 'availableQuantity', 'quantityAvailable', 'inventory', 'availableStock'),
+    sku: pick(item, 'sku', 'no', 'itemNumber'),
+    vendorSku: pick(item, 'vendorSku', 'vendorItemNumber'),
+    description: pick(item, 'descriptionFullText', 'description', 'itemDescription', 'name'),
+    manufacturer: pick(item, 'vendorName', 'manufacturerName', 'vendorCode'),
+    productType: pick(item, 'productType', 'itemType'),
+    licenseType: pick(item, 'licenseType'),
+    endUserType: pick(item, 'endUserType'),
+    price: pickNumber(priceBlock, 'discountedPrice', 'price') ?? pickNumber(item, 'netPrice', 'price'),
+    listPrice: pickNumber(priceBlock, 'price'),
+    discountPercent: pickNumber(priceBlock, 'discountPercent'),
+    priceOnRequest: item?.priceOnRequest === true,
+    currency: pick(priceBlock, 'CurrencyCode', 'currencyCode') || pick(item, 'currencyCode') || 'EUR',
+    stock: pickNumber(item, 'stockLevel', 'stock', 'availableQuantity'),
   };
 }
 
@@ -475,26 +486,41 @@ export interface QuoteSummary {
   documentNumber: string | null;
   documentRevision: number | null;
   buyerReference: string | null;
+  externalDocumentNumber: string | null;
   createdAt: string | null;
   validUntil: string | null;
   status: string | null;
+  businessType: string | null;
   manufacturer: string | null;
   totalNetPrice: number | null;
   currency: string;
+  canBeAccepted: boolean;
+  canBeRejected: boolean;
+  salesContactName: string | null;
 }
 
+// Felder verifiziert gegen Prod-Dump (debug/orders, 2.10.2026):
+// documentGuid/Number, documentVersion (= Revision!), buyerReference,
+// externalDocumentNumber, documentCreated/ValidUntil/Status, businessType,
+// vendorCode, manufacturerName, total, currencyCode, canBeAccepted/
+// canBeRejected (API sagt selbst, welche Aktionen erlaubt sind), salesContact
 function normalizeQuote(row: any): QuoteSummary {
   return {
-    documentGuid: pick(row, 'documentGuid', 'guid', 'id'),
-    documentNumber: pick(row, 'documentNumber', 'quoteNumber', 'number'),
-    documentRevision: pickNumber(row, 'documentRevision', 'revision'),
-    buyerReference: pick(row, 'buyerReference', 'reference'),
-    createdAt: pick(row, 'documentCreated', 'postingDate', 'createdAt', 'documentDate'),
-    validUntil: pick(row, 'documentValidUntil', 'validUntil', 'expiryDate', 'dueDate'),
-    status: pick(row, 'documentStatus', 'status', 'state'),
-    manufacturer: pick(row, 'manufacturerName', 'vendorCode', 'vendorName'),
-    totalNetPrice: pickNumber(row, 'totalNetPrice', 'netTotal', 'totalAmount', 'netAmount'),
+    documentGuid: pick(row, 'documentGuid', 'guid'),
+    documentNumber: pick(row, 'documentNumber', 'quoteNumber'),
+    documentRevision: pickNumber(row, 'documentVersion', 'documentRevision', 'revision'),
+    buyerReference: pick(row, 'buyerReference'),
+    externalDocumentNumber: pick(row, 'externalDocumentNumber'),
+    createdAt: pick(row, 'documentCreated', 'createdAt'),
+    validUntil: pick(row, 'documentValidUntil', 'validUntil'),
+    status: pick(row, 'documentStatus', 'status'),
+    businessType: pick(row, 'businessType'),
+    manufacturer: pick(row, 'manufacturerName', 'vendorCode'),
+    totalNetPrice: pickNumber(row, 'total', 'totalNetPrice', 'netTotal'),
     currency: pick(row, 'currencyCode', 'currency') || 'EUR',
+    canBeAccepted: row?.canBeAccepted === true,
+    canBeRejected: row?.canBeRejected === true,
+    salesContactName: pick(row?.salesContact, 'name'),
   };
 }
 
