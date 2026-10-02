@@ -1502,7 +1502,28 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
     const inline = req.query.inline === 'true';
     const disposition = inline ? 'inline' : 'attachment';
 
-    res.setHeader('Content-Type', document.mimeType);
+    // MS Graph liefert für Anhänge (v.a. Scanner-Mails) oft
+    // application/octet-stream statt application/pdf — damit lädt der
+    // Browser herunter statt inline zu rendern. Effektiven Typ aus
+    // Dateiendung bzw. %PDF-Magic ableiten.
+    let contentType = document.mimeType || 'application/octet-stream';
+    if (!contentType || contentType === 'application/octet-stream') {
+      const extTypes: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+      };
+      const byExt = extTypes[path.extname(document.originalFilename || '').toLowerCase()];
+      if (byExt) {
+        contentType = byExt;
+      } else if (fileBuffer.subarray(0, 5).toString('latin1').startsWith('%PDF')) {
+        contentType = 'application/pdf';
+      }
+    }
+
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.originalFilename)}"`);
     res.setHeader('Content-Length', fileBuffer.length);
     // Prevent caching by browsers and service workers
