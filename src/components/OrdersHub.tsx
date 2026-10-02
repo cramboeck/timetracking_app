@@ -27,6 +27,13 @@ const fmtDate = (value: string | null): string => {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('de-DE');
 };
 
+// Bestand: inventoryAvailableCount, bei 0/unbekannt mit availableOnRequest → „auf Anfrage"
+const fmtStock = (item: PricelistItem): string => {
+  if (item.stock !== null && item.stock > 0) return String(item.stock);
+  if (item.stockOnRequest) return 'auf Anfrage';
+  return item.stock !== null ? '0' : '—';
+};
+
 const QUOTE_STATUS_STYLES: Record<string, string> = {
   open: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   accepted: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -131,7 +138,7 @@ export const OrdersHub = () => {
           </>
         )}
       </td>
-      <td className="px-4 py-2.5 text-right text-gray-500 dark:text-dark-400 whitespace-nowrap tabular-nums">{item.stock ?? '—'}</td>
+      <td className="px-4 py-2.5 text-right text-gray-500 dark:text-dark-400 whitespace-nowrap tabular-nums">{fmtStock(item)}</td>
     </tr>
   );
 
@@ -143,7 +150,9 @@ export const OrdersHub = () => {
       </p>
       <p className="text-sm mt-1 font-semibold text-gray-900 dark:text-white">
         {item.priceOnRequest ? 'Preis auf Anfrage' : fmtEur(item.price, item.currency)}
-        {item.stock !== null && <span className="ml-2 font-normal text-xs text-gray-500 dark:text-dark-400">Bestand: {item.stock}</span>}
+        {(item.stock !== null || item.stockOnRequest) && (
+          <span className="ml-2 font-normal text-xs text-gray-500 dark:text-dark-400">Bestand: {fmtStock(item)}</span>
+        )}
       </p>
     </div>
   );

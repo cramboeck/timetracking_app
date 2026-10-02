@@ -855,6 +855,7 @@ export interface PricelistItem {
   priceOnRequest: boolean;
   currency: string;
   stock: number | null;
+  stockOnRequest: boolean;
 }
 
 export interface InfinigateQuote {

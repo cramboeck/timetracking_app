@@ -436,15 +436,24 @@ export interface PricelistItem {
   priceOnRequest: boolean;
   currency: string;
   stock: number | null;
+  stockOnRequest: boolean;
 }
 
-// Felder verifiziert gegen Prod-Dump (debug/orders, 2.10.2026):
+// Felder verifiziert gegen Prod-Dumps (debug/orders, 2.10.2026):
 // sku, vendorSku, productType, descriptionFullText, vendorName,
 // priceOnRequest, listPrice{discountPercent, discountedPrice, price,
-// CurrencyCode}, stockLevel, licenseType, endUserType, licenseBand{min,max}
+// CurrencyCode}, licenseType, endUserType, licenseBand{min,max}.
+// stockLevel ist ein OBJEKT {inventoryCount, inventoryAvailableCount,
+// availableOnRequest} — oder null (z.B. reine Software-SKUs).
 function normalizePricelistItem(item: any): PricelistItem {
   const priceBlock = item?.listPrice && typeof item.listPrice === 'object' ? item.listPrice : {};
+  const stockBlock = item?.stockLevel;
+  const stock = stockBlock && typeof stockBlock === 'object'
+    ? pickNumber(stockBlock, 'inventoryAvailableCount', 'inventoryCount')
+    : pickNumber(item, 'stockLevel', 'stock');
   return {
+    stock,
+    stockOnRequest: stockBlock?.availableOnRequest === true,
     sku: pick(item, 'sku', 'no', 'itemNumber'),
     vendorSku: pick(item, 'vendorSku', 'vendorItemNumber'),
     description: pick(item, 'descriptionFullText', 'description', 'itemDescription', 'name'),
@@ -457,7 +466,6 @@ function normalizePricelistItem(item: any): PricelistItem {
     discountPercent: pickNumber(priceBlock, 'discountPercent'),
     priceOnRequest: item?.priceOnRequest === true,
     currency: pick(priceBlock, 'CurrencyCode', 'currencyCode') || pick(item, 'currencyCode') || 'EUR',
-    stock: pickNumber(item, 'stockLevel', 'stock', 'availableQuantity'),
   };
 }
 
