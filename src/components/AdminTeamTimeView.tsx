@@ -1,11 +1,29 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Users, Clock, Coffee, Calendar, Briefcase, Download, Filter, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { entriesApi, TeamEntryFilters, TeamMember } from '../services/api';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Users, Clock, Coffee, Calendar, Briefcase, Download, Filter, ChevronDown, ChevronUp, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import { entriesApi, projectsApi, activitiesApi, TeamEntryFilters, TeamMember } from '../services/api';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { useToast } from '../contexts/UIContext';
-import { EntryScope } from '../types';
+import { useToast, useConfirm } from '../contexts/UIContext';
+import { EntryScope, TimeEntry } from '../types';
+
+// Team-Eintrag, wie ihn GET /entries/team liefert (TimeEntry + Anzeige-Namen)
+type TeamEntry = TimeEntry & {
+  userUsername?: string;
+  userDisplayName?: string;
+  projectName?: string;
+  customerName?: string;
+  activityName?: string;
+};
+
+const toLocalDateInput = (iso: string): string => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const toLocalTimeInput = (iso: string): string => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 // Entry scope category labels
 const INTERNAL_CATEGORY_LABELS: Record<string, string> = {
@@ -116,6 +134,90 @@ export const AdminTeamTimeView = () => {
   const members = data?.data?.members || [];
   const entries = data?.data?.entries || [];
   const stats = data?.data?.stats;
+
+  // ── Admin-Korrektur: Eintrag bearbeiten/löschen (Server erlaubt fremde
+  // Einträge nur für Org-Admin/Owner; Nachträge in abgeschlossenen Monaten
+  // landen automatisch im Nachtrags-Protokoll) ──
+  const confirm = useConfirm();
+  const queryClient = useQueryClient();
+  const [editingEntry, setEditingEntry] = useState<TeamEntry | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
+  const [editProjectId, setEditProjectId] = useState('');
+  const [editActivityId, setEditActivityId] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editBillable, setEditBillable] = useState(true);
+
+  useEffect(() => {
+    if (!editingEntry) return;
+    setEditDate(toLocalDateInput(editingEntry.startTime));
+    setEditStart(toLocalTimeInput(editingEntry.startTime));
+    setEditEnd(editingEntry.endTime ? toLocalTimeInput(editingEntry.endTime) : '');
+    setEditProjectId(editingEntry.projectId || '');
+    setEditActivityId(editingEntry.activityId || '');
+    setEditDescription(editingEntry.description || '');
+    setEditBillable(editingEntry.isBillable !== false);
+  }, [editingEntry]);
+
+  const projectsQuery = useQuery({
+    queryKey: ['projects', 'all'],
+    queryFn: async () => (await projectsApi.getAll()).data,
+    enabled: editingEntry !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+  const activitiesQuery = useQuery({
+    queryKey: ['activities', 'all'],
+    queryFn: async () => (await activitiesApi.getAll()).data,
+    enabled: editingEntry !== null,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingEntry) throw new Error('Kein Eintrag gewählt');
+      const start = new Date(`${editDate}T${editStart}`);
+      const end = new Date(`${editDate}T${editEnd}`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new Error('Ungültige Zeitangabe');
+      if (end <= start) throw new Error('Ende muss nach Beginn liegen');
+      const duration = Math.round((end.getTime() - start.getTime()) / 1000);
+      return entriesApi.update(editingEntry.id, {
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        duration,
+        description: editDescription,
+        isBillable: editBillable,
+        ...(editingEntry.entryScope === 'customer_project' && editProjectId
+          ? { projectId: editProjectId, activityId: editActivityId || null }
+          : {}),
+      });
+    },
+    onSuccess: () => {
+      showToast('Eintrag korrigiert', 'success');
+      setEditingEntry(null);
+      queryClient.invalidateQueries({ queryKey: ['entries', 'team'] });
+    },
+    onError: (err: any) => showToast(err.message || 'Speichern fehlgeschlagen', 'error'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (entryId: string) => entriesApi.delete(entryId),
+    onSuccess: () => {
+      showToast('Eintrag gelöscht', 'info');
+      queryClient.invalidateQueries({ queryKey: ['entries', 'team'] });
+    },
+    onError: (err: any) => showToast(err.message || 'Löschen fehlgeschlagen', 'error'),
+  });
+
+  const handleDeleteEntry = async (entry: TeamEntry, memberName: string) => {
+    const ok = await confirm({
+      title: 'Zeiteintrag löschen?',
+      message: `${memberName}, ${formatDate(entry.startTime)}, ${formatDuration(entry.duration || 0)} — dieser Eintrag wird endgültig gelöscht.`,
+      variant: 'danger',
+      confirmText: 'Löschen',
+    });
+    if (ok) deleteMutation.mutate(entry.id);
+  };
 
   // Generate available months (last 12 months)
   const availableMonths = useMemo(() => {
@@ -525,6 +627,26 @@ export const AdminTeamTimeView = () => {
                       <p className="text-xs text-gray-500 dark:text-dark-400">
                         {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : 'laufend'}
                       </p>
+                      {!entry.isRunning && (
+                        <div className="flex justify-end gap-1 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingEntry(entry)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-accent-primary hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors"
+                            title="Eintrag korrigieren"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEntry(entry, getMemberName(member))}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors"
+                            title="Eintrag löschen"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -533,6 +655,92 @@ export const AdminTeamTimeView = () => {
           </div>
         )}
       </Card>
+
+      {/* Korrektur-Dialog (Admin) */}
+      {editingEntry && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setEditingEntry(null)}>
+          <div
+            className="bg-white dark:bg-dark-50 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Eintrag korrigieren</h3>
+                <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
+                  {editingEntry.userDisplayName || editingEntry.userUsername}
+                  {editingEntry.customerName ? ` · ${editingEntry.customerName}` : ''}
+                </p>
+              </div>
+              <button type="button" onClick={() => setEditingEntry(null)} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-200">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Datum</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Von</label>
+                  <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Bis</label>
+                  <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40" />
+                </div>
+              </div>
+              {editingEntry.entryScope === 'customer_project' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Projekt</label>
+                    <select value={editProjectId} onChange={e => setEditProjectId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40">
+                      {(projectsQuery.data ?? []).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Tätigkeit</label>
+                    <select value={editActivityId} onChange={e => setEditActivityId(e.target.value)} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40">
+                      <option value="">Keine</option>
+                      {(activitiesQuery.data ?? []).map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1">Beschreibung</label>
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} rows={3} className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary/40" />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-500 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editBillable}
+                  onChange={e => setEditBillable(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
+                />
+                Abrechenbar
+              </label>
+              <p className="text-xs text-gray-400 dark:text-dark-400">
+                Korrekturen an Einträgen in abgeschlossenen Monaten werden im Nachtrags-Protokoll festgehalten.
+              </p>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setEditingEntry(null)}>Abbrechen</Button>
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending || !editDate || !editStart || !editEnd}
+                icon={saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : undefined}
+              >
+                Speichern
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
