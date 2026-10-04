@@ -136,6 +136,12 @@ services:
       - letsencrypt:/etc/letsencrypt:ro
     environment:
       - DOMAIN=${DOMAIN}
+    # nginx liest TLS-Zertifikate nur bei Start/Reload. Certbot erneuert sie
+    # alle 12h auf dem Volume — ohne periodischen Reload serviert nginx nach
+    # ~90 Tagen ein abgelaufenes Zertifikat aus dem Speicher (Vorfall 4.10.2026:
+    # App komplett unerreichbar, ERR_CERT_DATE_INVALID, obwohl das Zertifikat
+    # auf der Platte längst erneuert war). Daher: Reload alle 6h.
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
     networks:
       - ramboflow-network
     healthcheck:
