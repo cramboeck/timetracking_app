@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table, FileSpreadsheet } from 'lucide-react';
+import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table, FileSpreadsheet, Users } from 'lucide-react';
 import { Button, IconButton } from './ui';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import * as Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
-import { userApi } from '../services/api';
+import { userApi, entriesApi, TeamMember } from '../services/api';
 import { roundTimeUp } from '../utils/timeRounding';
 import { useToast, useConfirm } from '../contexts/UIContext';
 
@@ -35,6 +35,7 @@ interface ReportEntry {
   description: string;
   hours: number;
   amount: number;
+  memberName?: string; // Team-Modus: wer hat die Zeit erfasst
 }
 
 // Helper to format hours as H:MM
@@ -118,6 +119,7 @@ export const ReportAssistant = ({
     columns: {
       date: boolean;
       weekday: boolean;
+      member: boolean;
       times: boolean;
       project: boolean;
       activity: boolean;
@@ -137,6 +139,7 @@ export const ReportAssistant = ({
     columns: {
       date: true,
       weekday: true,
+      member: false,
       times: false,
       project: true,
       activity: true,
@@ -281,11 +284,70 @@ export const ReportAssistant = ({
     loadCompanyInfo();
   }, []);
 
+  // ── Team-Modus: Admin/Owner kann Zeiten anderer Mitglieder in den Bericht
+  // aufnehmen. Berechtigung erzwingt der Server über GET /entries/team
+  // (403 für Nicht-Org-Admins → Auswahl bleibt dann unsichtbar).
+  const [teamMembers, setTeamMembers] = useState<TeamMember[] | null>(null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [teamEntries, setTeamEntries] = useState<(TimeEntry & { memberName?: string })[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const teamMode = selectedMemberIds.size > 0;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    entriesApi.getTeam({ limit: 1 })
+      .then(res => setTeamMembers(res.data.members))
+      .catch(() => setTeamMembers(null));
+  }, [isOpen]);
+
+  // Team-Einträge für den gewählten Zeitraum laden (paginiert bis alles da ist)
+  useEffect(() => {
+    if (!teamMode) {
+      setTeamEntries([]);
+      setTeamError(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setTeamLoading(true);
+      setTeamError(null);
+      try {
+        const startDate = dateRange.start.toISOString();
+        const endDate = dateRange.end.toISOString();
+        const all: (TimeEntry & { userUsername?: string; userDisplayName?: string })[] = [];
+        for (let page = 1; page <= 25; page++) {
+          const res = await entriesApi.getTeam({ startDate, endDate, entryScope: 'customer_project', page, limit: 2000 });
+          all.push(...res.data.entries);
+          if (res.data.entries.length < 2000) break;
+        }
+        if (!cancelled) {
+          setTeamEntries(all.map(e => ({ ...e, memberName: e.userDisplayName || e.userUsername || '—' })));
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setTeamError(err.message || 'Team-Zeiten konnten nicht geladen werden');
+          setTeamEntries([]);
+        }
+      } finally {
+        if (!cancelled) setTeamLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [teamMode, selectedMemberIds, dateRange]);
+
+  // Datenbasis des Berichts: eigene Einträge (Standard) oder die der
+  // ausgewählten Teammitglieder
+  const effectiveEntries: (TimeEntry & { memberName?: string })[] = useMemo(() => {
+    if (!teamMode) return entries;
+    return teamEntries.filter(e => selectedMemberIds.has(e.userId));
+  }, [teamMode, entries, teamEntries, selectedMemberIds]);
+
   // Calculate data for selected date range
   const reportData = useMemo(() => {
     const customerMap = new Map<string, CustomerReportData>();
 
-    entries.forEach(entry => {
+    effectiveEntries.forEach(entry => {
       if (entry.isRunning) return;
       if (entry.isBillable === false) return; // Skip non-billable entries
 
@@ -309,7 +371,7 @@ export const ReportAssistant = ({
         existing.entryCount += 1;
         // Count unique projects
         const projectIds = new Set<string>();
-        entries.forEach(e => {
+        effectiveEntries.forEach(e => {
           if (e.isRunning) return;
           if (e.isBillable === false) return; // Skip non-billable entries
           const eDate = new Date(e.startTime);
@@ -332,7 +394,7 @@ export const ReportAssistant = ({
     return Array.from(customerMap.values())
       .filter(data => data.totalHours > 0)
       .sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [entries, projects, customers, dateRange, currentUser?.timeRoundingInterval]);
+  }, [effectiveEntries, projects, customers, dateRange, currentUser?.timeRoundingInterval]);
 
   const toggleCustomer = (customerId: string) => {
     const newSelected = new Set(selectedCustomers);
@@ -356,7 +418,7 @@ export const ReportAssistant = ({
   const getCustomerEntries = (customerId: string): ReportEntry[] => {
     const customerEntries: ReportEntry[] = [];
 
-    entries.forEach(entry => {
+    effectiveEntries.forEach(entry => {
       if (entry.isRunning) return;
       if (entry.isBillable === false) return; // Skip non-billable entries
 
@@ -377,7 +439,8 @@ export const ReportAssistant = ({
         activity,
         description: entry.description || '',
         hours,
-        amount: hours * project.hourlyRate
+        amount: hours * project.hourlyRate,
+        memberName: entry.memberName
       });
     });
 
@@ -729,6 +792,7 @@ export const ReportAssistant = ({
       const colWidths: { [key: string]: number } = {
         date: 28,
         weekday: 15,
+        member: 38,
         times: 30,
         project: 55,
         activity: 50,
@@ -740,6 +804,7 @@ export const ReportAssistant = ({
       let fixedWidth = margin * 2; // margins
       if (cols.date) fixedWidth += colWidths.date;
       if (cols.weekday) fixedWidth += colWidths.weekday;
+      if (cols.member) fixedWidth += colWidths.member;
       if (cols.times) fixedWidth += colWidths.times;
       if (cols.project) fixedWidth += colWidths.project;
       if (cols.activity) fixedWidth += colWidths.activity;
@@ -752,6 +817,7 @@ export const ReportAssistant = ({
 
       if (cols.date) { colPositions.date = currentX; currentX += colWidths.date; }
       if (cols.weekday) { colPositions.weekday = currentX; currentX += colWidths.weekday; }
+      if (cols.member) { colPositions.member = currentX; currentX += colWidths.member; }
       if (cols.times) { colPositions.times = currentX; currentX += colWidths.times; }
       if (cols.project) { colPositions.project = currentX; currentX += colWidths.project; }
       if (cols.activity) { colPositions.activity = currentX; currentX += colWidths.activity; }
@@ -792,6 +858,7 @@ export const ReportAssistant = ({
 
         if (cols.date) doc.text('Datum', colPositions.date, yPos);
         if (cols.weekday) doc.text('Tag', colPositions.weekday, yPos);
+        if (cols.member) doc.text('Mitarbeiter', colPositions.member, yPos);
         if (cols.times) doc.text('Uhrzeiten', colPositions.times, yPos);
         if (cols.project) doc.text('Projekt', colPositions.project, yPos);
         if (cols.activity) doc.text('Tätigkeit', colPositions.activity, yPos);
@@ -857,6 +924,16 @@ export const ReportAssistant = ({
           doc.setTextColor(dark.r, dark.g, dark.b);
         }
 
+        // Mitarbeiter (Team-Modus)
+        if (cols.member) {
+          const maxMemberWidth = colWidths.member - 5;
+          let memberName = entry.memberName || '-';
+          while (doc.getTextWidth(memberName) > maxMemberWidth && memberName.length > 3) {
+            memberName = memberName.substring(0, memberName.length - 4) + '...';
+          }
+          doc.text(memberName, colPositions.member, y);
+        }
+
         // Times (start - end)
         if (cols.times) {
           const startTime = entry.date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -915,6 +992,27 @@ export const ReportAssistant = ({
         doc.text('Gesamt:', colPositions.hours - 50, y);
         doc.setFontSize(11);
         doc.text(formatHoursMinutes(customerData.totalHours), colPositions.hours, y, { align: 'right' });
+
+        // Team-Modus: Stunden je Mitarbeiter unter der Gesamtsumme
+        if (cols.member) {
+          const perMember = new Map<string, number>();
+          for (const e of customerEntries) {
+            const name = e.memberName || '-';
+            perMember.set(name, (perMember.get(name) || 0) + e.hours);
+          }
+          if (perMember.size > 1) {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(gray.r, gray.g, gray.b);
+            for (const [name, hrs] of [...perMember.entries()].sort((a, b) => b[1] - a[1])) {
+              y += 6;
+              if (y > lHeight - 25) break; // kein Seitenumbruch nur für Subtotals
+              doc.text(`davon ${name}:`, colPositions.hours - 50, y);
+              doc.text(formatHoursMinutes(hrs), colPositions.hours, y, { align: 'right' });
+            }
+            doc.setTextColor(dark.r, dark.g, dark.b);
+          }
+        }
       }
 
       // Final page footer
@@ -938,6 +1036,8 @@ export const ReportAssistant = ({
     setPdfConfig(prev => ({
       ...prev,
       reportTitle: firstCustomerData?.customer.reportTitle || 'Dienstleistungsnachweis',
+      // Team-Modus: Mitarbeiter-Spalte automatisch an (abwählbar im Dialog)
+      columns: { ...prev.columns, member: teamMode },
     }));
 
     setPdfConfigModal({
@@ -1217,7 +1317,8 @@ export const ReportAssistant = ({
                 projectName: e.project.name,
                 activityName: e.activity?.name || '-',
                 description: e.description,
-                hours: e.hours
+                hours: e.hours,
+                memberName: e.memberName || undefined
               })),
               startDate: dateRange.start.toISOString(),
               endDate: dateRange.end.toISOString(),
@@ -2006,6 +2107,56 @@ ${companyInfo?.phone || ''}`;
               </>
             )}
 
+            {/* Mitarbeiter-Auswahl (nur für Org-Admin/Owner sichtbar; Server erzwingt via /entries/team) */}
+            {teamMembers && teamMembers.length > 1 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-dark-400 mb-1 flex items-center gap-1.5">
+                  <Users size={12} />
+                  Mitarbeiter
+                  {teamLoading && <Loader2 size={12} className="animate-spin" />}
+                </label>
+                <div className="flex gap-1 flex-wrap max-w-xl">
+                  <button
+                    onClick={() => setSelectedMemberIds(new Set())}
+                    className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                      !teamMode
+                        ? 'bg-accent-primary text-white border-accent-primary'
+                        : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
+                    }`}
+                  >
+                    Nur ich
+                  </button>
+                  {teamMembers.map(m => {
+                    const active = selectedMemberIds.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          const next = new Set(selectedMemberIds);
+                          if (active) next.delete(m.id); else next.add(m.id);
+                          setSelectedMemberIds(next);
+                        }}
+                        className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                          active
+                            ? 'bg-accent-primary text-white border-accent-primary'
+                            : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500'
+                        }`}
+                      >
+                        {(m.displayName || m.username)}{m.id === currentUser?.id ? ' (ich)' : ''}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setSelectedMemberIds(new Set(teamMembers.map(m => m.id)))}
+                    className="px-3 py-2 text-sm rounded-lg border bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 text-gray-700 dark:text-dark-500"
+                  >
+                    Alle
+                  </button>
+                </div>
+                {teamError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{teamError}</p>}
+              </div>
+            )}
+
             {/* Show Amounts Toggle */}
             <div className="flex items-center gap-2 ml-auto">
               <button
@@ -2626,6 +2777,7 @@ ${companyInfo?.phone || ''}`;
                       {[
                         { key: 'date', label: 'Datum' },
                         { key: 'weekday', label: 'Wochentag' },
+                        { key: 'member', label: 'Mitarbeiter' },
                         { key: 'times', label: 'Uhrzeiten' },
                         { key: 'project', label: 'Projekt' },
                         { key: 'activity', label: 'Tätigkeit' },
