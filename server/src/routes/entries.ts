@@ -247,11 +247,12 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       whereClause += ` AND description ILIKE $${params.length}`;
     }
 
-    // Explicit column list – never expose internal fields accidentally
+    // Explicit column list – never expose internal fields accidentally.
+    // TIME_ENTRY_COLUMNS enthaelt entry_scope/internal_category/customer_visibility:
+    // ohne sie erkennt das Arbeitszeitkonto Urlaub/Krankheit nach einem Reload
+    // nicht mehr (Tag wurde vom Saldo abgezogen statt als Urlaubstag gezaehlt).
     const baseQuery = `
-      SELECT id, organization_id, user_id, project_id, activity_id, ticket_id,
-             start_time, end_time, duration, description, is_running, is_billable,
-             created_at
+      SELECT ${TIME_ENTRY_COLUMNS}
       FROM time_entries
       ${whereClause}
       ORDER BY start_time DESC`;
@@ -785,10 +786,14 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       }
     }
 
-    // Verify project belongs to organization
-    const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`, [projectId, organizationId]);
-    if (projectResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
+    // Verify project belongs to organization. Abwesenheits-/Intern-Eintraege
+    // haben KEIN Projekt (Zod erzwingt projectId nur bei customer_project) —
+    // die Pruefung darf sie nicht mit 400 ablehnen.
+    if (projectId) {
+      const projectResult = await pool.query(`SELECT ${PROJECT_COLUMNS} FROM projects WHERE id = $1 AND organization_id = $2`, [projectId, organizationId]);
+      if (projectResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Project not found or does not belong to your organization' });
+      }
     }
 
     // Verify activity belongs to organization (if provided)

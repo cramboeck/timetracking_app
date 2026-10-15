@@ -290,7 +290,7 @@ router.post('/export', authenticateToken, async (req: AuthRequest, res) => {
     const activitiesResult = await pool.query(`SELECT id, user_id, organization_id, name, is_billable, created_at FROM activities WHERE user_id = $1`, [userId]);
     const activities = transformRows(activitiesResult.rows);
 
-    const entriesResult = await pool.query(`SELECT id, user_id, organization_id, project_id, activity_id, start_time, end_time, duration, description, is_running, is_billable, created_at FROM time_entries WHERE user_id = $1`, [userId]);
+    const entriesResult = await pool.query(`SELECT id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility FROM time_entries WHERE user_id = $1`, [userId]);
     const entries = transformRows(entriesResult.rows);
 
     const companyResult = await pool.query(`SELECT ${COMPANY_INFO_COLUMNS} FROM company_info WHERE user_id = $1`, [userId]);
