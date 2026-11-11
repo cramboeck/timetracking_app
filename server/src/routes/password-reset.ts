@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import bcrypt from 'bcryptjs';
 import { emailService } from '../services/emailService';
+import { refreshTokenService } from '../services/refreshTokenService';
 
 const router = Router();
 
@@ -118,6 +119,12 @@ router.post('/reset', validate(resetPasswordSchema), async (req, res) => {
       'UPDATE password_reset_tokens SET used = TRUE WHERE id = $1',
       [resetToken.id]
     );
+
+    // Alle Sessions widerrufen: Der Reset ist oft die „Rettung" eines
+    // kompromittierten Kontos — ohne Revoke überlebt ein Angreifer mit
+    // laufender Session (Refresh-Tokens 30 Tage) den Passwortwechsel.
+    // change-password macht das bereits genauso.
+    await refreshTokenService.revokeAllForUser(resetToken.user_id);
 
     console.log(`✅ Password reset successful for user ID: ${resetToken.user_id}`);
 

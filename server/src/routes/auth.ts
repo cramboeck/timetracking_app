@@ -244,7 +244,7 @@ router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     const { username, password } = req.body;
 
     // Get client IP (handle proxy)
-    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIP = req.ip || 'unknown'; // XFF[0] ist clientkontrolliert (nginx appendet) — req.ip via 'trust proxy'
     const userAgent = req.headers['user-agent'];
 
     // Try to find user by email (case-insensitive) or username (case-insensitive)

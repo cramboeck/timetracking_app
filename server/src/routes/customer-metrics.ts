@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { query, getClient } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
-import { getUserOrganizationId, requireOrgRole } from '../middleware/organization';
+import { getUserOrganizationId, attachOrganization, requireOrgRole } from '../middleware/organization';
 import { runHealthScoreJob, runHealthScoreJobForOrganization, getJobStatus } from '../jobs/healthScoreJobs';
 import { customerHealthScoreService } from '../services/customerHealthScoreService';
 import { auditLog } from '../services/auditLog';
@@ -829,7 +829,7 @@ const adminTriggerSchema = z.object({
 // Manually trigger health score calculation
 // Requires admin role
 // ============================================
-router.post('/admin/trigger-job', requireOrgRole('admin'), async (req: Request, res: Response) => {
+router.post('/admin/trigger-job', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
     const organizationId = await getUserOrganizationId(userId);
@@ -915,7 +915,7 @@ router.post('/admin/trigger-job', requireOrgRole('admin'), async (req: Request, 
 // Get current job status and last execution result
 // Requires admin role
 // ============================================
-router.get('/admin/job-status', requireOrgRole('admin'), async (req: Request, res: Response) => {
+router.get('/admin/job-status', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const status = getJobStatus();
     const history = await customerHealthScoreService.getJobHistory(5);
@@ -956,7 +956,7 @@ router.get('/admin/job-status', requireOrgRole('admin'), async (req: Request, re
 // Get unacknowledged churn risk warnings
 // Requires admin role
 // ============================================
-router.get('/admin/churn-warnings', requireOrgRole('admin'), async (req: Request, res: Response) => {
+router.get('/admin/churn-warnings', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -991,7 +991,7 @@ router.get('/admin/churn-warnings', requireOrgRole('admin'), async (req: Request
 // Acknowledge a churn warning
 // Requires admin role
 // ============================================
-router.post('/admin/acknowledge-warning/:warningId', requireOrgRole('admin'), async (req: Request, res: Response) => {
+router.post('/admin/acknowledge-warning/:warningId', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const { warningId } = req.params;
     const userId = (req as any).user.id;
@@ -1021,7 +1021,7 @@ router.post('/admin/acknowledge-warning/:warningId', requireOrgRole('admin'), as
 // Calculate metrics for all customers in the organization
 // Requires admin role
 // ============================================
-router.post('/calculate-all', requireOrgRole('admin'), async (req: Request, res: Response) => {
+router.post('/calculate-all', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {

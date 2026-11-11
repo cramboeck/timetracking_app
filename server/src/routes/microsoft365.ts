@@ -359,7 +359,7 @@ router.post('/mailbox/test', requireOrgRole('admin'), validate(startInboxSchema)
 });
 
 // GET /api/microsoft365/mailbox/emails - Get unread emails
-router.get('/mailbox/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -392,7 +392,7 @@ router.get('/mailbox/emails', requireOrgRole('member'), async (req: AuthRequest,
 });
 
 // GET /api/microsoft365/mailbox/emails/:id - Get specific email
-router.get('/mailbox/emails/:id', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails/:id', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -422,7 +422,7 @@ router.get('/mailbox/emails/:id', requireOrgRole('member'), async (req: AuthRequ
 });
 
 // GET /api/microsoft365/mailbox/emails/:id/attachments - Get email attachments
-router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -445,7 +445,7 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('member'), async (r
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/read - Mark email as read
-router.post('/mailbox/emails/:id/read', requireOrgRole('member'), validate(optionalMailboxTypeSchema), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/read', requireOrgRole('admin'), validate(optionalMailboxTypeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -472,7 +472,7 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('member'), validate(optio
 });
 
 // POST /api/microsoft365/mailbox/emails/:id/reply - Reply to email
-router.post('/mailbox/emails/:id/reply', requireOrgRole('member'), validate(replyMessageSchema), async (req: AuthRequest, res: Response) => {
+router.post('/mailbox/emails/:id/reply', requireOrgRole('admin'), validate(replyMessageSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -852,7 +852,7 @@ async function findTicketByConversationId(
 }
 
 // GET /api/microsoft365/support/emails/:id/customer-lookup - Check if customer exists for email
-router.get('/support/emails/:id/customer-lookup', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/support/emails/:id/customer-lookup', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -916,7 +916,7 @@ router.get('/support/emails/:id/customer-lookup', requireOrgRole('member'), asyn
 });
 
 // POST /api/microsoft365/support/emails/:id/create-ticket - Create ticket from email
-router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), validate(createTicketSchema), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/create-ticket', requireOrgRole('admin'), validate(createTicketSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1102,7 +1102,7 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('member'), valid
 });
 
 // GET /api/microsoft365/support/emails - Get support emails
-router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/support/emails', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1140,7 +1140,7 @@ router.get('/support/emails', requireOrgRole('member'), async (req: AuthRequest,
 });
 
 // POST /api/microsoft365/support/emails/:id/link-ticket - Link email to existing ticket
-router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), validate(linkTicketSchema), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/link-ticket', requireOrgRole('admin'), validate(linkTicketSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1211,7 +1211,7 @@ router.post('/support/emails/:id/link-ticket', requireOrgRole('member'), validat
 });
 
 // GET /api/microsoft365/support/emails/:id/ticket-info - Check if email is linked to ticket
-router.get('/support/emails/:id/ticket-info', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/support/emails/:id/ticket-info', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1364,7 +1364,7 @@ router.post('/invoices/process', requireOrgRole('admin'), validate(markProcessed
 });
 
 // GET /api/microsoft365/invoices - Get processed invoices
-router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/invoices', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1398,7 +1398,7 @@ router.get('/invoices', requireOrgRole('member'), async (req: AuthRequest, res: 
 // Mirrors the sevdesk_documents search pattern (German tsvector, prefix-match
 // per term). Searches email metadata + the PDF-extracted text that's stored
 // in processed_invoices.full_text by invoiceProcessorService.extractInvoiceData.
-router.get('/invoices/search', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/invoices/search', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1451,7 +1451,7 @@ router.post('/invoices/backfill-search', requireOrgRole('admin'), async (req: Au
 });
 
 // GET /api/microsoft365/invoices/:id/documents - Get documents for a processed invoice
-router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/invoices/:id/documents', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const processedInvoiceId = req.params.id;
 
@@ -1471,7 +1471,7 @@ router.get('/invoices/:id/documents', requireOrgRole('member'), async (req: Auth
 });
 
 // GET /api/microsoft365/documents/:id/download - Download a document file
-router.get('/documents/:id/download', requireOrgRole('member'), async (req: AuthRequest, res: Response) => {
+router.get('/documents/:id/download', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1498,10 +1498,6 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
     // Read file into memory to avoid HTTP/2 streaming issues with nginx
     const fileBuffer = fs.readFileSync(document.storagePath);
 
-    // Set appropriate headers for file download/display
-    const inline = req.query.inline === 'true';
-    const disposition = inline ? 'inline' : 'attachment';
-
     // MS Graph liefert für Anhänge (v.a. Scanner-Mails) oft
     // application/octet-stream statt application/pdf — damit lädt der
     // Browser herunter statt inline zu rendern. Effektiven Typ aus
@@ -1521,6 +1517,19 @@ router.get('/documents/:id/download', requireOrgRole('member'), async (req: Auth
       } else if (fileBuffer.subarray(0, 5).toString('latin1').startsWith('%PDF')) {
         contentType = 'application/pdf';
       }
+    }
+
+    // Inline nur für die Vorschau-Typen: mime_type stammt vom EXTERNEN
+    // Absender — ein image/svg+xml liefe inline als Script auf der
+    // App-Origin. Alles außerhalb der Whitelist wird Download + Binärtyp.
+    const INLINE_SAFE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
+    const normalizedType = contentType.toLowerCase().split(';')[0].trim();
+    const inlineSafe = INLINE_SAFE_TYPES.has(normalizedType);
+    const inline = req.query.inline === 'true' && inlineSafe;
+    const disposition = inline ? 'inline' : 'attachment';
+    if (!inlineSafe) {
+      contentType = 'application/octet-stream';
+      res.setHeader('Content-Security-Policy', 'sandbox');
     }
 
     res.setHeader('Content-Type', contentType);
@@ -1630,7 +1639,7 @@ router.post('/invoices/sync-sevdesk-vouchers', requireOrgRole('admin'), async (r
 // hochladen, wird als Beleg mit source='manual' angelegt und sofort
 // extrahiert. Antwort enthaelt die fertig extrahierten Daten, sodass das
 // Frontend direkt das Bestaetigungs-Modal oeffnen kann.
-router.post('/invoices/upload', requireOrgRole('member'), receiptUpload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/invoices/upload', requireOrgRole('admin'), receiptUpload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
@@ -1846,7 +1855,7 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
 });
 
 // POST /api/microsoft365/support/emails/:id/save-as-interaction - Save email as customer interaction
-router.post('/support/emails/:id/save-as-interaction', requireOrgRole('member'), validate(createReceiptSchema), async (req: AuthRequest, res: Response) => {
+router.post('/support/emails/:id/save-as-interaction', requireOrgRole('admin'), validate(createReceiptSchema), async (req: AuthRequest, res: Response) => {
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;

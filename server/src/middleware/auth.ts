@@ -41,10 +41,19 @@ async function authenticateApiToken(token: string, req: AuthRequest, res: Respon
   }
 }
 
+// ?token= landet in nginx-Access-Logs und Browser-History — nur die Routen
+// erlauben, die technisch keine Header setzen können (EventSource, window.open
+// für Beleg-Downloads). Alle anderen Routen: ausschließlich Authorization-Header.
+const QUERY_TOKEN_ALLOWED: RegExp[] = [
+  /^\/api\/sse\/events(\?|$)/,
+  /^\/api\/microsoft365\/documents\/[^/]+\/download(\?|$)/,
+];
+
 export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
-  // Support token in Authorization header OR query parameter (for file downloads)
-  const token = (authHeader && authHeader.split(' ')[1]) || (req.query.token as string);
+  const queryTokenAllowed = QUERY_TOKEN_ALLOWED.some(re => re.test(req.originalUrl || ''));
+  const token = (authHeader && authHeader.split(' ')[1])
+    || (queryTokenAllowed ? (req.query.token as string) : undefined);
 
   if (!token) {
     return res.status(401).json({ error: 'No token provided' });

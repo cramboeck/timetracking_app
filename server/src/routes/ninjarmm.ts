@@ -14,10 +14,27 @@ const router = express.Router();
 // Zod validation schemas
 // ============================================================================
 
+// instanceUrl nur https und nur echte NinjaOne-Hosts: Der Server fetcht diese
+// URL serverseitig (OAuth + Diagnose-Probe) — eine freie URL wäre SSRF auf
+// interne Dienste/Metadaten-Endpoints inkl. Antwort-Readback.
+const NINJA_HOST_SUFFIXES = ['.ninjarmm.com', '.ninjaone.com'];
+const isAllowedNinjaUrl = (value: string): boolean => {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    return NINJA_HOST_SUFFIXES.some(s => host.endsWith(s) || host === s.slice(1));
+  } catch {
+    return false;
+  }
+};
+
 const configSchema = z.object({
   clientId: z.string().max(200).optional(),
   clientSecret: z.string().max(500).optional(),
-  instanceUrl: z.string().url().max(500).optional().or(z.literal('')),
+  instanceUrl: z.string().url().max(500)
+    .refine(isAllowedNinjaUrl, 'instanceUrl muss eine https-URL auf *.ninjarmm.com oder *.ninjaone.com sein')
+    .optional().or(z.literal('')),
   autoSyncDevices: z.boolean().optional(),
   syncIntervalMinutes: z.number().int().min(1).max(1440).optional(),
 });

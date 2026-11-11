@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { z } from 'zod';
 import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
@@ -54,14 +55,10 @@ function parseUserAgent(userAgent?: string): { browser: string; os: string; devi
   };
 }
 
-// Generate secure device token
+// Generate secure device token — CSPRNG: dieses Token umgeht 30 Tage lang
+// die MFA, Math.random() (V8-PRNG) ist dafür nicht akzeptabel (CWE-338)
 function generateDeviceToken(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let token = '';
-  for (let i = 0; i < 64; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
+  return crypto.randomBytes(48).toString('base64url');
 }
 
 // Check if device is trusted
@@ -208,9 +205,14 @@ async function getUserFromToken(req: any): Promise<any | null> {
     // des Dienstleisters, mfaPending-Tokens sind noch keine Session — beide
     // dürfen hier keine MFA-Verwaltung (Secrets, Recovery-Codes) erreichen.
     if (decoded.type || decoded.mfaPending || !decoded.userId) return null;
+    // password_hash wird intern für /disable + /regenerate-recovery-codes
+    // gebraucht (bcrypt.compare) — fehlte hier, wodurch beide Routen seit
+    // jeher mit 500 scheiterten. NIE in eine Response geben (alle res.json
+    // in dieser Datei sind selektive Objekte, kein User-Spread).
     const result = await pool.query(
       `SELECT id, username, email, account_type, role, mfa_enabled, mfa_secret,
-              mfa_recovery_codes, accent_color, gray_tone, dark_mode, time_rounding_interval
+              mfa_recovery_codes, accent_color, gray_tone, dark_mode, time_rounding_interval,
+              password_hash
        FROM users WHERE id = $1`,
       [decoded.userId]
     );
@@ -418,7 +420,10 @@ router.post('/disable', validate(passwordCodeSchema), async (req, res) => {
 router.post('/verify', validate(verifyMfaSchema), async (req, res) => {
   try {
     const { mfaToken, code, trustDevice } = req.body;
-    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    // req.ip statt XFF[0]: nginx APPENDET an X-Forwarded-For, das erste
+    // Element ist clientkontrolliert — damit wäre das TOTP-Rate-Limit per
+    // gefälschtem Header beliebig umgehbar ('trust proxy' ist gesetzt).
+    const clientIP = req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
     // Validation handled by Zod
 

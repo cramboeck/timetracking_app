@@ -6,6 +6,7 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import { query } from '../config/database';
 import * as sevdeskService from '../services/sevdeskService';
 import * as aiService from '../services/aiService';
@@ -334,7 +335,7 @@ router.get('/feature-status', authenticateToken, async (req: AuthRequest, res: R
 });
 
 // GET /api/sevdesk/config - Get sevDesk configuration
-router.get('/config', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/config', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -354,7 +355,7 @@ router.get('/config', authenticateToken, requireBillingFeature, async (req: Auth
 });
 
 // PUT /api/sevdesk/config - Save sevDesk configuration
-router.put('/config', authenticateToken, requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
+router.put('/config', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { apiToken, defaultHourlyRate, paymentTermsDays, taxRate, autoSyncCustomers, createAsFinal } = req.body;
@@ -383,7 +384,7 @@ router.put('/config', authenticateToken, requireBillingFeature, validate(configS
 });
 
 // POST /api/sevdesk/test-connection - Test sevDesk API connection
-router.post('/test-connection', authenticateToken, requireBillingFeature, validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
+router.post('/test-connection', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { apiToken } = req.body;
     // Validation handled by Zod
@@ -402,7 +403,7 @@ router.post('/test-connection', authenticateToken, requireBillingFeature, valida
 });
 
 // GET /api/sevdesk/customers - Get customers from sevDesk
-router.get('/customers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/customers', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -424,7 +425,7 @@ router.get('/customers', authenticateToken, requireBillingFeature, async (req: A
 });
 
 // GET /api/sevdesk/contacts - Get all contacts from sevDesk (customers, suppliers, all)
-router.get('/contacts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/contacts', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -463,7 +464,7 @@ router.get('/contacts', authenticateToken, requireBillingFeature, async (req: Au
 });
 
 // POST /api/sevdesk/link-customer - Link local customer to sevDesk customer
-router.post('/link-customer', authenticateToken, requireBillingFeature, validate(linkCustomerSchema), async (req: AuthRequest, res: Response) => {
+router.post('/link-customer', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(linkCustomerSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { customerId, sevdeskCustomerId } = req.body;
     // Validation handled by Zod
@@ -481,7 +482,7 @@ router.post('/link-customer', authenticateToken, requireBillingFeature, validate
 });
 
 // GET /api/sevdesk/billing-summary - Get unbilled time entries summary
-router.get('/billing-summary', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/billing-summary', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { startDate, endDate } = req.query;
@@ -507,7 +508,7 @@ router.get('/billing-summary', authenticateToken, requireBillingFeature, async (
 });
 
 // POST /api/sevdesk/create-invoice - Create invoice in sevDesk
-router.post('/create-invoice', authenticateToken, requireBillingFeature, validate(createInvoiceSchema), async (req: AuthRequest, res: Response) => {
+router.post('/create-invoice', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createInvoiceSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions } = req.body;
@@ -664,7 +665,7 @@ router.post('/create-invoice', authenticateToken, requireBillingFeature, validat
 });
 
 // POST /api/sevdesk/record-export - Record time entries as exported (without sevDesk)
-router.post('/record-export', authenticateToken, requireBillingFeature, validate(recordExportSchema), async (req: AuthRequest, res: Response) => {
+router.post('/record-export', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(recordExportSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, entryIds, periodStart, periodEnd, totalHours, totalAmount } = req.body;
@@ -693,7 +694,7 @@ router.post('/record-export', authenticateToken, requireBillingFeature, validate
 });
 
 // POST /api/sevdesk/generate-invoice-texts - Generate AI-enhanced invoice texts
-router.post('/generate-invoice-texts', authenticateToken, requireBillingFeature, validate(generateInvoiceTextsSchema), async (req: AuthRequest, res: Response) => {
+router.post('/generate-invoice-texts', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(generateInvoiceTextsSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, sevdeskContactId, periodStart, periodEnd, entries } = req.body;
@@ -759,7 +760,7 @@ function roundUpToInterval(seconds: number, intervalMinutes: number): number {
 }
 
 // POST /api/sevdesk/create-export - Simple export: mark all unbilled entries for customer/period as billed
-router.post('/create-export', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/create-export', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId, periodStart, periodEnd } = req.body;
@@ -838,7 +839,7 @@ router.post('/create-export', authenticateToken, requireBillingFeature, async (r
 });
 
 // GET /api/sevdesk/invoice-exports - Get invoice export history
-router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoice-exports', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -856,7 +857,7 @@ router.get('/invoice-exports', authenticateToken, requireBillingFeature, async (
 });
 
 // DELETE /api/sevdesk/invoice-exports/:id - Delete an export (undo billing)
-router.delete('/invoice-exports/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.delete('/invoice-exports/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const exportId = req.params.id;
@@ -873,7 +874,7 @@ router.delete('/invoice-exports/:id', authenticateToken, requireBillingFeature, 
 });
 
 // GET /api/sevdesk/invoices - Get invoices from sevDesk
-router.get('/invoices', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoices', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -904,7 +905,7 @@ router.get('/invoices', authenticateToken, requireBillingFeature, async (req: Au
 });
 
 // GET /api/sevdesk/invoices/:id - Get single invoice with positions
-router.get('/invoices/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoices/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -930,7 +931,7 @@ router.get('/invoices/:id', authenticateToken, requireBillingFeature, async (req
 });
 
 // GET /api/sevdesk/quotes - Get quotes/offers from sevDesk
-router.get('/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/quotes', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -959,7 +960,7 @@ router.get('/quotes', authenticateToken, requireBillingFeature, async (req: Auth
 });
 
 // GET /api/sevdesk/quotes/:id - Get single quote with positions
-router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/quotes/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const config = await sevdeskService.getConfig(userId);
@@ -989,7 +990,7 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
 // ============================================
 
 // GET /api/sevdesk/vouchers - Get vouchers from sevDesk
-router.get('/vouchers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/vouchers', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const limit = parseInt(req.query.limit as string) || 500;
@@ -1016,7 +1017,7 @@ router.get('/vouchers', authenticateToken, requireBillingFeature, async (req: Au
 });
 
 // GET /api/sevdesk/vouchers/:id - Get single voucher
-router.get('/vouchers/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/vouchers/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const voucherId = req.params.id;
@@ -1042,7 +1043,7 @@ router.get('/vouchers/:id', authenticateToken, requireBillingFeature, async (req
 });
 
 // POST /api/sevdesk/vouchers/upload - Upload a voucher file
-router.post('/vouchers/upload', authenticateToken, requireBillingFeature, validate(uploadFileSchema), async (req: AuthRequest, res: Response) => {
+router.post('/vouchers/upload', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(uploadFileSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -1075,7 +1076,7 @@ router.post('/vouchers/upload', authenticateToken, requireBillingFeature, valida
 });
 
 // POST /api/sevdesk/vouchers/create - Create voucher from uploaded file
-router.post('/vouchers/create', authenticateToken, requireBillingFeature, validate(createVoucherFromFileSchema), async (req: AuthRequest, res: Response) => {
+router.post('/vouchers/create', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createVoucherFromFileSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -1112,7 +1113,7 @@ router.post('/vouchers/create', authenticateToken, requireBillingFeature, valida
 // ============================================
 
 // GET /api/sevdesk/sync/status - Get sync status
-router.get('/sync/status', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/sync/status', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const status = await sevdeskService.getSyncStatus(userId);
@@ -1128,7 +1129,7 @@ router.get('/sync/status', authenticateToken, requireBillingFeature, async (req:
 });
 
 // POST /api/sevdesk/sync - Trigger full sync
-router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/sync', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -1160,7 +1161,7 @@ router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthR
 });
 
 // POST /api/sevdesk/sync/invoices - Sync only invoices
-router.post('/sync/invoices', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/sync/invoices', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -1185,7 +1186,7 @@ router.post('/sync/invoices', authenticateToken, requireBillingFeature, async (r
 });
 
 // POST /api/sevdesk/sync/quotes - Sync only quotes
-router.post('/sync/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/sync/quotes', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -1210,7 +1211,7 @@ router.post('/sync/quotes', authenticateToken, requireBillingFeature, async (req
 });
 
 // GET /api/sevdesk/search - Search synced documents
-router.get('/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/search', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { q, type, limit, offset } = req.query;
@@ -1243,7 +1244,7 @@ router.get('/search', authenticateToken, requireBillingFeature, async (req: Auth
 // ============================================
 
 // GET /api/sevdesk/positions/search - Search positions from synced documents
-router.get('/positions/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/positions/search', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { q, type, limit } = req.query;
@@ -1271,7 +1272,7 @@ router.get('/positions/search', authenticateToken, requireBillingFeature, async 
 });
 
 // GET /api/sevdesk/positions/suggestions - Get autocomplete suggestions for position names
-router.get('/positions/suggestions', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/positions/suggestions', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { prefix, limit } = req.query;
@@ -1300,7 +1301,7 @@ router.get('/positions/suggestions', authenticateToken, requireBillingFeature, a
 });
 
 // POST /api/sevdesk/quotes/create - Create a new quote in sevDesk
-router.post('/quotes/create', authenticateToken, requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
+router.post('/quotes/create', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { contactId, quoteDate, header, headText, footText, positions, status } = req.body;
@@ -1341,7 +1342,7 @@ router.post('/quotes/create', authenticateToken, requireBillingFeature, validate
 });
 
 // GET /api/sevdesk/quotes/:id - Get a single quote with positions
-router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/quotes/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const quoteId = req.params.id;
@@ -1368,7 +1369,7 @@ router.get('/quotes/:id', authenticateToken, requireBillingFeature, async (req: 
 });
 
 // PUT /api/sevdesk/quotes/:id - Update an existing quote
-router.put('/quotes/:id', authenticateToken, requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
+router.put('/quotes/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createQuoteSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const quoteId = req.params.id;
@@ -1413,7 +1414,7 @@ router.put('/quotes/:id', authenticateToken, requireBillingFeature, validate(cre
 // ============================================
 
 // GET /api/sevdesk/import/preview - Get preview of customers to import
-router.get('/import/preview', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/import/preview', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const showAll = req.query.showAll === 'true';
@@ -1453,7 +1454,7 @@ router.get('/import/preview', authenticateToken, requireBillingFeature, async (r
 });
 
 // POST /api/sevdesk/import/execute - Execute customer import
-router.post('/import/execute', authenticateToken, requireBillingFeature, validate(importCustomersSchema), async (req: AuthRequest, res: Response) => {
+router.post('/import/execute', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(importCustomersSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { imports } = req.body;
@@ -1482,7 +1483,7 @@ router.post('/import/execute', authenticateToken, requireBillingFeature, validat
 });
 
 // POST /api/sevdesk/import/single - Import a single customer
-router.post('/import/single', authenticateToken, requireBillingFeature, validate(updateCustomerFromSevdeskSchema), async (req: AuthRequest, res: Response) => {
+router.post('/import/single', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(updateCustomerFromSevdeskSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { sevdeskId, name, customerNumber, email, address, color, hourlyRate } = req.body;
@@ -1507,7 +1508,7 @@ router.post('/import/single', authenticateToken, requireBillingFeature, validate
 // GET /api/sevdesk/line-items/identifiers - Offene Endkunden-Identifier über alle
 // Belege gruppiert (Distributor-Importe liefern z.B. Domains oder Kürzel).
 // MUSS vor GET /line-items/:invoiceId registriert sein (Route-Shadowing!).
-router.get('/line-items/identifiers', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/line-items/identifiers', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1560,7 +1561,7 @@ const assignIdentifierSchema = z.object({
 // Positionen mit diesem extracted_customer_name einem Kunden zuordnen (inkl.
 // Alias fürs künftige Auto-Matching und primary_domain, wenn der Identifier
 // eine Domain ist) — oder als intern (Eigenbedarf) markieren.
-router.post('/line-items/assign-identifier', authenticateToken, requireBillingFeature, validate(assignIdentifierSchema), async (req: AuthRequest, res: Response) => {
+router.post('/line-items/assign-identifier', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(assignIdentifierSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1628,7 +1629,7 @@ router.post('/line-items/assign-identifier', authenticateToken, requireBillingFe
 });
 
 // GET /api/sevdesk/line-items/internal-summary - Interne Ausgaben (Monatssummen + Positionen)
-router.get('/line-items/internal-summary', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/line-items/internal-summary', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1691,7 +1692,7 @@ router.get('/line-items/internal-summary', authenticateToken, requireBillingFeat
 // POST /api/sevdesk/customers/sync-now - Manually run the customer auto-sync
 // for the current user (imports new sevDesk customers + sends the same email
 // notification). Ignores the auto_sync toggle since it's an explicit action.
-router.post('/customers/sync-now', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/customers/sync-now', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const summary = await runCustomerSyncForUser(userId);
@@ -1716,7 +1717,7 @@ async function getOrgIdForUser(userId: string): Promise<string | null> {
 }
 
 // GET /api/sevdesk/invoice-drafts - List all invoice drafts
-router.get('/invoice-drafts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoice-drafts', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1790,7 +1791,7 @@ router.get('/invoice-drafts', authenticateToken, requireBillingFeature, async (r
 });
 
 // GET /api/sevdesk/invoice-drafts/stats - Get draft queue statistics
-router.get('/invoice-drafts/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoice-drafts/stats', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1837,7 +1838,7 @@ router.get('/invoice-drafts/stats', authenticateToken, requireBillingFeature, as
 });
 
 // GET /api/sevdesk/invoice-drafts/:id - Get single draft with document
-router.get('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/invoice-drafts/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1882,7 +1883,7 @@ router.get('/invoice-drafts/:id', authenticateToken, requireBillingFeature, asyn
 });
 
 // PUT /api/sevdesk/invoice-drafts/:id - Update draft with corrections
-router.put('/invoice-drafts/:id', authenticateToken, requireBillingFeature, validate(updateInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+router.put('/invoice-drafts/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(updateInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -1967,7 +1968,7 @@ router.put('/invoice-drafts/:id', authenticateToken, requireBillingFeature, vali
 });
 
 // POST /api/sevdesk/invoice-drafts/:id/extract - Re-run OCR extraction
-router.post('/invoice-drafts/:id/extract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/:id/extract', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2005,7 +2006,7 @@ router.post('/invoice-drafts/:id/extract', authenticateToken, requireBillingFeat
 });
 
 // POST /api/sevdesk/invoice-drafts/:id/confirm - Confirm draft and create sevDesk voucher
-router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeature, validate(confirmInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/:id/confirm', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(confirmInvoiceDraftSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2110,7 +2111,7 @@ router.post('/invoice-drafts/:id/confirm', authenticateToken, requireBillingFeat
 });
 
 // DELETE /api/sevdesk/invoice-drafts/:id - Delete/skip draft
-router.delete('/invoice-drafts/:id', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.delete('/invoice-drafts/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2142,7 +2143,7 @@ router.delete('/invoice-drafts/:id', authenticateToken, requireBillingFeature, a
 });
 
 // POST /api/sevdesk/invoice-drafts/poll - Manually trigger mailbox poll
-router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/poll', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2169,7 +2170,7 @@ router.post('/invoice-drafts/poll', authenticateToken, requireBillingFeature, as
 });
 
 // POST /api/sevdesk/invoice-drafts/fetch-attachments - Re-fetch attachments for drafts without documents
-router.post('/invoice-drafts/fetch-attachments', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/fetch-attachments', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2231,7 +2232,7 @@ router.post('/invoice-drafts/fetch-attachments', authenticateToken, requireBilli
 });
 
 // POST /api/sevdesk/invoice-drafts/upload - Manual PDF upload
-router.post('/invoice-drafts/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/upload', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2286,7 +2287,7 @@ router.post('/invoice-drafts/upload', authenticateToken, requireBillingFeature, 
 });
 
 // POST /api/sevdesk/invoice-drafts/:id/upload - Upload PDF for existing draft
-router.post('/invoice-drafts/:id/upload', authenticateToken, requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/:id/upload', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, invoiceUpload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2348,7 +2349,7 @@ router.post('/invoice-drafts/:id/upload', authenticateToken, requireBillingFeatu
 });
 
 // POST /api/sevdesk/invoice-drafts/extract-all - Extract data for all unextracted drafts
-router.post('/invoice-drafts/extract-all', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/invoice-drafts/extract-all', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2414,7 +2415,7 @@ router.post('/invoice-drafts/extract-all', authenticateToken, requireBillingFeat
 // ============================================================================
 
 // GET /api/sevdesk/line-items/:invoiceId - Get line items for an invoice
-router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/line-items/:invoiceId', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2456,7 +2457,7 @@ router.get('/line-items/:invoiceId', authenticateToken, requireBillingFeature, a
 });
 
 // POST /api/sevdesk/line-items/match - Match line items to customers
-router.post('/line-items/match', authenticateToken, requireBillingFeature, validate(matchLineItemsSchema), async (req: AuthRequest, res: Response) => {
+router.post('/line-items/match', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(matchLineItemsSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2511,7 +2512,7 @@ router.post('/line-items/match', authenticateToken, requireBillingFeature, valid
 });
 
 // POST /api/sevdesk/line-items/:invoiceId/auto-match - Auto-match all line items for an invoice
-router.post('/line-items/:invoiceId/auto-match', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/line-items/:invoiceId/auto-match', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2563,7 +2564,7 @@ router.post('/line-items/:invoiceId/auto-match', authenticateToken, requireBilli
 // PATCH /api/sevdesk/line-items/bulk-contract - Bulk link line items to contract.
 // MUSS vor PATCH /line-items/:id registriert sein, sonst matcht Express
 // 'bulk-contract' als id und die Bulk-Vertragszuordnung schlägt fehl.
-router.patch('/line-items/bulk-contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.patch('/line-items/bulk-contract', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2596,7 +2597,7 @@ router.patch('/line-items/bulk-contract', authenticateToken, requireBillingFeatu
 });
 
 // PATCH /api/sevdesk/line-items/:id - Update line item (assign customer, change status)
-router.patch('/line-items/:id', authenticateToken, requireBillingFeature, validate(assignLineItemSchema), async (req: AuthRequest, res: Response) => {
+router.patch('/line-items/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(assignLineItemSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2645,7 +2646,7 @@ router.patch('/line-items/:id', authenticateToken, requireBillingFeature, valida
 });
 
 // PATCH /api/sevdesk/line-items/:id/status - Update line item rebilling status
-router.patch('/line-items/:id/status', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.patch('/line-items/:id/status', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2689,7 +2690,7 @@ router.patch('/line-items/:id/status', authenticateToken, requireBillingFeature,
 // Gedächtnis (customer_product_prices) — künftige Positionen desselben
 // Produkts erben ihn dann automatisch via COALESCE beim Lesen; null + remember
 // löscht den gemerkten Preis wieder.
-router.patch('/line-items/:id/resell-price', authenticateToken, requireBillingFeature, validate(resellPriceSchema), async (req: AuthRequest, res: Response) => {
+router.patch('/line-items/:id/resell-price', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(resellPriceSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2750,7 +2751,7 @@ router.patch('/line-items/:id/resell-price', authenticateToken, requireBillingFe
 });
 
 // GET /api/sevdesk/line-items/:invoiceId/stats - Get matching statistics for an invoice
-router.get('/line-items/:invoiceId/stats', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/line-items/:invoiceId/stats', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2770,7 +2771,7 @@ router.get('/line-items/:invoiceId/stats', authenticateToken, requireBillingFeat
 });
 
 // GET /api/sevdesk/line-items/customer/:customerId/pending - Get pending line items for rebilling
-router.get('/line-items/customer/:customerId/pending', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/line-items/customer/:customerId/pending', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2837,7 +2838,7 @@ router.get('/line-items/customer/:customerId/pending', authenticateToken, requir
 });
 
 // POST /api/sevdesk/line-items/mark-billed - Mark line items as billed
-router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/line-items/mark-billed', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2876,7 +2877,7 @@ router.post('/line-items/mark-billed', authenticateToken, requireBillingFeature,
 // zählt das JÜNGSTE period_end (eine Verlängerung erzeugt eine neue Position
 // mit späterem Ende — dann wird nicht mehr gewarnt). Fenster: von 14 Tagen
 // abgelaufen bis ?days (Default 60, max 365) in die Zukunft.
-router.get('/license-expiry', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/license-expiry', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -2930,7 +2931,7 @@ router.get('/license-expiry', authenticateToken, requireBillingFeature, async (r
 });
 
 // GET /api/sevdesk/customers/:customerId/licenses - Get aggregated license info for a customer
-router.get('/customers/:customerId/licenses', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/customers/:customerId/licenses', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3104,7 +3105,7 @@ const LICENSE_REQUEST_TYPE_LABELS_ADMIN: Record<string, string> = {
 };
 
 // GET /api/sevdesk/customers/:customerId/license-requests - Anfragen eines Kunden
-router.get('/customers/:customerId/license-requests', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/customers/:customerId/license-requests', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3135,7 +3136,7 @@ router.get('/customers/:customerId/license-requests', authenticateToken, require
 // PATCH /api/sevdesk/license-requests/:id - Anfrage entscheiden (Admin/Owner).
 // approved/rejected setzen decided_by/decided_at und mailen den Anfragenden;
 // completed markiert eine genehmigte Anfrage als provisioniert.
-router.patch('/license-requests/:id', authenticateToken, requireBillingFeature, validate(decideLicenseRequestSchema), async (req: AuthRequest, res: Response) => {
+router.patch('/license-requests/:id', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(decideLicenseRequestSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3215,7 +3216,7 @@ router.patch('/license-requests/:id', authenticateToken, requireBillingFeature, 
 });
 
 // PATCH /api/sevdesk/line-items/:id/contract - Link/unlink line item to contract
-router.patch('/line-items/:id/contract', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.patch('/line-items/:id/contract', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3250,7 +3251,7 @@ router.patch('/line-items/:id/contract', authenticateToken, requireBillingFeatur
 });
 
 // GET /api/sevdesk/customers/:customerId/contracts - Get contracts for a customer (for dropdown)
-router.get('/customers/:customerId/contracts', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/customers/:customerId/contracts', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { customerId } = req.params;
@@ -3274,7 +3275,7 @@ router.get('/customers/:customerId/contracts', authenticateToken, requireBilling
 // ============================================================================
 
 // GET /api/sevdesk/customers/:id/aliases - Get aliases for a customer
-router.get('/customers/:id/aliases', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/customers/:id/aliases', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3294,7 +3295,7 @@ router.get('/customers/:id/aliases', authenticateToken, requireBillingFeature, a
 });
 
 // POST /api/sevdesk/customers/:id/aliases - Add alias for a customer
-router.post('/customers/:id/aliases', authenticateToken, requireBillingFeature, validate(createAliasSchema), async (req: AuthRequest, res: Response) => {
+router.post('/customers/:id/aliases', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createAliasSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3315,7 +3316,7 @@ router.post('/customers/:id/aliases', authenticateToken, requireBillingFeature, 
 });
 
 // DELETE /api/sevdesk/customers/:id/aliases/:aliasId - Delete an alias
-router.delete('/customers/:id/aliases/:aliasId', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.delete('/customers/:id/aliases/:aliasId', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3339,7 +3340,7 @@ router.delete('/customers/:id/aliases/:aliasId', authenticateToken, requireBilli
 });
 
 // PATCH /api/sevdesk/customers/:id/matching - Update customer matching settings (domain, distributor IDs)
-router.patch('/customers/:id/matching', authenticateToken, requireBillingFeature, validate(updateCustomerMatchingSchema), async (req: AuthRequest, res: Response) => {
+router.patch('/customers/:id/matching', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(updateCustomerMatchingSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);
@@ -3370,7 +3371,7 @@ router.patch('/customers/:id/matching', authenticateToken, requireBillingFeature
 });
 
 // GET /api/sevdesk/unmatched-items - Get all unmatched line items across invoices
-router.get('/unmatched-items', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/unmatched-items', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const organizationId = await getOrgIdForUser(userId);

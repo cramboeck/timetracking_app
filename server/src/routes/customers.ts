@@ -538,6 +538,20 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     const { customerId, contactId } = req.params;
     const updates = req.body;
 
+    // Portal-Berechtigungen entscheiden, welche Finanz-/Gerätedaten ein KUNDE
+    // sieht — das darf nur Org-Admin/Owner setzen (Architektur-Entscheidung
+    // „customer_visibility nur Admin/Manager"); Member dürfen weiterhin
+    // Stammdaten (Name/E-Mail/Benachrichtigungen) pflegen.
+    const orgRole = orgReq.organization.role;
+    const portalPermissionFields = [
+      'canCreateTickets', 'canViewAllTickets', 'canViewDevices', 'canViewInvoices',
+      'canViewQuotes', 'canViewLicenses', 'canViewTimeReport', 'canViewContract',
+    ];
+    if (orgRole !== 'admin' && orgRole !== 'owner' &&
+        portalPermissionFields.some(f => updates[f] !== undefined)) {
+      return res.status(403).json({ error: 'Portal-Berechtigungen kann nur ein Admin ändern' });
+    }
+
     // Verify customer belongs to organization
     const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`, [customerId, organizationId]);
     if (customerResult.rows.length === 0) {

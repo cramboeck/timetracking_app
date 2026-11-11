@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { getUserOrganizationId } from '../middleware/organization';
+import { getUserOrganizationId, attachOrganization, requireOrgRole } from '../middleware/organization';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -168,7 +168,7 @@ router.get('/stages', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities/stages - Create stage
-router.post('/stages', validate(createStageSchema), async (req: Request, res: Response) => {
+router.post('/stages', attachOrganization, requireOrgRole('admin'), validate(createStageSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -201,7 +201,7 @@ router.post('/stages', validate(createStageSchema), async (req: Request, res: Re
 // PUT /api/opportunities/stages/reorder - Reorder stages.
 // MUSS vor PUT /stages/:id registriert sein, sonst matcht Express 'reorder'
 // als Stage-ID und das Umsortieren der Pipeline-Stages schlägt fehl.
-router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request, res: Response) => {
+router.put('/stages/reorder', attachOrganization, requireOrgRole('admin'), validate(reorderStagesSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -231,7 +231,7 @@ router.put('/stages/reorder', validate(reorderStagesSchema), async (req: Request
 });
 
 // PUT /api/opportunities/stages/:id - Update stage
-router.put('/stages/:id', validate(updateStageSchema), async (req: Request, res: Response) => {
+router.put('/stages/:id', attachOrganization, requireOrgRole('admin'), validate(updateStageSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -266,7 +266,7 @@ router.put('/stages/:id', validate(updateStageSchema), async (req: Request, res:
 });
 
 // DELETE /api/opportunities/stages/:id - Delete stage
-router.delete('/stages/:id', async (req: Request, res: Response) => {
+router.delete('/stages/:id', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -577,7 +577,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/opportunities - Create opportunity
-router.post('/', validate(createOpportunitySchema), async (req: Request, res: Response) => {
+router.post('/', attachOrganization, requireOrgRole('admin'), validate(createOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -656,7 +656,7 @@ router.post('/', validate(createOpportunitySchema), async (req: Request, res: Re
 });
 
 // PUT /api/opportunities/:id - Update opportunity
-router.put('/:id', validate(updateOpportunitySchema), async (req: Request, res: Response) => {
+router.put('/:id', attachOrganization, requireOrgRole('admin'), validate(updateOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -760,7 +760,7 @@ router.put('/:id', validate(updateOpportunitySchema), async (req: Request, res: 
 });
 
 // POST /api/opportunities/:id/move - Move to different stage
-router.post('/:id/move', validate(moveOpportunitySchema), async (req: Request, res: Response) => {
+router.post('/:id/move', attachOrganization, requireOrgRole('admin'), validate(moveOpportunitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -832,7 +832,7 @@ router.post('/:id/move', validate(moveOpportunitySchema), async (req: Request, r
 });
 
 // POST /api/opportunities/:id/activities - Add activity
-router.post('/:id/activities', validate(createOpportunityActivitySchema), async (req: Request, res: Response) => {
+router.post('/:id/activities', attachOrganization, requireOrgRole('admin'), validate(createOpportunityActivitySchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -874,7 +874,7 @@ router.post('/:id/activities', validate(createOpportunityActivitySchema), async 
 });
 
 // DELETE /api/opportunities/:id - Delete opportunity
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', attachOrganization, requireOrgRole('admin'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {

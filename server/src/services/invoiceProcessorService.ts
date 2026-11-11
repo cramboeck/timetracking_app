@@ -19,6 +19,37 @@ import * as fs from 'fs';
 import * as path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
+
+// Beleg-Anhänge kommen von EXTERNEN Absendern. Nur diese Typen werden
+// gespeichert und dürfen in der Vorschau inline rendern — ein pauschales
+// contentType.includes('image') ließe image/svg+xml durch (Script-fähig,
+// Stored XSS beim Öffnen der Beleg-Vorschau auf App-Origin).
+const SAFE_ATTACHMENT_EXTS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.webp']);
+const SAFE_ATTACHMENT_MIME: Record<string, string> = {
+  'application/pdf': 'application/pdf',
+  'image/png': 'image/png',
+  'image/jpeg': 'image/jpeg',
+  'image/jpg': 'image/jpeg',
+  'image/webp': 'image/webp',
+};
+
+function isSafeInvoiceAttachment(att: { name?: string; contentType?: string }): boolean {
+  const ext = path.extname(att.name || '').toLowerCase();
+  const mime = (att.contentType || '').toLowerCase().split(';')[0].trim();
+  return SAFE_ATTACHMENT_EXTS.has(ext) || mime in SAFE_ATTACHMENT_MIME;
+}
+
+// mime_type wird beim Serving als Content-Type verwendet → nie den rohen
+// Absender-Wert speichern, sondern auf die Whitelist normalisieren
+function normalizeInvoiceMime(contentType: string | undefined, filename: string | undefined): string {
+  const mime = (contentType || '').toLowerCase().split(';')[0].trim();
+  if (mime in SAFE_ATTACHMENT_MIME) return SAFE_ATTACHMENT_MIME[mime];
+  const byExt: Record<string, string> = {
+    '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg', '.webp': 'image/webp',
+  };
+  return byExt[path.extname(filename || '').toLowerCase()] || 'application/pdf';
+}
 // PDF to image conversion for Vision API
 import { pdf } from 'pdf-to-img';
 
@@ -562,15 +593,7 @@ class InvoiceProcessorService {
       const relevantAttachments = attachments.filter(att => {
         const ext = path.extname(att.name).toLowerCase();
         const mimeType = att.contentType?.toLowerCase() || '';
-        const isPdfOrImage = (
-          ext === '.pdf' ||
-          ext === '.png' ||
-          ext === '.jpg' ||
-          ext === '.jpeg' ||
-          mimeType.includes('pdf') ||
-          mimeType.includes('image')
-        );
-        if (!isPdfOrImage) return false;
+        if (!isSafeInvoiceAttachment(att)) return false;
         // Exclude inline attachments that are clearly email signatures or logos
         // (small images < 50 KB that are marked as inline). Full PDF invoices are always kept.
         if (att.isInline && !mimeType.includes('pdf') && ext !== '.pdf' && att.size < 51200) {
@@ -618,7 +641,7 @@ class InvoiceProcessorService {
               processedId, // Use the actual processed_invoice ID
               saved.filename,
               attachment.name,
-              attachment.contentType || 'application/pdf',
+              normalizeInvoiceMime(attachment.contentType, attachment.name),
               attachment.size,
               saved.path,
             ]
@@ -1281,15 +1304,8 @@ class InvoiceProcessorService {
       return false;
     }
 
-    // Filter for PDFs and images
-    const relevantAttachments = attachments.filter(att =>
-      att.contentType?.includes('pdf') ||
-      att.contentType?.includes('image') ||
-      att.name?.toLowerCase().endsWith('.pdf') ||
-      att.name?.toLowerCase().endsWith('.png') ||
-      att.name?.toLowerCase().endsWith('.jpg') ||
-      att.name?.toLowerCase().endsWith('.jpeg')
-    );
+    // Filter for PDFs and images (Whitelist — kein SVG/sonstiges image/*)
+    const relevantAttachments = attachments.filter(att => isSafeInvoiceAttachment(att));
 
     if (relevantAttachments.length === 0) {
       logger.info(`No PDF/image attachments for email ${emailId}`);
@@ -1314,7 +1330,7 @@ class InvoiceProcessorService {
             processedInvoiceId,
             saved.filename,
             attachment.name,
-            attachment.contentType || 'application/pdf',
+            normalizeInvoiceMime(attachment.contentType, attachment.name),
             attachment.size || 0,
             saved.path
           ]

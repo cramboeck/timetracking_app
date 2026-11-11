@@ -3,6 +3,7 @@ import { pool } from '../config/database';
 import { microsoftGraphService } from './microsoftGraphService';
 import { logger } from '../utils/logger';
 import crypto from 'crypto';
+import { escapeHtml } from '../utils/escapeHtml';
 
 interface EmailOptions {
   to: string;
@@ -1148,7 +1149,7 @@ RamboFlow von ramboeck.IT
         <div style="background-color: #f9fafb; border-left: 4px solid #F27024; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;">
           <h4 style="color: #1f2937; margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">Kommentar:</h4>
           <p style="color: #4b5563; margin: 0; font-size: 14px; line-height: 1.6;">
-            ${comment}
+            ${escapeHtml(comment)}
           </p>
         </div>
       ` : ''}
@@ -1317,13 +1318,13 @@ RamboFlow von ramboeck.IT
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
-            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${escapeHtml(ticketTitle)}</td>
           </tr>
         </table>
         ${ticketDescription ? `
           <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
             <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
-            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(ticketDescription.substring(0, 500))}${ticketDescription.length > 500 ? '...' : ''}</p>
           </div>
         ` : ''}
       </div>
@@ -1421,13 +1422,13 @@ RamboFlow von ramboeck.IT
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Betreff:</td>
-            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${ticketTitle}</td>
+            <td style="padding: 8px 0; color: #1f2937; font-weight: 600; font-size: 14px;">${escapeHtml(ticketTitle)}</td>
           </tr>
         </table>
         ${ticketDescription ? `
           <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
             <p style="color: #6b7280; font-size: 13px; margin: 0 0 8px 0;">Beschreibung:</p>
-            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${ticketDescription.substring(0, 500)}${ticketDescription.length > 500 ? '...' : ''}</p>
+            <p style="color: #4b5563; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(ticketDescription.substring(0, 500))}${ticketDescription.length > 500 ? '...' : ''}</p>
           </div>
         ` : ''}
       </div>
@@ -1495,7 +1496,7 @@ RamboFlow von ramboeck.IT
           <strong>Ticket #${ticketNumber}</strong> • ${customerName}
         </p>
         <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-          ${ticketTitle}
+          ${escapeHtml(ticketTitle)}
         </p>
       </div>
 
@@ -1505,11 +1506,11 @@ RamboFlow von ramboeck.IT
             ${sourceLabel}
           </span>
           <span style="color: #F27024; font-size: 14px; font-weight: 600;">
-            ${commenterName}
+            ${escapeHtml(commenterName)}
           </span>
         </div>
         <p style="color: #1f2937; font-size: 15px; line-height: 1.7; margin: 0; white-space: pre-wrap;">
-${commentContent.substring(0, 1000)}${commentContent.length > 1000 ? '...' : ''}
+${escapeHtml(commentContent.substring(0, 1000))}${commentContent.length > 1000 ? '...' : ''}
         </p>
       </div>
     `;
@@ -1579,7 +1580,7 @@ RamboFlow von ramboeck.IT
           <strong>Ticket #${ticketNumber}</strong>
         </p>
         <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-          ${ticketTitle}
+          ${escapeHtml(ticketTitle)}
         </p>
       </div>
 
@@ -1661,7 +1662,7 @@ RamboFlow von ramboeck.IT
           <strong>Ticket #${ticketNumber}</strong>
         </p>
         <p style="color: #1f2937; font-size: 16px; font-weight: 600; margin: 0;">
-          ${ticketTitle}
+          ${escapeHtml(ticketTitle)}
         </p>
       </div>
 
@@ -1729,7 +1730,7 @@ RamboFlow von ramboeck.IT
           <strong>Ticket #${ticketNumber}</strong>
         </p>
         <p style="color: #065f46; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">
-          ${ticketTitle}
+          ${escapeHtml(ticketTitle)}
         </p>
         <p style="color: #047857; font-size: 14px; margin: 0; white-space: pre-wrap; line-height: 1.6;">
 ${ticketDescription.substring(0, 300)}${ticketDescription.length > 300 ? '...' : ''}

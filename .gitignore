@@ -29,3 +29,7 @@ server/*.db
 .env.docker
 .env.production
 *.zip
+
+# Env-Dateien nie tracken (Unfall-Magnet für echte Secrets)
+.env
+server/.env

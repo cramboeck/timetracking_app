@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { getUserOrganizationId } from '../middleware/organization';
+import { getUserOrganizationId, attachOrganization, requireOrgRole } from '../middleware/organization';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -328,7 +328,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/interactions - Create interaction
 // ============================================
-router.post('/', validate(createInteractionSchema), async (req: Request, res: Response) => {
+router.post('/', attachOrganization, requireOrgRole('member'), validate(createInteractionSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -413,7 +413,7 @@ router.post('/', validate(createInteractionSchema), async (req: Request, res: Re
 // ============================================
 // PUT /api/interactions/:id - Update interaction
 // ============================================
-router.put('/:id', validate(updateInteractionSchema), async (req: Request, res: Response) => {
+router.put('/:id', attachOrganization, requireOrgRole('member'), validate(updateInteractionSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -478,7 +478,7 @@ router.put('/:id', validate(updateInteractionSchema), async (req: Request, res: 
 // ============================================
 // POST /api/interactions/:id/complete-follow-up - Mark follow-up as done
 // ============================================
-router.post('/:id/complete-follow-up', validate(completeFollowUpSchema), async (req: Request, res: Response) => {
+router.post('/:id/complete-follow-up', attachOrganization, requireOrgRole('member'), validate(completeFollowUpSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -528,7 +528,7 @@ router.post('/:id/complete-follow-up', validate(completeFollowUpSchema), async (
 // ============================================
 // DELETE /api/interactions/:id - Delete interaction
 // ============================================
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', attachOrganization, requireOrgRole('member'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {

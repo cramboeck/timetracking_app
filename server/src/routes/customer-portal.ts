@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import crypto from 'crypto';
+import { escapeHtml } from '../utils/escapeHtml';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -147,7 +148,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const { email, password } = validation.data;
 
     // Get client IP (handle proxy)
-    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIP = req.ip || 'unknown'; // XFF[0] ist clientkontrolliert (nginx appendet) — req.ip via 'trust proxy'
     const userAgent = req.headers['user-agent'];
 
     // Find customer contact by email, also check linked portal user for password
@@ -2241,7 +2242,7 @@ router.post('/mfa/verify', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Invalid verification code' });
     }
 
-    const clientIP = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIP = req.ip || 'unknown'; // XFF[0] ist clientkontrolliert (nginx appendet) — req.ip via 'trust proxy'
     const userAgent = req.headers['user-agent'];
 
     // Log successful login
@@ -3387,12 +3388,12 @@ async function notifyAdminsAboutLicenseRequest(
     await emailService.sendEmail({
       to: admin.email,
       subject: `RamboFlow: Lizenz-Anfrage von ${customerName}`,
-      html: `<p>Hallo ${admin.username},</p>
-        <p><strong>${customerName}</strong>${requesterName ? ` (${requesterName})` : ''} hat über das Kundenportal eine Lizenz-Anfrage gestellt:</p>
+      html: `<p>Hallo ${escapeHtml(admin.username)},</p>
+        <p><strong>${escapeHtml(customerName)}</strong>${requesterName ? ` (${escapeHtml(requesterName)})` : ''} hat über das Kundenportal eine Lizenz-Anfrage gestellt:</p>
         <p style="background:#f5f5f5;padding:12px 16px;border-radius:8px;">
           <strong>${typeLabel}</strong><br/>
-          ${request.product_description}${qtyText}
-          ${request.note ? `<br/><em>„${request.note}"</em>` : ''}
+          ${escapeHtml(request.product_description)}${escapeHtml(qtyText)}
+          ${request.note ? `<br/><em>„${escapeHtml(request.note)}"</em>` : ''}
         </p>
         <p><a href="${link}" style="display:inline-block;background-color:#F27024;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-weight:600;">Im CRM prüfen (Kunde → Lizenzen)</a></p>`,
       text: `Hallo ${admin.username},\n\n${customerName}${requesterName ? ` (${requesterName})` : ''} hat über das Kundenportal eine Lizenz-Anfrage gestellt:\n\n${typeLabel}\n${request.product_description}${qtyText}\n${request.note ? `\nNotiz: ${request.note}` : ''}\n\n${link}`,

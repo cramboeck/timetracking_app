@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { query } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { getUserOrganizationId } from '../middleware/organization';
+import { getUserOrganizationId, attachOrganization, requireOrgRole } from '../middleware/organization';
 import { emailService } from '../services/emailService';
 import { logger } from '../utils/logger';
 
@@ -231,7 +231,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/contacts - Create contact
 // ============================================
-router.post('/', validate(createContactSchema), async (req: Request, res: Response) => {
+router.post('/', attachOrganization, requireOrgRole('member'), validate(createContactSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -299,7 +299,7 @@ router.post('/', validate(createContactSchema), async (req: Request, res: Respon
 // ============================================
 // PUT /api/contacts/:id - Update contact
 // ============================================
-router.put('/:id', validate(updateContactSchema), async (req: Request, res: Response) => {
+router.put('/:id', attachOrganization, requireOrgRole('member'), validate(updateContactSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -381,7 +381,7 @@ router.put('/:id', validate(updateContactSchema), async (req: Request, res: Resp
 // ============================================
 // DELETE /api/contacts/:id - Delete contact
 // ============================================
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', attachOrganization, requireOrgRole('member'), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     if (!organizationId) {
@@ -409,7 +409,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // ============================================
 // POST /api/contacts/:id/portal-access - Enable portal access
 // ============================================
-router.post('/:id/portal-access', validate(portalAccessSchema), async (req: Request, res: Response) => {
+// Portal-Zugänge anlegen/erneuern ist eine ADMIN-Entscheidung (Architektur-
+// Entscheidung „Portal-Rechte nur Admin/Manager") — vorher konnte jeder
+// Org-Member (sogar Viewer) Kundenportal-Konten erzeugen und einladen.
+router.post('/:id/portal-access', attachOrganization, requireOrgRole('admin'), validate(portalAccessSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;
@@ -536,7 +539,7 @@ router.post('/:id/portal-access', validate(portalAccessSchema), async (req: Requ
 // ============================================
 // POST /api/contacts/:id/resend-invitation - Resend portal invitation
 // ============================================
-router.post('/:id/resend-invitation', validate(resendInvitationSchema), async (req: Request, res: Response) => {
+router.post('/:id/resend-invitation', attachOrganization, requireOrgRole('admin'), validate(resendInvitationSchema), async (req: Request, res: Response) => {
   try {
     const organizationId = await getUserOrganizationId((req as any).user.id);
     const userId = (req as any).user.id;

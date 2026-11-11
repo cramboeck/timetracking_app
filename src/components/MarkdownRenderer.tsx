@@ -5,6 +5,16 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+// Schema-Whitelist für Markdown-URLs: nur http/https/mailto und relative
+// Pfade — `javascript:`-URLs würden sonst beim Klick same-origin ausgeführt
+function safeUrl(url: string): string | null {
+  const trimmed = (url || '').trim();
+  if (!trimmed) return null;
+  if (/^(https?:|mailto:)/i.test(trimmed)) return trimmed;
+  if (/^[/#.]/.test(trimmed) && !/^\/\//.test(trimmed)) return trimmed; // relativ, aber kein protokoll-relatives //host
+  return null;
+}
+
 /**
  * Simple Markdown renderer supporting:
  * - **bold** and *italic*
@@ -83,22 +93,24 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
             {m[1]}
           </code>
         )},
-        // Images ![alt](url)
+        // Images ![alt](url) — Markdown kommt u.a. aus externen E-Mails und
+        // Portal-Kommentaren: nur http/https/mailto/relative URLs zulassen,
+        // sonst liefe javascript: beim Klick same-origin (safeUrl unten)
         { regex: /!\[([^\]]*)\]\(([^)]+)\)/, render: (m: RegExpMatchArray) => (
           <img
             key={keyIndex++}
-            src={m[2]}
+            src={safeUrl(m[2]) || undefined}
             alt={m[1] || 'Bild'}
             className="max-w-full h-auto rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
             style={{ maxHeight: '400px' }}
-            onClick={() => window.open(m[2], '_blank')}
+            onClick={() => { const u = safeUrl(m[2]); if (u) window.open(u, '_blank', 'noopener'); }}
           />
         )},
         // Links [text](url)
         { regex: /\[([^\]]+)\]\(([^)]+)\)/, render: (m: RegExpMatchArray) => (
           <a
             key={keyIndex++}
-            href={m[2]}
+            href={safeUrl(m[2]) || undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent-primary hover:underline"

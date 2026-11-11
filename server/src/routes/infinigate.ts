@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
+import { attachOrganization, requireOrgRole } from '../middleware/organization';
 import { query } from '../config/database';
 import * as infinigateService from '../services/infinigateService';
 import { logger } from '../utils/logger';
@@ -39,7 +40,7 @@ const configSchema = z.object({
 });
 
 // GET /api/infinigate/config - Config lesen (Secrets maskiert)
-router.get('/config', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/config', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const config = await infinigateService.getConfig(req.user!.id);
     res.json({
@@ -63,7 +64,7 @@ router.get('/config', authenticateToken, requireBillingFeature, async (req: Auth
 });
 
 // POST /api/infinigate/config - Config speichern (leere Felder = unverändert)
-router.post('/config', authenticateToken, requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
+router.post('/config', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { clientId, clientSecret, apiKey, environment, autoSync } = req.body;
     await infinigateService.saveConfig(req.user!.id, {
@@ -81,7 +82,7 @@ router.post('/config', authenticateToken, requireBillingFeature, validate(config
 });
 
 // POST /api/infinigate/test - Verbindungstest (Token + 1 Rechnung abrufen)
-router.post('/test', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/test', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.testConnection(req.user!.id);
     res.json({ success: result.ok, message: result.message, invoiceCount: result.invoiceCount });
@@ -92,7 +93,7 @@ router.post('/test', authenticateToken, requireBillingFeature, async (req: AuthR
 });
 
 // POST /api/infinigate/sync - Rechnungs-/Lizenz-Sync manuell anstoßen
-router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/sync', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.syncInvoices(req.user!.id);
     res.json({ success: true, data: result });
@@ -105,7 +106,7 @@ router.post('/sync', authenticateToken, requireBillingFeature, async (req: AuthR
 // ─── Bestellungen (Phase 2b): Preisliste + Angebote ─────────────────────────
 
 // GET /api/infinigate/pricelist/search?q=&take=&skip= - EK-Preissuche
-router.get('/pricelist/search', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/pricelist/search', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const q = String(req.query.q || '').trim();
     if (q.length < 2 || q.length > 100) {
@@ -122,7 +123,7 @@ router.get('/pricelist/search', authenticateToken, requireBillingFeature, async 
 });
 
 // GET /api/infinigate/quotes - Angebote des Resellers
-router.get('/quotes', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/quotes', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const quotes = await infinigateService.getQuotes(req.user!.id);
     res.json({ success: true, data: quotes });
@@ -140,7 +141,7 @@ const quoteActionSchema = z.object({
 
 // POST /api/infinigate/quotes/accept - ⚠️ Angebot annehmen = VERBINDLICHE
 // Bestellung beim Distributor (acceptedByUserMail = eingeloggter User)
-router.post('/quotes/accept', authenticateToken, requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
+router.post('/quotes/accept', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.acceptQuote(req.user!.id, {
       documentNumber: req.body.documentNumber,
@@ -154,7 +155,7 @@ router.post('/quotes/accept', authenticateToken, requireBillingFeature, validate
 });
 
 // POST /api/infinigate/quotes/reject - Angebot ablehnen (optional mit Kommentar)
-router.post('/quotes/reject', authenticateToken, requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
+router.post('/quotes/reject', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(quoteActionSchema), async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.rejectQuote(req.user!.id, {
       documentNumber: req.body.documentNumber,
@@ -170,7 +171,7 @@ router.post('/quotes/reject', authenticateToken, requireBillingFeature, validate
 
 // GET /api/infinigate/debug/orders?q= - Struktur-Dump Preisliste + Angebote
 // (echte Feldnamen, gekürzte Werte) zum Nachschärfen der Normalisierung
-router.get('/debug/orders', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/debug/orders', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const q = String(req.query.q || 'microsoft').trim().slice(0, 100);
     const result = await infinigateService.inspectOrdersStructure(req.user!.id, q);
@@ -183,7 +184,7 @@ router.get('/debug/orders', authenticateToken, requireBillingFeature, async (req
 
 // GET /api/infinigate/debug/structure - Feldstruktur einer echten Rechnung
 // (Typen + gekürzte Beispielwerte) — zum Abgleich Mapping vs. echte API
-router.get('/debug/structure', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/debug/structure', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const structure = await infinigateService.inspectFirstInvoiceStructure(req.user!.id);
     res.json({ success: true, data: structure });
@@ -195,7 +196,7 @@ router.get('/debug/structure', authenticateToken, requireBillingFeature, async (
 
 // GET /api/infinigate/debug/pdf - Download-Endpoint-Kandidaten für Beleg-PDFs
 // gegen die echte API proben (Status/Content-Type/%PDF-Magic je Kandidat)
-router.get('/debug/pdf', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.get('/debug/pdf', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.probePdfEndpoints(req.user!.id);
     res.json({ success: true, data: result });
@@ -207,7 +208,7 @@ router.get('/debug/pdf', authenticateToken, requireBillingFeature, async (req: A
 
 // POST /api/infinigate/fetch-pdfs - Beleg-PDFs für bereits importierte
 // Infinigate-Belege ohne Dokument nachladen (Backfill)
-router.post('/fetch-pdfs', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/fetch-pdfs', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.fetchMissingInvoicePdfs(req.user!.id);
     res.json({ success: true, data: result });
@@ -219,7 +220,7 @@ router.post('/fetch-pdfs', authenticateToken, requireBillingFeature, async (req:
 
 // POST /api/infinigate/resync - Unbearbeitete Infinigate-Belege löschen und
 // komplett neu importieren (nach einem Mapping-Fix; bearbeitete bleiben)
-router.post('/resync', authenticateToken, requireBillingFeature, async (req: AuthRequest, res: Response) => {
+router.post('/resync', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
     const result = await infinigateService.resyncInvoices(req.user!.id);
     res.json({ success: true, data: result });
