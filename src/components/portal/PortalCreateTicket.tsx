@@ -1202,7 +1202,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+          accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
           multiple
           onChange={handleFileSelect}
           className="hidden"

@@ -19,6 +19,24 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+// Spaltenliste für API-Responses: customer_contacts trägt die LOGIN-Daten der
+// Portal-Konten (password_hash, mfa_secret, mfa_recovery_codes, Reset-Token).
+// Ein `cc.*` lieferte die früher an jedes Org-Mitglied aus — diese Felder
+// dürfen NIEMALS in einer Response landen (nur die internen Queries im
+// portal-access-Flow lesen password_hash, geben es aber nicht zurück).
+const CONTACT_PUBLIC_COLUMNS = `
+  cc.id, cc.organization_id, cc.customer_id, cc.first_name, cc.last_name,
+  cc.email, cc.phone, cc.mobile, cc.job_title, cc.department, cc.role,
+  cc.is_primary, cc.portal_user_id, cc.preferred_contact_method,
+  cc.notify_on_ticket_update, cc.notify_on_maintenance, cc.linkedin_url,
+  cc.notes, cc.avatar_url, cc.created_at, cc.updated_at,
+  cc.can_view_devices, cc.can_view_invoices, cc.can_view_quotes,
+  cc.mfa_enabled, cc.notify_ticket_created, cc.notify_ticket_status_changed,
+  cc.notify_ticket_reply, cc.push_enabled, cc.push_on_ticket_reply,
+  cc.push_on_status_change, cc.last_login, cc.can_create_tickets,
+  cc.can_view_all_tickets
+`;
+
 // ============================================
 // VALIDATION SCHEMAS
 // ============================================
@@ -73,7 +91,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     let sql = `
       SELECT
-        cc.*,
+        ${CONTACT_PUBLIC_COLUMNS},
         c.name as customer_name,
         c.color as customer_color,
         CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access
@@ -176,7 +194,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const result = await query(`
       SELECT
-        cc.*,
+        ${CONTACT_PUBLIC_COLUMNS},
         c.name as customer_name,
         c.color as customer_color,
         CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
@@ -607,7 +625,7 @@ router.get('/customer/:customerId', async (req: Request, res: Response) => {
 
     const result = await query(`
       SELECT
-        cc.*,
+        ${CONTACT_PUBLIC_COLUMNS},
         CASE WHEN cc.password_hash IS NOT NULL OR cpu.id IS NOT NULL THEN true ELSE false END as has_portal_access,
         cpu.last_login as portal_last_login
       FROM customer_contacts cc

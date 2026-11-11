@@ -83,7 +83,7 @@ export const TicketAttachments = ({
             onChange={handleFileUpload}
             disabled={uploadingFiles}
             className="hidden"
-            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.eml,.msg"
+            accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z,.eml,.msg"
           />
         </label>
       </div>

@@ -154,7 +154,22 @@ if (!fs.existsSync(uploadsDir)) {
 // UUID-Dateinamen ohne Auth-Header — Capability-URLs). Rechnungs-PDFs unter
 // uploads/invoices laufen ausschließlich über den authentifizierten Endpoint
 // GET /api/microsoft365/documents/:id/download.
-app.use('/api/uploads/tickets', express.static(path.join(uploadsDir, 'tickets')));
+// XSS-Härtung: Nur Bilder/PDF dürfen inline rendern — alles andere (inkl.
+// Alt-Dateien mit .html/.svg-Endung) wird als Download erzwungen und
+// sandboxed, damit nie fremdes Script auf der App-Origin läuft.
+const INLINE_SAFE_UPLOAD_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf']);
+app.use('/api/uploads/tickets', express.static(path.join(uploadsDir, 'tickets'), {
+  setHeaders: (res, filePath) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    const ext = path.extname(filePath).toLowerCase();
+    if (!INLINE_SAFE_UPLOAD_EXTENSIONS.has(ext)) {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('Content-Security-Policy', 'sandbox');
+      // SVG/HTML & Co. zusätzlich als Binärdaten deklarieren
+      res.setHeader('Content-Type', 'application/octet-stream');
+    }
+  },
+}));
 
 // Health check - Basic liveness probe (is the server running?)
 // Available at both /health (direct) and /api/health (via nginx)

@@ -231,8 +231,11 @@ router.get('/users/:id', async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // Don't send password hash to client
+    // Don't send credentials to client — mfa_secret/recovery_codes würden
+    // einen stillen MFA-Bypass erlauben und landen sonst in Browser-Caches
     delete user.password_hash;
+    delete user.mfa_secret;
+    delete user.mfa_recovery_codes;
 
     // Get recent time entries
     const entriesResult = await pool.query(

@@ -14,6 +14,8 @@ import express, { Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../config/database';
 import { logger } from '../utils/logger';
+import { authenticate } from '../middleware/auth';
+import { requireAdmin } from '../middleware/adminAuth';
 
 const router = express.Router();
 
@@ -157,10 +159,22 @@ router.get('/events', async (req, res) => {
   let organizationId: string;
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as {
-      userId: string;
+    // Kein Fallback-Secret: ohne konfiguriertes JWT_SECRET fail-closed
+    // (ein bekannter Default wäre von jedem forgebar)
+    if (!process.env.JWT_SECRET) {
+      logger.error('[SSE] JWT_SECRET not configured');
+      return res.status(500).json({ success: false, error: 'Server configuration error' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as {
+      userId?: string;
+      type?: string;
+      mfaPending?: boolean;
       exp?: number;
     };
+    // Nur reine App-Session-Tokens (kein Portal-/mfaPending-Token)
+    if (decoded.type || decoded.mfaPending || !decoded.userId) {
+      return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
     userId = decoded.userId;
 
     // Get user's organization
@@ -218,9 +232,11 @@ router.get('/events', async (req, res) => {
 
 /**
  * GET /api/sse/status
- * Get SSE service status (for monitoring/admin)
+ * Get SSE service status (for monitoring/admin).
+ * Admin-only: die Client-Liste enthält userId/organizationId aller
+ * verbundenen Nutzer — ohne Auth war das eine öffentliche User-Enumeration.
  */
-router.get('/status', (req, res) => {
+router.get('/status', authenticate, requireAdmin, (req, res) => {
   res.json({
     success: true,
     data: {

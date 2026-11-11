@@ -204,6 +204,10 @@ async function getUserFromToken(req: any): Promise<any | null> {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    // Nur reine App-Session-Tokens: Portal-Tokens (type) tragen die User-ID
+    // des Dienstleisters, mfaPending-Tokens sind noch keine Session — beide
+    // dürfen hier keine MFA-Verwaltung (Secrets, Recovery-Codes) erreichen.
+    if (decoded.type || decoded.mfaPending || !decoded.userId) return null;
     const result = await pool.query(
       `SELECT id, username, email, account_type, role, mfa_enabled, mfa_secret,
               mfa_recovery_codes, accent_color, gray_tone, dark_mode, time_rounding_interval

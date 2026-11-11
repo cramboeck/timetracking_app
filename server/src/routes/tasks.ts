@@ -228,8 +228,13 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
       ticketTaskFilters += ` AND tt.completed = false`;
     }
 
-    // Priority filter
+    // Priority filter — Wert kommt aus req.query und landet unten per
+    // Interpolation im Ticket-Zweig: NUR Whitelist-Werte zulassen (SQLi!)
     if (priority) {
+      const allowedPriorities = ['low', 'normal', 'medium', 'high', 'urgent', 'critical'];
+      if (!allowedPriorities.includes(String(priority))) {
+        return res.status(400).json({ error: 'Invalid priority filter' });
+      }
       standaloneFilters += ` AND t.priority = $${paramCount}`;
       // Map priority for ticket tasks
       let ticketPriority = priority;

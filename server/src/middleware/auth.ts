@@ -60,13 +60,27 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
       console.error('AUTH ERROR: JWT_SECRET not configured');
       return res.status(500).json({ error: 'Server configuration error' });
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as {
+      userId?: string;
+      type?: string;
+      mfaPending?: boolean;
+    };
+    // Nur reine App-Session-Tokens ({userId}) sind hier gültig:
+    // - Portal-Tokens (type: 'customer_portal') tragen die App-User-ID des
+    //   Dienstleisters — ohne diesen Check könnte ein Portal-Kunde als
+    //   dessen App-User (inkl. Admin) gegen /api/* agieren.
+    // - mfaPending-Zwischentokens sind ausschließlich für die MFA-Verifikation
+    //   bestimmt, nicht als Session (sonst wäre MFA per Passwort umgehbar).
+    if (decoded.type || decoded.mfaPending || !decoded.userId) {
+      console.error('AUTH ERROR: non-app token rejected', { type: decoded.type, mfaPending: decoded.mfaPending });
+      return res.status(403).json({ error: 'Invalid token' });
+    }
     req.userId = decoded.userId;
     req.user = { id: decoded.userId };
     next();
   } catch (error: any) {
     console.error('AUTH ERROR:', error.name, error.message, 'Token prefix:', token?.substring(0, 20));
-    return res.status(403).json({ error: 'Invalid token', details: error.message });
+    return res.status(403).json({ error: 'Invalid token' });
   }
 }
 

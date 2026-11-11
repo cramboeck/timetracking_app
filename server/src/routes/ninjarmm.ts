@@ -1092,8 +1092,14 @@ router.post('/webhook/:userId', async (req: any, res: Response) => {
       return res.status(403).json({ error: 'Webhook not enabled' });
     }
 
-    // Validate webhook secret
-    if (config.webhook_secret && webhookSecret !== config.webhook_secret) {
+    // Validate webhook secret — PFLICHT: Der Endpoint ist öffentlich erreichbar;
+    // ohne konfiguriertes Secret könnte jeder Fake-Alerts posten (Auto-Tickets,
+    // Push/Mail an Bearbeiter). Fail closed statt "kein Secret = keine Prüfung".
+    if (!config.webhook_secret) {
+      console.warn(`Webhook received but no secret configured for user: ${userId}`);
+      return res.status(403).json({ error: 'Webhook secret not configured' });
+    }
+    if (webhookSecret !== config.webhook_secret) {
       console.warn(`Invalid webhook secret for user: ${userId}`);
       return res.status(401).json({ error: 'Invalid webhook secret' });
     }
@@ -1691,6 +1697,22 @@ router.put('/webhook-config', authenticateToken, requireNinjaFeature, async (req
       `INSERT INTO ninjarmm_config (id, user_id) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING`,
       [uuidv4(), userId]
     );
+
+    // Secret-Pflicht: Aktivieren ohne Secret (oder Secret leeren bei aktivem
+    // Webhook) ablehnen — der Webhook-Endpoint ist öffentlich erreichbar
+    const currentResult = await query(
+      `SELECT webhook_enabled, webhook_secret FROM ninjarmm_config WHERE user_id = $1`,
+      [userId]
+    );
+    const current = currentResult.rows[0] || {};
+    const effectiveEnabled = webhookEnabled !== undefined ? webhookEnabled : current.webhook_enabled;
+    const effectiveSecret = webhookSecret !== undefined ? (webhookSecret || null) : current.webhook_secret;
+    if (effectiveEnabled && !effectiveSecret) {
+      return res.status(400).json({
+        success: false,
+        error: 'Webhook-Secret ist erforderlich, solange der Webhook aktiviert ist',
+      });
+    }
 
     // Build update query
     const updates: string[] = [];
