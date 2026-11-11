@@ -88,6 +88,37 @@ export const authApi = {
   },
 
   /**
+   * Entra-ID-SSO (optional, nur wenn serverseitig konfiguriert).
+   * Der Login selbst läuft als Browser-Redirect über das Backend; am Ende
+   * landet ein Einmal-Code in der URL, den exchange gegen die normalen
+   * App-Tokens tauscht (gleiche Response-Form wie /auth/login).
+   */
+  getEntraStatus: async (): Promise<{ enabled: boolean }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/entra/status`);
+      const data = await response.json();
+      return { enabled: Boolean(data?.enabled) };
+    } catch {
+      return { enabled: false };
+    }
+  },
+
+  entraLoginUrl: (): string => `${API_BASE_URL}/auth/entra/login`,
+
+  entraExchange: async (code: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/entra/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const result = await handleResponse(response);
+    if (persistTokensFromResponse(result)) {
+      console.log('✅ [API] Entra-SSO: Access + refresh tokens stored');
+    }
+    return result;
+  },
+
+  /**
    * Exchange the stored refresh token for a fresh access token (and a
    * rotated refresh token). Both are persisted to localStorage on success.
    * Returns the new access token, or null if the refresh failed (caller

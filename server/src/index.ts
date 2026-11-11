@@ -18,6 +18,7 @@ import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import authRoutes from './routes/auth';
+import authEntraRoutes from './routes/auth-entra';
 import entriesRoutes from './routes/entries';
 import projectsRoutes from './routes/projects';
 import customersRoutes from './routes/customers';
@@ -107,6 +108,8 @@ initializeDatabase().catch(err => {
 });
 
 // Routes
+// Entra-SSO VOR /api/auth mounten (Route-Shadowing-Disziplin)
+app.use('/api/auth/entra', authEntraRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/entries', entriesRoutes);

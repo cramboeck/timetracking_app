@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { AccountType } from '../types';
 import { ForgotPassword } from './ForgotPassword';
 import { ResetPassword } from './ResetPassword';
-import { organizationsApi } from '../services/api';
+import { organizationsApi, authApi } from '../services/api';
 import { Button } from './ui';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'join-organization';
@@ -22,7 +22,7 @@ interface InvitationInfo {
 }
 
 export const Auth = () => {
-  const { login, verifyMfa, register } = useAuth();
+  const { login, completeExternalLogin, verifyMfa, register } = useAuth();
   const [authView, setAuthView] = useState<AuthView>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,11 +41,46 @@ export const Auth = () => {
   const [invitationError, setInvitationError] = useState<string | null>(null);
   const [invitationLoading, setInvitationLoading] = useState(false);
 
+  // Entra-SSO: Button nur zeigen, wenn serverseitig konfiguriert
+  const [entraEnabled, setEntraEnabled] = useState(false);
+  useEffect(() => {
+    authApi.getEntraStatus().then(({ enabled }) => setEntraEnabled(enabled));
+  }, []);
+
   // Check URL for reset token or invitation code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const pathname = window.location.pathname;
+
+    // Entra-SSO-Rückkehr: Einmal-Code gegen App-Tokens tauschen
+    const entraCode = params.get('entra_code');
+    const entraError = params.get('entra_error');
+    if (entraCode || entraError) {
+      window.history.replaceState({}, '', window.location.pathname);
+      if (entraError) {
+        const messages: Record<string, string> = {
+          kein_konto: 'Für dieses Microsoft-Konto existiert kein RamboFlow-Benutzer. Bitte vom Admin anlegen lassen.',
+          abgebrochen: 'Microsoft-Anmeldung abgebrochen.',
+          abgelaufen: 'Anmeldung abgelaufen — bitte erneut versuchen.',
+        };
+        setError(messages[entraError] || 'Microsoft-Anmeldung fehlgeschlagen — bitte erneut versuchen.');
+        return;
+      }
+      setIsLoading(true);
+      (async () => {
+        try {
+          await authApi.entraExchange(entraCode!);
+          const result = await completeExternalLogin();
+          if (!result.success) setError(result.message || 'Anmeldung fehlgeschlagen');
+        } catch {
+          setError('Microsoft-Anmeldung fehlgeschlagen — bitte erneut versuchen.');
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+      return;
+    }
 
     // Check for password reset token
     if (token) {
@@ -624,6 +659,34 @@ export const Auth = () => {
                   >
                     {isLoading ? 'Anmelden...' : 'Anmelden'}
                   </Button>
+
+                  {entraEnabled && (
+                    <>
+                      <div className="relative my-2">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-200 dark:border-dark-border" />
+                        </div>
+                        <div className="relative flex justify-center">
+                          <span className="px-3 text-xs text-gray-400 dark:text-dark-400 bg-white dark:bg-dark-50">oder</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { window.location.href = authApi.entraLoginUrl(); }}
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-800 dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors disabled:opacity-50"
+                      >
+                        {/* Microsoft-Markenlogo — Brandfarben bewusst hartcodiert */}
+                        <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true">
+                          <rect x="0" y="0" width="10" height="10" fill="#F25022" />
+                          <rect x="11" y="0" width="10" height="10" fill="#7FBA00" />
+                          <rect x="0" y="11" width="10" height="10" fill="#00A4EF" />
+                          <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
+                        </svg>
+                        Mit Microsoft anmelden
+                      </button>
+                    </>
+                  )}
                 </form>
               )
             ) : (

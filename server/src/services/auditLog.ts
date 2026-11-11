@@ -12,6 +12,7 @@ export type AuditAction =
   // User actions
   | 'user.register'
   | 'user.login'
+  | 'user.entra_login'
   | 'user.logout'
   // API-Tokens (MCP/Integrationen)
   | 'api_token.create'

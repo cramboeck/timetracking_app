@@ -36,6 +36,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<LoginResult>;
+  completeExternalLogin: () => Promise<LoginResult>;
   verifyMfa: (mfaToken: string, code: string, trustDevice?: boolean) => Promise<MfaVerifyResult>;
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
@@ -288,6 +289,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  // Abschluss eines externen Logins (Entra-SSO): Tokens liegen bereits in
+  // localStorage (entraExchange) — hier nur noch User laden + Theme anwenden,
+  // identisch zum Nach-Token-Teil von login().
+  const completeExternalLogin = async (): Promise<LoginResult> => {
+    try {
+      const userResponse = await userApi.getMe();
+      const user = userResponse.data as User;
+      setCurrentUser(user);
+      storage.setCurrentUser(user);
+      accentColor.set(user.accentColor);
+      grayTone.set(user.grayTone);
+      darkMode.syncFromUser(user.darkMode);
+      applyAccentColorToRoot(user.accentColor);
+      console.log('🎉 [AUTH] Externer Login (Entra) abgeschlossen');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ [AUTH] Externer Login fehlgeschlagen:', error);
+      return { success: false, message: 'Anmeldung konnte nicht abgeschlossen werden' };
+    }
+  };
+
   const verifyMfa = async (mfaToken: string, code: string, trustDevice: boolean = false): Promise<MfaVerifyResult> => {
     try {
       console.log('🔐 [AUTH] Verifying MFA code...', { trustDevice });
@@ -499,6 +521,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     isAuthenticated: !!currentUser,
     isLoading,
     login,
+    completeExternalLogin,
     verifyMfa,
     register,
     logout,
