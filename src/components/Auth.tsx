@@ -53,9 +53,24 @@ export const Auth = () => {
     const token = params.get('token');
     const pathname = window.location.pathname;
 
-    // Entra-SSO-Rückkehr: Einmal-Code gegen App-Tokens tauschen
-    const entraCode = params.get('entra_code');
-    const entraError = params.get('entra_error');
+    // Entra-SSO-Rückkehr: Einmal-Code gegen App-Tokens tauschen.
+    // main.tsx parkt die Parameter VOR dem Router-Start in sessionStorage
+    // (die App-Catch-all verwirft Query-Parameter beim Kanonisieren) —
+    // URL-Params bleiben als Fallback (z.B. Dev ohne Redirect-Kette).
+    // Einträge älter als 2 Minuten ignorieren (Einmal-Code lebt nur 60 s;
+    // verhindert verwirrende Fehlermeldungen durch Altlasten).
+    const readStashed = (key: string): string | null => {
+      const raw = sessionStorage.getItem(`rbf_${key}`);
+      if (raw === null) return null;
+      sessionStorage.removeItem(`rbf_${key}`);
+      const sep = raw.indexOf('|');
+      if (sep === -1) return null;
+      const ts = Number(raw.slice(0, sep));
+      if (!Number.isFinite(ts) || Date.now() - ts > 2 * 60 * 1000) return null;
+      return raw.slice(sep + 1);
+    };
+    const entraCode = readStashed('entra_code') || params.get('entra_code');
+    const entraError = readStashed('entra_error') || params.get('entra_error');
     if (entraCode || entraError) {
       window.history.replaceState({}, '', window.location.pathname);
       if (entraError) {

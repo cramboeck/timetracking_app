@@ -68,6 +68,26 @@ window.addEventListener('vite:preloadError', (event) => {
 initializePortalBranding();
 initializeTheme();
 
+// Entra-SSO-Rückkehr VOR dem Router sichern: die App-Catch-all kanonisiert
+// Pfade und verwirft dabei Query-Parameter (gleiche Falle wie beim
+// Passwort-Reset) — bis Auth.tsx mountet, wäre ?entra_code längst weg.
+// Deshalb hier, vor createRoot, in sessionStorage parken; Auth.tsx liest
+// und löscht die Keys beim Mount.
+{
+  const bootParams = new URLSearchParams(window.location.search);
+  let found = false;
+  for (const key of ['entra_code', 'entra_error'] as const) {
+    const value = bootParams.get(key);
+    if (value) {
+      sessionStorage.setItem(`rbf_${key}`, `${Date.now()}|${value}`);
+      found = true;
+    }
+  }
+  if (found) {
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
