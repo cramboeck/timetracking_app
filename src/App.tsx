@@ -964,6 +964,7 @@ function App() {
     currentSubView,
     onAreaChange: handleAreaChange,
     onSubViewChange: handleSubViewChange,
+    role: currentUser?.role,
   });
 
   // FAB handlers

@@ -186,7 +186,9 @@ export const AreaNavigation = ({
   return (
     <>
       {/* Sub-Navigation (Top) - iOS Glassmorphism */}
-      <div className="fixed top-0 left-0 right-0 z-30
+      {/* data-no-swipe: Berührungen auf den Nav-Leisten sind Taps/Scrolls,
+          keine Bereichs-Wischgesten (Prod-Feedback 13.11.) */}
+      <div data-no-swipe className="fixed top-0 left-0 right-0 z-30
         bg-white/70 dark:bg-dark-50/70
         backdrop-blur-xl
         border-b border-white/20 dark:border-dark-border/50
@@ -248,7 +250,7 @@ export const AreaNavigation = ({
       </div>
 
       {/* Bottom Navigation - iOS Glassmorphism with clear active state */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom
+      <nav data-no-swipe className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom
         bg-white/70 dark:bg-dark-50/70
         backdrop-blur-xl
         border-t border-white/20 dark:border-dark-border/50

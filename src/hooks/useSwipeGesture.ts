@@ -24,6 +24,24 @@ interface SwipeConfig {
 /**
  * Determines which zone a Y position falls into
  */
+// Gesten, die in einer horizontal scrollbaren Leiste (Sub-Tabs, Bottom-Nav,
+// Tabellen, Kanban-Boards) oder einem [data-no-swipe]-Element starten, sind
+// SCROLLEN, keine Navigation — sonst springt beim Schieben der Finanzen-
+// Subnavi plötzlich der Bereich (Prod-Feedback 13.11.2026).
+const startsInScrollableOrOptOut = (target: EventTarget | null): boolean => {
+  let el = target instanceof Element ? target : null;
+  while (el && el !== document.body) {
+    if (el.hasAttribute('data-no-swipe')) return true;
+    const style = window.getComputedStyle(el);
+    const overflowX = style.overflowX;
+    if ((overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 1) {
+      return true;
+    }
+    el = el.parentElement;
+  }
+  return false;
+};
+
 const getZone = (
   y: number,
   screenHeight: number,
@@ -56,8 +74,10 @@ export const useSwipeGesture = ({
   const touchStartY = useRef<number>(0);
   const touchStartTime = useRef<number>(0);
   const touchStartZone = useRef<SwipeZone>('middle');
+  const ignoreGesture = useRef<boolean>(false);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    ignoreGesture.current = startsInScrollableOrOptOut(e.target);
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     touchStartTime.current = Date.now();
@@ -73,6 +93,7 @@ export const useSwipeGesture = ({
   }, [topZoneThreshold, bottomZoneThreshold]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (ignoreGesture.current) return;
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const touchEndTime = Date.now();

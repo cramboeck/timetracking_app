@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Area, SubView } from '../components/AreaNavigation';
+import { Area, SubView, isAreaAllowed, isSubViewAllowed } from '../components/AreaNavigation';
 import { useSwipeGesture } from './useSwipeGesture';
 import { haptics } from '../utils/haptics';
 
@@ -7,13 +7,16 @@ import { haptics } from '../utils/haptics';
 // means for the user.
 const VISIBLE_AREAS: Area[] = ['dashboard', 'arbeiten', 'personal', 'support', 'crm', 'finanzen'];
 
+// Reihenfolge = sichtbare Navigation (areaConfig). Admin-only-SubViews
+// werden zur Laufzeit per isSubViewAllowed gefiltert, damit Member nicht in
+// den Deep-Link-Guard swipen.
 const SUBVIEW_CONFIG: Record<Area, SubView[]> = {
   dashboard: ['overview'],
-  arbeiten: ['stopwatch', 'tasks', 'list', 'calendar'],
+  arbeiten: ['stopwatch', 'tasks', 'zeiten'],
   personal: ['arbeitszeit', 'abwesenheit'],
-  support: ['tickets', 'inbox', 'devices', 'alerts', 'maintenance'],
-  crm: ['customers', 'leads', 'pipeline', 'contracts'],
-  finanzen: ['invoices', 'billing', 'reports'],
+  support: ['tickets', 'inbox', 'devices', 'alerts', 'vulnerabilities', 'maintenance'],
+  crm: ['crm-dashboard', 'customers', 'pipeline', 'contracts'],
+  finanzen: ['invoices', 'billing', 'orders', 'reports', 'documents-search'],
 };
 
 interface UseSwipeNavigationArgs {
@@ -21,6 +24,8 @@ interface UseSwipeNavigationArgs {
   currentSubView: SubView;
   onAreaChange: (area: Area) => void;
   onSubViewChange: (subView: SubView) => void;
+  /** users.role — filtert admin-only Ziele aus den Swipe-Ketten */
+  role?: string;
 }
 
 /**
@@ -37,40 +42,42 @@ export function useSwipeNavigation({
   currentSubView,
   onAreaChange,
   onSubViewChange,
+  role,
 }: UseSwipeNavigationArgs) {
+  const visibleAreas = VISIBLE_AREAS.filter(a => isAreaAllowed(a, role));
+  const visibleSubViews = SUBVIEW_CONFIG[currentArea].filter(v => isSubViewAllowed(v, role));
+
   const handleSwipeLeftArea = useCallback(() => {
-    const currentIndex = VISIBLE_AREAS.indexOf(currentArea);
-    if (currentIndex < VISIBLE_AREAS.length - 1) {
+    const currentIndex = visibleAreas.indexOf(currentArea);
+    if (currentIndex >= 0 && currentIndex < visibleAreas.length - 1) {
       haptics.light();
-      onAreaChange(VISIBLE_AREAS[currentIndex + 1]);
+      onAreaChange(visibleAreas[currentIndex + 1]);
     }
-  }, [currentArea, onAreaChange]);
+  }, [currentArea, onAreaChange, visibleAreas]);
 
   const handleSwipeRightArea = useCallback(() => {
-    const currentIndex = VISIBLE_AREAS.indexOf(currentArea);
+    const currentIndex = visibleAreas.indexOf(currentArea);
     if (currentIndex > 0) {
       haptics.light();
-      onAreaChange(VISIBLE_AREAS[currentIndex - 1]);
+      onAreaChange(visibleAreas[currentIndex - 1]);
     }
-  }, [currentArea, onAreaChange]);
+  }, [currentArea, onAreaChange, visibleAreas]);
 
   const handleSwipeLeftSubView = useCallback(() => {
-    const subViews = SUBVIEW_CONFIG[currentArea];
-    const currentIndex = subViews.indexOf(currentSubView);
-    if (currentIndex < subViews.length - 1) {
+    const currentIndex = visibleSubViews.indexOf(currentSubView);
+    if (currentIndex >= 0 && currentIndex < visibleSubViews.length - 1) {
       haptics.light();
-      onSubViewChange(subViews[currentIndex + 1]);
+      onSubViewChange(visibleSubViews[currentIndex + 1]);
     }
-  }, [currentArea, currentSubView, onSubViewChange]);
+  }, [currentSubView, onSubViewChange, visibleSubViews]);
 
   const handleSwipeRightSubView = useCallback(() => {
-    const subViews = SUBVIEW_CONFIG[currentArea];
-    const currentIndex = subViews.indexOf(currentSubView);
+    const currentIndex = visibleSubViews.indexOf(currentSubView);
     if (currentIndex > 0) {
       haptics.light();
-      onSubViewChange(subViews[currentIndex - 1]);
+      onSubViewChange(visibleSubViews[currentIndex - 1]);
     }
-  }, [currentArea, currentSubView, onSubViewChange]);
+  }, [currentSubView, onSubViewChange, visibleSubViews]);
 
   return useSwipeGesture({
     onSwipeLeftTop: handleSwipeLeftSubView,
