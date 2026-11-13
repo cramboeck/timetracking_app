@@ -46,8 +46,10 @@ import {
   Inbox,
   X,
   Package,
+  Globe,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType, Task } from '../types';
+import { CustomerEditDialog } from './CustomerEditDialog';
 import { useQuery } from '@tanstack/react-query';
 import {
   contactsApi,
@@ -85,6 +87,7 @@ interface CustomerHubProps {
   onNavigateToTask?: (taskId: string) => void;
   onStartTimer?: (customerId: string, projectId?: string, description?: string) => void;
   onAddManualEntry?: (customerId: string, projectId?: string) => void;
+  onUpdateCustomer?: (customerId: string, updates: Partial<Customer>) => void;
   initialCustomerId?: string;
   // True while App.tsx is still fetching customers/projects/entries on
   // boot. Renamed from `isLoading` to avoid colliding with the local
@@ -216,6 +219,7 @@ const HealthBadge: React.FC<HealthBadgeProps> = ({ score, trend, factors }) => {
 
 interface QuickActionsProps {
   customerId: string;
+  onEditCustomer: () => void;
   onAddContact: () => void;
   onAddInteraction: () => void;
   onCreateTicket: () => void;
@@ -225,6 +229,7 @@ interface QuickActionsProps {
 }
 
 const QuickActions: React.FC<QuickActionsProps> = ({
+  onEditCustomer,
   onAddContact,
   onAddInteraction,
   onCreateTicket,
@@ -235,6 +240,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const actions = [
+    { icon: Edit2, label: 'Kunde bearbeiten', onClick: onEditCustomer, color: 'text-gray-600 dark:text-dark-400' },
     { icon: UserPlus, label: 'Kontakt hinzufügen', onClick: onAddContact, color: 'text-accent-primary' },
     { icon: PhoneCall, label: 'Interaktion erfassen', onClick: onAddInteraction, color: 'text-green-600' },
     { icon: Ticket, label: 'Ticket erstellen', onClick: onCreateTicket, color: 'text-orange-600' },
@@ -295,7 +301,9 @@ interface OverviewTabProps {
     monthlyRevenue: number;
   };
   timeline: UnifiedTimelineItem[];
+  contacts: CRMContact[];
   onTimelineItemClick: (item: UnifiedTimelineItem) => void;
+  onEditCustomer: () => void;
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -304,10 +312,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   healthScore,
   stats,
   timeline,
+  contacts,
   onTimelineItemClick,
+  onEditCustomer,
 }) => {
   const customerProjects = projects.filter(p => p.customerId === customer.id);
   const activeProjects = customerProjects.filter(p => p.isActive);
+  const primaryContact = contacts.find(c => c.is_primary) ?? contacts[0];
+  const [timelineFilter, setTimelineFilter] = useState<'all' | UnifiedTimelineItem['type']>('all');
+  const filteredTimeline = timelineFilter === 'all'
+    ? timeline
+    : timeline.filter(item => item.type === timelineFilter);
+  const structuredAddress = [
+    customer.addressStreet,
+    [customer.addressZip, customer.addressCity].filter(Boolean).join(' '),
+  ].filter(v => v && String(v).trim()).join(', ');
+  const displayAddress = structuredAddress || customer.address;
 
   return (
     <div className="space-y-6">
@@ -405,22 +425,77 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
         {/* Contact Info */}
         <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Building2 size={18} className="text-accent-primary" />
-            Kontaktdaten
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Building2 size={18} className="text-accent-primary" />
+              Kontaktdaten
+            </h3>
+            <button
+              type="button"
+              onClick={onEditCustomer}
+              className="p-1.5 rounded-lg text-gray-400 dark:text-dark-400 hover:text-accent-primary hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
+              title="Kunde bearbeiten"
+            >
+              <Edit2 size={16} />
+            </button>
+          </div>
           <div className="space-y-3 text-sm">
             {customer.email && (
               <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
-                <Mail size={16} />
-                {customer.email}
+                <Mail size={16} className="flex-shrink-0" />
+                <span className="truncate">{customer.email}</span>
               </a>
             )}
-            {customer.address && (
+            {customer.phone && (
+              <a href={`tel:${customer.phone.replace(/[^+\d]/g, '')}`} className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary">
+                <Phone size={16} className="flex-shrink-0" />
+                {customer.phone}
+              </a>
+            )}
+            {customer.website && (
+              <a
+                href={customer.website.startsWith('http') ? customer.website : `https://${customer.website}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gray-600 dark:text-dark-400 hover:text-accent-primary dark:hover:text-accent-primary"
+              >
+                <Globe size={16} className="flex-shrink-0" />
+                <span className="truncate">{customer.website.replace(/^https?:\/\//, '')}</span>
+              </a>
+            )}
+            {displayAddress && (
               <div className="flex items-start gap-2 text-gray-600 dark:text-dark-400">
-                <MapPin size={16} className="mt-0.5" />
-                <span>{customer.address}</span>
+                <MapPin size={16} className="mt-0.5 flex-shrink-0" />
+                <span className="whitespace-pre-line">{displayAddress}</span>
               </div>
+            )}
+            {primaryContact && (
+              <div className="pt-3 mt-1 border-t border-gray-100 dark:border-dark-border">
+                <p className="text-xs text-gray-400 dark:text-dark-400 mb-1.5">Hauptkontakt</p>
+                <div className="flex items-center gap-2 text-gray-900 dark:text-white font-medium">
+                  <Users size={16} className="flex-shrink-0 text-gray-400 dark:text-dark-400" />
+                  {[primaryContact.first_name, primaryContact.last_name].filter(Boolean).join(' ')}
+                </div>
+                {primaryContact.email && (
+                  <a href={`mailto:${primaryContact.email}`} className="block mt-1 ml-6 text-gray-600 dark:text-dark-400 hover:text-accent-primary truncate">
+                    {primaryContact.email}
+                  </a>
+                )}
+                {primaryContact.phone && (
+                  <a href={`tel:${String(primaryContact.phone).replace(/[^+\d]/g, '')}`} className="block mt-0.5 ml-6 text-gray-600 dark:text-dark-400 hover:text-accent-primary">
+                    {primaryContact.phone}
+                  </a>
+                )}
+              </div>
+            )}
+            {!customer.email && !customer.phone && !customer.website && !displayAddress && !primaryContact && (
+              <button
+                type="button"
+                onClick={onEditCustomer}
+                className="text-gray-500 dark:text-dark-400 hover:text-accent-primary text-left"
+              >
+                Noch keine Kontaktdaten — jetzt ergänzen
+              </button>
             )}
           </div>
         </div>
@@ -428,20 +503,42 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
 
       {/* Unified Timeline */}
       <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">
-        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Activity size={18} className="text-accent-primary" />
             Letzte Aktivitäten
           </h3>
+          <div className="flex gap-1 overflow-x-auto">
+            {([
+              ['all', 'Alle'],
+              ['entry', 'Zeiten'],
+              ['ticket', 'Tickets'],
+              ['interaction', 'Interaktionen'],
+              ['task', 'Aufgaben'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTimelineFilter(value)}
+                className={`whitespace-nowrap px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  timelineFilter === value
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-gray-200 dark:hover:bg-dark-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-dark-border max-h-96 overflow-y-auto">
-          {timeline.length === 0 ? (
+          {filteredTimeline.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-dark-400">
               <Activity size={32} className="mx-auto mb-2 opacity-50" />
               <p>Keine Aktivitäten</p>
             </div>
           ) : (
-            timeline.slice(0, 10).map((item) => (
+            filteredTimeline.slice(0, 10).map((item) => (
               <button
                 key={`${item.type}-${item.id}`}
                 onClick={() => onTimelineItemClick(item)}
@@ -1126,6 +1223,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   onNavigateToTask,
   onStartTimer,
   onAddManualEntry,
+  onUpdateCustomer,
   initialCustomerId,
   isInitialDataLoading = false,
 }) => {
@@ -1145,6 +1243,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
   // Modal states
   const [showContactsModal, setShowContactsModal] = useState(false);
+  const [showEditCustomer, setShowEditCustomer] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showPersonalInbox, setShowPersonalInbox] = useState(false);
@@ -1573,6 +1672,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                 />
                 <QuickActions
                   customerId={selectedCustomer.id}
+                  onEditCustomer={() => setShowEditCustomer(true)}
                   onAddContact={handleAddContact}
                   onAddInteraction={handleAddInteraction}
                   onCreateTicket={handleCreateTicket}
@@ -1626,7 +1726,9 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     healthScore={healthScore}
                     stats={stats}
                     timeline={timeline}
+                    contacts={contacts}
                     onTimelineItemClick={handleTimelineItemClick}
+                    onEditCustomer={() => setShowEditCustomer(true)}
                   />
                 )}
                 {activeTab === 'contacts' && (
@@ -1781,6 +1883,17 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Kunde bearbeiten — direkt im Hub (CRM-4), gleicher Dialog wie Settings */}
+      {selectedCustomer && (
+        <CustomerEditDialog
+          isOpen={showEditCustomer}
+          customer={selectedCustomer}
+          projects={projects}
+          onClose={() => setShowEditCustomer(false)}
+          onSave={(data) => onUpdateCustomer?.(selectedCustomer.id, data)}
+        />
       )}
     </div>
   );

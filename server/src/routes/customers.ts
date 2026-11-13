@@ -20,7 +20,8 @@ const router = Router();
 // Explicit column lists (no SELECT *)
 const CUSTOMER_COLUMNS = `
   id, user_id, organization_id, name, color, customer_number, contact_person,
-  email, address, report_title, hourly_rate, payment_terms_days, time_rounding_interval,
+  email, phone, website, address, address_street, address_zip, address_city,
+  report_title, hourly_rate, payment_terms_days, time_rounding_interval,
   ninjarmm_organization_id, display_name, import_aliases, sla_policy_id,
   sevdesk_customer_id, sevdesk_position_template, default_contract_id, default_project_id,
   is_vendor, vendor_domain, vendor_notes, vendor_api_config,
@@ -45,7 +46,12 @@ const createCustomerSchema = z.object({
   customerNumber: z.string().max(50).optional(),
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
+  phone: z.string().max(50).optional(),
+  website: z.string().max(300).optional(),
   address: z.string().max(500).optional(),
+  addressStreet: z.string().max(200).optional(),
+  addressZip: z.string().max(20).optional(),
+  addressCity: z.string().max(100).optional(),
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).optional(),
   paymentTermsDays: z.number().min(1).max(365).optional(),
@@ -61,7 +67,12 @@ const updateCustomerSchema = z.object({
   customerNumber: z.string().max(50).optional(),
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
+  phone: z.string().max(50).nullable().optional(),
+  website: z.string().max(300).nullable().optional(),
   address: z.string().max(500).optional(),
+  addressStreet: z.string().max(200).nullable().optional(),
+  addressZip: z.string().max(20).nullable().optional(),
+  addressCity: z.string().max(100).nullable().optional(),
   reportTitle: z.string().max(200).optional(),
   hourlyRate: z.number().min(0).nullable().optional(),
   paymentTermsDays: z.number().min(1).max(365).nullable().optional(),
@@ -265,30 +276,44 @@ router.get('/health-overview', authenticateToken, attachOrganization, async (req
   }
 });
 
+// Geocoding-Eingabe: strukturierte Adresse („Straße, PLZ Ort") vor dem
+// Legacy-Freitext-Blob — Nominatim matcht strukturiert deutlich besser
+function composeGeocodeAddress(c: {
+  addressStreet?: string | null; addressZip?: string | null;
+  addressCity?: string | null; address?: string | null;
+}): string | null {
+  const zipCity = [c.addressZip, c.addressCity].filter(v => v && String(v).trim()).join(' ');
+  const structured = [c.addressStreet, zipCity].filter(v => v && String(v).trim()).join(', ');
+  if (structured.trim()) return structured;
+  return c.address && c.address.trim() ? c.address : null;
+}
+
 // POST /api/customers - Create new customer (requires member role)
 router.post('/', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createCustomerSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { name, color, customerNumber, contactPerson, email, address, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId, displayName, importAliases, customerType } = req.body;
+    const { name, color, customerNumber, contactPerson, email, phone, website, address, addressStreet, addressZip, addressCity, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId, displayName, importAliases, customerType } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, address, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, display_name, import_aliases, customer_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, address || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, phone, website, address, address_street, address_zip, address_city, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, display_name, import_aliases, customer_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, phone || null, website || null, address || null, addressStreet || null, addressZip || null, addressCity || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
     );
 
     const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const newCustomer = transformRow(customerResult.rows[0]);
 
     // GPS-Kunden-Zuordnung (A6 Phase 2): Adresse geocodieren — best effort,
-    // blockiert das Anlegen nie
-    if (address) {
-      geocodeCustomer(id, address).catch(err =>
+    // blockiert das Anlegen nie. Strukturierte Felder haben Vorrang vor dem
+    // Legacy-Freitext (bessere Nominatim-Trefferquote).
+    const geocodeInput = composeGeocodeAddress({ addressStreet, addressZip, addressCity, address });
+    if (geocodeInput) {
+      geocodeCustomer(id, geocodeInput).catch(err =>
         logger.error(`Geocoding beim Kunden-Anlegen fehlgeschlagen: ${err.message}`));
     }
 
@@ -350,11 +375,36 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       fields.push(`email = $${paramCount++}`);
       values.push(updates.email || null);
     }
+    const addressChanged = ['address', 'addressStreet', 'addressZip', 'addressCity']
+      .some(f => updates[f] !== undefined);
     if (updates.address !== undefined) {
       fields.push(`address = $${paramCount++}`);
       values.push(updates.address || null);
-      // Adressaenderung: alte Koordinaten verwerfen; neues Geocoding unten
+    }
+    if (updates.addressStreet !== undefined) {
+      fields.push(`address_street = $${paramCount++}`);
+      values.push(updates.addressStreet || null);
+    }
+    if (updates.addressZip !== undefined) {
+      fields.push(`address_zip = $${paramCount++}`);
+      values.push(updates.addressZip || null);
+    }
+    if (updates.addressCity !== undefined) {
+      fields.push(`address_city = $${paramCount++}`);
+      values.push(updates.addressCity || null);
+    }
+    if (addressChanged) {
+      // Adressaenderung (Freitext ODER strukturiert): alte Koordinaten
+      // verwerfen; neues Geocoding unten
       fields.push(`latitude = NULL`, `longitude = NULL`, `geocoded_at = NULL`);
+    }
+    if (updates.phone !== undefined) {
+      fields.push(`phone = $${paramCount++}`);
+      values.push(updates.phone || null);
+    }
+    if (updates.website !== undefined) {
+      fields.push(`website = $${paramCount++}`);
+      values.push(updates.website || null);
     }
     if (updates.reportTitle !== undefined) {
       fields.push(`report_title = $${paramCount++}`);
@@ -436,10 +486,17 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const updatedResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
     const updatedCustomer = transformRow(updatedResult.rows[0]);
 
-    // Adressaenderung: neu geocodieren (fire-and-forget)
-    if (updates.address !== undefined && updates.address) {
-      geocodeCustomer(id, updates.address).catch(err =>
-        logger.error(`Geocoding beim Kunden-Update fehlgeschlagen: ${err.message}`));
+    // Adressaenderung: neu geocodieren (fire-and-forget) — mit dem
+    // Endstand nach dem Update, strukturierte Felder bevorzugt
+    if (addressChanged) {
+      const geocodeInput = composeGeocodeAddress(updatedCustomer as {
+        addressStreet?: string | null; addressZip?: string | null;
+        addressCity?: string | null; address?: string | null;
+      });
+      if (geocodeInput) {
+        geocodeCustomer(id, geocodeInput).catch(err =>
+          logger.error(`Geocoding beim Kunden-Update fehlgeschlagen: ${err.message}`));
+      }
     }
 
     auditLog.log({

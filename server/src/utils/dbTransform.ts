@@ -13,6 +13,11 @@ function snakeToCamel(str: string): string {
 function transformValue(value: any): any {
   // If it's a string that looks like a number (including decimals), convert it
   if (typeof value === 'string' && /^-?\d+\.?\d*$/.test(value)) {
+    // Führende Null = Kennung, keine Zahl (PLZ "01067", Kundennummer "007")
+    // — parseFloat würde die Null verschlucken und den Wert verstümmeln
+    if (/^0\d/.test(value)) {
+      return value;
+    }
     const num = parseFloat(value);
     // Only convert if it's a valid number
     if (!isNaN(num)) {

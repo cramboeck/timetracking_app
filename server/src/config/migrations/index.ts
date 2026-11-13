@@ -21,6 +21,7 @@ import * as m019 from './019-resell-prices';
 import * as m020 from './020-license-requests';
 import * as m021 from './021-api-tokens';
 import * as m022 from './022-contact-unification';
+import * as m023 from './023-customer-master-data';
 
 export interface Migration {
   name: string;
@@ -55,4 +56,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '020-license-requests', run: m020.run },
   { name: '021-api-tokens', run: m021.run },
   { name: '022-contact-unification', run: m022.run },
+  { name: '023-customer-master-data', run: m023.run },
 ];

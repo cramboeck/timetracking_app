@@ -1154,6 +1154,7 @@ function App() {
             entries={entries}
             isInitialDataLoading={isInitialDataLoading}
             initialCustomerId={initialCustomerId ?? undefined}
+            onUpdateCustomer={handleUpdateCustomer}
             onNavigateToTicket={(ticketId) => handleOpenTicket(ticketId)}
             onNavigateToTask={(_taskId) => {
               navigateTo('arbeiten', 'tasks');
