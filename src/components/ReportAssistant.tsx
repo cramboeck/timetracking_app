@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save, Loader2, Eye, ChevronLeft, ChevronRight, Archive, Trash2, Send, Copy, Link, CheckCircle, XCircle, AlertCircle, ExternalLink, Table, FileSpreadsheet, Users } from 'lucide-react';
 import { Button, IconButton } from './ui';
+import CustomerAvatar from './ui/CustomerAvatar';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
 import jsPDF from 'jspdf';
 import * as Papa from 'papaparse';
@@ -17,6 +18,10 @@ interface ReportAssistantProps {
   projects: Project[];
   customers: Customer[];
   activities: Activity[];
+  /** Schnellstart von der Berichte-Seite: Kunde beim Öffnen vorauswählen */
+  initialCustomerId?: string | null;
+  /** Beim Öffnen direkt die gespeicherten Reports anzeigen */
+  openSavedOnStart?: boolean;
 }
 
 interface CustomerReportData {
@@ -97,7 +102,9 @@ export const ReportAssistant = ({
   entries,
   projects,
   customers,
-  activities
+  activities,
+  initialCustomerId,
+  openSavedOnStart
 }: ReportAssistantProps) => {
   const { currentUser } = useAuth();
   const showToast = useToast();
@@ -1469,6 +1476,20 @@ export const ReportAssistant = ({
     }
   };
 
+  // Schnellstart-Props von der Berichte-Seite anwenden, sobald der
+  // Assistent geöffnet wird
+  useEffect(() => {
+    if (!isOpen) return;
+    if (initialCustomerId) {
+      setSelectedCustomers(new Set([initialCustomerId]));
+    }
+    if (openSavedOnStart) {
+      setShowSavedReports(true);
+      loadSavedReports();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialCustomerId, openSavedOnStart]);
+
   const openSavedReports = () => {
     setShowSavedReports(true);
     loadSavedReports();
@@ -2220,9 +2241,11 @@ ${companyInfo?.phone || ''}`;
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 flex-1">
-                        <div
-                          className="w-12 h-12 rounded-lg flex-shrink-0"
-                          style={{ backgroundColor: data.customer.color }}
+                        <CustomerAvatar
+                          name={data.customer.name}
+                          color={data.customer.color}
+                          logoUrl={data.customer.logoUrl}
+                          size="lg"
                         />
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900 dark:text-white">
