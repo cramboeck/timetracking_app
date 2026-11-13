@@ -1,3 +1,4 @@
+import { sanitizeErrorMessage } from '../utils/sanitizeError';
 import { Router } from 'express';
 import { pool } from '../config/database';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
@@ -697,7 +698,7 @@ router.post('/generate', authenticateToken, attachOrganization, requireOrgRole('
     });
   } catch (error: any) {
     console.error('Generate content error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate content') });
   }
 });
 
@@ -790,7 +791,7 @@ router.post('/generate-batch', authenticateToken, attachOrganization, requireOrg
     }
   } catch (error: any) {
     console.error('Batch generate error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate batch content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate batch content') });
   }
 });
 
@@ -809,7 +810,7 @@ router.post('/generate-ideas', authenticateToken, attachOrganization, requireOrg
     });
   } catch (error: any) {
     console.error('Generate ideas error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate content ideas' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate content ideas') });
   }
 });
 
@@ -1341,7 +1342,7 @@ Antworte im JSON-Format:
     }
   } catch (error: any) {
     console.error('Hashtag research error:', error);
-    res.status(500).json({ error: error.message || 'Failed to research hashtags' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to research hashtags') });
   }
 });
 
@@ -2348,7 +2349,7 @@ router.post('/carousel/generate', authenticateToken, attachOrganization, require
     res.json(carousel);
   } catch (error: any) {
     console.error('Generate carousel error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate carousel' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate carousel') });
   }
 });
 
@@ -2372,7 +2373,7 @@ router.post('/carousel/generate-images', authenticateToken, attachOrganization, 
     res.json({ images });
   } catch (error: any) {
     console.error('Generate carousel images error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate carousel images' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate carousel images') });
   }
 });
 
@@ -2438,7 +2439,7 @@ router.post('/carousel/save', authenticateToken, attachOrganization, requireOrgR
     res.json(transformRow(result.rows[0]));
   } catch (error: any) {
     console.error('Save carousel error:', error);
-    res.status(500).json({ error: error.message || 'Failed to save carousel' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to save carousel') });
   }
 });
 
@@ -2500,7 +2501,7 @@ router.get('/carousel/export/:format', authenticateToken, attachOrganization, as
     }
   } catch (error: any) {
     console.error('Export carousel error:', error);
-    res.status(500).json({ error: error.message || 'Failed to export carousel' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to export carousel') });
   }
 });
 
@@ -2730,7 +2731,7 @@ router.post('/stories/generate', authenticateToken, attachOrganization, requireO
     res.json(story);
   } catch (error: any) {
     console.error('Generate story error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate story content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate story content') });
   }
 });
 
@@ -2768,7 +2769,7 @@ router.post('/images/generate', authenticateToken, attachOrganization, requireOr
     res.json(image);
   } catch (error: any) {
     console.error('Generate image error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate image' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate image') });
   }
 });
 
@@ -2788,7 +2789,7 @@ router.post('/images/suggestions', authenticateToken, attachOrganization, requir
     res.json({ suggestions });
   } catch (error: any) {
     console.error('Generate suggestions error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate suggestions' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate suggestions') });
   }
 });
 
@@ -2897,7 +2898,7 @@ router.get('/wizard/theme-categories', authenticateToken, async (req: AuthReques
     res.json({ categories });
   } catch (error: any) {
     console.error('Get theme categories error:', error);
-    res.status(500).json({ error: error.message || 'Failed to get theme categories' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to get theme categories') });
   }
 });
 
@@ -2955,7 +2956,7 @@ router.post('/wizard/select-theme', authenticateToken, async (req: AuthRequest, 
     res.json(themeSelection);
   } catch (error: any) {
     console.error('Select theme error:', error);
-    res.status(500).json({ error: error.message || 'Failed to select theme' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to select theme') });
   }
 });
 
@@ -2983,7 +2984,7 @@ router.post('/wizard/analyze', authenticateToken, async (req: AuthRequest, res) 
     res.json(analysis);
   } catch (error: any) {
     console.error('Analyze content error:', error);
-    res.status(500).json({ error: error.message || 'Failed to analyze content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to analyze content') });
   }
 });
 
@@ -3022,7 +3023,7 @@ router.post('/wizard/generate', authenticateToken, async (req: AuthRequest, res)
     res.json(content);
   } catch (error: any) {
     console.error('Generate wizard content error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate content') });
   }
 });
 
@@ -3050,7 +3051,7 @@ router.post('/wizard/improve', authenticateToken, async (req: AuthRequest, res) 
     res.json(improved);
   } catch (error: any) {
     console.error('Improve content error:', error);
-    res.status(500).json({ error: error.message || 'Failed to improve content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to improve content') });
   }
 });
 
@@ -3080,7 +3081,7 @@ router.post('/wizard/auto-improve', authenticateToken, async (req: AuthRequest, 
     res.json(result);
   } catch (error: any) {
     console.error('Auto-improve content error:', error);
-    res.status(500).json({ error: error.message || 'Failed to auto-improve content' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to auto-improve content') });
   }
 });
 
@@ -3104,7 +3105,7 @@ router.post('/wizard/generate-image', authenticateToken, async (req: AuthRequest
     res.json(image);
   } catch (error: any) {
     console.error('Generate wizard image error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate image' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Failed to generate image') });
   }
 });
 

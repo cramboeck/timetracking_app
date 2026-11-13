@@ -13,6 +13,7 @@ import { validate } from '../middleware/validation';
 import { getUserOrganizationId, attachOrganization, requireOrgRole } from '../middleware/organization';
 import { emailService } from '../services/emailService';
 import { logger } from '../utils/logger';
+import { hashToken } from '../utils/tokenHash';
 
 const router = Router();
 
@@ -482,7 +483,8 @@ router.post('/:id/portal-access', attachOrganization, requireOrgRole('admin'), v
       portalUserId, userId, organizationId, contactData.customer_id,
       contactData.email, temporaryPasswordHash,
       `${contactData.first_name || ''} ${contactData.last_name}`.trim(),
-      contactData.is_primary, resetToken, resetExpires
+      // DB speichert nur den Hash — Klartext geht in Mail + Response (Clipboard)
+      contactData.is_primary, hashToken(resetToken), resetExpires
     ]);
 
     // Link contact to portal user
@@ -578,7 +580,7 @@ router.post('/:id/resend-invitation', attachOrganization, requireOrgRole('admin'
       `UPDATE customer_portal_users
        SET password_reset_token = $1, password_reset_expires = $2, updated_at = NOW()
        WHERE id = $3`,
-      [resetToken, resetExpires, contactData.portal_user_id]
+      [hashToken(resetToken), resetExpires, contactData.portal_user_id]
     );
 
     // Get sender name

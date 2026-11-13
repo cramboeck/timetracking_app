@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import crypto from 'crypto';
 import { escapeHtml } from '../utils/escapeHtml';
+import { hashToken } from '../utils/tokenHash';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import path from 'path';
@@ -230,7 +231,9 @@ router.post('/login', authLimiter, async (req, res) => {
       // Log failed login (account not activated)
       logger.info(`🔐 Portal login failed: No password_hash for contact "${email}" (id: ${contact.id})`);
       securityService.logFailedLogin(clientIP, `portal:${email}`, userAgent);
-      return res.status(401).json({ error: 'Account not activated. Please contact support.' });
+      // Gleiche Meldung wie „falsches Passwort" — eine eigene
+      // „nicht aktiviert"-Antwort verriete, welche E-Mails ein Konto haben
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const validPassword = await bcrypt.compare(password, effectivePasswordHash);
@@ -864,46 +867,9 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
   }
 });
 
-// Set password (for first-time activation)
-router.post('/set-password', async (req, res) => {
-  try {
-    const { token, password } = req.body;
-
-    if (!token || !password || password.length < 8) {
-      return res.status(400).json({ error: 'Token and password (min 8 chars) required' });
-    }
-
-    // Decode token
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!) as { contactId: string; type: string };
-    } catch {
-      return res.status(400).json({ error: 'Invalid or expired token' });
-    }
-
-    if (decoded.type !== 'customer_activation') {
-      return res.status(400).json({ error: 'Invalid token type' });
-    }
-
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // Update contact
-    const result = await pool.query(
-      'UPDATE customer_contacts SET password_hash = $1 WHERE id = $2 RETURNING id',
-      [passwordHash, decoded.contactId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Contact not found' });
-    }
-
-    res.json({ success: true, message: 'Password set successfully. You can now login.' });
-  } catch (error) {
-    logger.error('Set password error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Die frühere POST /set-password-Route (JWT mit type 'customer_activation')
+// wurde entfernt: kein Codepfad stellt solche Tokens mehr aus, das Frontend
+// rief sie nie auf — die Aktivierung läuft über /invitation/activate.
 
 // ============================================================================
 // PORTAL INVITATION TOKEN VALIDATION AND ACTIVATION
@@ -925,7 +891,7 @@ router.get('/invitation/verify/:token', async (req, res) => {
        FROM customer_portal_users cpu
        JOIN customers c ON cpu.customer_id = c.id
        WHERE cpu.password_reset_token = $1`,
-      [token]
+      [hashToken(token)]
     );
 
     if (result.rows.length === 0) {
@@ -990,7 +956,7 @@ router.post('/invitation/activate', authLimiter, async (req, res) => {
        JOIN customers c ON cpu.customer_id = c.id
        LEFT JOIN customer_contacts cc ON cc.portal_user_id = cpu.id
        WHERE cpu.password_reset_token = $1`,
-      [token]
+      [hashToken(token)]
     );
 
     if (result.rows.length === 0) {
@@ -1092,9 +1058,10 @@ router.post('/password-reset/request', authLimiter, async (req, res) => {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 Stunde
 
+    // DB speichert nur den SHA-256-Hash, der Klartext geht in den Mail-Link
     await pool.query(
       `UPDATE customer_portal_users SET reset_token = $1, reset_token_expires_at = $2 WHERE id = $3`,
-      [token, expiresAt, portalUser.id]
+      [hashToken(token), expiresAt, portalUser.id]
     );
 
     // Link funktioniert auf beiden Hosts: portal.ramboeck.it rendert das
@@ -1147,7 +1114,7 @@ router.post('/password-reset/confirm', authLimiter, async (req, res) => {
        FROM customer_portal_users cpu
        LEFT JOIN customer_contacts cc ON cc.portal_user_id = cpu.id
        WHERE cpu.reset_token = $1`,
-      [token]
+      [hashToken(token)]
     );
 
     if (result.rows.length === 0) {

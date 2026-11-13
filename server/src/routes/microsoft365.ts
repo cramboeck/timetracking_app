@@ -1,3 +1,4 @@
+import { sanitizeErrorMessage } from '../utils/sanitizeError';
 import { Router, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -305,7 +306,7 @@ router.post('/test', requireOrgRole('admin'), validate(testConnectionSchema), as
     logger.error('Microsoft 365 connection test error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Connection test failed',
+      error: sanitizeErrorMessage(error, 'Connection test failed'),
     });
   }
 });
@@ -353,7 +354,7 @@ router.post('/mailbox/test', requireOrgRole('admin'), validate(startInboxSchema)
     logger.error('Mailbox test error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Mailbox test failed',
+      error: sanitizeErrorMessage(error, 'Mailbox test failed'),
     });
   }
 });
@@ -386,7 +387,7 @@ router.get('/mailbox/emails', requireOrgRole('admin'), async (req: AuthRequest, 
     logger.error('Get emails error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get emails',
+      error: sanitizeErrorMessage(error, 'Failed to get emails'),
     });
   }
 });
@@ -416,7 +417,7 @@ router.get('/mailbox/emails/:id', requireOrgRole('admin'), async (req: AuthReque
     logger.error('Get email error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get email',
+      error: sanitizeErrorMessage(error, 'Failed to get email'),
     });
   }
 });
@@ -439,7 +440,7 @@ router.get('/mailbox/emails/:id/attachments', requireOrgRole('admin'), async (re
     logger.error('Get attachments error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get attachments',
+      error: sanitizeErrorMessage(error, 'Failed to get attachments'),
     });
   }
 });
@@ -466,7 +467,7 @@ router.post('/mailbox/emails/:id/read', requireOrgRole('admin'), validate(option
     logger.error('Mark as read error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to mark email as read',
+      error: sanitizeErrorMessage(error, 'Failed to mark email as read'),
     });
   }
 });
@@ -500,7 +501,7 @@ router.post('/mailbox/emails/:id/reply', requireOrgRole('admin'), validate(reply
     logger.error('Reply to email error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to send reply',
+      error: sanitizeErrorMessage(error, 'Failed to send reply'),
     });
   }
 });
@@ -1096,7 +1097,7 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('admin'), valida
     logger.error('Create ticket from email error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to create ticket from email',
+      error: sanitizeErrorMessage(error, 'Failed to create ticket from email'),
     });
   }
 });
@@ -1134,7 +1135,7 @@ router.get('/support/emails', requireOrgRole('admin'), async (req: AuthRequest, 
     logger.error('Get support emails error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get support emails',
+      error: sanitizeErrorMessage(error, 'Failed to get support emails'),
     });
   }
 });
@@ -1205,7 +1206,7 @@ router.post('/support/emails/:id/link-ticket', requireOrgRole('admin'), validate
     logger.error('Link email to ticket error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to link email to ticket',
+      error: sanitizeErrorMessage(error, 'Failed to link email to ticket'),
     });
   }
 });
@@ -1268,7 +1269,7 @@ router.get('/support/emails/:id/ticket-info', requireOrgRole('admin'), async (re
     logger.error('Get email ticket info error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get email ticket info',
+      error: sanitizeErrorMessage(error, 'Failed to get email ticket info'),
     });
   }
 });
@@ -1326,7 +1327,7 @@ router.get('/tickets/:id/emails', requireOrgRole('member'), async (req: AuthRequ
     logger.error('Get ticket emails error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get ticket emails',
+      error: sanitizeErrorMessage(error, 'Failed to get ticket emails'),
     });
   }
 });
@@ -1358,7 +1359,7 @@ router.post('/invoices/process', requireOrgRole('admin'), validate(markProcessed
     logger.error('Process invoice mailbox error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to process invoice mailbox',
+      error: sanitizeErrorMessage(error, 'Failed to process invoice mailbox'),
     });
   }
 });
@@ -1389,7 +1390,7 @@ router.get('/invoices', requireOrgRole('admin'), async (req: AuthRequest, res: R
     logger.error('Get processed invoices error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get processed invoices',
+      error: sanitizeErrorMessage(error, 'Failed to get processed invoices'),
     });
   }
 });
@@ -1426,7 +1427,7 @@ router.get('/invoices/search', requireOrgRole('admin'), async (req: AuthRequest,
     logger.error('Search processed invoices error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to search invoices',
+      error: sanitizeErrorMessage(error, 'Failed to search invoices'),
     });
   }
 });
@@ -1445,7 +1446,7 @@ router.post('/invoices/backfill-search', requireOrgRole('admin'), async (req: Au
     logger.error('Backfill search index error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to backfill search index',
+      error: sanitizeErrorMessage(error, 'Failed to backfill search index'),
     });
   }
 });
@@ -1465,7 +1466,7 @@ router.get('/invoices/:id/documents', requireOrgRole('admin'), async (req: AuthR
     logger.error('Get invoice documents error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get invoice documents',
+      error: sanitizeErrorMessage(error, 'Failed to get invoice documents'),
     });
   }
 });
@@ -1546,7 +1547,7 @@ router.get('/documents/:id/download', requireOrgRole('admin'), async (req: AuthR
     logger.error('Download document error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to download document',
+      error: sanitizeErrorMessage(error, 'Failed to download document'),
     });
   }
 });
@@ -1572,7 +1573,7 @@ router.post('/invoices/:id/retry', requireOrgRole('admin'), async (req: AuthRequ
     logger.error('Retry invoice processing error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to retry invoice processing',
+      error: sanitizeErrorMessage(error, 'Failed to retry invoice processing'),
     });
   }
 });
@@ -1594,7 +1595,7 @@ router.delete('/invoices/failed', requireOrgRole('admin'), async (req: AuthReque
     logger.error('Clear failed entries error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to clear failed entries',
+      error: sanitizeErrorMessage(error, 'Failed to clear failed entries'),
     });
   }
 });
@@ -1615,7 +1616,7 @@ router.delete('/invoices/all', requireOrgRole('admin'), async (req: AuthRequest,
     logger.error('Clear all entries error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to clear all entries',
+      error: sanitizeErrorMessage(error, 'Failed to clear all entries'),
     });
   }
 });
@@ -1631,7 +1632,7 @@ router.post('/invoices/sync-sevdesk-vouchers', requireOrgRole('admin'), async (r
     res.json({ success: true, data: stats });
   } catch (error: any) {
     logger.error('sevDesk-Voucher sync error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Sync fehlgeschlagen' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error, 'Sync fehlgeschlagen') });
   }
 });
 
@@ -1665,7 +1666,7 @@ router.post('/invoices/upload', requireOrgRole('admin'), receiptUpload.single('f
     });
   } catch (error: any) {
     logger.error('Manual receipt upload error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Upload fehlgeschlagen' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error, 'Upload fehlgeschlagen') });
   }
 });
 
@@ -1707,7 +1708,7 @@ router.get('/invoices/:id/extract', requireOrgRole('admin'), async (req: AuthReq
     logger.error('Extract invoice data error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to extract invoice data',
+      error: sanitizeErrorMessage(error, 'Failed to extract invoice data'),
     });
   }
 });
@@ -1720,7 +1721,7 @@ router.get('/invoices/due-radar', requireOrgRole('admin'), async (req: AuthReque
     res.json({ success: true, data: radar });
   } catch (error: any) {
     logger.error('Due radar error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Failed to load due radar' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error, 'Failed to load due radar') });
   }
 });
 
@@ -1765,7 +1766,7 @@ router.post('/invoices/batch-approve', requireOrgRole('admin'), validate(batchAp
     });
   } catch (error: any) {
     logger.error('Batch approve error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Batch approve failed' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error, 'Batch approve failed') });
   }
 });
 
@@ -1797,7 +1798,7 @@ router.post('/invoices/:id/approve', requireOrgRole('admin'), validate(finalizeV
     logger.error('Approve draft error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to approve draft',
+      error: sanitizeErrorMessage(error, 'Failed to approve draft'),
     });
   }
 });
@@ -1823,7 +1824,7 @@ router.post('/invoices/:id/revert', requireOrgRole('admin'), async (req: AuthReq
     logger.error('Revert to draft error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to revert to draft',
+      error: sanitizeErrorMessage(error, 'Failed to revert to draft'),
     });
   }
 });
@@ -1849,7 +1850,7 @@ router.delete('/invoices/:id', requireOrgRole('admin'), async (req: AuthRequest,
     logger.error('Delete draft error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to delete draft',
+      error: sanitizeErrorMessage(error, 'Failed to delete draft'),
     });
   }
 });
@@ -1978,7 +1979,7 @@ router.post('/support/emails/:id/save-as-interaction', requireOrgRole('admin'), 
     logger.error('Save email as interaction error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Fehler beim Speichern der Interaktion',
+      error: sanitizeErrorMessage(error, 'Fehler beim Speichern der Interaktion'),
     });
   }
 });
@@ -2049,7 +2050,7 @@ router.get('/personal/emails', requireOrgRole('member'), async (req: AuthRequest
     logger.error('Get personal emails error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Fehler beim Abrufen der E-Mails',
+      error: sanitizeErrorMessage(error, 'Fehler beim Abrufen der E-Mails'),
     });
   }
 });
@@ -2203,7 +2204,7 @@ router.post('/personal/emails/:id/save-as-interaction', requireOrgRole('member')
     logger.error('Save personal email as interaction error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Fehler beim Speichern der Interaktion',
+      error: sanitizeErrorMessage(error, 'Fehler beim Speichern der Interaktion'),
     });
   }
 });
@@ -2281,7 +2282,7 @@ router.get('/personal/emails/:id/customer-lookup', requireOrgRole('member'), asy
     logger.error('Personal email customer lookup error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Fehler bei der Kundensuche',
+      error: sanitizeErrorMessage(error, 'Fehler bei der Kundensuche'),
     });
   }
 });

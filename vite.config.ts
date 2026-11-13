@@ -21,7 +21,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': neuer Service Worker wartet, bis der Nutzer im
+      // UpdateBanner „Jetzt aktualisieren" klickt — mit 'autoUpdate' klebten
+      // offene PWA-Tabs nach Deploys tagelang am alten Build (SSO-Vorfall 11/26)
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'RamboFlow – Zeiterfassung & Management',

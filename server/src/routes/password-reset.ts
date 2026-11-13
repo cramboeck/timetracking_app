@@ -5,6 +5,7 @@ import { validate } from '../middleware/validation';
 import bcrypt from 'bcryptjs';
 import { emailService } from '../services/emailService';
 import { refreshTokenService } from '../services/refreshTokenService';
+import { hashToken } from '../utils/tokenHash';
 
 const router = Router();
 
@@ -43,12 +44,13 @@ router.post('/request', validate(requestResetSchema), async (req, res) => {
     const token = crypto.randomUUID() + crypto.randomUUID(); // Long unique token
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-    // Store token in database
+    // In der DB liegt nur der SHA-256-Hash — der Klartext-Token existiert
+    // ausschließlich im Mail-Link (DB-Leak gibt keine Reset-Links her)
     const tokenId = crypto.randomUUID();
     await pool.query(
       `INSERT INTO password_reset_tokens (id, user_id, token, expires_at)
        VALUES ($1, $2, $3, $4)`,
-      [tokenId, user.id, token, expiresAt.toISOString()]
+      [tokenId, user.id, hashToken(token), expiresAt.toISOString()]
     );
 
     // Send password reset email
@@ -90,11 +92,11 @@ router.post('/reset', validate(resetPasswordSchema), async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
-    // Find valid token
+    // Find valid token (DB speichert nur den SHA-256-Hash)
     const tokenResult = await pool.query(
       `SELECT ${PASSWORD_RESET_TOKEN_COLUMNS} FROM password_reset_tokens
        WHERE token = $1 AND used = FALSE AND expires_at > NOW()`,
-      [token]
+      [hashToken(token)]
     );
 
     if (tokenResult.rows.length === 0) {
@@ -146,7 +148,7 @@ router.get('/verify/:token', async (req, res) => {
     const tokenResult = await pool.query(
       `SELECT ${PASSWORD_RESET_TOKEN_COLUMNS} FROM password_reset_tokens
        WHERE token = $1 AND used = FALSE AND expires_at > NOW()`,
-      [token]
+      [hashToken(token)]
     );
 
     if (tokenResult.rows.length === 0) {

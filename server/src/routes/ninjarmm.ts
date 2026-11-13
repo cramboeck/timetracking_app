@@ -1,3 +1,4 @@
+import { sanitizeErrorMessage } from '../utils/sanitizeError';
 import express, { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
@@ -121,7 +122,7 @@ router.get('/diagnose', authenticateToken, requireNinjaFeature, async (req: Auth
     const results = await ninjaService.runDiagnostics(req.user!.id);
     res.json({ success: true, data: results });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -131,7 +132,7 @@ router.post('/sync-health', authenticateToken, requireNinjaFeature, async (req: 
     const result = await ninjaService.syncDeviceHealthCounts(req.user!.id);
     res.json({ success: !result.error, data: result, error: result.error });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -170,7 +171,7 @@ router.get('/device-health-summary', authenticateToken, requireNinjaFeature, asy
       })),
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -195,7 +196,7 @@ router.get('/config', authenticateToken, requireNinjaFeature, async (req: AuthRe
     });
   } catch (error: any) {
     console.error('Get NinjaRMM config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -226,7 +227,7 @@ router.put('/config', authenticateToken, requireNinjaFeature, validate(configSch
     });
   } catch (error: any) {
     console.error('Save NinjaRMM config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -268,7 +269,7 @@ router.get('/auth-url', authenticateToken, requireNinjaFeature, async (req: Auth
     });
   } catch (error: any) {
     console.error('Get auth URL error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -332,7 +333,7 @@ router.post('/disconnect', authenticateToken, requireNinjaFeature, async (req: A
     res.json({ success: true });
   } catch (error: any) {
     console.error('Disconnect error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -352,7 +353,7 @@ router.get('/test', authenticateToken, requireNinjaFeature, async (req: AuthRequ
     });
   } catch (error: any) {
     console.error('Test connection error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -372,7 +373,7 @@ router.post('/sync', authenticateToken, requireNinjaFeature, async (req: AuthReq
     });
   } catch (error: any) {
     console.error('Sync error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -388,7 +389,7 @@ router.get('/sync-status', authenticateToken, requireNinjaFeature, async (req: A
     });
   } catch (error: any) {
     console.error('Get sync status error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -408,7 +409,7 @@ router.get('/organizations', authenticateToken, requireNinjaFeature, async (req:
     });
   } catch (error: any) {
     console.error('Get organizations error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -428,7 +429,7 @@ router.put('/organizations/:id/link', authenticateToken, requireNinjaFeature, va
     res.json({ success: true });
   } catch (error: any) {
     console.error('Link organization error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -458,7 +459,7 @@ router.get('/devices', authenticateToken, requireNinjaFeature, async (req: AuthR
     });
   } catch (error: any) {
     console.error('Get devices error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -510,7 +511,7 @@ router.get('/devices/:id', authenticateToken, requireNinjaFeature, async (req: A
     });
   } catch (error: any) {
     console.error('Get device error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -543,7 +544,7 @@ router.get('/devices/:id/details', authenticateToken, requireNinjaFeature, async
     });
   } catch (error: any) {
     console.error('Get device details error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -747,7 +748,7 @@ router.post('/devices/:id/refresh', authenticateToken, requireNinjaFeature, asyn
     });
   } catch (error: any) {
     console.error('Refresh device details error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -773,7 +774,7 @@ router.get('/devices/:id/software', authenticateToken, requireNinjaFeature, asyn
     });
   } catch (error: any) {
     console.error('Get device software error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -795,7 +796,7 @@ router.post('/devices/:id/software/refresh', authenticateToken, requireNinjaFeat
     });
   } catch (error: any) {
     console.error('Refresh device software error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -823,7 +824,7 @@ router.get('/devices/:id/os-patches', authenticateToken, requireNinjaFeature, as
     });
   } catch (error: any) {
     console.error('Get device OS patches error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -847,7 +848,7 @@ router.post('/devices/:id/os-patches/refresh', authenticateToken, requireNinjaFe
     });
   } catch (error: any) {
     console.error('Refresh device OS patches error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -876,7 +877,7 @@ router.get('/alerts', authenticateToken, requireNinjaFeature, async (req: AuthRe
     });
   } catch (error: any) {
     console.error('Get alerts error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -903,7 +904,7 @@ router.post('/alerts/:id/resolve', authenticateToken, requireNinjaFeature, valid
     res.json({ success: true });
   } catch (error: any) {
     console.error('Resolve alert error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -989,7 +990,7 @@ router.post('/alerts/:id/create-ticket', authenticateToken, requireNinjaFeature,
     });
   } catch (error: any) {
     console.error('Create ticket from alert error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1693,7 +1694,7 @@ router.get('/webhook-config', authenticateToken, requireNinjaFeature, async (req
     });
   } catch (error: any) {
     console.error('Get webhook config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1770,7 +1771,7 @@ router.put('/webhook-config', authenticateToken, requireNinjaFeature, async (req
     res.json({ success: true, message: 'Webhook-Konfiguration gespeichert' });
   } catch (error: any) {
     console.error('Update webhook config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1804,7 +1805,7 @@ router.post('/webhook-config/generate-secret', authenticateToken, requireNinjaFe
     });
   } catch (error: any) {
     console.error('Generate webhook secret error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1855,7 +1856,7 @@ router.get('/webhook-events', authenticateToken, requireNinjaFeature, async (req
     });
   } catch (error: any) {
     console.error('Get webhook events error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1899,7 +1900,7 @@ router.get('/webhook-events/:id/payload', authenticateToken, requireNinjaFeature
     });
   } catch (error: any) {
     console.error('Get webhook payload error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -1984,7 +1985,7 @@ router.post('/webhook-events/backfill-device-names', authenticateToken, requireN
     });
   } catch (error: any) {
     console.error('Backfill device names error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2026,7 +2027,7 @@ router.get('/exclusions', authenticateToken, requireNinjaFeature, async (req: Au
     });
   } catch (error: any) {
     console.error('Get exclusions error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2082,7 +2083,7 @@ router.post('/exclusions', authenticateToken, requireNinjaFeature, validate(excl
     });
   } catch (error: any) {
     console.error('Create exclusion error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2165,7 +2166,7 @@ router.put('/exclusions/:id', authenticateToken, requireNinjaFeature, validate(e
     });
   } catch (error: any) {
     console.error('Update exclusion error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2193,7 +2194,7 @@ router.delete('/exclusions/:id', authenticateToken, requireNinjaFeature, async (
     });
   } catch (error: any) {
     console.error('Delete exclusion error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2283,7 +2284,7 @@ router.post('/exclusions/from-event/:eventId', authenticateToken, requireNinjaFe
     });
   } catch (error: any) {
     console.error('Create exclusion from event error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2340,7 +2341,7 @@ router.get('/devices/:id/ip-history', authenticateToken, requireNinjaFeature, as
     });
   } catch (error: any) {
     console.error('Get IP history error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2397,7 +2398,7 @@ router.get('/vulnerabilities', authenticateToken, requireNinjaFeature, async (re
     });
   } catch (error: any) {
     console.error('Get vulnerabilities error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2409,7 +2410,7 @@ router.get('/vulnerabilities/summary', authenticateToken, requireNinjaFeature, a
     res.json({ success: true, data: summary });
   } catch (error: any) {
     console.error('Get vulnerability summary error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2433,7 +2434,7 @@ router.post('/vulnerabilities/sync', authenticateToken, requireNinjaFeature, asy
     });
   } catch (error: any) {
     console.error('Sync vulnerabilities error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2448,7 +2449,7 @@ router.patch('/vulnerabilities/:id/status', authenticateToken, requireNinjaFeatu
     res.json({ success: true, message: 'Vulnerability status updated' });
   } catch (error: any) {
     console.error('Update vulnerability status error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2532,7 +2533,7 @@ router.post('/vulnerabilities/:id/ticket', authenticateToken, requireNinjaFeatur
     res.json({ success: true, data: { ticketId }, message: 'Ticket erstellt und verknüpft' });
   } catch (error: any) {
     console.error('Create/link vulnerability ticket error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -2563,7 +2564,7 @@ router.get('/devices/:id/vulnerabilities', authenticateToken, requireNinjaFeatur
     res.json({ success: true, data: result.vulnerabilities });
   } catch (error: any) {
     console.error('Get device vulnerabilities error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 

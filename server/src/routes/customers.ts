@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validation';
 import { transformRow, transformRows } from '../utils/dbTransform';
 import { logger } from '../utils/logger';
+import { hashToken } from '../utils/tokenHash';
 import { geocodeCustomer } from '../services/geocodingService';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -761,12 +762,12 @@ router.post('/:customerId/contacts/:contactId/send-invite', authenticateToken, a
     const activationToken = crypto.randomUUID();
     const tokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    // Store token in database
+    // Store token in database (nur SHA-256-Hash — Klartext geht in den Mail-Link)
     await pool.query(
       `UPDATE customer_portal_users
        SET password_reset_token = $1, password_reset_expires = $2, updated_at = NOW()
        WHERE id = $3`,
-      [activationToken, tokenExpires, contact.id]
+      [hashToken(activationToken), tokenExpires, contact.id]
     );
 
     // Get user info for email

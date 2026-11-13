@@ -1,3 +1,4 @@
+import { sanitizeErrorMessage } from '../utils/sanitizeError';
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
@@ -59,7 +60,7 @@ router.get('/config', authenticateToken, attachOrganization, requireOrgRole('adm
     });
   } catch (error: any) {
     logger.error('Infinigate get config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -77,7 +78,7 @@ router.post('/config', authenticateToken, attachOrganization, requireOrgRole('ad
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Infinigate save config error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -88,7 +89,7 @@ router.post('/test', authenticateToken, attachOrganization, requireOrgRole('admi
     res.json({ success: result.ok, message: result.message, invoiceCount: result.invoiceCount });
   } catch (error: any) {
     logger.error('Infinigate test error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -99,7 +100,7 @@ router.post('/sync', authenticateToken, attachOrganization, requireOrgRole('admi
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate sync error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -118,7 +119,7 @@ router.get('/pricelist/search', authenticateToken, attachOrganization, requireOr
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate pricelist search error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -129,7 +130,7 @@ router.get('/quotes', authenticateToken, attachOrganization, requireOrgRole('adm
     res.json({ success: true, data: quotes });
   } catch (error: any) {
     logger.error('Infinigate quotes error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -150,7 +151,7 @@ router.post('/quotes/accept', authenticateToken, attachOrganization, requireOrgR
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate accept quote error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -165,7 +166,7 @@ router.post('/quotes/reject', authenticateToken, attachOrganization, requireOrgR
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate reject quote error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -178,7 +179,7 @@ router.get('/debug/orders', authenticateToken, attachOrganization, requireOrgRol
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate debug orders error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -190,7 +191,7 @@ router.get('/debug/structure', authenticateToken, attachOrganization, requireOrg
     res.json({ success: true, data: structure });
   } catch (error: any) {
     logger.error('Infinigate debug structure error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -202,7 +203,7 @@ router.get('/debug/pdf', authenticateToken, attachOrganization, requireOrgRole('
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate debug pdf error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -214,7 +215,7 @@ router.post('/fetch-pdfs', authenticateToken, attachOrganization, requireOrgRole
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate fetch pdfs error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 
@@ -226,7 +227,7 @@ router.post('/resync', authenticateToken, attachOrganization, requireOrgRole('ad
     res.json({ success: true, data: result });
   } catch (error: any) {
     logger.error('Infinigate resync error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
   }
 });
 

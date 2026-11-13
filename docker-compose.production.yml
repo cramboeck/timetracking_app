@@ -137,6 +137,9 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      # Security-Header-Snippet: wird im Server-Block UND in jeder Location
+      # mit eigenem add_header included (nginx vererbt add_header sonst nicht)
+      - ./nginx/security-headers.conf:/etc/nginx/security-headers.conf:ro
       - certbot_data:/var/www/certbot:ro
       - letsencrypt:/etc/letsencrypt:ro
     environment:

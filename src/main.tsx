@@ -14,6 +14,8 @@ import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
 import { UIProvider } from './contexts/UIContext.tsx'
 import { queryClient } from './lib/queryClient.ts'
 import { isPortalHost } from './utils/portalHost.ts'
+import { setupPwaUpdates } from './pwa.ts'
+import { UpdateBanner } from './components/UpdateBanner.tsx'
 import { accentColor } from './utils/accentColor.ts'
 import { grayTone } from './utils/theme.ts'
 import { darkMode } from './utils/darkMode.ts'
@@ -67,6 +69,7 @@ window.addEventListener('vite:preloadError', (event) => {
 // Initialize before rendering
 initializePortalBranding();
 initializeTheme();
+setupPwaUpdates();
 
 // Entra-SSO-Rückkehr VOR dem Router sichern: die App-Catch-all kanonisiert
 // Pfade und verwirft dabei Query-Parameter (gleiche Falle wie beim
@@ -96,6 +99,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <AuthProvider>
             <FeaturesProvider>
               <UIProvider>
+                <UpdateBanner />
                 {isPortalHost() ? (
                   /* Dedicated portal host (portal.ramboeck.it): the portal
                      lives at the root — every path renders CustomerPortal,
