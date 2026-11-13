@@ -254,10 +254,36 @@ export const projectsApi = {
   },
 };
 
+// Kundengesundheit — die eine Server-Quelle für CRM-Dashboard + CustomerHub
+export interface CustomerHealthFactor {
+  label: string;
+  impact: 'positive' | 'neutral' | 'negative';
+}
+
+export interface CustomerHealthEntry {
+  id: string;
+  name: string;
+  score: number;
+  trend: 'up' | 'down' | 'stable';
+  factors: CustomerHealthFactor[];
+  openTickets: number;
+  activeContracts: number;
+  lastActivityAt: string | null;
+}
+
 // Customers API
 export const customersApi = {
   getAll: async (): Promise<{ success: boolean; data: Customer[] }> => {
     return authFetch('/customers');
+  },
+
+  getHealthOverview: async (customerId?: string): Promise<{
+    success: boolean;
+    customers: CustomerHealthEntry[];
+    averageScore: number | null;
+  }> => {
+    const params = customerId ? `?customerId=${encodeURIComponent(customerId)}` : '';
+    return authFetch(`/customers/health-overview${params}`);
   },
 
   create: async (customer: Omit<Customer, 'id' | 'userId' | 'createdAt'>): Promise<{ success: boolean; data: Customer }> => {

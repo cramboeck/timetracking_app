@@ -572,6 +572,20 @@ export const contactsApi = {
     });
   },
 
+  // Resend portal invitation for contact
+  resendInvitation: async (id: string): Promise<{
+    success: boolean;
+    email_sent: boolean;
+    invitation_token?: string;
+    message: string;
+  }> => {
+    return authFetch(`/contacts/${id}/resend-invitation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  },
+
   // Enable portal access for contact
   enablePortalAccess: async (id: string, sendInvitation?: boolean): Promise<{
     success: boolean;

@@ -2872,6 +2872,60 @@ router.post('/line-items/mark-billed', authenticateToken, attachOrganization, re
   }
 });
 
+// GET /api/sevdesk/licenses/mrr - Monatlich wiederkehrender Lizenz-VK org-weit
+// (fürs CRM-Dashboard-KPI „Monatl. Wiederkehrend"). Pro Kunde zählt der
+// JÜNGSTE Belegmonat (wie die Portal-/CRM-Lizenzansicht), summiert wird der
+// VK (resell_price bzw. customer_product_prices-Gedächtnis). Status 'included'
+// bleibt draußen — der steckt im Vertrags-basePrice und würde doppelt zählen;
+// 'internal'/'skipped' sind kein Kundenumsatz, Hardware ist nicht wiederkehrend.
+router.get('/licenses/mrr', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const organizationId = await getOrgIdForUser(userId);
+    if (!organizationId) {
+      return res.status(400).json({ success: false, error: 'No organization found' });
+    }
+
+    const result = await query(`
+      WITH latest AS (
+        SELECT li.customer_id, MAX(DATE_TRUNC('month', pi.received_at)) AS month
+        FROM invoice_line_items li
+        JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+        WHERE li.organization_id = $1 AND li.customer_id IS NOT NULL
+          AND li.rebilling_status IN ('pending', 'billed')
+          AND (li.item_type IS DISTINCT FROM 'hardware')
+        GROUP BY li.customer_id
+      )
+      SELECT
+        COUNT(DISTINCT li.customer_id)::int AS customers_with_licenses,
+        COALESCE(SUM(COALESCE(li.quantity, 1) * COALESCE(li.resell_price, cpp.resell_price)), 0) AS resell_mrr,
+        COUNT(*) FILTER (WHERE COALESCE(li.resell_price, cpp.resell_price) IS NULL)::int AS missing_resell_count
+      FROM invoice_line_items li
+      JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      JOIN latest l ON l.customer_id = li.customer_id
+        AND DATE_TRUNC('month', pi.received_at) = l.month
+      LEFT JOIN customer_product_prices cpp
+        ON cpp.organization_id = li.organization_id
+       AND cpp.customer_id = li.customer_id
+       AND cpp.product_key = COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description))
+      WHERE li.organization_id = $1
+        AND li.rebilling_status IN ('pending', 'billed')
+        AND (li.item_type IS DISTINCT FROM 'hardware')
+    `, [organizationId]);
+
+    const row = result.rows[0] || {};
+    res.json({
+      success: true,
+      resellMrr: parseFloat(row.resell_mrr) || 0,
+      customersWithLicenses: row.customers_with_licenses || 0,
+      missingResellCount: row.missing_resell_count || 0,
+    });
+  } catch (error) {
+    logger.error('License MRR error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 // GET /api/sevdesk/license-expiry - Ablaufende Lizenzen/Abos (org-weit).
 // Infinigate-Phase-2-Baustein auf bereits gesyncten Daten: pro Kunde+Produkt
 // zählt das JÜNGSTE period_end (eine Verlängerung erzeugt eine neue Position

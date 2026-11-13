@@ -708,6 +708,15 @@ export const sevdeskApi = {
   },
 
   // Ablaufende Lizenzen/Abos org-weit (jüngste Laufzeit pro Kunde+Produkt)
+  getLicenseMrr: async (): Promise<{
+    success: boolean;
+    resellMrr: number;
+    customersWithLicenses: number;
+    missingResellCount: number;
+  }> => {
+    return authFetch('/sevdesk/licenses/mrr');
+  },
+
   getLicenseExpiry: async (days = 60): Promise<{ success: boolean; data: LicenseExpiryItem[] }> => {
     return authFetch(`/sevdesk/license-expiry?days=${days}`);
   },

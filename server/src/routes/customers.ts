@@ -32,7 +32,7 @@ const CUSTOMER_COLUMNS = `
 // Einladungs-Tokens liegen in password_reset_token/password_reset_expires.
 // Der Verify-SELECT in PUT/DELETE/send-invite/set-password crashte damit.
 const PORTAL_USER_COLUMNS = `
-  id, organization_id, customer_id, email, name, password_hash,
+  id, organization_id, customer_id, email, name, password_hash, is_primary_contact,
   can_create_tickets, can_view_all_tickets, can_view_devices, can_view_invoices, can_view_quotes,
   mfa_enabled, mfa_secret, password_reset_token, password_reset_expires,
   created_at, updated_at
@@ -101,6 +101,166 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     });
   } catch (error) {
     logger.error('Get customers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Kundengesundheit — die EINE Quelle für CRM-Dashboard + CustomerHub.
+// Ersetzt die beiden alten Berechnungen (Dashboard: Math.random-Platzhalter!,
+// CustomerHub: clientseitiges 5-Faktoren-Mittel, das ruhige Kunden bestrafte).
+// MSP-Semantik: keine offenen Tickets = GESUND; fehlende Aktivität zählt nur
+// als Risiko, wenn ein aktiver Vertrag laufende Betreuung erwarten lässt.
+// Keine Preisdaten in der Response → member-zugänglich.
+// ⚠️ Mount VOR den /:customerId-Routen (Route-Shadowing).
+// ============================================
+
+interface HealthFactor { label: string; impact: 'positive' | 'neutral' | 'negative' }
+
+function computeMspHealth(row: {
+  open_tickets: number; critical_tickets: number; sla_breaches: number;
+  overdue_tasks: number; active_contracts: number; last_activity_at: string | null;
+}): { score: number; trend: 'up' | 'down' | 'stable'; factors: HealthFactor[] } {
+  const factors: HealthFactor[] = [];
+  let penalty = 0;
+
+  // Offene Tickets (kritisch/hoch wiegt stärker), Deckel 40
+  const ticketPenalty = Math.min(40, row.open_tickets * 10 + row.critical_tickets * 15);
+  penalty += ticketPenalty;
+  factors.push({
+    label: `${row.open_tickets} offene Tickets`,
+    impact: row.open_tickets === 0 ? 'positive' : row.critical_tickets > 0 ? 'negative' : 'neutral',
+  });
+
+  // SLA-Verletzungen der letzten 90 Tage, Deckel 30
+  penalty += Math.min(30, row.sla_breaches * 10);
+  if (row.sla_breaches > 0) {
+    factors.push({ label: `${row.sla_breaches} SLA-Verletzungen (90 Tage)`, impact: 'negative' });
+  }
+
+  // Überfällige Aufgaben, Deckel 20
+  penalty += Math.min(20, row.overdue_tasks * 10);
+  factors.push({
+    label: `${row.overdue_tasks} überfällige Aufgaben`,
+    impact: row.overdue_tasks === 0 ? 'positive' : 'negative',
+  });
+
+  // Betreuung: nur bei aktivem Vertrag ist lange Inaktivität ein Risiko —
+  // ein ruhiger Kunde ohne Vertrag ist neutral, nicht "krank"
+  const daysSinceActivity = row.last_activity_at
+    ? Math.floor((Date.now() - new Date(row.last_activity_at).getTime()) / 86400000)
+    : null;
+  if (row.active_contracts > 0) {
+    factors.push({ label: `${row.active_contracts} aktive Verträge`, impact: 'positive' });
+    if (daysSinceActivity === null) {
+      penalty += 20;
+      factors.push({ label: 'Noch keine Aktivität erfasst', impact: 'negative' });
+    } else if (daysSinceActivity > 90) {
+      penalty += 20;
+      factors.push({ label: `Zuletzt aktiv vor ${daysSinceActivity} Tagen`, impact: 'negative' });
+    } else if (daysSinceActivity > 60) {
+      penalty += 10;
+      factors.push({ label: `Zuletzt aktiv vor ${daysSinceActivity} Tagen`, impact: 'neutral' });
+    } else {
+      factors.push({ label: `Zuletzt aktiv vor ${daysSinceActivity} Tagen`, impact: 'positive' });
+    }
+  } else {
+    factors.push({ label: 'Kein aktiver Vertrag', impact: 'neutral' });
+  }
+
+  const score = Math.max(0, Math.min(100, Math.round(100 - penalty)));
+  const trend: 'up' | 'down' | 'stable' =
+    row.critical_tickets > 0 || row.overdue_tasks > 2 ? 'down'
+    : score >= 85 && daysSinceActivity !== null && daysSinceActivity <= 30 ? 'up'
+    : 'stable';
+
+  return { score, trend, factors };
+}
+
+// GET /api/customers/health-overview?customerId= - Gesundheit aller Org-Kunden
+router.get('/health-overview', authenticateToken, attachOrganization, async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : null;
+
+    const result = await pool.query(`
+      WITH t AS (
+        SELECT customer_id,
+          COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed', 'archived')) AS open_count,
+          COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed', 'archived') AND priority IN ('critical', 'high')) AS critical_count,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '90 days'
+                           AND (sla_first_response_breached = true OR sla_resolution_breached = true)) AS sla_breaches,
+          MAX(created_at) AS last_ticket
+        FROM tickets
+        WHERE organization_id = $1 AND customer_id IS NOT NULL
+        GROUP BY customer_id
+      ),
+      ta AS (
+        SELECT customer_id, COUNT(*) AS overdue_count
+        FROM tasks
+        WHERE organization_id = $1 AND customer_id IS NOT NULL
+          AND status NOT IN ('completed', 'cancelled') AND due_date < NOW()
+        GROUP BY customer_id
+      ),
+      ct AS (
+        SELECT customer_id, COUNT(*) FILTER (WHERE status = 'active') AS active_count
+        FROM contracts
+        WHERE organization_id = $1 AND deleted_at IS NULL
+        GROUP BY customer_id
+      ),
+      i AS (
+        SELECT customer_id, MAX(occurred_at) AS last_interaction
+        FROM customer_interactions
+        WHERE organization_id = $1
+        GROUP BY customer_id
+      ),
+      te AS (
+        SELECT p.customer_id, MAX(e.start_time) AS last_entry
+        FROM time_entries e
+        JOIN projects p ON p.id = e.project_id
+        WHERE e.organization_id = $1 AND p.customer_id IS NOT NULL
+        GROUP BY p.customer_id
+      )
+      SELECT c.id, c.name,
+        COALESCE(t.open_count, 0)::int AS open_tickets,
+        COALESCE(t.critical_count, 0)::int AS critical_tickets,
+        COALESCE(t.sla_breaches, 0)::int AS sla_breaches,
+        COALESCE(ta.overdue_count, 0)::int AS overdue_tasks,
+        COALESCE(ct.active_count, 0)::int AS active_contracts,
+        GREATEST(i.last_interaction, te.last_entry, t.last_ticket) AS last_activity_at
+      FROM customers c
+      LEFT JOIN t ON t.customer_id = c.id
+      LEFT JOIN ta ON ta.customer_id = c.id
+      LEFT JOIN ct ON ct.customer_id = c.id
+      LEFT JOIN i ON i.customer_id = c.id
+      LEFT JOIN te ON te.customer_id = c.id
+      WHERE c.organization_id = $1 AND c.deleted_at IS NULL
+        AND ($2::text IS NULL OR c.id = $2)
+      ORDER BY c.name
+    `, [organizationId, customerId]);
+
+    const customers = result.rows.map((row) => {
+      const health = computeMspHealth(row);
+      return {
+        id: row.id,
+        name: row.name,
+        score: health.score,
+        trend: health.trend,
+        factors: health.factors,
+        openTickets: row.open_tickets,
+        activeContracts: row.active_contracts,
+        lastActivityAt: row.last_activity_at,
+      };
+    });
+
+    const averageScore = customers.length > 0
+      ? Math.round(customers.reduce((sum, c) => sum + c.score, 0) / customers.length)
+      : null;
+
+    res.json({ success: true, customers, averageScore });
+  } catch (error) {
+    logger.error('Health overview error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -441,6 +601,54 @@ router.get('/:customerId/contacts', authenticateToken, attachOrganization, async
   }
 });
 
+// CRM-5 „Eine Kontakt-Wahrheit": Jeder Portal-User bekommt automatisch
+// seinen customer_contacts-Eintrag (bzw. wird mit einem bestehenden per
+// E-Mail verknüpft) — vorher waren in den Settings angelegte Kontakte im
+// CRM unsichtbar, weil beide UIs auf getrennte Tabellen zeigten.
+async function syncContactForPortalUser(params: {
+  portalUserId: string;
+  customerId: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  isPrimary: boolean;
+}): Promise<void> {
+  const { portalUserId, customerId, organizationId, name, email, isPrimary } = params;
+  try {
+    // Bestehenden Kontakt (gleiche Mail, gleicher Kunde) verknüpfen
+    const linked = await pool.query(
+      `UPDATE customer_contacts
+       SET portal_user_id = $1, updated_at = NOW()
+       WHERE customer_id = $2 AND portal_user_id IS NULL
+         AND email IS NOT NULL AND LOWER(email) = LOWER($3)
+         AND NOT EXISTS (SELECT 1 FROM customer_contacts WHERE portal_user_id = $1)
+       RETURNING id`,
+      [portalUserId, customerId, email]
+    );
+    if ((linked.rowCount || 0) > 0) return;
+
+    // Sonst neuen Kontakt anlegen (letztes Wort = Nachname, NOT NULL)
+    const trimmed = (name || '').trim();
+    const lastSpace = trimmed.lastIndexOf(' ');
+    const firstName = lastSpace > 0 ? trimmed.slice(0, lastSpace).trim() : null;
+    const lastName = (lastSpace > 0 ? trimmed.slice(lastSpace + 1) : trimmed) || email || 'Kontakt';
+
+    await pool.query(
+      `INSERT INTO customer_contacts (
+         id, organization_id, customer_id, first_name, last_name, email,
+         is_primary, portal_user_id, created_at, updated_at
+       )
+       SELECT gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, NOW(), NOW()
+       WHERE NOT EXISTS (SELECT 1 FROM customer_contacts WHERE portal_user_id = $7)`,
+      [organizationId, customerId, firstName, lastName, email, isPrimary, portalUserId]
+    );
+  } catch (error) {
+    // Best effort: ein fehlgeschlagener Kontakt-Sync darf das Anlegen des
+    // Portal-Zugangs nicht scheitern lassen
+    logger.error('Kontakt-Sync für Portal-User fehlgeschlagen:', error);
+  }
+}
+
 // POST /api/customers/:customerId/contacts - Create new portal contact (requires member role)
 router.post('/:customerId/contacts', authenticateToken, attachOrganization, requireOrgRole('member'), validate(createContactSchema), async (req: AuthRequest, res) => {
   try {
@@ -491,6 +699,13 @@ router.post('/:customerId/contacts', authenticateToken, attachOrganization, requ
        canViewTimeReport ?? false, canViewContract ?? false, canViewLicenses ?? false,
        notifyTicketCreated ?? true, notifyTicketStatusChanged ?? true, notifyTicketReply ?? true]
     );
+
+    // CRM-Kontakt anlegen/verknüpfen, damit der neue Portal-Zugang auch im
+    // CustomerHub-Kontakte-Tab erscheint
+    await syncContactForPortalUser({
+      portalUserId: id, customerId, organizationId,
+      name, email, isPrimary: isPrimary ?? false,
+    });
 
     auditLog.log({
       userId,
@@ -648,6 +863,37 @@ router.put('/:customerId/contacts/:contactId', authenticateToken, attachOrganiza
     values.push(contactId);
     const query = `UPDATE customer_portal_users SET ${fields.join(', ')} WHERE id = $${paramCount}`;
     await pool.query(query, values);
+
+    // Stammdaten-Änderungen auf den verknüpften CRM-Kontakt spiegeln
+    // (eine Kontakt-Wahrheit; fehlt die Verknüpfung noch, wird sie angelegt)
+    if (updates.name !== undefined || updates.email !== undefined || updates.isPrimary !== undefined) {
+      const current = contactResult.rows[0];
+      const effectiveName: string = updates.name ?? current.name ?? '';
+      const effectiveEmail: string = updates.email ?? current.email;
+      await syncContactForPortalUser({
+        portalUserId: contactId, customerId, organizationId,
+        name: effectiveName, email: effectiveEmail,
+        isPrimary: updates.isPrimary ?? current.is_primary_contact ?? false,
+      });
+      const trimmed = effectiveName.trim();
+      const lastSpace = trimmed.lastIndexOf(' ');
+      await pool.query(
+        `UPDATE customer_contacts SET
+           first_name = $2,
+           last_name = $3,
+           email = COALESCE($4, email),
+           is_primary = $5,
+           updated_at = NOW()
+         WHERE portal_user_id = $1`,
+        [
+          contactId,
+          lastSpace > 0 ? trimmed.slice(0, lastSpace).trim() : null,
+          (lastSpace > 0 ? trimmed.slice(lastSpace + 1) : trimmed) || effectiveEmail || 'Kontakt',
+          effectiveEmail ?? null,
+          updates.isPrimary ?? current.is_primary_contact ?? false,
+        ]
+      );
+    }
 
     const updatedResult = await pool.query(
       `SELECT id, customer_id, name, email, is_primary_contact as is_primary,

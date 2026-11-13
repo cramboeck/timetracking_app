@@ -20,6 +20,7 @@ import * as m018 from './018-gps-customer-matching';
 import * as m019 from './019-resell-prices';
 import * as m020 from './020-license-requests';
 import * as m021 from './021-api-tokens';
+import * as m022 from './022-contact-unification';
 
 export interface Migration {
   name: string;
@@ -53,4 +54,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '019-resell-prices', run: m019.run },
   { name: '020-license-requests', run: m020.run },
   { name: '021-api-tokens', run: m021.run },
+  { name: '022-contact-unification', run: m022.run },
 ];

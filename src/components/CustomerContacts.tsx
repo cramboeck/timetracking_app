@@ -238,10 +238,10 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Kontakte verwalten
+                Portal-Zugänge verwalten
               </h2>
               <p className="text-sm text-gray-500 dark:text-dark-400">
-                {customer.name}
+                {customer.name} — Logins & Berechtigungen fürs Kundenportal; Kontaktdaten pflegst du im CRM
               </p>
             </div>
           </div>
@@ -527,9 +527,9 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               {contacts.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-dark-400">
                   <Users size={48} className="mx-auto mb-3 opacity-50" />
-                  <p>Noch keine Kontakte vorhanden</p>
+                  <p>Noch keine Portal-Zugänge vorhanden</p>
                   <p className="text-sm mt-1">
-                    Füge Kontakte hinzu, um ihnen Zugang zum Kundenportal zu geben
+                    Lege einen Zugang an, um dem Kunden das Portal freizuschalten — der zugehörige CRM-Kontakt entsteht automatisch
                   </p>
                 </div>
               ) : (
@@ -663,7 +663,7 @@ export const CustomerContacts = ({ isOpen, customer, onClose }: CustomerContacts
               icon={<Plus size={20} />}
               fullWidth
             >
-              Kontakt hinzufügen
+              Portal-Zugang anlegen
             </Button>
           </div>
         )}

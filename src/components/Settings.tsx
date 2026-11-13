@@ -1593,7 +1593,7 @@ export const Settings = ({
                                 <IconButton
                                   icon={<UserCog size={18} />}
                                   onClick={() => setContactsCustomer(customer)}
-                                  tooltip="Kontakte verwalten"
+                                  tooltip="Portal-Zugänge verwalten"
                                 />
                                 <IconButton
                                   icon={<Globe size={18} />}

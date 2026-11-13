@@ -48,12 +48,14 @@ import {
   Package,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType, Task } from '../types';
+import { useQuery } from '@tanstack/react-query';
 import {
   contactsApi,
   interactionsApi,
   ticketsApi,
   tasksApi,
   contractsApi,
+  customersApi,
   CRMContact,
   Interaction,
   Contract,
@@ -97,7 +99,6 @@ interface CustomerHealthScore {
   trend: 'up' | 'down' | 'stable';
   factors: {
     label: string;
-    value: number;
     impact: 'positive' | 'negative' | 'neutral';
   }[];
 }
@@ -157,98 +158,6 @@ const getRelativeTime = (dateStr: string) => {
 };
 
 // ============================================
-// Health Score Calculation
-// ============================================
-
-const calculateHealthScore = (
-  _customer: Customer,
-  tickets: TicketType[],
-  tasks: Task[],
-  interactions: Interaction[],
-  entries: TimeEntry[],
-  contracts: Contract[]
-): CustomerHealthScore => {
-  const factors: CustomerHealthScore['factors'] = [];
-  let totalScore = 0;
-  let factorCount = 0;
-
-  // Factor 1: Open Tickets (negative impact)
-  const openTickets = tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed');
-  const criticalTickets = openTickets.filter(t => t.priority === 'critical' || t.priority === 'high');
-  const ticketScore = Math.max(0, 100 - (openTickets.length * 10) - (criticalTickets.length * 15));
-  factors.push({
-    label: `${openTickets.length} offene Tickets`,
-    value: ticketScore,
-    impact: openTickets.length === 0 ? 'positive' : criticalTickets.length > 0 ? 'negative' : 'neutral',
-  });
-  totalScore += ticketScore;
-  factorCount++;
-
-  // Factor 2: Recent Interactions (positive impact)
-  const recentInteractions = interactions.filter(i => {
-    const daysDiff = (Date.now() - new Date(i.occurred_at).getTime()) / 86400000;
-    return daysDiff <= 30;
-  });
-  const interactionScore = Math.min(100, recentInteractions.length * 15);
-  factors.push({
-    label: `${recentInteractions.length} Kontakte (30 Tage)`,
-    value: interactionScore,
-    impact: recentInteractions.length >= 3 ? 'positive' : recentInteractions.length === 0 ? 'negative' : 'neutral',
-  });
-  totalScore += interactionScore;
-  factorCount++;
-
-  // Factor 3: Overdue Tasks (negative impact)
-  const overdueTasks = tasks.filter(t => {
-    if (t.status === 'completed' || t.status === 'cancelled') return false;
-    if (!t.dueDate) return false;
-    return new Date(t.dueDate) < new Date();
-  });
-  const taskScore = Math.max(0, 100 - (overdueTasks.length * 20));
-  factors.push({
-    label: `${overdueTasks.length} überfällige Aufgaben`,
-    value: taskScore,
-    impact: overdueTasks.length === 0 ? 'positive' : 'negative',
-  });
-  totalScore += taskScore;
-  factorCount++;
-
-  // Factor 4: Active Contracts (positive impact)
-  const activeContracts = contracts.filter(c => c.status === 'active');
-  const contractScore = activeContracts.length > 0 ? 100 : 50;
-  factors.push({
-    label: `${activeContracts.length} aktive Verträge`,
-    value: contractScore,
-    impact: activeContracts.length > 0 ? 'positive' : 'neutral',
-  });
-  totalScore += contractScore;
-  factorCount++;
-
-  // Factor 5: Recent Activity (time entries)
-  const recentEntries = entries.filter(e => {
-    const daysDiff = (Date.now() - new Date(e.startTime).getTime()) / 86400000;
-    return daysDiff <= 30;
-  });
-  const activityScore = Math.min(100, recentEntries.length * 5);
-  factors.push({
-    label: `${recentEntries.length} Zeiteinträge (30 Tage)`,
-    value: activityScore,
-    impact: recentEntries.length >= 10 ? 'positive' : recentEntries.length === 0 ? 'negative' : 'neutral',
-  });
-  totalScore += activityScore;
-  factorCount++;
-
-  const finalScore = Math.round(totalScore / factorCount);
-
-  // Determine trend based on recent changes
-  const trend: 'up' | 'down' | 'stable' =
-    criticalTickets.length > 0 || overdueTasks.length > 2 ? 'down' :
-    recentInteractions.length >= 3 && openTickets.length === 0 ? 'up' : 'stable';
-
-  return { score: finalScore, trend, factors };
-};
-
-// ============================================
 // Sub-Components
 // ============================================
 
@@ -291,13 +200,11 @@ const HealthBadge: React.FC<HealthBadgeProps> = ({ score, trend, factors }) => {
             {factors.map((factor, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
                 <span className="text-gray-600 dark:text-dark-400">{factor.label}</span>
-                <span className={
-                  factor.impact === 'positive' ? 'text-green-600 dark:text-green-400' :
-                  factor.impact === 'negative' ? 'text-red-600 dark:text-red-400' :
-                  'text-gray-500'
-                }>
-                  {factor.value}%
-                </span>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  factor.impact === 'positive' ? 'bg-green-500' :
+                  factor.impact === 'negative' ? 'bg-red-500' :
+                  'bg-gray-400'
+                }`} />
               </div>
             ))}
           </div>
@@ -1297,11 +1204,20 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
       .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
   }, [selectedCustomerId, entries, projects]);
 
-  // Calculate health score
-  const healthScore = useMemo(() => {
-    if (!selectedCustomer) return { score: 0, trend: 'stable' as const, factors: [] };
-    return calculateHealthScore(selectedCustomer, tickets, tasks, interactions, customerEntries, contracts);
-  }, [selectedCustomer, tickets, tasks, interactions, customerEntries, contracts]);
+  // Health-Score aus der EINEN Server-Quelle (gleiche Berechnung wie das
+  // CRM-Dashboard) — ersetzt die alte clientseitige 5-Faktoren-Rechnung,
+  // die ruhige Kunden ohne Interaktionen/Zeiteinträge auf 50 drückte
+  const healthQuery = useQuery({
+    queryKey: ['crm', 'health', selectedCustomerId],
+    queryFn: () => customersApi.getHealthOverview(selectedCustomerId!),
+    enabled: !!selectedCustomerId,
+    staleTime: 60 * 1000,
+  });
+  const healthScore = useMemo((): CustomerHealthScore => {
+    const entry = healthQuery.data?.customers?.[0];
+    if (!entry) return { score: 0, trend: 'stable', factors: [] };
+    return { score: entry.score, trend: entry.trend, factors: entry.factors };
+  }, [healthQuery.data]);
 
   // Calculate stats
   const stats = useMemo(() => {

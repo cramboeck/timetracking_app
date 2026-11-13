@@ -9,7 +9,8 @@
  * - Key performance indicators
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp,
   TrendingDown,
@@ -32,11 +33,13 @@ import {
   interactionsApi,
   contractsApi,
   opportunitiesApi,
+  pipelineStagesApi,
+  customersApi,
+  sevdeskApi,
   Interaction,
-  Contract,
   Opportunity,
+  CustomerHealthEntry,
 } from '../services/api';
-import { Button } from './ui/Button';
 import { StatWidget } from './ui/StatWidget';
 
 // ============================================
@@ -48,17 +51,6 @@ interface CRMDashboardProps {
   projects: Project[];
   onNavigateToCustomer?: (customerId: string) => void;
   onNavigateToOpportunity?: (opportunityId: string) => void;
-}
-
-interface DashboardStats {
-  totalCustomers: number;
-  activeCustomers: number;
-  totalOpportunities: number;
-  pipelineValue: number;
-  monthlyRecurring: number;
-  avgHealthScore: number;
-  pendingFollowUps: number;
-  interactionsThisWeek: number;
 }
 
 // ============================================
@@ -118,7 +110,7 @@ const PipelineCard: React.FC<PipelineCardProps> = ({
   color,
   onOpportunityClick,
 }) => {
-  const totalValue = opportunities.reduce((sum, o) => sum + (o.value || 0), 0);
+  const totalValue = opportunities.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
 
   return (
     <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
@@ -151,7 +143,7 @@ const PipelineCard: React.FC<PipelineCardProps> = ({
                   {opp.customer_name || 'Unbekannt'}
                 </span>
                 <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                  {formatCurrency(opp.value || 0)}
+                  {formatCurrency(Number(opp.value) || 0)}
                 </span>
               </div>
               {opp.expected_close_date && (
@@ -281,11 +273,12 @@ const RecentInteraction: React.FC<RecentInteractionProps> = ({ interaction, onCl
 };
 
 interface CustomerHealthListProps {
-  customers: { customer: Customer; healthScore: number; trend: 'up' | 'down' | 'stable' }[];
+  entries: CustomerHealthEntry[];
+  customersById: Map<string, Customer>;
   onCustomerClick: (customerId: string) => void;
 }
 
-const CustomerHealthList: React.FC<CustomerHealthListProps> = ({ customers, onCustomerClick }) => {
+const CustomerHealthList: React.FC<CustomerHealthListProps> = ({ entries, customersById, onCustomerClick }) => {
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600 dark:text-green-400';
     if (score >= 60) return 'text-yellow-600 dark:text-yellow-400';
@@ -295,33 +288,42 @@ const CustomerHealthList: React.FC<CustomerHealthListProps> = ({ customers, onCu
 
   return (
     <div className="divide-y divide-gray-100 dark:divide-dark-border">
-      {customers.map(({ customer, healthScore, trend }) => (
-        <button
-          key={customer.id}
-          onClick={() => onCustomerClick(customer.id)}
-          className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
-        >
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-            style={{ backgroundColor: customer.color || '#6366f1' }}
+      {entries.map((entry) => {
+        const negativeFactors = entry.factors.filter(f => f.impact === 'negative');
+        return (
+          <button
+            key={entry.id}
+            onClick={() => onCustomerClick(entry.id)}
+            className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
+            title={entry.factors.map(f => f.label).join(' · ')}
           >
-            {customer.name.charAt(0)}
-          </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-              {customer.name}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`font-bold ${getScoreColor(healthScore)}`}>
-              {healthScore}
-            </span>
-            {trend === 'up' && <TrendingUp size={14} className="text-green-500" />}
-            {trend === 'down' && <TrendingDown size={14} className="text-red-500" />}
-            {trend === 'stable' && <Activity size={14} className="text-gray-400" />}
-          </div>
-        </button>
-      ))}
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              style={{ backgroundColor: customersById.get(entry.id)?.color || '#6366f1' }}
+            >
+              {entry.name.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                {entry.name}
+              </p>
+              {negativeFactors.length > 0 && (
+                <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                  {negativeFactors.map(f => f.label).join(' · ')}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`font-bold ${getScoreColor(entry.score)}`}>
+                {entry.score}
+              </span>
+              {entry.trend === 'up' && <TrendingUp size={14} className="text-green-500" />}
+              {entry.trend === 'down' && <TrendingDown size={14} className="text-red-500" />}
+              {entry.trend === 'stable' && <Activity size={14} className="text-gray-400" />}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -330,59 +332,85 @@ const CustomerHealthList: React.FC<CustomerHealthListProps> = ({ customers, onCu
 // Main Component
 // ============================================
 
+// Umrechnung der Vertrags-Zyklen auf einen Monatswert (one_time/per_call
+// sind nicht wiederkehrend und zählen nicht ins MRR)
+const CYCLE_MONTHLY_FACTOR: Record<string, number> = {
+  monthly: 1,
+  quarterly: 1 / 3,
+  semi_annual: 1 / 6,
+  annual: 1 / 12,
+};
+
 export const CRMDashboard: React.FC<CRMDashboardProps> = ({
   customers,
   onNavigateToCustomer,
   onNavigateToOpportunity,
 }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [recentInteractions, setRecentInteractions] = useState<Interaction[]>([]);
-  const [pendingFollowUps, setPendingFollowUps] = useState<Interaction[]>([]);
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter'>('month');
+  const queryClient = useQueryClient();
 
-  // Load dashboard data
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const [oppsRes, interactionsRes, followUpsRes] = await Promise.all([
-          opportunitiesApi.getAll().catch(() => ({ opportunities: [] as Opportunity[], total: 0 })),
-          interactionsApi.getAll({ limit: 20 }).catch(() => ({ interactions: [] })),
-          interactionsApi.getFollowUps().catch(() => ({ follow_ups: [] })),
-        ]);
+  const oppsQuery = useQuery({
+    queryKey: ['crm', 'opportunities'],
+    queryFn: () => opportunitiesApi.getAll(),
+  });
+  const stagesQuery = useQuery({
+    queryKey: ['crm', 'stages'],
+    queryFn: () => pipelineStagesApi.getAll(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const interactionsQuery = useQuery({
+    queryKey: ['crm', 'interactions'],
+    queryFn: () => interactionsApi.getAll({ limit: 20 }),
+  });
+  const followUpsQuery = useQuery({
+    queryKey: ['crm', 'followups'],
+    queryFn: () => interactionsApi.getFollowUps(),
+  });
+  const contractsQuery = useQuery({
+    queryKey: ['crm', 'contracts'],
+    queryFn: () => contractsApi.getContracts(),
+  });
+  // Die EINE Health-Score-Quelle (ersetzt die alten Math.random-Platzhalter)
+  const healthQuery = useQuery({
+    queryKey: ['crm', 'health'],
+    queryFn: () => customersApi.getHealthOverview(),
+    staleTime: 60 * 1000,
+  });
+  // Lizenz-MRR: 403 ohne Billing-Paket → dann zählt nur der Vertrags-Anteil
+  const licenseMrrQuery = useQuery({
+    queryKey: ['crm', 'licenseMrr'],
+    queryFn: () => sevdeskApi.getLicenseMrr(),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
 
-        setOpportunities(oppsRes.opportunities || []);
-        setRecentInteractions(interactionsRes.interactions || []);
-        setPendingFollowUps(followUpsRes.follow_ups || []);
+  const opportunities = oppsQuery.data?.opportunities ?? [];
+  const contracts = contractsQuery.data?.data ?? [];
+  const recentInteractions = interactionsQuery.data?.interactions ?? [];
+  const pendingFollowUps = followUpsQuery.data?.follow_ups ?? [];
+  const isLoading = oppsQuery.isLoading || contractsQuery.isLoading || healthQuery.isLoading;
 
-        // Get full contracts list
-        const fullContracts = await contractsApi.getContracts().catch(() => ({ data: [] }));
-        setContracts(fullContracts.data || []);
-      } catch (error) {
-        console.error('Error loading CRM dashboard:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
+  const customersById = useMemo(
+    () => new Map(customers.map(c => [c.id, c])),
+    [customers]
+  );
 
   // Calculate stats
-  const stats = useMemo((): DashboardStats => {
-    const activeCustomers = customers.length;
+  const stats = useMemo(() => {
     const activeOpps = opportunities.filter(o => o.status !== 'won' && o.status !== 'lost');
-    const pipelineValue = activeOpps.reduce((sum, o) => sum + (o.value || 0), 0);
-    const monthlyRecurring = contracts
-      .filter(c => c.status === 'active' && c.billingCycle === 'monthly')
-      .reduce((sum, c) => sum + (c.basePrice || 0), 0);
+    // Number(): die API liefert numerics als String — ohne Cast konkateniert
+    // reduce die Werte und das KPI zeigt „NaN €"
+    const pipelineValue = activeOpps.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
+    const weightedPipelineValue = activeOpps.reduce(
+      (sum, o) => sum + (Number(o.value) || 0) * ((o.stage_probability ?? 0) / 100), 0
+    );
 
-    // Calculate average health score (simplified)
-    const avgHealthScore = Math.round(70 + Math.random() * 20); // Placeholder
+    // MRR ehrlich: ALLE wiederkehrenden Zyklen auf Monat umgelegt + Lizenz-VK
+    // des jüngsten Belegmonats (vorher zählten nur monthly-Verträge → 0 €)
+    const contractMrr = contracts
+      .filter(c => c.status === 'active')
+      .reduce((sum, c) => sum + (c.basePrice || 0) * (CYCLE_MONTHLY_FACTOR[c.billingCycle || ''] ?? 0), 0);
+    const licenseMrr = licenseMrrQuery.data?.resellMrr ?? 0;
 
-    // Count interactions this week
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const interactionsThisWeek = recentInteractions.filter(
       i => new Date(i.occurred_at).getTime() > oneWeekAgo
@@ -390,53 +418,60 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
 
     return {
       totalCustomers: customers.length,
-      activeCustomers,
+      activeCustomers: customers.length,
       totalOpportunities: activeOpps.length,
       pipelineValue,
-      monthlyRecurring,
-      avgHealthScore,
+      weightedPipelineValue,
+      contractMrr,
+      licenseMrr,
+      monthlyRecurring: contractMrr + licenseMrr,
+      avgHealthScore: healthQuery.data?.averageScore ?? null,
       pendingFollowUps: pendingFollowUps.length,
       interactionsThisWeek,
     };
-  }, [customers, opportunities, contracts, recentInteractions, pendingFollowUps]);
+  }, [customers, opportunities, contracts, recentInteractions, pendingFollowUps, healthQuery.data, licenseMrrQuery.data]);
 
-  // Group opportunities by their actual pipeline stage (Stages sind pro Org
-  // dynamisch aus pipeline_stages, keine festen Keys)
+  // Funnel: ALLE Stages der Org zeigen (vorher verschwanden leere Stages —
+  // bei 2 Opportunities sah die Pipeline aus wie eine einzelne Karte im Nichts)
   const pipelineStages = useMemo(() => {
     const open = opportunities.filter(o => o.status !== 'won' && o.status !== 'lost');
-    const byStage = new Map<string, { label: string; probability: number; opportunities: Opportunity[] }>();
+    const byStage = new Map<string, Opportunity[]>();
     for (const o of open) {
       const key = o.stage_id || 'none';
-      const entry = byStage.get(key) || {
-        label: o.stage_name || 'Ohne Phase',
-        probability: o.stage_probability ?? 0,
-        opportunities: [],
-      };
-      entry.opportunities.push(o);
-      byStage.set(key, entry);
+      byStage.set(key, [...(byStage.get(key) ?? []), o]);
     }
-    return Array.from(byStage.entries())
-      .map(([id, s]) => ({ id, ...s }))
-      .sort((a, b) => a.probability - b.probability);
-  }, [opportunities]);
 
-  // Simulated customer health data (would come from API in production)
-  const customerHealthData = useMemo(() => {
-    return customers.slice(0, 10).map(customer => ({
-      customer,
-      healthScore: Math.round(50 + Math.random() * 50),
-      trend: (['up', 'down', 'stable'] as const)[Math.floor(Math.random() * 3)],
-    })).sort((a, b) => a.healthScore - b.healthScore);
-  }, [customers]);
+    const stages = (stagesQuery.data ?? [])
+      .filter(s => !s.is_won && !s.is_lost)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(s => ({
+        id: s.id,
+        label: s.name,
+        probability: s.probability,
+        opportunities: byStage.get(s.id) ?? [],
+      }));
 
-  const handleCompleteFollowUp = async (interactionId: string) => {
-    try {
-      await interactionsApi.completeFollowUp(interactionId);
-      setPendingFollowUps(prev => prev.filter(f => f.id !== interactionId));
-    } catch (error) {
-      console.error('Error completing follow-up:', error);
+    const knownIds = new Set(stages.map(s => s.id));
+    const orphans = open.filter(o => !o.stage_id || !knownIds.has(o.stage_id));
+    if (orphans.length > 0) {
+      stages.push({ id: 'none', label: 'Ohne Phase', probability: 0, opportunities: orphans });
     }
-  };
+    return stages;
+  }, [opportunities, stagesQuery.data]);
+
+  const healthList = useMemo(
+    () => (healthQuery.data?.customers ?? []).slice().sort((a, b) => a.score - b.score),
+    [healthQuery.data]
+  );
+
+  const completeFollowUpMutation = useMutation({
+    mutationFn: (interactionId: string) => interactionsApi.completeFollowUp(interactionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['crm', 'followups'] });
+      queryClient.invalidateQueries({ queryKey: ['crm', 'interactions'] });
+    },
+  });
+  const handleCompleteFollowUp = (interactionId: string) => completeFollowUpMutation.mutate(interactionId);
 
   if (isLoading) {
     return (
@@ -459,34 +494,44 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
             Übersicht über Kundenbeziehungen und Sales Pipeline
           </p>
         </div>
-        <div className="flex gap-2">
-          {(['week', 'month', 'quarter'] as const).map(range => (
-            <Button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              variant={timeRange === range ? 'primary' : 'ghost'}
-              size="sm"
-            >
-              {range === 'week' ? 'Woche' : range === 'month' ? 'Monat' : 'Quartal'}
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatWidget
-          label="Pipeline-Wert"
-          value={formatCurrency(stats.pipelineValue)}
-          icon={Target}
-          color="blue"
-        />
-        <StatWidget
-          label="Monatl. Wiederkehrend"
-          value={formatCurrency(stats.monthlyRecurring)}
-          icon={DollarSign}
-          color="green"
-        />
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-500 dark:text-dark-400">Pipeline-Wert</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1 truncate">
+                {formatCurrency(stats.pipelineValue)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-accent-lighter dark:bg-accent-primary/30 flex-shrink-0">
+              <Target size={24} className="text-accent-primary" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-dark-400 mt-2 truncate">
+            gewichtet: {formatCurrency(stats.weightedPipelineValue)}
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-4">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-500 dark:text-dark-400">Monatl. Wiederkehrend</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1 truncate">
+                {formatCurrency(stats.monthlyRecurring)}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-green-100 dark:bg-green-900/30 flex-shrink-0">
+              <DollarSign size={24} className="text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-dark-400 mt-2 truncate">
+            {formatCurrency(stats.contractMrr)} Verträge · {formatCurrency(stats.licenseMrr)} Lizenzen
+          </p>
+        </div>
+
         <StatWidget
           label="Offene Follow-Ups"
           value={stats.pendingFollowUps}
@@ -514,14 +559,17 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
             </div>
           ) : (
             pipelineStages.map((stage, index) => (
-              <PipelineCard
-                key={stage.id}
-                stage={stage.id}
-                stageLabel={stage.label}
-                opportunities={stage.opportunities}
-                color={PIPELINE_STAGE_COLORS[index % PIPELINE_STAGE_COLORS.length]}
-                onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
-              />
+              <div key={stage.id} className={stage.opportunities.length === 0 ? 'opacity-50' : ''}>
+                <PipelineCard
+                  stage={stage.id}
+                  stageLabel={stage.label}
+                  opportunities={stage.opportunities}
+                  color={stage.opportunities.length === 0
+                    ? 'bg-gray-400 dark:bg-dark-300'
+                    : PIPELINE_STAGE_COLORS[index % PIPELINE_STAGE_COLORS.length]}
+                  onOpportunityClick={(opp) => onNavigateToOpportunity?.(opp.id)}
+                />
+              </div>
             ))
           )}
         </div>
@@ -601,10 +649,18 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
             </span>
           </div>
           <div className="max-h-80 overflow-y-auto">
-            <CustomerHealthList
-              customers={customerHealthData}
-              onCustomerClick={(id) => onNavigateToCustomer?.(id)}
-            />
+            {healthList.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 dark:text-dark-400">
+                <Heart size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Keine Kunden</p>
+              </div>
+            ) : (
+              <CustomerHealthList
+                entries={healthList}
+                customersById={customersById}
+                onCustomerClick={(id) => onNavigateToCustomer?.(id)}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -667,11 +723,12 @@ export const CRMDashboard: React.FC<CRMDashboardProps> = ({
             <div>
               <p className="text-sm text-gray-500 dark:text-dark-400">Ø Health Score</p>
               <p className={`text-2xl font-bold mt-1 ${
+                stats.avgHealthScore === null ? 'text-gray-400 dark:text-dark-400' :
                 stats.avgHealthScore >= 80 ? 'text-green-600 dark:text-green-400' :
                 stats.avgHealthScore >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
                 'text-red-600 dark:text-red-400'
               }`}>
-                {stats.avgHealthScore}
+                {stats.avgHealthScore ?? '—'}
               </p>
             </div>
             <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30">
