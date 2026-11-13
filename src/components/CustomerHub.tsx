@@ -63,6 +63,7 @@ import {
   Contract,
 } from '../services/api';
 import { Button, IconButton } from './ui/Button';
+import CustomerAvatar from './ui/CustomerAvatar';
 import { StatWidget } from './ui/StatWidget';
 import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
@@ -1604,12 +1605,12 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
-                        style={{ backgroundColor: customer.color || '#6366f1' }}
-                      >
-                        {customer.name.charAt(0).toUpperCase()}
-                      </div>
+                      <CustomerAvatar
+                        name={customer.name}
+                        color={customer.color}
+                        logoUrl={customer.logoUrl}
+                        size="md"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 dark:text-white truncate">
                           {customer.name}
@@ -1644,12 +1645,12 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-4 min-w-0">
-                <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0"
-                  style={{ backgroundColor: selectedCustomer.color || '#6366f1' }}
-                >
-                  {selectedCustomer.name.charAt(0).toUpperCase()}
-                </div>
+                <CustomerAvatar
+                  name={selectedCustomer.name}
+                  color={selectedCustomer.color}
+                  logoUrl={selectedCustomer.logoUrl}
+                  size="lg"
+                />
                 <div className="min-w-0">
                   <h2 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white truncate">
                     {selectedCustomer.name}

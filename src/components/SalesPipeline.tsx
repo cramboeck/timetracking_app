@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Plus,
   X,
@@ -25,7 +26,11 @@ import {
   OpportunityStats,
 } from '../services/api';
 import { Customer } from '../types';
-import { customersApi, leadsApi, Lead } from '../services/api';
+import { customersApi, leadsApi, Lead, organizationsApi, OrganizationMember } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { CustomerEditDialog } from './CustomerEditDialog';
+import { ModernDatePicker } from './ModernDatePicker';
+import { SearchableSelect } from './SearchableSelect';
 import { LeadForm } from './Leads';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
@@ -356,7 +361,28 @@ interface OpportunityFormProps {
   customers: Customer[];
   onSave: (opp: Opportunity) => void;
   onCancel: () => void;
+  /** Inline neu angelegter Kunde → Parent aktualisiert seine Liste */
+  onCustomerCreated?: (customer: Customer) => void;
 }
+
+const formFieldClasses = 'w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm';
+const formLabelClasses = 'block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1';
+
+// Erwarteter Abschluss: letzte Tage von Monat/Quartal als YYYY-MM-DD
+const endOfMonth = (): string => {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+};
+const endOfQuarter = (): string => {
+  const d = new Date();
+  const q = Math.floor(d.getMonth() / 3);
+  return new Date(d.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0];
+};
+const inDays = (days: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+};
 
 const OpportunityForm: React.FC<OpportunityFormProps> = ({
   opportunity,
@@ -365,30 +391,46 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
   customers,
   onSave,
   onCancel,
+  onCustomerCreated,
 }) => {
   const showToast = useToast();
+  const { currentUser } = useAuth();
   const [name, setName] = useState(opportunity?.name || '');
   const [description, setDescription] = useState(opportunity?.description || '');
   const [customerId, setCustomerId] = useState(opportunity?.customer_id || '');
   const [stageId, setStageId] = useState(opportunity?.stage_id || initialStageId || stages[0]?.id || '');
   const [value, setValue] = useState(opportunity?.value?.toString() || '');
-  const [probability, setProbability] = useState(opportunity?.probability?.toString() || '');
+  // Abschlussdatum treibt den Forecast — bei Neuanlage mit Monatsende
+  // vorbefüllt (HubSpot-Muster) statt leer
   const [expectedCloseDate, setExpectedCloseDate] = useState(
-    opportunity?.expected_close_date?.split('T')[0] || ''
+    opportunity?.expected_close_date?.split('T')[0] || endOfMonth()
   );
   const [nextStep, setNextStep] = useState(opportunity?.next_step || '');
-  const [notes] = useState(opportunity?.notes || '');
+  const [nextStepDate, setNextStepDate] = useState(opportunity?.next_step_date?.split('T')[0] || '');
+  const [assignedTo, setAssignedTo] = useState(opportunity?.assigned_to || currentUser?.id || '');
+  const [source, setSource] = useState(opportunity?.source || '');
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Update probability when stage changes
-  useEffect(() => {
-    if (!opportunity) {
-      const stage = stages.find((s) => s.id === stageId);
-      if (stage) {
-        setProbability(stage.probability.toString());
-      }
-    }
-  }, [stageId, stages, opportunity]);
+  // Wahrscheinlichkeit ist eine Eigenschaft der Phase, kein Eingabefeld
+  // (Pipedrive/Salesforce-Muster — vorher gab es ZWEI Wahrheiten dafür)
+  const openStages = useMemo(() => stages.filter(s => !s.is_won && !s.is_lost), [stages]);
+  const selectedStage = stages.find(s => s.id === stageId);
+  const probability = selectedStage?.probability ?? 0;
+  const numericValue = value.trim() ? parseFloat(value) : 0;
+  const weightedValue = (Number(numericValue) || 0) * probability / 100;
+
+  const teamMembersQuery = useQuery({
+    queryKey: ['teamMembers', 'current'],
+    queryFn: async () => {
+      const orgResponse = await organizationsApi.getCurrent();
+      if (!orgResponse.success || !orgResponse.data) return [] as OrganizationMember[];
+      const membersResponse = await organizationsApi.getMembers(orgResponse.data.id);
+      return (membersResponse.success ? membersResponse.data : []) as OrganizationMember[];
+    },
+    staleTime: 5 * 60_000,
+  });
+  const teamMembers = teamMembersQuery.data ?? [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,11 +443,13 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
         description: description.trim() || undefined,
         customer_id: customerId || undefined,
         stage_id: stageId,
-        value: value ? parseFloat(value) : undefined,
-        probability: probability ? parseInt(probability) : undefined,
+        value: value.trim() ? parseFloat(value) : undefined,
+        probability,
         expected_close_date: expectedCloseDate || undefined,
         next_step: nextStep.trim() || undefined,
-        notes: notes.trim() || undefined,
+        next_step_date: nextStepDate || undefined,
+        assigned_to: assignedTo || undefined,
+        source: source || undefined,
       };
 
       let result: Opportunity;
@@ -423,149 +467,214 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
     }
   };
 
+  const handleCustomerCreated = async (customerData: Partial<Customer> & { name: string; color: string }) => {
+    try {
+      const response = await customersApi.create(customerData as Omit<Customer, 'id' | 'userId' | 'createdAt'>);
+      if (response.success && response.data) {
+        onCustomerCreated?.(response.data);
+        setCustomerId(response.data.id);
+        showToast(`Kunde „${response.data.name}" angelegt`, 'success');
+      }
+    } catch (err) {
+      console.error('Failed to create customer:', err);
+      showToast('Kunde konnte nicht angelegt werden', 'error');
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Name <span className="text-red-500">*</span>
+        <label className={formLabelClasses}>
+          Titel <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-          placeholder="z.B. Website Redesign"
+          className={formFieldClasses}
+          placeholder="z.B. Server-Erneuerung inkl. Backup"
+          autoFocus
           required
         />
       </div>
 
-      {/* Customer */}
+      {/* Phase als visueller Stepper — Wahrscheinlichkeit kommt aus der Phase */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Kunde
-        </label>
-        <select
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-        >
-          <option value="">Kein Kunde</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between mb-1">
+          <label className={formLabelClasses.replace(' mb-1', '')}>Phase</label>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary">
+            {probability}% Abschlusswahrscheinlichkeit
+          </span>
+        </div>
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {openStages.map((stage) => {
+            const isActive = stage.id === stageId;
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                onClick={() => setStageId(stage.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2 rounded-xl text-sm border transition-all ${
+                  isActive
+                    ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary font-semibold'
+                    : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-200'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color || '#9ca3af' }} />
+                {stage.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Value & Probability */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Kunde: durchsuchbar + inline neu anlegbar */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className={formLabelClasses.replace(' mb-1', '')}>Kunde</label>
+          <button
+            type="button"
+            onClick={() => setShowNewCustomer(true)}
+            className="text-xs text-accent-primary hover:underline flex items-center gap-0.5"
+          >
+            <Plus size={12} /> Neuer Kunde
+          </button>
+        </div>
+        <SearchableSelect
+          options={customers.map(c => ({ value: c.id, label: c.name, sublabel: c.customerNumber ? `#${c.customerNumber}` : undefined }))}
+          value={customerId}
+          onChange={setCustomerId}
+          placeholder="Kunde suchen…"
+          emptyMessage="Kein Kunde gefunden"
+          allowClear
+        />
+      </div>
+
+      {/* Wert + gewichteter Wert */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-            Wert (EUR)
-          </label>
+          <label className={formLabelClasses}>Wert (€)</label>
           <input
             type="number"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             min={0}
             step={100}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-            placeholder="10000"
+            className={formFieldClasses}
+            placeholder="10.000"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-            Wahrscheinlichkeit (%)
-          </label>
-          <input
-            type="number"
-            value={probability}
-            onChange={(e) => setProbability(e.target.value)}
-            min={0}
-            max={100}
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-          />
+          <label className={formLabelClasses}>Gewichtet (Forecast)</label>
+          <div className={`${formFieldClasses} bg-gray-100 dark:bg-dark-300/50 text-gray-500 dark:text-dark-400 cursor-default`}>
+            {formatCurrency(weightedValue)}
+          </div>
         </div>
       </div>
 
-      {/* Stage */}
+      {/* Erwarteter Abschluss mit Quick-Chips */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Pipeline-Phase
-        </label>
-        <select
-          value={stageId}
-          onChange={(e) => setStageId(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-        >
-          {stages.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.probability}%)
-            </option>
+        <label className={formLabelClasses}>Erwarteter Abschluss</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <ModernDatePicker value={expectedCloseDate} onChange={setExpectedCloseDate} compact />
+          {([
+            ['Ende Monat', endOfMonth],
+            ['Ende Quartal', endOfQuarter],
+            ['+30 Tage', () => inDays(30)],
+          ] as const).map(([label, fn]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setExpectedCloseDate(fn())}
+              className="px-2.5 py-1 rounded-full text-xs bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-accent-light hover:text-accent-dark dark:hover:bg-accent-primary/20 dark:hover:text-accent-primary transition-colors"
+            >
+              {label}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
-      {/* Expected Close Date */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Erwarteter Abschluss
-        </label>
-        <input
-          type="date"
-          value={expectedCloseDate}
-          onChange={(e) => setExpectedCloseDate(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-        />
+      {/* Bearbeiter + Quelle */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={formLabelClasses}>Bearbeiter</label>
+          <select
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+            className={formFieldClasses}
+          >
+            <option value="">— Niemand —</option>
+            {teamMembers.map(m => (
+              <option key={m.user_id} value={m.user_id}>
+                {m.display_name || m.username}{m.user_id === currentUser?.id ? ' (ich)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={formLabelClasses}>Quelle</label>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className={formFieldClasses}
+          >
+            <option value="">— Keine —</option>
+            {Object.entries(LEAD_SOURCE_LABELS).map(([val, label]) => (
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Next Step */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Nachster Schritt
-        </label>
-        <input
-          type="text"
-          value={nextStep}
-          onChange={(e) => setNextStep(e.target.value)}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
-          placeholder="z.B. Demo vereinbaren"
-        />
+      {/* Nächster Schritt + Datum */}
+      <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
+        <div>
+          <label className={formLabelClasses}>Nächster Schritt</label>
+          <input
+            type="text"
+            value={nextStep}
+            onChange={(e) => setNextStep(e.target.value)}
+            className={formFieldClasses}
+            placeholder="z.B. Demo vereinbaren"
+          />
+        </div>
+        <div>
+          <label className={formLabelClasses}>Bis wann</label>
+          <ModernDatePicker value={nextStepDate} onChange={setNextStepDate} compact />
+        </div>
       </div>
 
-      {/* Description */}
+      {/* Beschreibung — kompakt statt halbem Dialog */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-          Beschreibung
-        </label>
+        <label className={formLabelClasses}>Beschreibung</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
+          rows={2}
+          className={`${formFieldClasses} resize-none`}
+          placeholder="Optional"
         />
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4">
-        <Button
-          type="button"
-          onClick={onCancel}
-          variant="secondary"
-        >
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
+        <Button type="button" onClick={onCancel} variant="secondary">
           Abbrechen
         </Button>
-        <Button
-          type="submit"
-          disabled={!name.trim()}
-          loading={saving}
-          variant="primary"
-        >
+        <Button type="submit" disabled={!name.trim()} loading={saving} variant="primary">
           {opportunity ? 'Aktualisieren' : 'Erstellen'}
         </Button>
       </div>
+
+      {/* Inline-Kundenanlage (gleicher Dialog wie Settings/CustomerHub) */}
+      <CustomerEditDialog
+        isOpen={showNewCustomer}
+        customer={null}
+        projects={[]}
+        onClose={() => setShowNewCustomer(false)}
+        onSave={handleCustomerCreated}
+      />
     </form>
   );
 };
@@ -1134,6 +1243,7 @@ const SalesPipeline: React.FC = () => {
                   setEditingOpportunity(null);
                   setInitialStageId(null);
                 }}
+                onCustomerCreated={(c) => setCustomers(prev => [...prev, c].sort((a, b) => a.name.localeCompare(b.name)))}
               />
             </div>
           </div>

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Building, User as UserIcon, Globe } from 'lucide-react';
+import { Building, User as UserIcon, Globe, Upload, Trash2 } from 'lucide-react';
 import { Customer, Project } from '../types';
-import { contractsApi, sevdeskApi, ninjaApi } from '../services/api';
+import { contractsApi, customersApi, sevdeskApi, ninjaApi } from '../services/api';
 import { Modal } from './Modal';
 import { Button } from './ui/Button';
+import CustomerAvatar from './ui/CustomerAvatar';
+import { useToast } from '../contexts/UIContext';
 
 /**
  * Kunden-Dialog (CRM-4, Flow-Review 11/2026) — aus Settings.tsx extrahiert,
@@ -67,6 +69,13 @@ export const CustomerEditDialog = ({
   const [importAliases, setImportAliases] = useState('');
   const [displayName, setDisplayName] = useState('');
 
+  // Logo (nur bei bestehendem Kunden — Upload braucht die Kunden-ID;
+  // bei Neuanlage holt der Server das Favicon automatisch von der Website)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const showToast = useToast();
+
   // Abrechnungs-Paket aktiv? (Lizenz-Gate, keine Berechtigung)
   const billingQuery = useQuery({
     queryKey: ['sevdesk', 'feature-status'],
@@ -126,7 +135,37 @@ export const CustomerEditDialog = ({
     setNinjarmmOrgId(customer?.ninjarmmOrganizationId ?? '');
     setImportAliases(customer?.importAliases?.join(', ') ?? '');
     setDisplayName(customer?.displayName ?? '');
+    setLogoUrl(customer?.logoUrl ?? null);
   }, [isOpen, customer]);
+
+  const handleLogoUpload = async (file: File) => {
+    if (!customer) return;
+    setLogoBusy(true);
+    try {
+      const res = await customersApi.uploadLogo(customer.id, file);
+      setLogoUrl(res.data.logoUrl);
+      showToast('Logo gespeichert', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Logo-Upload fehlgeschlagen', 'error');
+    } finally {
+      setLogoBusy(false);
+      if (logoFileRef.current) logoFileRef.current.value = '';
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!customer) return;
+    setLogoBusy(true);
+    try {
+      await customersApi.removeLogo(customer.id);
+      setLogoUrl(null);
+      showToast('Logo entfernt', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Logo konnte nicht entfernt werden', 'error');
+    } finally {
+      setLogoBusy(false);
+    }
+  };
 
   const hasStructuredAddress = !!(addressStreet.trim() || addressZip.trim() || addressCity.trim());
   const legacyAddress = customer?.address?.trim();
@@ -497,6 +536,49 @@ export const CustomerEditDialog = ({
         {/* ============ Tab: Erweitert ============ */}
         {tab === 'advanced' && (
           <div className="space-y-4">
+            {customer && (
+              <div>
+                <label className={labelClasses}>Logo</label>
+                <div className="flex items-center gap-3">
+                  <CustomerAvatar name={name || customer.name} color={color} logoUrl={logoUrl} size="lg" />
+                  <input
+                    ref={logoFileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/x-icon"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLogoUpload(file);
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Upload className="w-4 h-4" />}
+                    disabled={logoBusy}
+                    onClick={() => logoFileRef.current?.click()}
+                  >
+                    {logoUrl ? 'Ersetzen' : 'Hochladen'}
+                  </Button>
+                  {logoUrl && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      disabled={logoBusy}
+                      onClick={handleLogoRemove}
+                    >
+                      Entfernen
+                    </Button>
+                  )}
+                </div>
+                <p className={helpClasses}>
+                  Ohne Upload holt RamboFlow das Logo automatisch vom Favicon der Website
+                  (bzw. der E-Mail-Domain). PNG/JPG/ICO, max. 1 MB.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className={labelClasses}>NinjaRMM-Organisation</label>
               {ninjaOrgs.length > 0 ? (

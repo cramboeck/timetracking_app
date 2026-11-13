@@ -1332,7 +1332,9 @@ router.get('/database/stats', async (req, res) => {
       tables: tableSizes.rows,
       connections: connections.rows[0] || { total: 0, active: 0, idle: 0 },
       indexes: indexUsage.rows,
-      cacheHitRatio: cacheRatio.rows[0]?.ratio?.toFixed(2) || '0',
+      // Number(): pg liefert numerics als String — String.toFixed existiert
+      // nicht und warf hier den 500er „Failed to fetch database statistics"
+      cacheHitRatio: Number(cacheRatio.rows[0]?.ratio ?? 0).toFixed(2),
       slowQueries
     });
   } catch (error: any) {

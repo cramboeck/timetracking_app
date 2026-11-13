@@ -18,7 +18,7 @@ import {
   TaskPriority,
   RecurrencePattern,
 } from '../../types';
-import { authFetch } from './base';
+import { authFetch, authFetchMultipart } from './base';
 
 // Pagination metadata returned by the backend
 export interface PaginationMeta {
@@ -302,6 +302,18 @@ export const customersApi = {
 
   delete: async (id: string): Promise<{ success: boolean; message: string }> => {
     return authFetch(`/customers/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  uploadLogo: async (id: string, file: File): Promise<{ success: boolean; data: { logoUrl: string } }> => {
+    const formData = new FormData();
+    formData.append('logo', file);
+    return authFetchMultipart(`/customers/${id}/logo`, formData);
+  },
+
+  removeLogo: async (id: string): Promise<{ success: boolean }> => {
+    return authFetch(`/customers/${id}/logo`, {
       method: 'DELETE',
     });
   },

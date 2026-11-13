@@ -33,3 +33,6 @@ server/*.db
 # Env-Dateien nie tracken (Unfall-Magnet für echte Secrets)
 .env
 server/.env
+
+# Lokale Upload-Verzeichnisse (Ticket-Anhaenge, Kunden-Logos) nie tracken
+server/uploads/

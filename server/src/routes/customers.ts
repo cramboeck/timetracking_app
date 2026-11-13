@@ -12,6 +12,8 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 import { logger } from '../utils/logger';
 import { hashToken } from '../utils/tokenHash';
 import { geocodeCustomer } from '../services/geocodingService';
+import { fetchCustomerLogo, extractLogoDomain, saveUploadedLogo, removeLogo } from '../services/logoService';
+import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
@@ -22,7 +24,7 @@ const CUSTOMER_COLUMNS = `
   id, user_id, organization_id, name, color, customer_number, contact_person,
   email, phone, website, address, address_street, address_zip, address_city,
   report_title, hourly_rate, payment_terms_days, time_rounding_interval,
-  ninjarmm_organization_id, display_name, import_aliases, sla_policy_id,
+  logo_url, ninjarmm_organization_id, display_name, import_aliases, sla_policy_id,
   sevdesk_customer_id, sevdesk_position_template, default_contract_id, default_project_id,
   is_vendor, vendor_domain, vendor_notes, vendor_api_config,
   created_at, deleted_at
@@ -317,6 +319,12 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         logger.error(`Geocoding beim Kunden-Anlegen fehlgeschlagen: ${err.message}`));
     }
 
+    // Logo aus dem Favicon der Kunden-Domain holen (fire-and-forget)
+    const logoDomain = extractLogoDomain({ website: website || null, email: email || null });
+    if (logoDomain) {
+      fetchCustomerLogo(id, logoDomain).catch(() => {});
+    }
+
     auditLog.log({
       userId,
       action: 'customer.create',
@@ -499,6 +507,17 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       }
     }
 
+    // Website geändert → Logo neu von der neuen Domain holen (force
+    // überschreibt das alte — Domainwechsel heißt neues Logo). E-Mail-Änderung
+    // füllt nur nach, wenn noch kein Logo existiert.
+    if (updates.website !== undefined || updates.email !== undefined) {
+      const uc = updatedCustomer as { website?: string | null; email?: string | null };
+      const logoDomain = extractLogoDomain({ website: uc.website || null, email: uc.email || null });
+      if (logoDomain) {
+        fetchCustomerLogo(id, logoDomain, updates.website !== undefined).catch(() => {});
+      }
+    }
+
     auditLog.log({
       userId,
       action: 'customer.update',
@@ -513,6 +532,81 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     });
   } catch (error) {
     logger.error('Update customer error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// Kunden-Logo (CRM-Politur 13.11.): manueller Upload + Entfernen.
+// Serverseitige Magic-Byte-Prüfung im logoService (nur Raster-Bilder,
+// kein SVG) — das Multer-fileFilter-MIME ist nur die erste Hürde.
+// ============================================
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1024 * 1024 }, // 1 MB
+  fileFilter: (_req, file, cb) => {
+    const ok = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/x-icon', 'image/vnd.microsoft.icon'].includes(file.mimetype);
+    cb(null, ok);
+  },
+});
+
+// POST /api/customers/:id/logo - Logo hochladen (requires admin role)
+router.post('/:id/logo', authenticateToken, attachOrganization, requireOrgRole('admin'), logoUpload.single('logo'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const customerResult = await pool.query(
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Bitte ein Bild (PNG, JPG, GIF, WebP oder ICO, max. 1 MB) hochladen' });
+    }
+
+    const logoUrl = await saveUploadedLogo(id, req.file.buffer);
+    if (!logoUrl) {
+      return res.status(400).json({ error: 'Datei ist kein gültiges Bildformat (PNG, JPG, GIF, WebP, ICO)' });
+    }
+
+    auditLog.log({
+      userId: req.userId!,
+      action: 'customer.update',
+      details: JSON.stringify({ id, logoUploaded: true }),
+      ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.json({ success: true, data: { logoUrl } });
+  } catch (error) {
+    logger.error('Upload customer logo error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/customers/:id/logo - Logo entfernen (requires admin role)
+router.delete('/:id/logo', authenticateToken, attachOrganization, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+  try {
+    const orgReq = req as unknown as OrganizationRequest;
+    const organizationId = orgReq.organization.id;
+    const { id } = req.params;
+
+    const customerResult = await pool.query(
+      'SELECT id FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [id, organizationId]
+    );
+    if (customerResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    await removeLogo(id);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Remove customer logo error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

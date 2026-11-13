@@ -12,6 +12,7 @@ export interface Customer {
   addressStreet?: string;
   addressZip?: string;
   addressCity?: string;
+  logoUrl?: string | null; // Gecachtes Favicon oder manueller Upload (/api/uploads/customer-logos/…)
   reportTitle?: string; // Custom report title for this customer (e.g., "Stundenzettel" or "Tätigkeitsnachweis")
   sevdeskCustomerId?: string; // Link to sevDesk contact
   sevdeskPositionTemplate?: string; // Free-text template appended to each invoice position's `text` field. Supports placeholders: {contractNumber}, {contractTitle}, {customerName}, {projectName}, {periodLabel}, {periodMonth}, {periodYear}, {reportFilename}.

@@ -69,7 +69,8 @@ const createOpportunitySchema = z.object({
   currency: z.string().length(3).optional(),
   probability: z.number().int().min(0).max(100).optional().nullable(),
   expected_close_date: isoDateSchema.optional().nullable(),
-  assigned_to: z.string().uuid().optional().nullable(),
+  // users.id ist TEXT — kein .uuid() erzwingen (Verhaltensregel 14)
+  assigned_to: z.string().min(1).optional().nullable(),
   source: z.string().max(100).optional().nullable(),
   campaign: z.string().max(150).optional().nullable(),
   next_step: z.string().max(500).optional().nullable(),
@@ -88,7 +89,8 @@ const updateOpportunitySchema = z.object({
   probability: z.number().int().min(0).max(100).optional().nullable(),
   expected_close_date: isoDateSchema.optional().nullable(),
   actual_close_date: isoDateSchema.optional().nullable(),
-  assigned_to: z.string().uuid().optional().nullable(),
+  // users.id ist TEXT — kein .uuid() erzwingen (Verhaltensregel 14)
+  assigned_to: z.string().min(1).optional().nullable(),
   status: opportunityStatusSchema.optional(),
   lost_reason: z.string().max(500).optional().nullable(),
   lost_to_competitor: z.string().max(150).optional().nullable(),

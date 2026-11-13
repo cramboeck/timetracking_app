@@ -17,6 +17,7 @@ import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
+import { startLogoBackfill } from './services/logoService';
 import authRoutes from './routes/auth';
 import authEntraRoutes from './routes/auth-entra';
 import entriesRoutes from './routes/entries';
@@ -174,6 +175,20 @@ app.use('/api/uploads/tickets', express.static(path.join(uploadsDir, 'tickets'),
   },
 }));
 
+// Kunden-Logos (gecachte Favicons + manuelle Uploads): nur geprüfte
+// Raster-Bildformate landen hier (logoService Magic-Byte-Whitelist, kein
+// SVG/HTML), UUID-Dateinamen als Capability — inline-Rendering ist sicher.
+app.use('/api/uploads/customer-logos', express.static(path.join(uploadsDir, 'customer-logos'), {
+  maxAge: '7d',
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Helmet setzt CORP same-origin — im Dev laufen Vite (5173) und API
+    // (3989) auf getrennten Origins, das würde <img> blocken (Lehre aus
+    // d517845). Logos sind unkritische Favicons → explizit freigeben.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  },
+}));
+
 // Health check - Basic liveness probe (is the server running?)
 // Available at both /health (direct) and /api/health (via nginx)
 const healthHandler = (req: any, res: any) => {
@@ -266,6 +281,8 @@ startInvoiceInboxJob();
 startGeocodeCustomersJob();
 startLicenseExpiryJob();
 startSupportInboxJob();
+// Einmaliger Logo-Backfill für Bestandskunden (Boot +3 min, sequenziell)
+startLogoBackfill();
 
 // Start server
 app.listen(PORT, () => {

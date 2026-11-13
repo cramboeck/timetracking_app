@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive, MoreVertical } from 'lucide-react';
 import { Customer, Project, Activity, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -14,6 +14,7 @@ import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
 import { CustomerDetailModal } from './CustomerDetailModal';
 import { CustomerEditDialog } from './CustomerEditDialog';
+import CustomerAvatar from './ui/CustomerAvatar';
 import { MFASettings } from './MFASettings';
 import { ClockodoImport } from './ClockodoImport';
 import { Microsoft365Settings } from './Microsoft365Settings';
@@ -185,6 +186,9 @@ export const Settings = ({
 
   // Project List View State
   const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  // Kundenliste (CRM-Politur 13.11.): Suche + Kebab-Menü pro Zeile
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customerMenuId, setCustomerMenuId] = useState<string | null>(null);
   const [collapsedCustomerGroups, setCollapsedCustomerGroups] = useState<Set<string>>(new Set());
 
   // Activity Modal
@@ -1242,7 +1246,7 @@ export const Settings = ({
         {activeTab === 'customers' && (
           <div className="w-full">
             <div>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-6">
                   <div className="flex items-center gap-3">
                     <p className="text-gray-600 dark:text-dark-400">{customers.length} Kunde(n)</p>
                     {userRole === 'viewer' && (
@@ -1250,7 +1254,7 @@ export const Settings = ({
                     )}
                   </div>
                   {canEdit && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         onClick={handleMigrateContacts}
@@ -1378,132 +1382,172 @@ export const Settings = ({
                     <p className="text-sm mt-2">Füge deinen ersten Kunden hinzu</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 2xl:grid-cols-2">
-                    {customers.map(customer => (
-                      <div
-                        key={customer.id}
-                        className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3 flex-1">
-                            <div
-                              className="w-10 h-10 rounded-lg flex-shrink-0"
-                              style={{ backgroundColor: customer.color }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</h3>
-                                {customer.customerType === 'individual' ? (
-                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-                                    <UserIcon className="w-3 h-3" />
-                                    Privat
-                                  </span>
-                                ) : customer.customerType === 'company' ? (
-                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-                                    <Building className="w-3 h-3" />
-                                    Firma
-                                  </span>
-                                ) : null}
-                                {customer.customerNumber && (
-                                  <span className="text-xs bg-gray-100 dark:bg-dark-50 text-gray-600 dark:text-dark-500 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                    #{customer.customerNumber}
-                                  </span>
-                                )}
-                              </div>
-                              {customer.reportTitle && (
-                                <p className="text-sm text-gray-600 dark:text-dark-500 mt-0.5 truncate">
-                                  {customer.reportTitle}
-                                </p>
-                              )}
-                              <div className="mt-1 space-y-0.5">
-                                {customer.contactPerson && (
-                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
-                                    👤 {customer.contactPerson}
-                                  </p>
-                                )}
-                                {customer.email && (
-                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
-                                    ✉️ {customer.email}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <span className="text-xs text-gray-500 dark:text-dark-400">
-                                  {projects.filter(p => p.customerId === customer.id).length} Projekt(e)
-                                </span>
-                                {billingEnabled && customer.hourlyRate && (
-                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full">
-                                    {customer.hourlyRate.toFixed(2)} €/h
-                                  </span>
-                                )}
-                                {customer.sevdeskCustomerId && (
-                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full">
-                                    sevDesk
-                                  </span>
-                                )}
-                                {customer.ninjarmmOrganizationId && (
-                                  <span className="text-xs bg-accent-lighter dark:bg-accent-primary/20 text-accent-dark dark:text-accent-primary px-2 py-0.5 rounded-full">
-                                    NinjaRMM
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 ml-2">
-                            <IconButton
-                              icon={<Building size={18} />}
-                              onClick={() => setDetailCustomer(customer)}
-                              variant="primary"
-                              tooltip="Kundendetails anzeigen"
-                            />
-                            {billingEnabled && (
-                              <IconButton
-                                icon={<Link2 size={18} />}
-                                onClick={() => setSevdeskLinkCustomer(customer)}
-                                variant={customer.sevdeskCustomerId ? 'success' : 'default'}
-                                tooltip={customer.sevdeskCustomerId ? 'sevDesk verknüpft' : 'Mit sevDesk verknüpfen'}
-                              />
-                            )}
-                            <IconButton
-                              icon={<Server size={18} />}
-                              onClick={() => setNinjaRMMLinkCustomer(customer)}
-                              variant={customer.ninjarmmOrganizationId ? 'success' : 'default'}
-                              tooltip={customer.ninjarmmOrganizationId ? 'NinjaRMM verknüpft' : 'Mit NinjaRMM verknüpfen'}
-                            />
-                            {currentUser?.hasTicketAccess && (
-                              <>
-                                <IconButton
-                                  icon={<UserCog size={18} />}
-                                  onClick={() => setContactsCustomer(customer)}
-                                  tooltip="Portal-Zugänge verwalten"
-                                />
-                                <IconButton
-                                  icon={<Globe size={18} />}
-                                  onClick={() => setEmailDomainsCustomer(customer)}
-                                  tooltip="E-Mail Domains verwalten"
-                                />
-                              </>
-                            )}
-                            {canEdit && (
-                              <IconButton
-                                icon={<Edit2 size={18} />}
-                                onClick={() => openCustomerModal(customer)}
-                                tooltip="Bearbeiten"
-                              />
-                            )}
-                            {canDelete && (
-                              <IconButton
-                                icon={<Trash2 size={18} />}
-                                onClick={() => handleDeleteCustomer(customer)}
-                                variant="danger"
-                                tooltip="Löschen"
-                              />
-                            )}
-                          </div>
-                        </div>
+                  <>
+                    {/* Suche (ab einer Handvoll Kunden sinnvoll) */}
+                    {customers.length > 5 && (
+                      <div className="relative mb-4">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
+                        <input
+                          type="text"
+                          placeholder="Kunden suchen (Name, Nummer, E-Mail)..."
+                          value={customerSearchQuery}
+                          onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                          className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
+                        />
+                        {customerSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomerSearchQuery('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-dark-500"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    )}
+
+                    {(() => {
+                      const q = customerSearchQuery.trim().toLowerCase();
+                      const visibleCustomers = q
+                        ? customers.filter(c =>
+                            c.name.toLowerCase().includes(q) ||
+                            (c.customerNumber && String(c.customerNumber).toLowerCase().includes(q)) ||
+                            (c.email && String(c.email).toLowerCase().includes(q)))
+                        : customers;
+                      if (visibleCustomers.length === 0) {
+                        return (
+                          <p className="text-center py-8 text-sm text-gray-500 dark:text-dark-400">
+                            Keine Kunden gefunden für „{customerSearchQuery}"
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
+                          {visibleCustomers.map(customer => {
+                            const projectCount = projects.filter(p => p.customerId === customer.id).length;
+                            const metaParts: string[] = [];
+                            if (customer.customerNumber) metaParts.push(`#${customer.customerNumber}`);
+                            metaParts.push(`${projectCount} ${projectCount === 1 ? 'Projekt' : 'Projekte'}`);
+                            if (customer.email) metaParts.push(String(customer.email));
+                            return (
+                              <div
+                                key={customer.id}
+                                className="relative flex items-center gap-3 px-3 sm:px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors first:rounded-t-xl last:rounded-b-xl"
+                              >
+                                <CustomerAvatar
+                                  name={customer.name}
+                                  color={customer.color}
+                                  logoUrl={customer.logoUrl}
+                                  size="md"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setDetailCustomer(customer)}
+                                      className="font-medium text-gray-900 dark:text-white truncate text-left hover:text-accent-primary dark:hover:text-accent-primary transition-colors"
+                                      title="Kundendetails anzeigen"
+                                    >
+                                      {customer.name}
+                                    </button>
+                                    {customer.customerType === 'individual' && (
+                                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-dark-400 bg-gray-100 dark:bg-dark-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                        <UserIcon className="w-3 h-3" />
+                                        Privat
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 dark:text-dark-400 truncate">
+                                    {metaParts.join(' · ')}
+                                  </p>
+                                </div>
+
+                                {/* Stundensatz + Integrations-Status (Desktop) */}
+                                <div className="hidden md:flex items-center gap-3 shrink-0">
+                                  {billingEnabled && customer.hourlyRate ? (
+                                    <span className="text-xs text-gray-400 dark:text-dark-400 tabular-nums">
+                                      {Number(customer.hourlyRate).toFixed(2).replace('.', ',')} €/h
+                                    </span>
+                                  ) : null}
+                                  <span className="flex items-center gap-1.5">
+                                    {customer.sevdeskCustomerId && (
+                                      <span
+                                        className="w-2 h-2 rounded-full bg-green-500"
+                                        title="sevDesk verknüpft"
+                                      />
+                                    )}
+                                    {customer.ninjarmmOrganizationId && (
+                                      <span
+                                        className="w-2 h-2 rounded-full bg-sky-500"
+                                        title="NinjaRMM verknüpft"
+                                      />
+                                    )}
+                                  </span>
+                                </div>
+
+                                {/* Aktionen: Stift + Kebab-Menü */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {canEdit && (
+                                    <IconButton
+                                      icon={<Edit2 size={17} />}
+                                      onClick={() => openCustomerModal(customer)}
+                                      tooltip="Bearbeiten"
+                                      size="sm"
+                                    />
+                                  )}
+                                  <div className="relative">
+                                    <IconButton
+                                      icon={<MoreVertical size={17} />}
+                                      onClick={() => setCustomerMenuId(customerMenuId === customer.id ? null : customer.id)}
+                                      tooltip="Weitere Aktionen"
+                                      size="sm"
+                                    />
+                                    {customerMenuId === customer.id && (
+                                      <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setCustomerMenuId(null)} />
+                                        <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-dark-100 rounded-lg shadow-xl border border-gray-200 dark:border-dark-border py-1.5 z-50">
+                                          {[
+                                            { icon: Building, label: 'Kundendetails', show: true, onClick: () => setDetailCustomer(customer) },
+                                            { icon: Link2, label: customer.sevdeskCustomerId ? 'sevDesk-Verknüpfung' : 'Mit sevDesk verknüpfen', show: billingEnabled, onClick: () => setSevdeskLinkCustomer(customer) },
+                                            { icon: Server, label: customer.ninjarmmOrganizationId ? 'NinjaRMM-Verknüpfung' : 'Mit NinjaRMM verknüpfen', show: true, onClick: () => setNinjaRMMLinkCustomer(customer) },
+                                            { icon: UserCog, label: 'Portal-Zugänge verwalten', show: !!currentUser?.hasTicketAccess, onClick: () => setContactsCustomer(customer) },
+                                            { icon: Globe, label: 'E-Mail-Domains verwalten', show: !!currentUser?.hasTicketAccess, onClick: () => setEmailDomainsCustomer(customer) },
+                                          ].filter(a => a.show).map((action, i) => (
+                                            <button
+                                              key={i}
+                                              type="button"
+                                              onClick={() => { setCustomerMenuId(null); action.onClick(); }}
+                                              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-sm text-gray-700 dark:text-dark-500 hover:bg-gray-50 dark:hover:bg-dark-200 transition-colors"
+                                            >
+                                              <action.icon size={16} className="text-gray-400 dark:text-dark-400" />
+                                              {action.label}
+                                            </button>
+                                          ))}
+                                          {canDelete && (
+                                            <>
+                                              <div className="my-1 border-t border-gray-100 dark:border-dark-border" />
+                                              <button
+                                                type="button"
+                                                onClick={() => { setCustomerMenuId(null); handleDeleteCustomer(customer); }}
+                                                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                              >
+                                                <Trash2 size={16} />
+                                                Löschen
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
             </div>
           </div>
