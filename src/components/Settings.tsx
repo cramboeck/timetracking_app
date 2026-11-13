@@ -1586,7 +1586,7 @@ export const Settings = ({
                         placeholder="Projekte oder Kunden suchen..."
                         value={projectSearchQuery}
                         onChange={(e) => setProjectSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-dark-600 rounded-lg bg-white dark:bg-dark-800 text-gray-900 dark:text-dark-100 placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary dark:focus:ring-accent-primary"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
                       />
                       {projectSearchQuery && (
                         <button
@@ -1668,7 +1668,7 @@ export const Settings = ({
                         const isCollapsed = collapsedCustomerGroups.has(customer.id);
 
                         return (
-                          <div key={customer.id} className="bg-white dark:bg-dark-800 rounded-xl border border-gray-200 dark:border-dark-600 overflow-hidden">
+                          <div key={customer.id} className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
                             {/* Customer Group Header */}
                             <button
                               onClick={() => {
@@ -1680,14 +1680,16 @@ export const Settings = ({
                                 }
                                 setCollapsedCustomerGroups(newCollapsed);
                               }}
-                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors"
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
                             >
-                              <div
-                                className="w-8 h-8 rounded-lg flex-shrink-0"
-                                style={{ backgroundColor: customer.color }}
+                              <CustomerAvatar
+                                name={customer.name}
+                                color={customer.color}
+                                logoUrl={customer.logoUrl}
+                                size="md"
                               />
-                              <div className="flex-1 text-left">
-                                <h3 className="font-semibold text-gray-900 dark:text-dark-100">{customer.name}</h3>
+                              <div className="flex-1 text-left min-w-0">
+                                <h3 className="font-medium text-gray-900 dark:text-white truncate">{customer.name}</h3>
                                 <p className="text-xs text-gray-500 dark:text-dark-400">
                                   {customerProjects.length} Projekt{customerProjects.length !== 1 ? 'e' : ''}
                                 </p>
@@ -1701,24 +1703,24 @@ export const Settings = ({
 
                             {/* Projects List */}
                             {!isCollapsed && (
-                              <div className="border-t border-gray-100 dark:border-dark-700">
+                              <div className="border-t border-gray-100 dark:border-dark-border">
                                 {customerProjects.map((project, index) => (
                                   <div
                                     key={project.id}
-                                    className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-700 ${
-                                      index !== customerProjects.length - 1 ? 'border-b border-gray-100 dark:border-dark-700' : ''
+                                    className={`flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-200/50 ${
+                                      index !== customerProjects.length - 1 ? 'border-b border-gray-100 dark:border-dark-border' : ''
                                     }`}
                                   >
-                                    <div className="flex items-center gap-3 pl-11">
-                                      <FolderOpen size={16} className="text-gray-400 dark:text-dark-400" />
-                                      <div>
-                                        <p className="font-medium text-gray-900 dark:text-dark-100">{project.name}</p>
-                                        <p className="text-sm text-accent-primary dark:text-accent-primary">
-                                          {(project.hourlyRate || 0).toFixed(2)} € / {project.rateType === 'daily' ? 'Tag' : 'Stunde'}
-                                        </p>
-                                      </div>
+                                    <div className="flex items-center gap-3 pl-11 min-w-0">
+                                      <FolderOpen size={16} className="text-gray-400 dark:text-dark-400 flex-shrink-0" />
+                                      <p className="font-medium text-gray-900 dark:text-white truncate">{project.name}</p>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      {Number(project.hourlyRate) > 0 && (
+                                        <span className="hidden sm:inline text-xs text-gray-400 dark:text-dark-400 tabular-nums">
+                                          {Number(project.hourlyRate).toFixed(2).replace('.', ',')} €/{project.rateType === 'daily' ? 'Tag' : 'h'}
+                                        </span>
+                                      )}
                                       {canEdit && (
                                         <IconButton
                                           icon={<Edit2 size={16} />}
@@ -1787,36 +1789,37 @@ export const Settings = ({
                     <p className="text-sm mt-2">Füge vorgefertigte Tätigkeiten hinzu (z.B. "Meeting", "Entwicklung", "Beratung")</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border divide-y divide-gray-100 dark:divide-dark-border">
                     {activities.map(activity => (
                       <div
                         key={activity.id}
-                        className="bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-200 p-4 hover:shadow-md transition-shadow"
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors first:rounded-t-xl last:rounded-b-xl"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 dark:text-white">{activity.name}</h3>
-                            {activity.description && (
-                              <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">{activity.description}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            {canEdit && (
-                              <IconButton
-                                icon={<Edit2 size={18} />}
-                                onClick={() => openActivityModal(activity)}
-                                tooltip="Bearbeiten"
-                              />
-                            )}
-                            {canDelete && (
-                              <IconButton
-                                icon={<Trash2 size={18} />}
-                                onClick={() => handleDeleteActivity(activity)}
-                                variant="danger"
-                                tooltip="Löschen"
-                              />
-                            )}
-                          </div>
+                        <ListChecks size={16} className="text-gray-400 dark:text-dark-400 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{activity.name}</p>
+                          {activity.description && (
+                            <p className="text-xs text-gray-500 dark:text-dark-400 truncate">{activity.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {canEdit && (
+                            <IconButton
+                              icon={<Edit2 size={17} />}
+                              onClick={() => openActivityModal(activity)}
+                              tooltip="Bearbeiten"
+                              size="sm"
+                            />
+                          )}
+                          {canDelete && (
+                            <IconButton
+                              icon={<Trash2 size={17} />}
+                              onClick={() => handleDeleteActivity(activity)}
+                              variant="danger"
+                              tooltip="Löschen"
+                              size="sm"
+                            />
+                          )}
                         </div>
                       </div>
                     ))}

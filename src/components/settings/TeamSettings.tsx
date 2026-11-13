@@ -157,12 +157,12 @@ export const TeamSettings = () => {
                 value={newInvitationEmail}
                 onChange={(e) => setNewInvitationEmail(e.target.value)}
                 placeholder="E-Mail-Adresse"
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
               />
               <select
                 value={newInvitationRole}
                 onChange={(e) => setNewInvitationRole(e.target.value as 'admin' | 'member' | 'viewer')}
-                className="px-4 py-2 border border-gray-300 dark:border-dark-200 rounded-lg bg-white dark:bg-dark-100 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
               >
                 <option value="member">Mitglied</option>
                 <option value="admin">Admin</option>

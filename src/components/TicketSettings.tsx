@@ -462,7 +462,7 @@ export const TicketSettings = () => {
               onChange={(e) => setNewTagName(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && (editingTag ? handleUpdateTag() : handleCreateTag())}
               placeholder="Tag Name..."
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+              className="flex-1 px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
             />
             <div className="flex gap-1">
               {TAG_COLORS.map(color => (
@@ -653,7 +653,7 @@ export const TicketSettings = () => {
                     value={responseTitle}
                     onChange={(e) => setResponseTitle(e.target.value)}
                     placeholder="z.B. Begrüßung"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                 </div>
                 <div>
@@ -667,7 +667,7 @@ export const TicketSettings = () => {
                       value={responseShortcut}
                       onChange={(e) => setResponseShortcut(e.target.value.replace(/\s/g, ''))}
                       placeholder="hi"
-                      className="w-full pl-6 pr-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                      className="w-full pl-6 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                     />
                   </div>
                 </div>
@@ -681,7 +681,7 @@ export const TicketSettings = () => {
                   onChange={(e) => setResponseContent(e.target.value)}
                   placeholder="Der Text, der eingefügt werden soll..."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm resize-none"
                 />
               </div>
               <div>
@@ -693,7 +693,7 @@ export const TicketSettings = () => {
                   value={responseCategory}
                   onChange={(e) => setResponseCategory(e.target.value)}
                   placeholder="z.B. Allgemein, Support, Abschluss"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
               </div>
               <div className="flex justify-end gap-2">
@@ -808,7 +808,7 @@ export const TicketSettings = () => {
                     value={slaName}
                     onChange={(e) => setSlaName(e.target.value)}
                     placeholder="z.B. Standard-SLA"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                 </div>
                 <div>
@@ -818,7 +818,7 @@ export const TicketSettings = () => {
                   <select
                     value={slaPriority}
                     onChange={(e) => setSlaPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   >
                     <option value="all">Alle Prioritäten</option>
                     <option value="critical">Kritisch</option>
@@ -837,7 +837,7 @@ export const TicketSettings = () => {
                   value={slaDescription}
                   onChange={(e) => setSlaDescription(e.target.value)}
                   placeholder="Kurze Beschreibung dieser SLA-Richtlinie"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -850,7 +850,7 @@ export const TicketSettings = () => {
                     min={1}
                     value={slaFirstResponseMinutes}
                     onChange={(e) => setSlaFirstResponseMinutes(parseInt(e.target.value) || 60)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     = {formatMinutesToTime(slaFirstResponseMinutes)}
@@ -865,7 +865,7 @@ export const TicketSettings = () => {
                     min={1}
                     value={slaResolutionMinutes}
                     onChange={(e) => setSlaResolutionMinutes(parseInt(e.target.value) || 480)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     = {formatMinutesToTime(slaResolutionMinutes)}
@@ -878,7 +878,7 @@ export const TicketSettings = () => {
                     type="checkbox"
                     checked={slaIsDefault}
                     onChange={(e) => setSlaIsDefault(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-dark-border"
+                    className="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                   <span className="text-sm text-gray-700 dark:text-dark-500">Standard-Richtlinie</span>
                 </label>
@@ -1005,7 +1005,7 @@ export const TicketSettings = () => {
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
                     placeholder="z.B. Passwort zurücksetzen"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                 </div>
                 <div>
@@ -1017,7 +1017,7 @@ export const TicketSettings = () => {
                     value={templateCategory}
                     onChange={(e) => setTemplateCategory(e.target.value)}
                     placeholder="z.B. IT-Support, Netzwerk"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   />
                 </div>
               </div>
@@ -1030,7 +1030,7 @@ export const TicketSettings = () => {
                   value={templateTitle}
                   onChange={(e) => setTemplateTitle(e.target.value)}
                   placeholder="Standardtitel für das Ticket"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
               </div>
               <div>
@@ -1042,7 +1042,7 @@ export const TicketSettings = () => {
                   onChange={(e) => setTemplateDescription(e.target.value)}
                   placeholder="Standardbeschreibung oder Checkliste..."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white resize-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1053,7 +1053,7 @@ export const TicketSettings = () => {
                   <select
                     value={templatePriority}
                     onChange={(e) => setTemplatePriority(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                   >
                     <option value="">Keine Vorgabe</option>
                     <option value="low">Niedrig</option>
@@ -1068,7 +1068,7 @@ export const TicketSettings = () => {
                       type="checkbox"
                       checked={templateIsActive}
                       onChange={(e) => setTemplateIsActive(e.target.checked)}
-                      className="rounded border-gray-300 dark:border-dark-border"
+                      className="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                     />
                     <span className="text-sm text-gray-700 dark:text-dark-500">Aktiv</span>
                   </label>
