@@ -4,7 +4,7 @@ import {
   Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
   BarChart3, Wallet, FileText, FileSignature, FileInput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
-  Target, Users, LayoutDashboard, Building2, Receipt, Search,
+  Users, LayoutDashboard, Building2, Receipt, Search,
   CircleUser, Clock3, Palmtree, ShoppingCart
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
@@ -85,7 +85,8 @@ const areaConfig = {
     subViews: [
       { view: 'crm-dashboard' as SubView, icon: BarChart3, label: 'Dashboard' },
       { view: 'customers' as SubView, icon: Users, label: 'Kunden' },
-      { view: 'leads' as SubView, icon: Target, label: 'Leads' },
+      // 'leads' bewusst raus (CRM-2 „Verschmelzen", 13.11.): Leads leben
+      // jetzt als Eingangsspalte in der Sales-Pipeline, kein eigenes Board
       { view: 'pipeline' as SubView, icon: BarChart3, label: 'Pipeline' },
       { view: 'contracts' as SubView, icon: FileSignature, label: 'Verträge' },
     ],

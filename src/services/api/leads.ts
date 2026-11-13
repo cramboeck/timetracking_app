@@ -185,16 +185,17 @@ export const leadsApi = {
     });
   },
 
-  // Convert lead to customer
+  // Convert lead to customer (customerId = bestehenden Kunden verknüpfen)
   convert: async (
     leadId: string,
     createCustomer: boolean,
-    customerColor?: string
+    customerColor?: string,
+    customerId?: string
   ): Promise<{ success: boolean; message: string; customerId?: string }> => {
     return authFetch(`/leads/${leadId}/convert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ createCustomer, customerColor }),
+      body: JSON.stringify({ createCustomer, customerColor, customerId }),
     });
   },
 };

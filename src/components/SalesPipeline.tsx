@@ -25,7 +25,8 @@ import {
   OpportunityStats,
 } from '../services/api';
 import { Customer } from '../types';
-import { customersApi } from '../services/api';
+import { customersApi, leadsApi, Lead } from '../services/api';
+import { LeadForm } from './Leads';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Button, IconButton } from './ui/Button';
 import { useToast } from '../contexts/UIContext';
@@ -240,6 +241,7 @@ interface PipelineColumnProps {
   onMoveOpportunity: (opp: Opportunity, stageId: string) => void;
   onDeleteOpportunity: (opp: Opportunity) => void;
   onDrop: (opportunityId: string, stageId: string) => void;
+  onDropLead?: (leadId: string, stageId: string) => void;
 }
 
 const PipelineColumn: React.FC<PipelineColumnProps> = ({
@@ -251,9 +253,11 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   onMoveOpportunity,
   onDeleteOpportunity,
   onDrop,
+  onDropLead,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const totalValue = opportunities.reduce((sum, o) => sum + (o.value || 0), 0);
+  // Number(): API liefert numerics als String — sonst konkateniert reduce → „NaN €"
+  const totalValue = opportunities.reduce((sum, o) => sum + (Number(o.value) || 0), 0);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -268,6 +272,13 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    // Verschmolzenes Board: ein Lead, der auf eine Stage gezogen wird,
+    // startet den Qualifizieren-Flow (Opportunity entsteht erst im Dialog)
+    const leadId = e.dataTransfer.getData('leadId');
+    if (leadId && onDropLead) {
+      onDropLead(leadId, stage.id);
+      return;
+    }
     const opportunityId = e.dataTransfer.getData('opportunityId');
     if (opportunityId) {
       onDrop(opportunityId, stage.id);
@@ -643,6 +654,210 @@ const StatsDashboard: React.FC<StatsDashboardProps> = ({ stats, loading }) => {
 // Main Component
 // ============================================
 
+// ============================================
+// Leads-Eingangsspalte (CRM-2 „Verschmelzen", 13.11.2026)
+// Leads leben jetzt IM Pipeline-Board: Drag auf eine Stage qualifiziert
+// den Lead (Dialog erzeugt Kunde optional + Opportunity). Der frühere
+// separate Leads-Kanban ist aus der Navigation raus.
+// ============================================
+
+interface LeadColumnProps {
+  leads: Lead[];
+  onAddLead: () => void;
+  onQualify: (lead: Lead) => void;
+}
+
+const LEAD_SOURCE_LABELS: Record<string, string> = {
+  website: 'Website', referral: 'Empfehlung', cold_call: 'Kaltakquise',
+  email: 'E-Mail', social_media: 'Social Media', event: 'Event',
+  partner: 'Partner', other: 'Sonstiges',
+};
+
+const LeadColumn: React.FC<LeadColumnProps> = ({ leads, onAddLead, onQualify }) => {
+  const totalValue = leads.reduce((sum, l) => sum + (Number(l.estimatedValue) || 0), 0);
+
+  return (
+    <div className="flex-shrink-0 w-72 bg-gray-100 dark:bg-dark-100/50 rounded-xl flex flex-col max-h-full border-2 border-dashed border-gray-300 dark:border-dark-border">
+      <div className="p-3 border-b border-gray-200 dark:border-dark-border">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+            <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Leads</h3>
+            <span className="text-xs bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-400 px-1.5 py-0.5 rounded-full">
+              {leads.length}
+            </span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-dark-400">
+          {totalValue > 0 ? formatCurrency(totalValue) : 'Unqualifiziert'} · auf eine Phase ziehen = qualifizieren
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+        {leads.length === 0 ? (
+          <p className="text-xs text-gray-500 dark:text-dark-400 text-center py-6">
+            Keine offenen Leads
+          </p>
+        ) : (
+          leads.map(lead => (
+            <div
+              key={lead.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('leadId', lead.id);
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              className="group bg-white dark:bg-dark-100 rounded-lg border border-gray-200 dark:border-dark-border p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-accent-primary/40 transition-all"
+            >
+              <h4 className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2">
+                {lead.company || lead.name}
+              </h4>
+              {lead.company && (
+                <p className="text-xs text-gray-500 dark:text-dark-400 truncate mt-0.5">{lead.name}</p>
+              )}
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-gray-500 dark:text-dark-400">
+                  {lead.source ? (LEAD_SOURCE_LABELS[lead.source] ?? lead.source) : '—'}
+                </span>
+                {Number(lead.estimatedValue) > 0 && (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                    {formatCurrency(Number(lead.estimatedValue))}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onQualify(lead)}
+                className="mt-2 w-full text-xs px-2 py-1.5 rounded-lg bg-gray-100 dark:bg-dark-200 text-gray-600 dark:text-dark-400 hover:bg-accent-light hover:text-accent-dark dark:hover:bg-accent-primary/20 dark:hover:text-accent-primary transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+              >
+                Qualifizieren →
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="p-2 border-t border-gray-200 dark:border-dark-border">
+        <button
+          type="button"
+          onClick={onAddLead}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-dark-400 hover:bg-gray-200 dark:hover:bg-dark-200 transition-colors"
+        >
+          <Plus size={16} />
+          Lead
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Qualifizieren-Dialog: macht aus einem Lead eine Opportunity in der
+// Ziel-Stage — mit neuem ODER bestehendem Kunden (Brandfarbe statt Blau)
+interface QualifyLeadDialogProps {
+  lead: Lead;
+  targetStage: PipelineStage;
+  customers: Customer[];
+  onDone: () => void;
+  onCancel: () => void;
+}
+
+const QualifyLeadDialog: React.FC<QualifyLeadDialogProps> = ({
+  lead, targetStage, customers, onDone, onCancel,
+}) => {
+  const showToast = useToast();
+  const [oppName, setOppName] = useState(lead.company || lead.name);
+  const [value, setValue] = useState(lead.estimatedValue ? String(lead.estimatedValue) : '');
+  const [customerChoice, setCustomerChoice] = useState<string>(lead.customerId || '__new__');
+  const [saving, setSaving] = useState(false);
+
+  const handleQualify = async () => {
+    if (!oppName.trim()) return;
+    try {
+      setSaving(true);
+      let customerId = lead.customerId;
+      if (!customerId) {
+        const conv = customerChoice === '__new__'
+          ? await leadsApi.convert(lead.id, true, '#FF6A00')
+          : await leadsApi.convert(lead.id, false, undefined, customerChoice);
+        customerId = conv.customerId ?? (customerChoice !== '__new__' ? customerChoice : undefined);
+      } else {
+        await leadsApi.convert(lead.id, false);
+      }
+      await opportunitiesApi.create({
+        name: oppName.trim(),
+        value: value.trim() ? parseFloat(value) : undefined,
+        stage_id: targetStage.id,
+        customer_id: customerId,
+        lead_id: lead.id,
+        source: lead.source,
+      });
+      showToast(`Lead qualifiziert — „${oppName.trim()}" steht jetzt in „${targetStage.name}"`, 'success');
+      onDone();
+    } catch (err) {
+      console.error('Qualify lead failed:', err);
+      showToast('Lead konnte nicht qualifiziert werden', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldClasses = 'w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-5 border-b border-gray-200 dark:border-dark-border">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Lead qualifizieren</h3>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            „{lead.company || lead.name}" wird zur Verkaufschance in <span className="font-medium">{targetStage.name}</span>
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+              Titel der Verkaufschance *
+            </label>
+            <input type="text" value={oppName} onChange={(e) => setOppName(e.target.value)} className={fieldClasses} autoFocus />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+              Wert (€)
+            </label>
+            <input
+              type="number" min="0" step="100" value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="z.B. 5000" className={fieldClasses}
+            />
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+              Fließt in Pipeline-Wert und Forecast — ruhig schätzen statt leer lassen.
+            </p>
+          </div>
+          {!lead.customerId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                Kunde
+              </label>
+              <select value={customerChoice} onChange={(e) => setCustomerChoice(e.target.value)} className={fieldClasses}>
+                <option value="__new__">Neuen Kunden „{lead.company || lead.name}" anlegen</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-3 p-5 pt-0">
+          <Button variant="secondary" onClick={onCancel} fullWidth>Abbrechen</Button>
+          <Button variant="primary" onClick={handleQualify} disabled={!oppName.trim()} loading={saving} fullWidth>
+            Qualifizieren
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SalesPipeline: React.FC = () => {
   const showToast = useToast();
   const [loading, setLoading] = useState(true);
@@ -662,6 +877,10 @@ const SalesPipeline: React.FC = () => {
 
   // Won opportunity state - for creating quotes
   const [wonOpportunity, setWonOpportunity] = useState<Opportunity | null>(null);
+  // Verschmolzenes Board: offene Leads als Eingangsspalte
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [qualifyTarget, setQualifyTarget] = useState<{ lead: Lead; stage: PipelineStage } | null>(null);
   const [showQuoteEditor, setShowQuoteEditor] = useState(false);
   const [quoteCustomerSevdeskId, setQuoteCustomerSevdeskId] = useState<string | null>(null);
 
@@ -674,23 +893,38 @@ const SalesPipeline: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const [pipelineRes, stagesRes, statsRes, customersRes] = await Promise.all([
+      const [pipelineRes, stagesRes, statsRes, customersRes, leadsRes] = await Promise.all([
         opportunitiesApi.getPipeline(),
         pipelineStagesApi.getAll(),
         opportunitiesApi.getStats(),
         customersApi.getAll(),
+        leadsApi.getAll().catch(() => ({ success: false, data: [] as Lead[] })),
       ]);
 
       setPipeline(pipelineRes);
       setStages(stagesRes);
       setStats(statsRes);
       setCustomers(customersRes.data || []);
+      setLeads((leadsRes.data || []).filter(l => l.status !== 'won' && l.status !== 'lost'));
     } catch (err) {
       console.error('Failed to load pipeline:', err);
       setError('Fehler beim Laden der Pipeline');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDropLead = (leadId: string, stageId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    const stage = stages.find(st => st.id === stageId);
+    if (lead && stage && !stage.is_won && !stage.is_lost) {
+      setQualifyTarget({ lead, stage });
+    }
+  };
+
+  const handleQualifyClick = (lead: Lead) => {
+    const firstStage = stages.find(st => !st.is_won && !st.is_lost);
+    if (firstStage) setQualifyTarget({ lead, stage: firstStage });
   };
 
   const handleAddOpportunity = (stageId: string) => {
@@ -851,6 +1085,11 @@ const SalesPipeline: React.FC = () => {
       {/* Pipeline Board */}
       <div className="flex-1 overflow-x-auto">
         <div className="flex gap-4 min-h-full pb-4">
+          <LeadColumn
+            leads={leads}
+            onAddLead={() => setShowLeadForm(true)}
+            onQualify={handleQualifyClick}
+          />
           {pipeline?.pipeline.map((stage) => (
             <PipelineColumn
               key={stage.id}
@@ -862,6 +1101,7 @@ const SalesPipeline: React.FC = () => {
               onMoveOpportunity={handleMoveOpportunity}
               onDeleteOpportunity={setDeleteOpportunity}
               onDrop={handleDropOpportunity}
+              onDropLead={handleDropLead}
             />
           ))}
         </div>
@@ -910,6 +1150,30 @@ const SalesPipeline: React.FC = () => {
         confirmText={deleting ? 'Löschen...' : 'Löschen'}
         variant="danger"
       />
+
+      {/* Lead anlegen (verschmolzenes Board) */}
+      {showLeadForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowLeadForm(false)} />
+          <div className="relative bg-white dark:bg-dark-100 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <LeadForm
+              onSave={() => { setShowLeadForm(false); loadData(); }}
+              onCancel={() => setShowLeadForm(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Lead qualifizieren */}
+      {qualifyTarget && (
+        <QualifyLeadDialog
+          lead={qualifyTarget.lead}
+          targetStage={qualifyTarget.stage}
+          customers={customers}
+          onDone={() => { setQualifyTarget(null); loadData(); }}
+          onCancel={() => setQualifyTarget(null)}
+        />
+      )}
 
       {/* Won Opportunity - Create Quote Prompt */}
       {wonOpportunity && !showQuoteEditor && (

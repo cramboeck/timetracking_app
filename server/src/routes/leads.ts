@@ -455,7 +455,7 @@ router.post('/:id/convert', authenticateToken, attachOrganization, requireOrgRol
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
-    const { createCustomer, customerColor } = req.body;
+    const { createCustomer, customerColor, customerId: linkCustomerId } = req.body;
 
     // Get lead
     const leadResult = await pool.query(
@@ -471,13 +471,26 @@ router.post('/:id/convert', authenticateToken, attachOrganization, requireOrgRol
 
     let customerId = lead.customer_id;
 
+    // Bestehenden Kunden verknüpfen (verschmolzenes Board: Lead wird beim
+    // Qualifizieren einem vorhandenen Kunden zugeordnet)
+    if (!customerId && linkCustomerId && typeof linkCustomerId === 'string') {
+      const existing = await pool.query(
+        'SELECT id FROM customers WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+        [linkCustomerId, organizationId]
+      );
+      if (existing.rows.length === 0) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      customerId = linkCustomerId;
+    }
+
     // Create customer if requested
     if (createCustomer && !customerId) {
       customerId = crypto.randomUUID();
       await pool.query(`
         INSERT INTO customers (id, user_id, organization_id, name, email, color, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      `, [customerId, userId, organizationId, lead.company || lead.name, lead.email, customerColor || '#3b82f6']);
+      `, [customerId, userId, organizationId, lead.company || lead.name, lead.email, customerColor || '#FF6A00']);
     }
 
     // Update lead to won status

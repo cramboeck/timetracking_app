@@ -372,7 +372,7 @@ interface LeadFormProps {
   onCancel: () => void;
 }
 
-const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCancel }) => {
+export const LeadForm: React.FC<LeadFormProps> = ({ lead, initialStatus, onSave, onCancel }) => {
   const showToast = useToast();
   const [name, setName] = useState(lead?.name || '');
   const [company, setCompany] = useState(lead?.company || '');
