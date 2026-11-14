@@ -404,7 +404,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
               placeholder="Gerät, Benutzer suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-gray-50 dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-accent-primary focus:border-transparent text-sm"
+              className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
             />
           </div>
 
@@ -483,7 +483,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                   type="checkbox"
                   checked={showOffline}
                   onChange={(e) => setShowOffline(e.target.checked)}
-                  className="rounded border-gray-300 text-accent-primary focus:ring-accent-primary w-3.5 h-3.5"
+                  className="px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
                 <span className="text-xs text-gray-600 dark:text-dark-500">Offline zeigen</span>
               </label>
@@ -784,7 +784,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                         placeholder="Software suchen..."
                         value={softwareSearch}
                         onChange={(e) => setSoftwareSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                       />
                     </div>
                     <IconButton
@@ -837,7 +837,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                         placeholder="Update suchen (KB...)..."
                         value={patchesSearch}
                         onChange={(e) => setPatchesSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white"
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                       />
                     </div>
                     <IconButton

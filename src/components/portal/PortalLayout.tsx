@@ -115,7 +115,7 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       {(onShowDashboard || onShowTickets || onShowDevices || onShowInvoices || onShowTimeReport || onShowContract || onShowLicenses) && (
         <div className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border">
           <div className="max-w-6xl mx-auto px-4">
-            <nav className="flex gap-1 overflow-x-auto">
+            <nav className="flex gap-1 overflow-x-auto scrollbar-hide">
               {onShowDashboard && (
                 <Button
                   onClick={onShowDashboard}

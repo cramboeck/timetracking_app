@@ -184,7 +184,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   required
                   minLength={8}
                   placeholder="Mindestens 8 Zeichen"
-                  className="w-full pl-10 pr-12 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
                 <button
                   type="button"
@@ -208,7 +208,7 @@ export const PortalActivate = ({ token, onActivated }: PortalActivateProps) => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   placeholder="Passwort wiederholen"
-                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 text-sm"
                 />
               </div>
             </div>
