@@ -232,8 +232,10 @@ export function startLogoBackfill(): void {
           AND (COALESCE(website, '') <> '' OR COALESCE(primary_domain, '') <> '' OR COALESCE(email, '') <> '')
         LIMIT 200
       `);
-      if (candidates.rows.length === 0) return;
+      // Auch bei 0 Kandidaten loggen — sonst ist nicht unterscheidbar, ob der
+      // Backfill nie lief oder nichts zu tun hatte (Prod-Diagnose 14.11.)
       logger.info(`🖼️ Logo-Backfill: ${candidates.rows.length} Kandidaten`);
+      if (candidates.rows.length === 0) return;
       for (const row of candidates.rows) {
         const domain = extractLogoDomain(row);
         if (domain) {
