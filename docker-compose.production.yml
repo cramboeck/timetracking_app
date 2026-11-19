@@ -124,7 +124,11 @@ services:
   # Nginx Reverse Proxy (mit SSL-Unterstützung)
   # =============================================================================
   nginx:
-    image: nginx:alpine
+    # Gepinnt statt nginx:alpine (19.11.2026): Die November-Release 1.30.7
+    # schließt u.a. die kritischen HTTP/2-RCEs CVE-2026-123007 und
+    # CVE-2026-123633 (CVSS 9.2, Public PoC — betroffen war 1.9.5–1.30.6).
+    # Bei künftigen nginx-Security-Releases hier die Version hochziehen.
+    image: nginx:1.30.7-alpine
     container_name: ramboflow-nginx
     restart: always
     depends_on:
