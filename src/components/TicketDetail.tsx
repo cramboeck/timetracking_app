@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bot } from 'lucide-react';
-import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry } from '../types';
-import { ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, OrganizationMember, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
+import { Bot, Play } from 'lucide-react';
+import { Ticket, TicketComment, TicketStatus, TicketPriority, TicketResolutionType, TicketTask, Customer, Project, TimeEntry, Task } from '../types';
+import { tasksApi, ticketsApi, TicketTag, CannedResponse, TicketActivity, TicketAttachment, organizationsApi, OrganizationMember, aiApi, AISuggestion, microsoft365Api, TicketEmail, contractsApi, Contract } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { addPendingComment, isRetryableError } from '../utils/offlineStorage';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -439,8 +439,22 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
     updateTicketMutation.mutate({ priority: newPriority });
   };
 
+  // Aufgaben aus „Aufgaben“ (tasks.ticket_id = dieses Ticket) — zweite Quelle
+  // neben ticket_tasks. Key liegt unter ['tasks'], damit jede Aenderung im
+  // TaskHub (und invalidateTasksOverview hier) ihn mit auffrischt.
+  const linkedTasksQuery = useQuery({
+    queryKey: ['tasks', 'list', 'ticket-linked', ticketId],
+    queryFn: async () => (await tasksApi.getAll({ ticketId, source: 'standalone', view: 'all', includeCompleted: true })).data ?? [],
+    staleTime: 30_000,
+  });
+  const linkedToggleMutation = useMutation({
+    mutationFn: (task: Task) =>
+      tasksApi.update(task.id, { status: task.status === 'completed' ? 'pending' : 'completed' }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
   // Task handlers — write through setQueryData so the UI stays instant; also
-  // invalidate the global ['tasks'] key so TasksOverview picks up changes.
+  // invalidate the global ['tasks'] key so the TaskHub picks up changes.
   const tasksKey = ['ticket', ticketId, 'tasks'] as const;
   const writeTasks = (updater: (prev: TicketTask[]) => TicketTask[]) =>
     queryClient.setQueryData<TicketTask[]>(tasksKey, (prev) => updater(prev ?? []));
@@ -671,6 +685,17 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
 
       {/* Content - Desktop: Two columns, Mobile: Single column */}
       <div className="flex-1 overflow-y-auto">
+        {/* Mobile: Timer-Start ganz oben — die Sidebar mit dem grossen Knopf
+            steht dort erst unter Beschreibung, Anhaengen und Kommentaren */}
+        <div className="lg:hidden px-4 pt-4">
+          <button
+            type="button"
+            onClick={() => onStartTimer(ticket)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium"
+          >
+            <Play size={16} /> Timer für dieses Ticket starten
+          </button>
+        </div>
         <div className="p-4 sm:p-6 lg:flex lg:gap-6">
 
           {/* Main Content Column */}
@@ -704,9 +729,9 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
             <TicketTimeEntries timeEntries={timeEntries} />
           </div>
 
-          {/* Sidebar - Desktop only sticky, Mobile shows at top */}
-          <div className="lg:w-80 xl:w-96 lg:flex-shrink-0 space-y-4 mb-6 lg:mb-0 order-first lg:order-last">
-            <div className="lg:sticky lg:top-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
+          {/* Sidebar - Desktop: rechts sticky, Mobile: unter dem Inhalt */}
+          <div className="lg:w-80 xl:w-96 lg:flex-shrink-0 space-y-4 mt-6 lg:mt-0">
+            <div className="lg:sticky lg:top-0 space-y-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
               {/* Metadata (info cards, SLA, timer button) */}
               <TicketMetadata
                 ticket={ticket}
@@ -744,6 +769,8 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 onUpdateTask={handleUpdateTask}
                 onDeleteTask={handleDeleteTask}
                 onReorderTasks={handleReorderTasks}
+                linkedTasks={linkedTasksQuery.data ?? []}
+                onToggleLinkedTask={(task) => linkedToggleMutation.mutate(task)}
               />
 
               {/* Activity Timeline - collapsible */}

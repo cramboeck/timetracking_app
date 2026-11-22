@@ -28,9 +28,9 @@ export const TicketTimeline = ({
       case 'created':
         return `${actor} hat das Ticket erstellt`;
       case 'status_changed':
-        return `${actor} hat den Status von "${statusConfig[activity.oldValue as TicketStatus]?.label || activity.oldValue}" auf "${statusConfig[activity.newValue as TicketStatus]?.label || activity.newValue}" geandert`;
+        return `${actor} hat den Status von "${statusConfig[activity.oldValue as TicketStatus]?.label || activity.oldValue}" auf "${statusConfig[activity.newValue as TicketStatus]?.label || activity.newValue}" geändert`;
       case 'priority_changed':
-        return `${actor} hat die Prioritat von "${priorityConfig[activity.oldValue as TicketPriority]?.label || activity.oldValue}" auf "${priorityConfig[activity.newValue as TicketPriority]?.label || activity.newValue}" geandert`;
+        return `${actor} hat die Priorität von "${priorityConfig[activity.oldValue as TicketPriority]?.label || activity.oldValue}" auf "${priorityConfig[activity.newValue as TicketPriority]?.label || activity.newValue}" geändert`;
       case 'assigned':
         return `${actor} hat das Ticket ${activity.newValueLabel || activity.newValue || ''} zugewiesen`.replace('  ', ' ');
       case 'unassigned':
@@ -38,25 +38,25 @@ export const TicketTimeline = ({
       case 'email_received':
         return `E-Mail eingegangen: ${activity.newValue || ''}`;
       case 'comment_added':
-        return `${actor} hat einen Kommentar hinzugefugt`;
+        return `${actor} hat einen Kommentar hinzugefügt`;
       case 'internal_comment_added':
-        return `${actor} hat eine interne Notiz hinzugefugt`;
+        return `${actor} hat eine interne Notiz hinzugefügt`;
       case 'attachment_added':
-        return `${actor} hat einen Anhang hinzugefugt`;
+        return `${actor} hat einen Anhang hinzugefügt`;
       case 'tag_added':
-        return `${actor} hat den Tag "${activity.newValue}" hinzugefugt`;
+        return `${actor} hat den Tag "${activity.newValue}" hinzugefügt`;
       case 'tag_removed':
         return `${actor} hat den Tag "${activity.oldValue}" entfernt`;
       case 'title_changed':
-        return `${actor} hat den Titel geandert`;
+        return `${actor} hat den Titel geändert`;
       case 'description_changed':
-        return `${actor} hat die Beschreibung geandert`;
+        return `${actor} hat die Beschreibung geändert`;
       case 'resolved':
         return `${actor} hat das Ticket als gelost markiert`;
       case 'closed':
         return `${actor} hat das Ticket geschlossen`;
       case 'reopened':
-        return `${actor} hat das Ticket wieder geoffnet`;
+        return `${actor} hat das Ticket wieder geöffnet`;
       case 'archived':
         return `${actor} hat das Ticket archiviert`;
       case 'rating_added':
@@ -102,7 +102,7 @@ export const TicketTimeline = ({
         <div className="flex items-center gap-2">
           <History size={16} className="text-gray-500" />
           <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
-            Aktivitatsverlauf
+            Aktivitätsverlauf
           </span>
         </div>
         <ChevronRight
@@ -118,7 +118,7 @@ export const TicketTimeline = ({
             </div>
           ) : activities.length === 0 ? (
             <div className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
-              Keine Aktivitaten vorhanden
+              Keine Aktivitäten vorhanden
             </div>
           ) : (
             <div className="relative">

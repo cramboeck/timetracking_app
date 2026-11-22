@@ -1,5 +1,7 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { ticketIdFromPath, ticketPath } from './AreaNavigation';
 import { LayoutDashboard, List, Keyboard, Columns } from 'lucide-react';
 import { IconButton } from './ui';
 import { Ticket, Customer, Project } from '../types';
@@ -17,33 +19,47 @@ interface TicketsProps {
   customers: Customer[];
   projects: Project[];
   onStartTimer: (ticket: Ticket) => void;
-  initialTicketId?: string | null;
-  onTicketIdHandled?: () => void;
 }
 
-export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, onTicketIdHandled }: TicketsProps) => {
+const isViewMode = (v: string | null): v is ViewMode => v === 'dashboard' || v === 'list' || v === 'kanban';
+
+export const Tickets = ({ customers, projects, onStartTimer }: TicketsProps) => {
   const queryClient = useQueryClient();
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId || null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // Handle initial ticket ID from URL
-  useEffect(() => {
-    if (initialTicketId) {
-      setSelectedTicketId(initialTicketId);
-      onTicketIdHandled?.();
+  // URL ist die Wahrheit: /support/tickets/<id> = Ticket geöffnet.
+  // Browser-Zurück schließt damit das Ticket statt den Bereich zu verlassen,
+  // Tickets sind verlinkbar (Mails, Push, Lesezeichen).
+  const selectedTicketId = ticketIdFromPath(location.pathname);
+  const openedFromList = (location.state as { fromList?: boolean } | null)?.fromList === true;
+  const setSelectedTicketId = useCallback((id: string | null) => {
+    if (id) {
+      navigate(ticketPath(id), { state: { fromList: true } });
+    } else if (openedFromList) {
+      navigate(-1); // zurück zur Liste MIT Filter/Scroll-Zustand der History
+    } else {
+      navigate('/support/tickets');
     }
-  }, [initialTicketId, onTicketIdHandled]);
+  }, [navigate, openedFromList]);
+
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const refreshTickets = useCallback(
     () => queryClient.invalidateQueries({ queryKey: ['tickets'] }),
     [queryClient]
   );
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = (localStorage.getItem('ticketViewMode') as ViewMode) || 'dashboard';
-    // Kanban is not usable on mobile – fall back to list
-    if (isMobile && saved === 'kanban') return 'list';
-    return saved;
-  });
+  // Ansicht steht in der URL (?view=dashboard|kanban, Liste = Default),
+  // zuletzt gewählte Ansicht als Fallback ohne Parameter. Start ist die
+  // Liste — im Alltag zählen „Meine“/„Unzugewiesen“, nicht KPIs.
+  const urlView = searchParams.get('view');
+  const savedView = (() => {
+    try { return localStorage.getItem('ticketViewMode'); } catch { return null; }
+  })();
+  const rawView: ViewMode = isViewMode(urlView) ? urlView : isViewMode(savedView) ? savedView : 'list';
+  // Kanban is not usable on mobile – fall back to list
+  const viewMode: ViewMode = isMobile && rawView === 'kanban' ? 'list' : rawView;
 
   // Reference to TicketList for keyboard navigation
   const ticketListRef = useRef<{
@@ -77,9 +93,9 @@ export const Tickets = ({ customers, projects, onStartTimer, initialTicketId, on
   };
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('ticketViewMode', mode);
-  }, []);
+    try { localStorage.setItem('ticketViewMode', mode); } catch { /* privat */ }
+    navigate(mode === 'list' ? '/support/tickets' : `/support/tickets?view=${mode}`, { replace: true });
+  }, [navigate]);
 
   const handleViewAllTickets = () => {
     handleViewModeChange('list');

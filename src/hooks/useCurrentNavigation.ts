@@ -7,6 +7,8 @@ import {
   getAreaFromSubView,
   getDefaultSubView,
   pathToAreaSubView,
+  ticketIdFromPath,
+  ticketPath,
 } from '../components/AreaNavigation';
 
 interface UseCurrentNavigationReturn {
@@ -54,6 +56,17 @@ export function useCurrentNavigation(
     // mountenden) Auth-Screen gelesen — ein replace hier würde den
     // Einladungscode verwerfen, bevor er ankommt.
     if (location.pathname.startsWith('/join/')) return;
+    // Ticket-Deep-Links: alte Formen (?ticket=<id> aus Mails, /tickets/<id>
+    // aus Push-Benachrichtigungen) auf die kanonische Ticket-Adresse heben —
+    // VOR der Kanonisierung, die Query und Detail-Segment sonst verwirft.
+    const legacyTicket = new URLSearchParams(location.search).get('ticket')
+      || location.pathname.match(/^\/tickets\/([^/?#]+)/)?.[1];
+    if (legacyTicket) {
+      navigate(ticketPath(decodeURIComponent(legacyTicket)), { replace: true });
+      return;
+    }
+    // Geöffnetes Ticket ist eine gültige Adresse — nicht wegkanonisieren
+    if (ticketIdFromPath(location.pathname)) return;
     const canonical = areaSubViewToPath(currentArea, currentSubView);
     if (location.pathname !== canonical) {
       navigate(canonical, { replace: true });

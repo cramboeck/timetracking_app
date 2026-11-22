@@ -314,7 +314,7 @@ export async function sendTicketNotification(
     badge: '/icons/badge-72x72.png',
     tag: `ticket-${ticket.id}`,
     data: {
-      url: `/tickets/${ticket.id}`,
+      url: `/support/tickets/${ticket.id}`,
       ticketId: ticket.id,
       type: eventType.replace('push_on_', ''),
     },

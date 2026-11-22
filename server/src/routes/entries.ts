@@ -131,7 +131,7 @@ const TIME_ENTRY_COLUMNS = `
   id, organization_id, user_id, project_id, activity_id, ticket_id,
   start_time, end_time, duration, description, is_running, is_billable,
   external_id, external_source, created_at,
-  entry_scope, internal_category, customer_visibility
+  entry_scope, internal_category, customer_visibility, task_id
 `;
 
 const PROJECT_COLUMNS = `
@@ -159,6 +159,8 @@ const createEntrySchema = z.object({
   projectId: z.string().uuid().optional().nullable(), // Optional for internal/absence entries
   activityId: z.string().uuid().optional(),
   ticketId: z.string().uuid().optional(),
+  // Aufgabe (TaskHub-Timer) — tasks.id ist TEXT, kein .uuid() erzwingen
+  taskId: z.string().min(1).max(100).optional().nullable(),
   description: z.string().max(1000).optional(),
   isRunning: z.boolean().default(false),
   isBillable: z.boolean().default(true),
@@ -765,7 +767,7 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const {
-      clientId, startTime, endTime, duration, projectId, activityId, ticketId,
+      clientId, startTime, endTime, duration, projectId, activityId, ticketId, taskId,
       description, isRunning, isBillable = true,
       entryScope = 'customer_project', internalCategory = null, customerVisibility = 'hidden'
     } = req.body;
@@ -810,6 +812,14 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
       if (ticketResult.rows.length === 0) {
         return res.status(400).json({ error: 'Ticket not found or does not belong to your organization' });
       }
+    }
+
+    // Aufgabe muss zur Organisation gehören (sonst still ignorieren statt 400 —
+    // eine inzwischen gelöschte Aufgabe darf das Zeiterfassen nicht blockieren)
+    let verifiedTaskId: string | null = null;
+    if (taskId) {
+      const taskResult = await pool.query('SELECT id FROM tasks WHERE id = $1 AND organization_id = $2', [taskId, organizationId]);
+      verifiedTaskId = taskResult.rows[0]?.id ?? null;
     }
 
     // Use client-provided ID for idempotency, or generate a new one
@@ -858,8 +868,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility, task_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         id,
         userId,
@@ -876,7 +886,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         createdAt,
         entryScope,
         internalCategory,
-        customerVisibility
+        customerVisibility,
+        verifiedTaskId
       ]
     );
 

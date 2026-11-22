@@ -34,7 +34,7 @@ const createTaskSchema = z.object({
   ticketId: z.string().uuid().optional().nullable(),
   projectId: z.string().uuid().optional().nullable(),
   customerId: z.string().uuid().optional().nullable(),
-  assignedTo: z.string().uuid().optional().nullable(),
+  assignedTo: z.string().min(1).max(100).optional().nullable(), // users.id ist TEXT — kein .uuid()
   dueDate: z.string().optional().nullable(),
   dueTime: z.string().optional().nullable(),
   reminderAt: z.string().optional().nullable(),
@@ -199,7 +199,9 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     // View-based filters
     if (view === 'my') {
       standaloneFilters += ` AND t.assigned_to = $${paramCount}`;
-      ticketTaskFilters += ` AND tt.assigned_to = $${paramCount}`;
+      // Ticket-Aufgaben ohne eigenen Bearbeiter gehoeren dem Ticket-Bearbeiter
+      // (sonst tauchten z.B. ueberfaellige Aufgaben aus MEINEN Tickets nirgends auf)
+      ticketTaskFilters += ` AND (tt.assigned_to = $${paramCount} OR (tt.assigned_to IS NULL AND tk.assigned_to = $${paramCount}))`;
       params.push(userId);
       paramCount++;
     } else if (view === 'today') {
@@ -279,8 +281,9 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
     // Build final query based on source filter
     let finalQuery: string;
     if (source === 'standalone') {
-      finalQuery = standaloneQuery + standaloneFilters;
-      // Add ordering directly for single source
+      // In Subquery verpackt: ORDER BY status/priority waere sonst mehrdeutig
+      // (tickets tk hat ebenfalls status/priority → 500 bei ?source=)
+      finalQuery = `SELECT * FROM (${standaloneQuery + standaloneFilters}) single_source`;
       finalQuery += ` ORDER BY
         CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
         CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
@@ -288,8 +291,9 @@ router.get('/', authenticateToken, attachOrganization, async (req: AuthRequest, 
         created_at DESC
       `;
     } else if (source === 'ticket') {
-      finalQuery = ticketTaskQuery + ticketTaskFilters;
-      // Add ordering directly for single source
+      // In Subquery verpackt: ORDER BY status/priority waere sonst mehrdeutig
+      // (tickets tk hat ebenfalls status/priority → 500 bei ?source=)
+      finalQuery = `SELECT * FROM (${ticketTaskQuery + ticketTaskFilters}) single_source`;
       finalQuery += ` ORDER BY
         CASE status WHEN 'in_progress' THEN 0 WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
         CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
@@ -363,13 +367,15 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
         FROM tasks
         WHERE organization_id = $1 AND assigned_to = $2) standalone,
         (SELECT
-          COUNT(*) FILTER (WHERE completed = false) as my_pending,
-          COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND completed = false) as my_overdue,
-          COUNT(*) FILTER (WHERE DATE(due_date) = CURRENT_DATE AND completed = false) as my_today
+          -- tt.-Praefix Pflicht: tickets hat ebenfalls due_date (vorher
+          -- 'ambiguous' → der ganze Dashboard-Endpoint lieferte immer 500)
+          COUNT(*) FILTER (WHERE tt.completed = false) as my_pending,
+          COUNT(*) FILTER (WHERE tt.due_date < CURRENT_DATE AND tt.completed = false) as my_overdue,
+          COUNT(*) FILTER (WHERE DATE(tt.due_date) = CURRENT_DATE AND tt.completed = false) as my_today
         FROM ticket_tasks tt
         INNER JOIN tickets tk ON tt.ticket_id = tk.id
         WHERE tk.organization_id = $1
-          AND tt.assigned_to = $2
+          AND (tt.assigned_to = $2 OR (tt.assigned_to IS NULL AND tk.assigned_to = $2))
           AND tk.status NOT IN ('archived', 'closed')) ticket
     `, [organizationId, userId]);
 
@@ -393,7 +399,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
         INNER JOIN tickets tk ON tt.ticket_id = tk.id
         LEFT JOIN customers c ON tk.customer_id = c.id
         WHERE tk.organization_id = $1
-          AND tt.assigned_to = $2
+          AND (tt.assigned_to = $2 OR (tt.assigned_to IS NULL AND tk.assigned_to = $2))
           AND tt.due_date < CURRENT_DATE
           AND tt.completed = false
           AND tk.status NOT IN ('archived', 'closed')
@@ -425,7 +431,7 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req: Auth
         INNER JOIN tickets tk ON tt.ticket_id = tk.id
         LEFT JOIN customers c ON tk.customer_id = c.id
         WHERE tk.organization_id = $1
-          AND tt.assigned_to = $2
+          AND (tt.assigned_to = $2 OR (tt.assigned_to IS NULL AND tk.assigned_to = $2))
           AND DATE(tt.due_date) = CURRENT_DATE
           AND tk.status NOT IN ('archived', 'closed')
       ) combined
@@ -1105,107 +1111,11 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
   }
 });
 
-// POST /api/tasks/:id/start-timer - Start time tracking for task
-router.post('/:id/start-timer', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId!;
-    const orgReq = req as unknown as OrganizationRequest;
-    const organizationId = orgReq.organization.id;
-    const { id: taskId } = req.params;
-
-    // Verify task belongs to organization and get project info
-    const taskResult = await pool.query(`
-      SELECT t.*, p.id as linked_project_id
-      FROM tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      WHERE t.id = $1 AND t.organization_id = $2
-    `, [taskId, organizationId]);
-
-    if (taskResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    const task = taskResult.rows[0];
-
-    // Stop any running time entry for this user
-    await pool.query(`
-      UPDATE time_entries
-      SET is_running = false, end_time = NOW(), duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER
-      WHERE user_id = $1 AND is_running = true AND organization_id = $2
-    `, [userId, organizationId]);
-
-    // If task has a project, use it. Otherwise find or create a default project
-    let projectId = task.linked_project_id;
-
-    if (!projectId) {
-      // Find a default project or the first available project
-      const projectResult = await pool.query(`
-        SELECT id FROM projects WHERE organization_id = $1 AND is_active = true
-        ORDER BY created_at DESC LIMIT 1
-      `, [organizationId]);
-
-      if (projectResult.rows.length > 0) {
-        projectId = projectResult.rows[0].id;
-      } else {
-        return res.status(400).json({ error: 'No project available. Please link the task to a project first.' });
-      }
-    }
-
-    // Create new running time entry
-    const entryId = crypto.randomUUID();
-    await pool.query(`
-      INSERT INTO time_entries (id, user_id, organization_id, project_id, task_id, start_time, is_running, description)
-      VALUES ($1, $2, $3, $4, $5, NOW(), true, $6)
-    `, [entryId, userId, organizationId, projectId, taskId, `Task: ${task.title}`]);
-
-    // Update task status to in_progress if pending
-    if (task.status === 'pending') {
-      await pool.query(
-        'UPDATE tasks SET status = $1, updated_at = NOW() WHERE id = $2',
-        ['in_progress', taskId]
-      );
-    }
-
-    const result = await pool.query(`
-      SELECT te.*, p.name as project_name
-      FROM time_entries te
-      LEFT JOIN projects p ON te.project_id = p.id
-      WHERE te.id = $1
-    `, [entryId]);
-
-    res.json({ success: true, data: transformRow(result.rows[0]) });
-  } catch (error) {
-    console.error('Start timer error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/tasks/:id/stop-timer - Stop time tracking for task
-router.post('/:id/stop-timer', authenticateToken, attachOrganization, requireOrgRole('member'), async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId!;
-    const orgReq = req as unknown as OrganizationRequest;
-    const organizationId = orgReq.organization.id;
-    const { id: taskId } = req.params;
-
-    // Stop running time entry for this task
-    const result = await pool.query(`
-      UPDATE time_entries
-      SET is_running = false, end_time = NOW(), duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER
-      WHERE user_id = $1 AND task_id = $2 AND is_running = true AND organization_id = $3
-      RETURNING *
-    `, [userId, taskId, organizationId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'No running timer found for this task' });
-    }
-
-    res.json({ success: true, data: transformRow(result.rows[0]) });
-  } catch (error) {
-    console.error('Stop timer error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Hinweis: Die frueheren Routen POST /:id/start-timer und /:id/stop-timer
+// wurden entfernt. Sie legten Zeiteintraege am App-Timer vorbei an und
+// buchten Aufgaben ohne Projekt auf das NEUESTE Projekt der Organisation
+// (= womoeglich ein fremder Kunde). Der Aufgaben-Timer laeuft jetzt ueber
+// die normale Stoppuhr (POST /api/entries mit taskId).
 
 // Helper function to create next recurring task
 async function createNextRecurringTask(oldTask: any, organizationId: string, userId: string) {

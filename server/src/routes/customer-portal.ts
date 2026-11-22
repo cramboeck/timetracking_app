@@ -699,7 +699,7 @@ router.post('/tickets', authenticateCustomerToken, async (req: CustomerAuthReque
       if (adminInfo.rows.length > 0 && adminInfo.rows[0].email) {
         const admin = adminInfo.rows[0];
         const contactName = contactInfo.rows[0]?.name || 'Unbekannt';
-        const adminUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/?ticket=${ticketId}`;
+        const adminUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/support/tickets/${ticketId}`;
         emailService.sendNewTicketAdminNotification({
           to: admin.email,
           customerName,
@@ -836,7 +836,7 @@ router.post('/tickets/:id/comments', authenticateCustomerToken, async (req: Cust
         // Send email notification
         if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
           const PORTAL_URL = process.env.FRONTEND_URL || 'https://app.ramboeck.it';
-          const ticketUrl = `${PORTAL_URL}/?ticket=${id}`;
+          const ticketUrl = `${PORTAL_URL}/support/tickets/${id}`;
           emailService.sendTicketCommentNotificationToAssignee({
             to: ticket.assignee_email,
             assigneeName: ticket.assignee_name,

@@ -1038,7 +1038,7 @@ router.post('/support/emails/:id/create-ticket', requireOrgRole('admin'), valida
           WHERE om.organization_id = $1
         `, [organizationId]);
 
-        const ticketUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/?ticket=${ticketId}`;
+        const ticketUrl = `${process.env.FRONTEND_URL || 'https://app.ramboeck.it'}/support/tickets/${ticketId}`;
         const senderName = email.from.name || email.from.email.split('@')[0];
 
         for (const member of membersResult.rows) {

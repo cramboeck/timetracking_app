@@ -326,14 +326,15 @@ router.get('/dashboard', authenticateToken, attachOrganization, async (req, res)
       for (const row of nameResult.rows) activityAssigneeNames.set(row.id, row.name);
     }
 
-    // Calculate SLA compliance percentage
+    // Calculate SLA compliance percentage — null = nichts gemessen (keine
+    // Tickets mit SLA). Vorher 100 %: suggerierte Einhaltung ohne Datenbasis.
     const sla = slaStats.rows[0];
-    const responseCompliance = sla.with_response_sla > 0
+    const responseCompliance = parseInt(sla.with_response_sla) > 0
       ? Math.round((parseInt(sla.response_met) / parseInt(sla.with_response_sla)) * 100)
-      : 100;
-    const resolutionCompliance = sla.with_resolution_sla > 0
+      : null;
+    const resolutionCompliance = parseInt(sla.with_resolution_sla) > 0
       ? Math.round((parseInt(sla.resolution_met) / parseInt(sla.with_resolution_sla)) * 100)
-      : 100;
+      : null;
 
     res.json({
       success: true,

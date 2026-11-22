@@ -55,7 +55,7 @@ export const TicketEmailHistory = ({
             </div>
           ) : emails.length === 0 ? (
             <div className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
-              Keine E-Mails mit diesem Ticket verknupft
+              Keine E-Mails mit diesem Ticket verknüpft
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-dark-border">

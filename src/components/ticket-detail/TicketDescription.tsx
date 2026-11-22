@@ -46,7 +46,7 @@ export const TicketDescription = ({
           <div className="flex items-center gap-2 mb-2">
             <Lightbulb className="text-green-600 dark:text-green-400" size={18} />
             <h3 className="text-sm font-medium text-green-800 dark:text-green-300">
-              Losung
+              Lösung
               {ticket.resolutionType && (
                 <span className="ml-2 text-xs font-normal text-green-600 dark:text-green-400">
                   ({resolutionTypeConfig[ticket.resolutionType]?.label || ticket.resolutionType})

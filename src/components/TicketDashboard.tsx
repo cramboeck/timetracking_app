@@ -146,7 +146,10 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
     : 0;
 
   // Calculate overall SLA compliance (average of response and resolution)
-  const overallCompliance = Math.round((data.sla.responseCompliance + data.sla.resolutionCompliance) / 2);
+  // Nur gemessene Werte mitteln; ganz ohne SLA-Tickets → null („—“)
+  const measured = [data.sla.responseCompliance, data.sla.resolutionCompliance].filter((v): v is number => v !== null);
+  const overallCompliance = measured.length > 0 ? Math.round(measured.reduce((a, b) => a + b, 0) / measured.length) : null;
+  const pct = (v: number | null) => (v === null ? '—' : `${v}%`);
   const totalBreached = data.sla.responseBreached + data.sla.resolutionBreached;
   const totalOverdue = data.sla.responseOverdue + data.sla.resolutionOverdue;
 
@@ -278,9 +281,11 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
                   stroke="currentColor"
                   strokeWidth="12"
                   fill="none"
-                  strokeDasharray={`${overallCompliance * 3.52} 352`}
+                  strokeDasharray={`${(overallCompliance ?? 0) * 3.52} 352`}
                   className={`${
-                    overallCompliance >= 90
+                    overallCompliance === null
+                      ? 'text-transparent'
+                      : overallCompliance >= 90
                       ? 'text-green-500'
                       : overallCompliance >= 70
                       ? 'text-yellow-500'
@@ -290,18 +295,23 @@ export const TicketDashboard = ({ onTicketSelect, onViewAll }: TicketDashboardPr
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {overallCompliance}%
+                  {pct(overallCompliance)}
                 </span>
               </div>
             </div>
           </div>
+          {overallCompliance === null && (
+            <p className="text-xs text-center text-gray-500 dark:text-dark-400 -mt-2 mb-3">
+              Noch keine Tickets mit SLA-Richtlinie
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2 text-center text-sm">
             <div className="bg-accent-light dark:bg-accent-primary/20 rounded-lg p-2">
-              <div className="font-bold text-accent-primary dark:text-accent-primary">{data.sla.responseCompliance}%</div>
+              <div className="font-bold text-accent-primary dark:text-accent-primary">{pct(data.sla.responseCompliance)}</div>
               <div className="text-accent-primary dark:text-accent-primary text-xs">Erste Antwort</div>
             </div>
             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-              <div className="font-bold text-green-600 dark:text-green-400">{data.sla.resolutionCompliance}%</div>
+              <div className="font-bold text-green-600 dark:text-green-400">{pct(data.sla.resolutionCompliance)}</div>
               <div className="text-green-600 dark:text-green-400 text-xs">Lösung</div>
             </div>
             <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-2">

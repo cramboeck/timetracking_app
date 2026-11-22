@@ -373,6 +373,16 @@ export const pathToAreaSubView = (pathname: string): { area: Area; subView: SubV
  * Build the canonical URL path for an (area, subView) pair.
  * Standalone subViews skip the area prefix.
  */
+/** Kanonische Adresse eines geöffneten Tickets (Deep-Link, Lesezeichen). */
+export const ticketPath = (ticketId: string): string =>
+  `/support/tickets/${encodeURIComponent(ticketId)}`;
+
+/** Ticket-ID aus /support/tickets/<id> (sonst null). */
+export const ticketIdFromPath = (pathname: string): string | null => {
+  const m = pathname.match(/^\/support\/tickets\/([^/?#]+)\/?$/);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+
 export const areaSubViewToPath = (area: Area, subView: SubView): string => {
   if (STANDALONE_SUBVIEWS.includes(subView)) {
     return `/${subView}`;

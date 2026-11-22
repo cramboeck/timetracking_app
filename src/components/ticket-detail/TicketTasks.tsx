@@ -2,7 +2,9 @@ import { useState, useMemo } from 'react';
 import { CheckSquare, Square, GripVertical, Eye, EyeOff, Trash2, Pencil, Check, X, ChevronRight, Calendar, User, AlertCircle } from 'lucide-react';
 import { Button, IconButton } from '../ui/Button';
 import { TicketTask } from './types';
+import { ModernDatePicker } from '../ModernDatePicker';
 import { OrganizationMember } from '../../services/api';
+import type { Task } from '../../types';
 
 interface TicketTasksProps {
   ticketId: string;
@@ -15,6 +17,9 @@ interface TicketTasksProps {
   onUpdateTask: (taskId: string, title: string, dueDate?: string | null, assignedTo?: string | null) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onReorderTasks: (taskIds: string[]) => Promise<void>;
+  /** Aufgaben aus „Aufgaben“ (tasks-Tabelle), die auf dieses Ticket verweisen */
+  linkedTasks?: Task[];
+  onToggleLinkedTask?: (task: Task) => void;
 }
 
 // Helper to check if a date is today
@@ -49,6 +54,8 @@ export const TicketTasks = ({
   onUpdateTask,
   onDeleteTask,
   onReorderTasks,
+  linkedTasks = [],
+  onToggleLinkedTask,
 }: TicketTasksProps) => {
   const [expanded, setExpanded] = useState(true);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -70,10 +77,12 @@ export const TicketTasks = ({
 
   // Count completed and overdue tasks
   const taskStats = useMemo(() => {
-    const completed = localTasks.filter(t => t.completed).length;
-    const overdue = localTasks.filter(t => !t.completed && t.dueDate && isOverdue(t.dueDate)).length;
-    return { completed, overdue, total: localTasks.length };
-  }, [localTasks]);
+    const linkedDone = linkedTasks.filter(t => t.status === 'completed').length;
+    const linkedOverdue = linkedTasks.filter(t => t.status !== 'completed' && t.dueDate && isOverdue(t.dueDate)).length;
+    const completed = localTasks.filter(t => t.completed).length + linkedDone;
+    const overdue = localTasks.filter(t => !t.completed && t.dueDate && isOverdue(t.dueDate)).length + linkedOverdue;
+    return { completed, overdue, total: localTasks.length + linkedTasks.length };
+  }, [localTasks, linkedTasks]);
 
   const handleAddTask = async () => {
     if (!newTaskTitle.trim()) return;
@@ -234,12 +243,9 @@ export const TicketTasks = ({
                           className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
                         />
                         <div className="flex items-center gap-2">
-                          <input
-                            type="date"
-                            value={editingTaskDueDate}
-                            onChange={(e) => setEditingTaskDueDate(e.target.value)}
-                            className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
-                          />
+                          <div className="flex-1 min-w-0">
+                            <ModernDatePicker value={editingTaskDueDate} onChange={setEditingTaskDueDate} compact allowFuture clearable placeholder="Fällig am" />
+                          </div>
                           {teamMembers.length > 0 && (
                             <select
                               value={editingTaskAssignee}
@@ -341,6 +347,53 @@ export const TicketTasks = ({
                 </div>
               ))}
 
+              {/* Verknuepfte Aufgaben aus „Aufgaben“ — vorher im Ticket unsichtbar */}
+              {linkedTasks.map((task) => {
+                const done = task.status === 'completed';
+                return (
+                  <div key={task.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-100 rounded">
+                    <span className="w-[14px] flex-shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => onToggleLinkedTask?.(task)}
+                      className="flex-shrink-0 mt-0.5"
+                      title={done ? 'Als offen markieren' : 'Als erledigt markieren'}
+                    >
+                      {done ? (
+                        <CheckSquare size={16} className="text-green-500" />
+                      ) : (
+                        <Square size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-dark-500" />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs ${done ? 'line-through text-gray-400 dark:text-dark-400' : 'text-gray-900 dark:text-white'}`}>
+                        {task.title}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-accent-primary/10 text-accent-primary"
+                          title="Angelegt unter Arbeiten → Aufgaben"
+                        >
+                          Aufgabe
+                        </span>
+                        {task.dueDate && (
+                          <span className={`flex items-center gap-1 text-[10px] ${!done && isOverdue(task.dueDate) ? 'text-red-500' : !done && isToday(task.dueDate) ? 'text-orange-500' : 'text-gray-500 dark:text-dark-400'}`}>
+                            <Calendar size={10} />
+                            {formatDueDate(task.dueDate)}
+                          </span>
+                        )}
+                        {(task.assignedToDisplayName || task.assignedToName) && (
+                          <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-dark-400">
+                            <User size={10} />
+                            {task.assignedToDisplayName || task.assignedToName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
               {/* Add Task Form */}
               <div className="space-y-1.5 p-2 border border-dashed border-gray-300 dark:border-dark-border rounded">
                 <div className="flex items-center gap-2">
@@ -355,13 +408,9 @@ export const TicketTasks = ({
                   />
                 </div>
                 <div className="flex items-center gap-2 pl-5">
-                  <input
-                    type="date"
-                    value={newTaskDueDate}
-                    onChange={(e) => setNewTaskDueDate(e.target.value)}
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-accent-primary"
-                    placeholder="Fällig am"
-                  />
+                  <div className="flex-1 min-w-0">
+                    <ModernDatePicker value={newTaskDueDate} onChange={setNewTaskDueDate} compact allowFuture clearable placeholder="Fällig am" />
+                  </div>
                   {teamMembers.length > 0 && (
                     <select
                       value={newTaskAssignee}

@@ -35,10 +35,10 @@ export const SolutionModal = ({
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Ticket schliessen
+                Ticket schließen
               </h3>
               <p className="text-sm text-gray-500 dark:text-dark-400">
-                Bitte dokumentiere die Losung fur dieses Ticket
+                Bitte dokumentiere die Lösung für dieses Ticket
               </p>
             </div>
           </div>
@@ -62,7 +62,7 @@ export const SolutionModal = ({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
-              Losung / Beschreibung *
+              Lösung / Beschreibung *
             </label>
             <textarea
               value={solutionText}
@@ -87,7 +87,7 @@ export const SolutionModal = ({
             loading={saving}
             icon={<CheckSquare size={16} />}
           >
-            Ticket schliessen
+            Ticket schließen
           </Button>
         </div>
       </div>

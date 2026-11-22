@@ -556,6 +556,7 @@ export const tasksApi = {
     if (filters?.ticketId) params.append('ticketId', filters.ticketId);
     if (filters?.view) params.append('view', filters.view);
     if (filters?.includeCompleted) params.append('includeCompleted', 'true');
+    if (filters?.source) params.append('source', filters.source);
     const queryString = params.toString();
     return authFetch(`/tasks${queryString ? `?${queryString}` : ''}`);
   },
@@ -630,18 +631,6 @@ export const tasksApi = {
     });
   },
 
-  // Timer operations
-  startTimer: async (taskId: string): Promise<{ success: boolean; data: any }> => {
-    return authFetch(`/tasks/${taskId}/start-timer`, {
-      method: 'POST',
-    });
-  },
-
-  stopTimer: async (taskId: string): Promise<{ success: boolean; data: any }> => {
-    return authFetch(`/tasks/${taskId}/stop-timer`, {
-      method: 'POST',
-    });
-  },
 };
 
 // ============================================

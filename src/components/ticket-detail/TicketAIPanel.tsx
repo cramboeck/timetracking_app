@@ -26,9 +26,9 @@ export const TicketAIPanel = ({
   onCopy,
 }: TicketAIPanelProps) => {
   const typeConfig = {
-    solution: { label: 'Losung', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Lightbulb },
+    solution: { label: 'Lösung', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300', icon: Lightbulb },
     category: { label: 'Kategorie', color: 'bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary', icon: Tag },
-    priority: { label: 'Prioritat', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300', icon: ChevronDown },
+    priority: { label: 'Priorität', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300', icon: ChevronDown },
     response: { label: 'Antwort', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300', icon: MessageSquare },
   };
 
@@ -51,7 +51,7 @@ export const TicketAIPanel = ({
           icon={<Lightbulb size={14} />}
           className="bg-purple-600 hover:bg-purple-700"
         >
-          Losung vorschlagen
+          Lösung vorschlagen
         </Button>
         <Button
           onClick={() => onGenerateSuggestion('category')}
@@ -69,7 +69,7 @@ export const TicketAIPanel = ({
           size="sm"
           icon={<ChevronDown size={14} />}
         >
-          Prioritat bewerten
+          Priorität bewerten
         </Button>
         <Button
           onClick={() => onGenerateSuggestion('response')}
@@ -97,7 +97,7 @@ export const TicketAIPanel = ({
 
       {suggestions.length === 0 && !loading && (
         <p className="text-sm text-purple-700 dark:text-purple-200 italic">
-          Wahle eine der Optionen oben, um KI-basierte Vorschlage zu erhalten.
+          Wähle eine der Optionen oben, um KI-basierte Vorschläge zu erhalten.
         </p>
       )}
 
@@ -148,7 +148,7 @@ export const TicketAIPanel = ({
                     icon={<ArrowRight size={12} />}
                     className="text-xs"
                   >
-                    Ubernehmen
+                    Übernehmen
                   </Button>
                 )}
                 {suggestion.suggestionType === 'solution' && (
@@ -159,7 +159,7 @@ export const TicketAIPanel = ({
                     icon={<ArrowRight size={12} />}
                     className="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-400"
                   >
-                    Als Losung
+                    Als Lösung
                   </Button>
                 )}
 

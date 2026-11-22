@@ -577,7 +577,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
       <div>
         <label className={formLabelClasses}>Erwarteter Abschluss</label>
         <div className="flex flex-wrap items-center gap-2">
-          <ModernDatePicker value={expectedCloseDate} onChange={setExpectedCloseDate} compact />
+          <ModernDatePicker value={expectedCloseDate} onChange={setExpectedCloseDate} compact allowFuture />
           {([
             ['Ende Monat', endOfMonth],
             ['Ende Quartal', endOfQuarter],
@@ -641,7 +641,7 @@ const OpportunityForm: React.FC<OpportunityFormProps> = ({
         </div>
         <div>
           <label className={formLabelClasses}>Bis wann</label>
-          <ModernDatePicker value={nextStepDate} onChange={setNextStepDate} compact />
+          <ModernDatePicker value={nextStepDate} onChange={setNextStepDate} compact allowFuture clearable />
         </div>
       </div>
 

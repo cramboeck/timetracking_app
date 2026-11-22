@@ -8,7 +8,6 @@ import {
   Calendar,
   AlertTriangle,
   Play,
-  Pause,
   Filter,
   ChevronDown,
   ChevronRight,
@@ -25,7 +24,7 @@ import {
   AlertCircle,
   Inbox,
 } from 'lucide-react';
-import { tasksApi } from '../services/api';
+import { tasksApi, ticketsApi } from '../services/api';
 import type { Task, TaskPriority, TaskStatus } from '../types';
 import TaskModal from './TaskModal';
 import { Button, IconButton } from './ui';
@@ -43,14 +42,16 @@ const isGroupBy = (s: string | null): s is GroupBy =>
   s === 'date' || s === 'customer' || s === 'priority' || s === 'ticket';
 
 interface TaskHubProps {
-  onTimerStart?: (taskId: string) => void;
-  onTimerStop?: (taskId: string) => void;
+  /** Startet die Stoppuhr vorbelegt mit dieser Aufgabe (App-weiter Timer). */
+  onStartTimer?: (task: Task) => void;
+  /** Laufender Timer gehoert zu dieser Aufgabe → Knopf fuehrt zur Stoppuhr. */
+  onOpenRunningTimer?: () => void;
   runningTimerTaskId?: string | null;
   onOpenTicket?: (ticketId: string) => void;
   onOpenCustomer?: (customerId: string) => void;
 }
 
-export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId, onOpenTicket, onOpenCustomer }: TaskHubProps) {
+export default function TaskHub({ onStartTimer, onOpenRunningTimer, runningTimerTaskId, onOpenTicket, onOpenCustomer }: TaskHubProps) {
   const confirm = useConfirm();
   const showToast = useToast();
   const queryClient = useQueryClient();
@@ -126,9 +127,23 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
     },
   });
 
+  // Ticket-Aufgaben direkt hier abhaken (vorher nur im Ticket moeglich)
+  const toggleTicketTaskMutation = useMutation({
+    mutationFn: async (task: Task) => {
+      if (!task.ticketId) throw new Error('Ticket fehlt');
+      await ticketsApi.updateTask(task.ticketId, task.id, { completed: task.status !== 'completed' });
+      return task;
+    },
+    onSuccess: (task) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      if (task.ticketId) queryClient.invalidateQueries({ queryKey: ['ticket', task.ticketId, 'tasks'] });
+    },
+    onError: () => showToast('Aufgabe konnte nicht aktualisiert werden', 'error'),
+  });
+
   const toggleTaskComplete = (task: Task) => {
     if (task.taskSource === 'ticket') {
-      showToast('TicketTasks werden im jeweiligen Ticket abgehakt', 'info');
+      toggleTicketTaskMutation.mutate(task);
       return;
     }
     const newStatus: TaskStatus = task.status === 'completed' ? 'pending' : 'completed';
@@ -172,25 +187,10 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
     quickAddMutation.mutate(title);
   };
 
-  // Mutation: Timer toggle
-  const timerMutation = useMutation({
-    mutationFn: async ({ task, action }: { task: Task; action: 'start' | 'stop' }) => {
-      if (action === 'stop') {
-        await tasksApi.stopTimer(task.id);
-        onTimerStop?.(task.id);
-      } else {
-        await tasksApi.startTimer(task.id);
-        onTimerStart?.(task.id);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks', 'list'] });
-    },
-  });
-
+  // Timer: laeuft ueber die normale Stoppuhr (kein eigener Server-Weg mehr)
   const handleTimerToggle = (task: Task) => {
-    const action = runningTimerTaskId === task.id ? 'stop' : 'start';
-    timerMutation.mutate({ task, action });
+    if (runningTimerTaskId === task.id) onOpenRunningTimer?.();
+    else onStartTimer?.(task);
   };
 
   // Mutation: Delete task
@@ -391,7 +391,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
         <button
           onClick={() => toggleTaskComplete(task)}
           className={`flex-shrink-0 mt-0.5 ${getPriorityColor(task.priority)} hover:opacity-70`}
-          title={isTicketSource ? 'TicketTasks im Ticket abhaken' : (isCompleted ? 'Als offen markieren' : 'Als erledigt markieren')}
+          title={isCompleted ? 'Als offen markieren' : 'Als erledigt markieren'}
         >
           {isCompleted ? (
             <CheckCircle className="w-5 h-5" />
@@ -427,15 +427,15 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {task.projectId && !isTicketSource && (
+            {/* Actions — auf Touch-Geraeten immer sichtbar (kein Hover) */}
+            <div className="flex items-center gap-1 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+              {!isCompleted && onStartTimer && (
                 <IconButton
                   onClick={() => handleTimerToggle(task)}
-                  variant={isRunning ? 'danger' : 'default'}
+                  variant={isRunning ? 'primary' : 'default'}
                   size="md"
-                  icon={isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  tooltip={isRunning ? 'Timer stoppen' : 'Timer starten'}
+                  icon={isRunning ? <Timer className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  tooltip={isRunning ? 'Timer läuft – zur Stoppuhr' : 'Timer starten'}
                 />
               )}
               <IconButton
@@ -491,16 +491,16 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
                 {task.ticketNumber}
               </button>
             )}
-            {task.estimatedMinutes && (
+            {!!task.estimatedMinutes && (
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
                 ~{formatDuration(task.estimatedMinutes * 60)}
               </span>
             )}
-            {task.totalTrackedTime && task.totalTrackedTime > 0 && (
+            {(task.totalTrackedTime ?? 0) > 0 && (
               <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <Timer className="w-3.5 h-3.5" />
-                {formatDuration(task.totalTrackedTime)}
+                {formatDuration(task.totalTrackedTime ?? 0)}
               </span>
             )}
             {task.category && !isTicketSource && (
@@ -509,7 +509,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
                 {task.category}
               </span>
             )}
-            {task.checklistCount && task.checklistCount > 0 && (
+            {(task.checklistCount ?? 0) > 0 && (
               <span className="flex items-center gap-1">
                 <ListTodo className="w-3.5 h-3.5" />
                 {task.checklistCompleted}/{task.checklistCount}
@@ -550,12 +550,12 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-dark-50">
       {/* Header */}
-      <div className="flex-shrink-0 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="flex-shrink-0 bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Meine Aufgaben</h1>
             <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-              Unified Task Hub - Alle Aufgaben an einem Ort
+              Eigene Aufgaben und Aufgaben aus Tickets
             </p>
           </div>
           <Button
@@ -566,14 +566,16 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
             variant="primary"
             size="md"
             icon={<Plus className="w-5 h-5" />}
+            className="flex-shrink-0"
           >
-            Neue Aufgabe
+            <span className="hidden sm:inline">Neue Aufgabe</span>
+            <span className="sm:hidden">Neu</span>
           </Button>
         </div>
 
         {/* Quick Stats */}
         {dashboard && (
-          <div className="grid grid-cols-4 gap-4 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mt-4">
             <div className="bg-gray-50 dark:bg-dark-200/50 rounded-lg p-3">
               <div className="flex items-center gap-2 text-gray-500 dark:text-dark-400">
                 <ListTodo className="w-4 h-4" />
@@ -614,7 +616,8 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
         )}
 
         {/* View Tabs */}
-        <div className="flex items-center gap-2 mt-4 overflow-x-auto">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 mt-4">
+        <div data-no-swipe className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
           {[
             { key: 'inbox' as ViewKey, label: 'Inbox', icon: <Inbox className="w-4 h-4" />, hint: 'Überfällig + Heute + Ohne Datum' },
             { key: 'my' as ViewKey, label: 'Meine Aufgaben', icon: <ListTodo className="w-4 h-4" /> },
@@ -637,8 +640,9 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
               {tab.label}
             </button>
           ))}
+        </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="lg:ml-auto flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 dark:text-dark-400">Gruppieren:</label>
               <select
@@ -666,7 +670,7 @@ export default function TaskHub({ onTimerStart, onTimerStop, runningTimerTaskId,
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {/* Quick-Add */}
         <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-dark-border bg-white dark:bg-dark-100 focus-within:border-accent-primary dark:focus-within:border-accent-primary transition-colors">
           <Plus className="w-4 h-4 text-gray-400 dark:text-dark-400 flex-shrink-0" />

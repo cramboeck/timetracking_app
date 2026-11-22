@@ -182,6 +182,7 @@ export interface TimeEntry {
   projectId?: string; // Optional for internal/absence entries
   activityId?: string; // Optional: link to activity for flat-rate pricing
   ticketId?: string; // Optional: link to ticket
+  taskId?: string | null; // Optional: link to task (TaskHub-Timer)
   description: string;
   isRunning: boolean;
   isBillable: boolean; // Whether this entry should be included in billing/reports
@@ -432,6 +433,8 @@ export interface TaskFilters {
   ticketId?: string;
   view?: 'my' | 'all' | 'today' | 'week' | 'overdue';
   includeCompleted?: boolean;
+  /** 'standalone' = nur Aufgaben aus „Aufgaben“, 'ticket' = nur Ticket-Aufgaben */
+  source?: 'all' | 'standalone' | 'ticket';
 }
 
 // SLA Policy

@@ -38,7 +38,7 @@ interface StopwatchProps {
   activities: Activity[];
   entries: TimeEntry[];
   onOpenManualEntry?: () => void;
-  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string; entryScope?: 'internal' } | null;
+  prefilledEntry?: { projectId: string; activityId?: string; description: string; ticketId?: string; taskId?: string; entryScope?: 'internal' } | null;
   onPrefilledEntryUsed?: () => void;
 }
 
@@ -65,6 +65,8 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
   const [projectId, setProjectId] = useState('');
   const [activityId, setActivityId] = useState('');
   const [ticketId, setTicketId] = useState<string | undefined>(undefined);
+  // Aufgabe, aus der der Timer gestartet wurde (TaskHub) — bleibt am Eintrag
+  const [taskId, setTaskId] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState('');
   const startTimeRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -214,6 +216,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       setActivityId(prefilledEntry.activityId || '');
       setDescription(prefilledEntry.description);
       setTicketId(prefilledEntry.ticketId);
+      setTaskId(prefilledEntry.taskId);
       // Clear the prefilled entry
       onPrefilledEntryUsed?.();
     }
@@ -231,6 +234,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       setProjectId(runningEntry.projectId || '');
       setActivityId(runningEntry.activityId || '');
       setTicketId(runningEntry.ticketId);
+      setTaskId(runningEntry.taskId || undefined);
       setDescription(runningEntry.description);
 
       const elapsed = Math.floor((Date.now() - new Date(runningEntry.startTime).getTime()) / 1000);
@@ -287,6 +291,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       projectId: entryScope === 'customer_project' ? projectId : undefined,
       activityId: entryScope === 'customer_project' && activityId ? activityId : undefined,
       ticketId: entryScope === 'customer_project' && ticketId ? ticketId : undefined,
+      taskId: taskId || undefined,
       description: description || '',
       isRunning: true,
       isBillable: entryScope !== 'absence',
@@ -338,6 +343,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       projectId: entryScope === 'customer_project' ? projectId : undefined,
       activityId: entryScope === 'customer_project' && activityId ? activityId : undefined,
       ticketId: entryScope === 'customer_project' && (ticketId || runningEntry?.ticketId) ? (ticketId || runningEntry?.ticketId) : undefined,
+      taskId: taskId || runningEntry?.taskId || undefined,
       description: description || '',
       isRunning: false,
       isBillable: entryScope !== 'absence',
@@ -379,6 +385,7 @@ export const Stopwatch = ({ onSave, runningEntry, onUpdateRunning, projects, cus
       setProjectId('');
       setActivityId('');
       setTicketId(undefined);
+      setTaskId(undefined);
       setDescription('');
     } catch (error) {
       console.error('❌ [STOPWATCH] Error stopping timer:', error);

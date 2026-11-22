@@ -1448,7 +1448,7 @@ async function handleNewAlert(
         : message.substring(0, 150);
 
       // Get ticket URL if created
-      const ticketUrl = ticketId ? `/tickets/${ticketId}` : '/ninja';
+      const ticketUrl = ticketId ? `/support/tickets/${ticketId}` : '/support/alerts';
 
       await sendPushToUser(userId, {
         title,

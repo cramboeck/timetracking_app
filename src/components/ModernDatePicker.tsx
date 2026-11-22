@@ -12,6 +12,13 @@ interface ModernDatePickerProps {
    *  Fuer schmale Grid-Spalten (Edit-Dialog): die volle Variante sprengte dort
    *  das Raster und schob die Zeitfelder aus dem sichtbaren Bereich. */
   compact?: boolean;
+  /** Zukuenftige Tage waehlbar (Faelligkeiten, Abschlussdaten). Default aus:
+   *  Zeiterfassung darf nicht in die Zukunft buchen. */
+  allowFuture?: boolean;
+  /** „Kein Datum“-Knopf im Kalender (optionale Felder, liefert ''). */
+  clearable?: boolean;
+  /** Text im leeren Zustand (compact). */
+  placeholder?: string;
 }
 
 export const ModernDatePicker = ({
@@ -19,6 +26,9 @@ export const ModernDatePicker = ({
   onChange,
   label,
   compact = false,
+  allowFuture = false,
+  clearable = false,
+  placeholder = 'Datum wählen',
 }: ModernDatePickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewMonth, setViewMonth] = useState(() => {
@@ -123,7 +133,7 @@ export const ModernDatePicker = ({
   };
 
   const isFuture = (d: Date | null) => {
-    if (!d) return false;
+    if (!d || allowFuture) return false;
     return d > today;
   };
 
@@ -223,7 +233,7 @@ export const ModernDatePicker = ({
         >
           <Calendar size={16} className="text-accent-primary shrink-0" />
           <span className="font-medium truncate">
-            {value ? formatDisplayDate(value) : 'Datum wählen'}
+            {value ? formatDisplayDate(value) : <span className="text-gray-400 dark:text-dark-400 font-normal">{placeholder}</span>}
           </span>
         </button>
       ) : (
@@ -310,6 +320,15 @@ export const ModernDatePicker = ({
               </button>
             ))}
           </div>
+          {clearable && value && (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setIsOpen(false); }}
+              className="mt-3 w-full py-2 rounded-lg text-sm text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200"
+            >
+              Kein Datum
+            </button>
+          )}
         </div>
       )}
     </div>

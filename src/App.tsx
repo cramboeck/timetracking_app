@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { AreaNavigation, SubView, isSubViewAllowed } from './components/AreaNavigation';
+import { AreaNavigation, SubView, isSubViewAllowed, ticketPath } from './components/AreaNavigation';
+import { useNavigate } from 'react-router';
 import { AttendanceBar } from './components/AttendanceBar';
 import { WorkTimeAccount } from './components/WorkTimeAccount';
 import { AbsenceCalendar } from './components/AbsenceCalendar';
@@ -41,7 +42,7 @@ import { WelcomeModal } from './components/WelcomeModal';
 import { CookieConsent } from './components/CookieConsent';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { CommandPalette } from './components/CommandPalette';
-import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity, Ticket } from './types';
+import { TimeEntry, TimeEntryUpdate, Customer, Project, Activity, Ticket, Task } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { useToast, useUndoToast } from './contexts/UIContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -80,6 +81,7 @@ function App() {
     navigateToSubView,
     navigateTo,
   } = useCurrentNavigation('arbeiten', 'stopwatch');
+  const navigate = useNavigate();
 
   // Rollen-Guard für Deep-Links: die Navigation blendet unerlaubte Views aus,
   // aber eine direkt eingegebene URL (z.B. /finanzen/billing) muss ebenfalls
@@ -119,20 +121,53 @@ function App() {
   // customers/projects/entries are still in flight.
   const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
   const [runningEntry, setRunningEntry] = useState<TimeEntry | null>(null);
-  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string; entryScope?: 'internal' } | null>(null);
+  const [prefilledEntry, setPrefilledEntry] = useState<{ projectId: string; activityId?: string; description: string; ticketId?: string; taskId?: string; entryScope?: 'internal' } | null>(null);
   const [showNotificationRequest, setShowNotificationRequest] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
-  const [initialTicketId, setInitialTicketId] = useState<string | null>(null);
   const [initialCustomerId, setInitialCustomerId] = useState<string | null>(null);
   // Track entry IDs that are being created to prevent duplicates
   const pendingEntryIdsRef = useRef<Set<string>>(new Set());
 
   // Cross-area navigation helpers: jump from a Task → its Ticket or Customer.
   const handleOpenTicket = useCallback((ticketId: string) => {
-    setInitialTicketId(ticketId);
-    navigateTo('support', 'tickets');
-  }, [navigateTo]);
+    navigate(ticketPath(ticketId));
+  }, [navigate]);
+
+  // Timer aus Ticket ODER Aufgabe: belegt die Stoppuhr vor (sie legt den
+  // Eintrag ueber den normalen App-Weg an — GlobalTimerWidget, Auto-Stop und
+  // Offline-Queue greifen). Ohne Kunde = INTERNE Zeit, nie versehentlich
+  // abrechenbare Projektzeit; ohne Projekt das erste aktive Projekt DES
+  // Kunden (nie ein fremdes), sonst waehlt der Nutzer selbst.
+  const startTimerFor = useCallback((src: {
+    customerId?: string | null;
+    projectId?: string | null;
+    description: string;
+    ticketId?: string | null;
+    taskId?: string | null;
+  }) => {
+    if (!src.customerId && !src.projectId) {
+      setPrefilledEntry({
+        projectId: '',
+        description: src.description,
+        ticketId: src.ticketId || undefined,
+        taskId: src.taskId || undefined,
+        entryScope: 'internal',
+      });
+    } else {
+      let projectId = src.projectId || '';
+      if (!projectId && src.customerId) {
+        projectId = projects.find(p => p.customerId === src.customerId && p.isActive)?.id || '';
+      }
+      setPrefilledEntry({
+        projectId,
+        description: src.description,
+        ticketId: src.ticketId || undefined,
+        taskId: src.taskId || undefined,
+      });
+    }
+    navigateTo('arbeiten', 'stopwatch');
+  }, [projects, navigateTo]);
 
   const handleOpenCustomer = useCallback((customerId: string) => {
     setInitialCustomerId(customerId);
@@ -367,21 +402,8 @@ function App() {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
   }, [showToast]);
 
-  // Handle deep link to ticket via ?ticket= URL parameter
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const ticketId = urlParams.get('ticket');
-
-    if (ticketId) {
-      console.log('📬 [DEEPLINK] Found ticket ID in URL:', ticketId);
-      setInitialTicketId(ticketId);
-      navigateTo('support', 'tickets');
-      // Clean query param (preserve the pathname useNavigate just set)
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [isAuthenticated]);
+  // ?ticket=<id>-Deep-Links (Mails) hebt useCurrentNavigation direkt auf
+  // /support/tickets/<id> — die URL ist die einzige Wahrheit.
 
   // Listen for navigation events from components (e.g., SupportInbox navigating to Settings)
   useEffect(() => {
@@ -414,12 +436,12 @@ function App() {
         const url = event.data.url;
         console.log('📬 [SW Message] Navigating to:', url);
 
-        // Handle ticket URLs: /tickets/{id}
-        if (url?.startsWith('/tickets/')) {
-          const ticketId = url.replace('/tickets/', '').split('?')[0];
-          console.log('📬 [SW Message] Opening ticket:', ticketId);
-          setInitialTicketId(ticketId);
-          navigateTo('support', 'tickets');
+        // Ticket-URLs: /support/tickets/{id} (neu) oder /tickets/{id} (alt)
+        const m = typeof url === 'string' ? url.match(/^\/(?:support\/)?tickets\/([^/?#]+)/) : null;
+        if (m) {
+          navigate(ticketPath(decodeURIComponent(m[1])));
+        } else if (typeof url === 'string' && /^\/[a-z]/.test(url) && !url.startsWith('/portal')) {
+          navigate(url); // andere App-Pfade (z.B. /support/alerts)
         }
       }
     };
@@ -1124,15 +1146,15 @@ function App() {
         )}
         {currentSubView === 'tasks' && (
           <TaskHub
-            runningTimerTaskId={null}
-            onTimerStart={(taskId) => {
-              console.log('Start timer for task:', taskId);
-              // Timer is handled inside TaskHub via API
-            }}
-            onTimerStop={(taskId) => {
-              console.log('Stop timer for task:', taskId);
-              // Timer is handled inside TaskHub via API
-            }}
+            runningTimerTaskId={runningEntry?.taskId ?? null}
+            onStartTimer={(task: Task) => startTimerFor({
+              customerId: task.customerId,
+              projectId: task.projectId,
+              description: task.ticketNumber ? `${task.ticketNumber}: ${task.title}` : task.title,
+              ticketId: task.ticketId,
+              taskId: task.id,
+            })}
+            onOpenRunningTimer={() => navigateTo('arbeiten', 'stopwatch')}
             onOpenTicket={handleOpenTicket}
             onOpenCustomer={handleOpenCustomer}
           />
@@ -1184,35 +1206,12 @@ function App() {
           <Tickets
             customers={customers}
             projects={projects}
-            onStartTimer={(ticket: Ticket) => {
-              // Internes Ticket (ohne Kunde): Timer startet als INTERNE Zeit —
-              // nie versehentlich als abrechenbare Projektzeit
-              if (!ticket.customerId) {
-                setPrefilledEntry({
-                  projectId: '',
-                  description: `${ticket.ticketNumber}: ${ticket.title}`,
-                  ticketId: ticket.id,
-                  entryScope: 'internal',
-                });
-                navigateTo('arbeiten', 'stopwatch');
-                return;
-              }
-              // Set prefilled entry with ticket info and switch to stopwatch
-              // Use ticket's project or find first active project for the customer
-              let projectId = ticket.projectId;
-              if (!projectId) {
-                const customerProjects = projects.filter(p => p.customerId === ticket.customerId && p.isActive);
-                projectId = customerProjects[0]?.id || '';
-              }
-              setPrefilledEntry({
-                projectId: projectId || '',
-                description: `${ticket.ticketNumber}: ${ticket.title}`,
-                ticketId: ticket.id,
-              });
-              navigateTo('arbeiten', 'stopwatch');
-            }}
-            initialTicketId={initialTicketId}
-            onTicketIdHandled={() => setInitialTicketId(null)}
+            onStartTimer={(ticket: Ticket) => startTimerFor({
+              customerId: ticket.customerId,
+              projectId: ticket.projectId,
+              description: `${ticket.ticketNumber}: ${ticket.title}`,
+              ticketId: ticket.id,
+            })}
           />
         )}
         {currentSubView === 'devices' && (

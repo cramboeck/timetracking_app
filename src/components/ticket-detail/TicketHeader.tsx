@@ -107,7 +107,7 @@ export const TicketHeader = ({
           onClick={onBack}
           icon={<ArrowLeft size={24} />}
           size="lg"
-          tooltip="Zuruck"
+          tooltip="Zurück"
         />
         <div className="flex-1">
           <span className="text-sm font-mono text-gray-500 dark:text-dark-400">
@@ -155,7 +155,7 @@ export const TicketHeader = ({
           icon={<Trash2 size={20} />}
           variant="danger"
           size="lg"
-          tooltip="Loschen"
+          tooltip="Löschen"
         />
       </div>
 
@@ -181,7 +181,7 @@ export const TicketHeader = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Prioritat</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">Priorität</label>
               <select
                 value={editPriority}
                 onChange={(e) => onEditPriorityChange(e.target.value as TicketPriority)}

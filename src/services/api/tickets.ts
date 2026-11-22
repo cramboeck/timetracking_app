@@ -35,8 +35,9 @@ export interface TicketDashboardData {
     low: string | number;
   };
   sla: {
-    responseCompliance: number;
-    resolutionCompliance: number;
+    /** null = keine Tickets mit SLA im Zeitraum (nichts gemessen) */
+    responseCompliance: number | null;
+    resolutionCompliance: number | null;
     responseBreached: number;
     resolutionBreached: number;
     responseOverdue: number;

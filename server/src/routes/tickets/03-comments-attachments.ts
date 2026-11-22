@@ -214,7 +214,7 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
 
         // Send email notification
         if (prefs.email_enabled !== false && prefs.email_on_ticket_comment !== false && ticket.assignee_email) {
-          const ticketUrl = `${PORTAL_URL}/?ticket=${ticketId}`;
+          const ticketUrl = `${PORTAL_URL}/support/tickets/${ticketId}`;
           emailService.sendTicketCommentNotificationToAssignee({
             to: ticket.assignee_email,
             assigneeName: ticket.assignee_name,

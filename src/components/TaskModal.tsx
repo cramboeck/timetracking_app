@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button, IconButton, Input, Textarea, Select, Label, FormRow } from './ui';
+import { ModernDatePicker } from './ModernDatePicker';
 import { tasksApi, customersApi, projectsApi } from '../services/api';
 import type {
   Task,
@@ -282,12 +283,10 @@ export default function TaskModal({
 
               {/* Due Date & Time */}
               <FormRow className="!grid-cols-2">
-                <Input
-                  type="date"
-                  label={<><Calendar className="w-4 h-4 inline mr-1" />Fällig am</>}
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+                <div>
+                  <Label><Calendar className="w-4 h-4 inline mr-1" />Fällig am</Label>
+                  <ModernDatePicker value={dueDate} onChange={setDueDate} compact allowFuture clearable placeholder="Kein Datum" />
+                </div>
                 <Input
                   type="time"
                   label={<><Clock className="w-4 h-4 inline mr-1" />Uhrzeit</>}

@@ -254,7 +254,7 @@ export async function sendAssignedNotifications(
     }
 
     if (prefs.email_enabled !== false && prefs.email_on_ticket_assigned !== false && assignee.email) {
-      const ticketUrl = `${PORTAL_URL}/?ticket=${ticketId}`;
+      const ticketUrl = `${PORTAL_URL}/support/tickets/${ticketId}`;
       emailService.sendTicketAssignedNotification({
         to: assignee.email,
         assigneeName: assignee.username,
