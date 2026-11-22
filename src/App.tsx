@@ -1241,10 +1241,10 @@ function App() {
           <DocumentsSearch />
         )}
         {currentSubView === 'billing' && (
-          <Finanzen view="billing" />
+          <Finanzen view="billing" onOpenCustomer={handleOpenCustomer} />
         )}
         {currentSubView === 'sales' && (
-          <Finanzen view="sales" />
+          <Finanzen view="sales" onOpenCustomer={handleOpenCustomer} />
         )}
         {currentSubView === 'orders' && (
           <OrdersHub />

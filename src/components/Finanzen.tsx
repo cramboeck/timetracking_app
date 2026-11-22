@@ -38,9 +38,11 @@ type DocumentType = 'invoices' | 'quotes' | 'vouchers';
 interface FinanzenProps {
   /** SubView: 'billing' = Abrechnung, 'sales' = Rechnungen & Angebote */
   view: 'billing' | 'sales';
+  /** Kunde im CRM (CustomerHub) öffnen — App-weiter handleOpenCustomer */
+  onOpenCustomer?: (customerId: string) => void;
 }
 
-export const Finanzen = ({ view }: FinanzenProps) => {
+export const Finanzen = ({ view, onOpenCustomer }: FinanzenProps) => {
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -117,7 +119,7 @@ export const Finanzen = ({ view }: FinanzenProps) => {
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      {view === 'billing' ? <BillingTab /> : <SalesDocumentsView />}
+      {view === 'billing' ? <BillingTab onOpenCustomer={onOpenCustomer} /> : <SalesDocumentsView />}
     </div>
   );
 };
@@ -176,6 +178,38 @@ const SalesDocumentsView = () => {
   );
 };
 
+// Seitenweise Anzeige für Rechnungen/Angebote (FIN-4): sevDesk wird weiter
+// mit max. 500 Einträgen abgefragt (Sortier-/Zähl-Parameter der sevDesk-API
+// sind nicht verifiziert — nichts auf Verdacht), gerendert werden aber nur
+// 25 pro Schritt. Erreicht der Abruf das Limit, sagt die Liste das offen.
+const SALES_PAGE_SIZE = 25;
+const SALES_LOAD_LIMIT = 500;
+
+const ListPagingFooter = ({ shown, total, loaded, onMore, noun }: {
+  shown: number;
+  total: number;
+  loaded: number;
+  onMore: () => void;
+  noun: string;
+}) => {
+  const remaining = total - shown;
+  const limitHit = loaded >= SALES_LOAD_LIMIT;
+  if (remaining <= 0 && !limitHit) return null;
+  return (
+    <div className="flex flex-col items-center gap-2 pt-2">
+      {remaining > 0 && (
+        <Button variant="secondary" size="sm" onClick={onMore}>
+          Weitere {Math.min(remaining, SALES_PAGE_SIZE)} anzeigen ({remaining} übrig)
+        </Button>
+      )}
+      <p className="text-xs text-gray-500 dark:text-dark-400 text-center">
+        {shown} von {total} {noun}
+        {limitHit && ` — es werden höchstens ${SALES_LOAD_LIMIT} aus sevDesk geladen; ältere findest du über Finanzen → Suche oder direkt in sevDesk`}
+      </p>
+    </div>
+  );
+};
+
 // sevDesk-Fehler kommen als rohe Upstream-Texte („fetch failed", „401 …").
 // In der Oberfläche zeigen wir eine verständliche Meldung; das Original bleibt
 // als Detail für die Diagnose sichtbar.
@@ -214,7 +248,7 @@ const SevdeskErrorBanner = ({ error, onRetry }: { error: string; onRetry?: () =>
 // ==================== Billing Tab ====================
 type BillingPeriodType = 'monthly' | 'quarterly' | 'yearly' | 'custom';
 
-const BillingTab = () => {
+const BillingTab = ({ onOpenCustomer }: { onOpenCustomer?: (customerId: string) => void }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -628,7 +662,18 @@ const BillingTab = () => {
                         size="md"
                       />
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                        {onOpenCustomer ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCustomer(item.customerId)}
+                            className="block max-w-full font-medium text-gray-900 dark:text-white truncate text-left hover:text-accent-primary dark:hover:text-accent-primary transition-colors"
+                            title="Im CRM öffnen"
+                          >
+                            {item.customerName}
+                          </button>
+                        ) : (
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                        )}
                         <p className="text-xs text-gray-500 dark:text-dark-400">
                           {formatHours(item.roundedHours || item.totalHours)}
                           {rounded && <> (gerundet aus {formatHours(item.totalHours)})</>}
@@ -709,7 +754,18 @@ const BillingTab = () => {
                     size="sm"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                    {onOpenCustomer ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCustomer(item.customerId)}
+                        className="block max-w-full text-sm font-medium text-gray-900 dark:text-white truncate text-left hover:text-accent-primary dark:hover:text-accent-primary transition-colors"
+                        title="Im CRM öffnen"
+                      >
+                        {item.customerName}
+                      </button>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                    )}
                     <p className="text-xs text-gray-500 dark:text-dark-400">
                       {formatHours(item.roundedHours || item.totalHours)}
                       {billedViaOverlap && ' · über Quartals-/Jahresabrechnung'}
@@ -1094,6 +1150,7 @@ const DocumentDetail = ({ type, document, onClose }: DocumentDetailProps) => {
 
 // ==================== Outgoing Invoices Tab ====================
 const OutgoingInvoicesTab = () => {
+  const [visibleCount, setVisibleCount] = useState(SALES_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<SevdeskInvoice[]>([]);
@@ -1108,7 +1165,7 @@ const OutgoingInvoicesTab = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await sevdeskApi.getInvoices({ limit: 500 });
+      const res = await sevdeskApi.getInvoices({ limit: SALES_LOAD_LIMIT });
       setInvoices(res.data || []);
     } catch (err: any) {
       setError(err.message);
@@ -1116,6 +1173,9 @@ const OutgoingInvoicesTab = () => {
       setLoading(false);
     }
   };
+
+  // Neue Suche → wieder bei der ersten Seite beginnen
+  useEffect(() => { setVisibleCount(SALES_PAGE_SIZE); }, [searchQuery]);
 
   const filteredInvoices = invoices.filter(inv =>
     !searchQuery ||
@@ -1166,7 +1226,7 @@ const OutgoingInvoicesTab = () => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredInvoices.map((invoice) => (
+          {filteredInvoices.slice(0, visibleCount).map((invoice) => (
             <div
               key={invoice.id}
               onClick={() => setSelectedInvoice(invoice)}
@@ -1195,6 +1255,13 @@ const OutgoingInvoicesTab = () => {
               <ChevronRight size={18} className="text-gray-400 dark:text-dark-400" />
             </div>
           ))}
+          <ListPagingFooter
+            shown={Math.min(visibleCount, filteredInvoices.length)}
+            total={filteredInvoices.length}
+            loaded={invoices.length}
+            onMore={() => setVisibleCount(c => c + SALES_PAGE_SIZE)}
+            noun="Rechnungen"
+          />
         </div>
       )}
 
@@ -1212,6 +1279,7 @@ const OutgoingInvoicesTab = () => {
 
 // ==================== Quotes Tab ====================
 const QuotesTab = () => {
+  const [visibleCount, setVisibleCount] = useState(SALES_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<SevdeskQuote[]>([]);
@@ -1228,7 +1296,7 @@ const QuotesTab = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await sevdeskApi.getQuotes({ limit: 500 });
+      const res = await sevdeskApi.getQuotes({ limit: SALES_LOAD_LIMIT });
       setQuotes(res.data || []);
     } catch (err: any) {
       setError(err.message);
@@ -1236,6 +1304,8 @@ const QuotesTab = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => { setVisibleCount(SALES_PAGE_SIZE); }, [searchQuery]);
 
   const filteredQuotes = quotes.filter(q =>
     !searchQuery ||
@@ -1291,7 +1361,7 @@ const QuotesTab = () => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredQuotes.map((quote) => (
+          {filteredQuotes.slice(0, visibleCount).map((quote) => (
             <div
               key={quote.id}
               onClick={() => setSelectedQuote(quote)}
@@ -1329,6 +1399,13 @@ const QuotesTab = () => {
               <ChevronRight size={18} className="text-gray-400 dark:text-dark-400" />
             </div>
           ))}
+          <ListPagingFooter
+            shown={Math.min(visibleCount, filteredQuotes.length)}
+            total={filteredQuotes.length}
+            loaded={quotes.length}
+            onMore={() => setVisibleCount(c => c + SALES_PAGE_SIZE)}
+            noun="Angeboten"
+          />
         </div>
       )}
 

@@ -873,6 +873,17 @@ router.delete('/invoice-exports/:id', authenticateToken, attachOrganization, req
   }
 });
 
+// Paging-Grenzen für sevDesk-Listen (FIN-4): vorher wurden limit/offset
+// ungeprüft durchgereicht (auch NaN/negativ). Max. 500 = bisheriger UI-Abruf.
+const boundedPaging = (limit: unknown, offset: unknown): { limit: number; offset: number } => {
+  const l = parseInt(String(limit ?? ''), 10);
+  const o = parseInt(String(offset ?? ''), 10);
+  return {
+    limit: Number.isFinite(l) ? Math.min(Math.max(l, 1), 500) : 50,
+    offset: Number.isFinite(o) ? Math.max(o, 0) : 0,
+  };
+};
+
 // GET /api/sevdesk/invoices - Get invoices from sevDesk
 router.get('/invoices', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, async (req: AuthRequest, res: Response) => {
   try {
@@ -886,8 +897,7 @@ router.get('/invoices', authenticateToken, attachOrganization, requireOrgRole('a
     const { limit, offset, contactId, status, startDate, endDate } = req.query;
 
     const invoices = await sevdeskService.getInvoices(config.apiToken, {
-      limit: limit ? parseInt(limit as string) : 50,
-      offset: offset ? parseInt(offset as string) : 0,
+      ...boundedPaging(limit, offset),
       contactId: contactId as string,
       status: status ? parseInt(status as string) : undefined,
       startDate: startDate as string,
@@ -943,8 +953,7 @@ router.get('/quotes', authenticateToken, attachOrganization, requireOrgRole('adm
     const { limit, offset, contactId, status } = req.query;
 
     const quotes = await sevdeskService.getQuotes(config.apiToken, {
-      limit: limit ? parseInt(limit as string) : 50,
-      offset: offset ? parseInt(offset as string) : 0,
+      ...boundedPaging(limit, offset),
       contactId: contactId as string,
       status: status ? parseInt(status as string) : undefined,
     });
