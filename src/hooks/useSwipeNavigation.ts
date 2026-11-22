@@ -16,7 +16,7 @@ const SUBVIEW_CONFIG: Record<Area, SubView[]> = {
   personal: ['arbeitszeit', 'abwesenheit'],
   support: ['tickets', 'inbox', 'devices', 'alerts', 'vulnerabilities', 'maintenance'],
   crm: ['crm-dashboard', 'customers', 'pipeline', 'contracts'],
-  finanzen: ['invoices', 'billing', 'orders', 'reports', 'documents-search'],
+  finanzen: ['billing', 'sales', 'invoices', 'orders', 'reports', 'documents-search'],
 };
 
 interface UseSwipeNavigationArgs {

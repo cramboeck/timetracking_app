@@ -1241,7 +1241,10 @@ function App() {
           <DocumentsSearch />
         )}
         {currentSubView === 'billing' && (
-          <Finanzen onBack={() => navigateToSubView('overview')} />
+          <Finanzen view="billing" />
+        )}
+        {currentSubView === 'sales' && (
+          <Finanzen view="sales" />
         )}
         {currentSubView === 'orders' && (
           <OrdersHub />

@@ -343,6 +343,8 @@ export async function getBillingSummary(
 ): Promise<Array<{
   customerId: string;
   customerName: string;
+  customerColor: string | null;
+  customerLogoUrl: string | null;
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;
@@ -364,7 +366,8 @@ export async function getBillingSummary(
   // Only include completed entries (end_time IS NOT NULL) - running entries should not be billed
   // Use DATE() cast to ensure full day inclusion for the end date
   const result = await query(
-    `SELECT c.id as customer_id, c.name as customer_name, c.hourly_rate, c.sevdesk_customer_id,
+    `SELECT c.id as customer_id, c.name as customer_name, c.color as customer_color,
+            c.logo_url as customer_logo_url, c.hourly_rate, c.sevdesk_customer_id,
             c.time_rounding_interval, c.payment_terms_days, c.sevdesk_position_template,
             te.id as entry_id, te.duration, te.description, te.start_time,
             te.invoice_export_id,
@@ -387,6 +390,8 @@ export async function getBillingSummary(
   const customerMap = new Map<string, {
     customerId: string;
     customerName: string;
+    customerColor: string | null;
+    customerLogoUrl: string | null;
     hourlyRate: number | null;
     sevdeskCustomerId: string | null;
     timeRoundingInterval: number;
@@ -408,6 +413,8 @@ export async function getBillingSummary(
       customerMap.set(key, {
         customerId: row.customer_id,
         customerName: row.customer_name,
+        customerColor: row.customer_color || null,
+        customerLogoUrl: row.customer_logo_url || null,
         hourlyRate: row.hourly_rate ? parseFloat(row.hourly_rate) : null,
         sevdeskCustomerId: row.sevdesk_customer_id,
         timeRoundingInterval: roundingInterval,

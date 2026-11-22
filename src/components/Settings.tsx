@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive, MoreVertical } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive, MoreVertical, Wallet, ShoppingCart } from 'lucide-react';
 import { Customer, Project, Activity, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -9,6 +9,8 @@ import { CustomerEmailDomains } from './CustomerEmailDomains';
 import { TicketSettings } from './TicketSettings';
 import { KnowledgeBaseSettings } from './KnowledgeBaseSettings';
 import { NinjaRMMSettings } from './NinjaRMMSettings';
+import { SevdeskSettings } from './SevdeskSettings';
+import { InfinigateSettings } from './InfinigateSettings';
 import { AISettings } from './AISettings';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { CustomerNinjaRMMLink } from './CustomerNinjaRMMLink';
@@ -80,7 +82,7 @@ export const Settings = ({
   const { currentUser, logout } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import' | 'sevdesk' | 'infinigate'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -114,6 +116,18 @@ export const Settings = ({
 
   // Pending domain from navigation (shown as hint when creating customer)
   const [pendingDomain, setPendingDomain] = useState<string | null>(null);
+
+  // Deep-Link /settings?tab=<id> — damit Hinweise wie „Einstellungen →
+  // sevDesk" direkt auf den richtigen Reiter führen
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    const allowed = ['account', 'appearance', 'notifications', 'company', 'team', 'customers', 'projects',
+      'activities', 'tickets', 'portal', 'ninjarmm', 'microsoft365', 'ai', 'email', 'storage', 'import',
+      'sevdesk', 'infinigate'] as const;
+    if (tab && (allowed as readonly string[]).includes(tab)) {
+      setActiveTab(tab as typeof allowed[number]);
+    }
+  }, []);
 
   // Check for navigation params on mount (e.g., from SupportInbox)
   useEffect(() => {
@@ -838,6 +852,15 @@ export const Settings = ({
         { id: 'ai', label: 'KI-Assistent', icon: Bot, desc: 'Lösungsvorschläge' }
       ]
     },
+    // FIN-1 (22.11.): sevDesk/Infinigate lebten vorher NUR im versteckten
+    // fünften Reiter hinter Finanzen → Abrechnung
+    ...(billingEnabled && (currentUser?.role === 'admin' || userRole === 'owner' || userRole === 'admin') ? [{
+      category: 'Finanzen',
+      items: [
+        { id: 'sevdesk', label: 'sevDesk', icon: Wallet, desc: 'Buchhaltung & Rechnungen' },
+        { id: 'infinigate', label: 'Infinigate', icon: ShoppingCart, desc: 'Distributor-Sync' }
+      ]
+    }] : []),
     {
       category: 'Daten',
       items: [
@@ -1914,6 +1937,44 @@ export const Settings = ({
             <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
               <KnowledgeBaseSettings />
             </div>
+          </div>
+        )}
+
+        {activeTab === 'sevdesk' && billingEnabled && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <Wallet size={28} className="text-accent-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">sevDesk</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    API-Zugang, Stundensatz und Rechnungs-Defaults für die Abrechnung
+                  </p>
+                </div>
+              </div>
+            </div>
+            <SevdeskSettings />
+          </div>
+        )}
+
+        {activeTab === 'infinigate' && billingEnabled && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-200 p-6 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
+                  <ShoppingCart size={28} className="text-accent-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Infinigate</h2>
+                  <p className="text-sm text-gray-500 dark:text-dark-400">
+                    Rechnungs-/Lizenz-Sync, Preisliste und Angebote
+                  </p>
+                </div>
+              </div>
+            </div>
+            <InfinigateSettings />
           </div>
         )}
 

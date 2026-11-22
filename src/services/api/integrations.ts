@@ -159,6 +159,8 @@ export interface CreateQuoteInput {
 export interface BillingSummaryItem {
   customerId: string;
   customerName: string;
+  customerColor?: string | null;
+  customerLogoUrl?: string | null;
   hourlyRate: number | null;
   sevdeskCustomerId: string | null;
   timeRoundingInterval: number;

@@ -21,7 +21,9 @@ interface SevdeskCustomer {
 }
 
 interface CustomerSevdeskLinkProps {
-  customer: Customer;
+  // Nur die Felder, die der Dialog braucht — so kann ihn auch die
+  // Abrechnung (BillingSummaryItem) ohne vollen Customer öffnen
+  customer: Pick<Customer, 'id' | 'name'> & { sevdeskCustomerId?: string | null };
   isOpen: boolean;
   onClose: () => void;
   onLinked: () => void;

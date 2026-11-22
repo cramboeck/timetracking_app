@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   Clock, CalendarClock,
   Ticket, Monitor, Bell, Wrench, Mail, ShieldAlert,
-  BarChart3, Wallet, FileText, FileSignature, FileInput,
+  BarChart3, Wallet, FileText, FileSignature, FileInput, FileOutput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   Users, LayoutDashboard, Building2, Receipt, Search,
   CircleUser, Clock3, Palmtree, ShoppingCart
@@ -31,7 +31,7 @@ export type SubView =
   // CRM
   | 'crm-dashboard' | 'customers' | 'leads' | 'pipeline' | 'contracts'
   // Finanzen
-  | 'invoices' | 'billing' | 'orders' | 'reports' | 'documents-search'
+  | 'invoices' | 'billing' | 'sales' | 'orders' | 'reports' | 'documents-search'
   // Settings & Admin (special)
   | 'settings' | 'admin' | 'social-media';
 
@@ -94,9 +94,14 @@ const areaConfig = {
   finanzen: {
     icon: Receipt,
     label: 'Finanzen',
+    // FIN-1 (22.11.): Vorher versteckte die „Abrechnung" eine zweite, URL-lose
+    // Tab-Leiste (Ausgangsrechnungen/Angebote/Eingangsbelege/Einstellungen).
+    // Jetzt ist jede Ansicht ein echter SubView mit eigener URL; Reihenfolge
+    // folgt dem Geldfluss: Ausgang (Abrechnung → Rechnungen) vor Eingang.
     subViews: [
-      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungen' },
       { view: 'billing' as SubView, icon: Wallet, label: 'Abrechnung' },
+      { view: 'sales' as SubView, icon: FileOutput, label: 'Rechnungen & Angebote' },
+      { view: 'invoices' as SubView, icon: FileInput, label: 'Rechnungseingang' },
       { view: 'orders' as SubView, icon: ShoppingCart, label: 'Bestellungen' },
       { view: 'reports' as SubView, icon: FileText, label: 'Berichte' },
       { view: 'documents-search' as SubView, icon: Search, label: 'Suche' },
@@ -299,7 +304,7 @@ export const getAreaFromSubView = (subView: SubView): Area => {
   if (['arbeitszeit', 'abwesenheit'].includes(subView)) return 'personal';
   if (['tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
-  if (['invoices', 'billing', 'orders', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
+  if (['invoices', 'billing', 'sales', 'orders', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
   return 'dashboard'; // Default to dashboard
 };
 
@@ -311,7 +316,7 @@ export const getDefaultSubView = (area: Area): SubView => {
     case 'personal': return 'arbeitszeit';
     case 'support': return 'tickets';
     case 'crm': return 'crm-dashboard';
-    case 'finanzen': return 'invoices';
+    case 'finanzen': return 'billing';
     default: return 'overview';
   }
 };
@@ -329,7 +334,7 @@ const ALL_SUBVIEWS: SubView[] = [
   'arbeitszeit', 'abwesenheit',
   'tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
-  'invoices', 'billing', 'orders', 'reports', 'documents-search',
+  'invoices', 'billing', 'sales', 'orders', 'reports', 'documents-search',
   'settings', 'admin', 'social-media',
 ];
 

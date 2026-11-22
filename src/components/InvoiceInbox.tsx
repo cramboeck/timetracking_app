@@ -12,6 +12,8 @@ import { PdfFieldExtractor, ExtractableField } from './PdfFieldExtractor';
 import { LineItemReview } from './LineItemReview';
 import { InvoiceReviewView } from './InvoiceReviewView';
 import { IdentifierAssignment } from './IdentifierAssignment';
+import { ProcessedReceiptsArchive } from './ProcessedReceiptsArchive';
+import { useSearchParams } from 'react-router';
 
 // Format file size helper
 const formatFileSize = (bytes: number): string => {
@@ -62,6 +64,16 @@ const DuplicateChip = () => (
 
 export const InvoiceInbox = () => {
   const confirm = useConfirm();
+  // Reiter in der URL (?tab=archive), damit Deep-Link + Browser-Back gehen
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inboxTab: 'pending' | 'archive' = searchParams.get('tab') === 'archive' ? 'archive' : 'pending';
+  const setInboxTab = (next: 'pending' | 'archive') => {
+    if (next === inboxTab) return;
+    const params = new URLSearchParams(searchParams);
+    if (next === 'archive') params.set('tab', 'archive');
+    else params.delete('tab');
+    setSearchParams(params);
+  };
   const [loading, setLoading] = useState(true);
   const [processingInvoices, setProcessingInvoices] = useState(false);
   const [processedInvoices, setProcessedInvoices] = useState<ProcessedInvoice[]>([]);
@@ -700,6 +712,29 @@ export const InvoiceInbox = () => {
         </div>
       </div>
 
+      {/* Eingang (zu prüfen) vs. Archiv (verbucht) — das Archiv lebte vorher
+          als versteckter Reiter hinter Finanzen → Abrechnung (FIN-1) */}
+      <div className="inline-flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1">
+        {([['pending', 'Eingang'], ['archive', 'Archiv (verbucht)']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setInboxTab(id)}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              inboxTab === id
+                ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {inboxTab === 'archive' ? (
+        <ProcessedReceiptsArchive />
+      ) : (
+      <>
       {/* Sammel-Zuordnung offener Endkunden-Identifier aus Distributor-Belegen
           (rendert sich nur, wenn welche existieren) */}
       <IdentifierAssignment onAssigned={loadProcessedInvoices} />
@@ -1317,6 +1352,9 @@ export const InvoiceInbox = () => {
           </div>
         )}
       </div>
+
+      </>
+      )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && confirmingInvoice && (

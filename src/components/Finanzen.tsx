@@ -3,8 +3,6 @@ import {
   Wallet,
   Receipt,
   FileText,
-  Settings,
-  Clock,
   Loader2,
   Star,
   Lock,
@@ -15,74 +13,34 @@ import {
   ChevronDown,
   Check,
   Send,
-  ExternalLink,
   RotateCcw,
-  Eye,
-  EyeOff,
   Search,
   Plus,
   RefreshCw,
   CheckCircle,
   X,
   Pencil,
+  Link2,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router';
 import { Button, IconButton } from './ui/Button';
+import CustomerAvatar from './ui/CustomerAvatar';
 import { toLocalDateString } from '../utils/time';
 import { formatCurrency, formatDate } from '../utils/formatting';
-import { sevdeskApi, microsoft365Api, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher, ProcessedInvoice } from '../services/api';
-import { SourceBadge, ReceiptSource } from './ui/SourceBadge';
-
-// Erweitert SevdeskVoucher um die Quelle, damit der Belege-Tab auch fuer
-// E-Mail-/Manual-Belege Source-Badges zeigen kann. Wird beim Mapping von
-// ProcessedInvoice -> SevdeskVoucher-Shape angehaengt.
-type VoucherWithSource = SevdeskVoucher & { source?: ReceiptSource };
-
-const mapProcessedInvoiceToVoucher = (pi: ProcessedInvoice): VoucherWithSource => {
-  const supplier = pi.supplierName
-    ? { id: '', name: pi.supplierName }
-    : pi.senderName
-    ? { id: '', name: pi.senderName }
-    : null;
-  const taxRate = pi.netAmount && pi.vatAmount && pi.netAmount !== 0
-    ? Math.round((pi.vatAmount / pi.netAmount) * 100)
-    : 19;
-  const status = pi.status === 'processed' || pi.status === 'imported' ? 1000 : 100;
-  return {
-    id: pi.sevdeskVoucherId || pi.id,
-    voucherNumber: pi.sevdeskVoucherNumber || pi.invoiceNumber || pi.originalFilename || '—',
-    voucherDate: pi.invoiceDate || pi.receivedAt,
-    description: pi.emailSubject || pi.originalFilename || '',
-    status,
-    statusName: status === 1000 ? 'Verbucht' : 'Entwurf',
-    voucherType: 'VOU',
-    creditDebit: 'C', // C = Kreditor = Ausgabe (sevDesk-Semantik)
-    supplier,
-    sumNet: pi.netAmount ?? 0,
-    sumGross: pi.grossAmount ?? 0,
-    sumTax: pi.vatAmount ?? 0,
-    taxRate,
-    currency: pi.currency || 'EUR',
-    paidAt: null,
-    document: null,
-    source: pi.source,
-  };
-};
+import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQuote, SevdeskVoucher } from '../services/api';
 import { QuoteEditor } from './QuoteEditor';
-import { SevdeskSettings } from './SevdeskSettings';
-import { InfinigateSettings } from './InfinigateSettings';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
-import { BillingOverview } from './BillingOverview';
-import { InvoiceDraftQueue } from './InvoiceDraftQueue';
+import { BillingOverview, LicenseExpiryCard } from './BillingOverview';
+import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 
-type FinanzenTab = 'billing' | 'outgoing' | 'quotes' | 'incoming' | 'settings';
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
 
 interface FinanzenProps {
-  onBack?: () => void;
+  /** SubView: 'billing' = Abrechnung, 'sales' = Rechnungen & Angebote */
+  view: 'billing' | 'sales';
 }
 
-export const Finanzen = ({ onBack: _onBack }: FinanzenProps) => {
-  const [activeTab, setActiveTab] = useState<FinanzenTab>('billing');
+export const Finanzen = ({ view }: FinanzenProps) => {
   const [billingEnabled, setBillingEnabled] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -157,54 +115,98 @@ export const Finanzen = ({ onBack: _onBack }: FinanzenProps) => {
     );
   }
 
-  const tabs: { id: FinanzenTab; label: string; icon: typeof Receipt }[] = [
-    { id: 'billing', label: 'Abrechnung', icon: Clock },
-    { id: 'outgoing', label: 'Ausgangsrechnungen', icon: FileText },
-    { id: 'quotes', label: 'Angebote', icon: Send },
-    { id: 'incoming', label: 'Eingangsbelege', icon: Receipt },
-    { id: 'settings', label: 'Einstellungen', icon: Settings },
-  ];
-
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 bg-accent-light dark:bg-accent-lighter/10 rounded-xl">
-          <Wallet size={28} className="text-accent-primary" />
-        </div>
+      {view === 'billing' ? <BillingTab /> : <SalesDocumentsView />}
+    </div>
+  );
+};
+
+// ==================== Rechnungen & Angebote (SubView 'sales') ====================
+// Ausgangsrechnungen und Angebote waren vorher zwei Reiter einer versteckten
+// Tab-Leiste hinter „Abrechnung" — jetzt ein eigener SubView, der Dokumenttyp
+// steht in der URL (?doc=quotes), damit Deep-Links und Browser-Back gehen.
+type SalesDocType = 'invoices' | 'quotes';
+
+const SalesDocumentsView = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const docType: SalesDocType = searchParams.get('doc') === 'quotes' ? 'quotes' : 'invoices';
+
+  const switchTo = (next: SalesDocType) => {
+    if (next === docType) return;
+    const params = new URLSearchParams(searchParams);
+    if (next === 'quotes') params.set('doc', 'quotes');
+    else params.delete('doc');
+    setSearchParams(params);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Finanzen</h1>
-          <p className="text-sm text-gray-500 dark:text-dark-400">
-            Abrechnungen, Rechnungen und Angebote
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText className="text-accent-primary" />
+            Rechnungen &amp; Angebote
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            Ausgangsrechnungen und Angebote aus sevDesk
           </p>
         </div>
+        <div className="inline-flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1 self-start sm:self-auto">
+          {([['invoices', 'Rechnungen', FileText], ['quotes', 'Angebote', Send]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => switchTo(id)}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                docType === id
+                  ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                  : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex border-b border-gray-200 dark:border-dark-border mb-6 overflow-x-auto">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <Button
-            key={id}
-            variant="ghost"
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 rounded-none transition-colors whitespace-nowrap ${
-              activeTab === id
-                ? 'border-accent-primary text-accent-primary'
-                : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-500'
-            }`}
-            icon={<Icon size={18} />}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
+      {docType === 'invoices' ? <OutgoingInvoicesTab /> : <QuotesTab />}
+    </div>
+  );
+};
 
-      {/* Tab Content */}
-      {activeTab === 'billing' && <BillingTab />}
-      {activeTab === 'outgoing' && <OutgoingInvoicesTab />}
-      {activeTab === 'quotes' && <QuotesTab />}
-      {activeTab === 'incoming' && <IncomingReceiptsTab />}
-      {activeTab === 'settings' && <SettingsTab />}
+// sevDesk-Fehler kommen als rohe Upstream-Texte („fetch failed", „401 …").
+// In der Oberfläche zeigen wir eine verständliche Meldung; das Original bleibt
+// als Detail für die Diagnose sichtbar.
+const describeSevdeskError = (raw: string | undefined): { title: string; detail?: string } => {
+  const msg = (raw || '').trim();
+  if (/fetch failed|network|ECONN|ETIMEDOUT|ENOTFOUND|timeout/i.test(msg)) {
+    return { title: 'sevDesk ist gerade nicht erreichbar. Bitte später erneut versuchen.', detail: msg || undefined };
+  }
+  if (/401|403|unauthori|token/i.test(msg)) {
+    return { title: 'sevDesk hat den Zugriff abgelehnt — bitte den API-Token unter Einstellungen → sevDesk prüfen.', detail: msg || undefined };
+  }
+  if (/not configured|nicht konfiguriert/i.test(msg)) {
+    return { title: 'sevDesk ist noch nicht eingerichtet (Einstellungen → sevDesk).' };
+  }
+  return { title: 'Die Daten aus sevDesk konnten nicht geladen werden.', detail: msg || undefined };
+};
+
+const SevdeskErrorBanner = ({ error, onRetry }: { error: string; onRetry?: () => void }) => {
+  const { title, detail } = describeSevdeskError(error);
+  return (
+    <div className="flex items-start gap-3 p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
+      <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0 text-sm">
+        <p className="font-medium">{title}</p>
+        {detail && <p className="text-xs opacity-75 mt-0.5 truncate">Technisches Detail: {detail}</p>}
+      </div>
+      {onRetry && (
+        <Button variant="ghost" size="sm" onClick={onRetry} icon={<RefreshCw size={14} />}>
+          Erneut
+        </Button>
+      )}
     </div>
   );
 };
@@ -217,11 +219,12 @@ const BillingTab = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [billingSummary, setBillingSummary] = useState<BillingSummaryItem[]>([]);
-  const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [invoiceExports, setInvoiceExports] = useState<InvoiceExport[]>([]);
   const [hasConfig, setHasConfig] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  // Kunde, der gerade per Dialog mit sevDesk verknüpft wird (FIN-2)
+  const [linkingCustomer, setLinkingCustomer] = useState<BillingSummaryItem | null>(null);
 
   // Billing period type (monthly, quarterly, yearly, or custom)
   const [billingPeriodType, setBillingPeriodType] = useState<BillingPeriodType>('monthly');
@@ -270,12 +273,10 @@ const BillingTab = () => {
       const endDate = new Date(selectedYear, startMonth + 3, 0);
       return { startDate, endDate };
     } else if (billingPeriodType === 'custom') {
-      // Custom date range
       const startDate = new Date(customStartDate);
       const endDate = new Date(customEndDate);
       return { startDate, endDate };
     } else {
-      // Yearly: full year
       const startDate = new Date(selectedYear, 0, 1);
       const endDate = new Date(selectedYear, 11, 31);
       return { startDate, endDate };
@@ -307,12 +308,10 @@ const BillingTab = () => {
       const enhancedSummary = summaryResponse.data.map((item: BillingSummaryItem) => {
         if (item.isBilled) return item;
 
-        // Check if any export for this customer covers the current period
         const hasOverlappingExport = exports.some((exp: InvoiceExport) => {
           if (exp.customerId !== item.customerId) return false;
           const expStart = new Date(exp.periodStart);
           const expEnd = new Date(exp.periodEnd);
-          // Current period is covered if export period contains it
           return expStart <= startDate && expEnd >= endDate;
         });
 
@@ -330,47 +329,35 @@ const BillingTab = () => {
     }
   };
 
-  // Navigation for monthly
-  const handlePrevMonth = () => {
-    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
-    setSelectedCustomers(new Set());
-  };
-
-  const handleNextMonth = () => {
-    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
-    setSelectedCustomers(new Set());
-  };
-
-  // Navigation for quarterly
-  const handlePrevQuarter = () => {
-    if (selectedQuarter === 1) {
-      setSelectedQuarter(4);
+  // Navigation (monthly/quarterly/yearly)
+  const handlePrev = () => {
+    if (billingPeriodType === 'monthly') {
+      setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
+    } else if (billingPeriodType === 'quarterly') {
+      if (selectedQuarter === 1) {
+        setSelectedQuarter(4);
+        setSelectedYear(selectedYear - 1);
+      } else {
+        setSelectedQuarter(selectedQuarter - 1);
+      }
+    } else {
       setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedQuarter(selectedQuarter - 1);
     }
-    setSelectedCustomers(new Set());
   };
 
-  const handleNextQuarter = () => {
-    if (selectedQuarter === 4) {
-      setSelectedQuarter(1);
+  const handleNext = () => {
+    if (billingPeriodType === 'monthly') {
+      setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
+    } else if (billingPeriodType === 'quarterly') {
+      if (selectedQuarter === 4) {
+        setSelectedQuarter(1);
+        setSelectedYear(selectedYear + 1);
+      } else {
+        setSelectedQuarter(selectedQuarter + 1);
+      }
+    } else {
       setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedQuarter(selectedQuarter + 1);
     }
-    setSelectedCustomers(new Set());
-  };
-
-  // Navigation for yearly
-  const handlePrevYear = () => {
-    setSelectedYear(selectedYear - 1);
-    setSelectedCustomers(new Set());
-  };
-
-  const handleNextYear = () => {
-    setSelectedYear(selectedYear + 1);
-    setSelectedCustomers(new Set());
   };
 
   // Get period display name
@@ -382,26 +369,16 @@ const BillingTab = () => {
     } else if (billingPeriodType === 'custom') {
       const start = new Date(customStartDate).toLocaleDateString('de-DE');
       const end = new Date(customEndDate).toLocaleDateString('de-DE');
-      return `${start} - ${end}`;
+      return `${start} – ${end}`;
     } else {
       return `Jahr ${selectedYear}`;
     }
   };
 
-  const toggleCustomerSelection = (customerId: string) => {
-    const newSelection = new Set(selectedCustomers);
-    if (newSelection.has(customerId)) {
-      newSelection.delete(customerId);
-    } else {
-      newSelection.add(customerId);
-    }
-    setSelectedCustomers(newSelection);
-  };
-
   // Open invoice creation dialog
   const handleCreateInvoice = (customer: BillingSummaryItem) => {
     if (!customer.sevdeskCustomerId) {
-      setError(`${customer.customerName} ist nicht mit sevDesk verknüpft`);
+      setLinkingCustomer(customer);
       return;
     }
     setInvoiceDialogCustomer(customer);
@@ -415,7 +392,7 @@ const BillingTab = () => {
     setTimeout(() => setSuccess(null), 5000);
   };
 
-  // Mark as billed without creating invoice (for customers without sevDesk)
+  // Mark as billed without creating invoice (z.B. Abrechnung außerhalb sevDesk)
   const handleMarkAsBilled = async (customerId: string, customerName: string) => {
     try {
       setProcessing(customerId);
@@ -454,26 +431,6 @@ const BillingTab = () => {
     }
   };
 
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null) return '–';
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
-  };
-
-  const formatHours = (hours: number) => `${hours.toFixed(2)}h`;
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('de-DE');
-  const periodName = getPeriodName();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-accent-primary" size={32} />
-      </div>
-    );
-  }
-
-  const unbilledItems = billingSummary.filter(item => !item.isBilled);
-  const billedItems = billingSummary.filter(item => item.isBilled);
-
   const handleRevertBilling = async (customerId: string, customerName: string) => {
     try {
       setProcessing(customerId);
@@ -505,304 +462,271 @@ const BillingTab = () => {
     }
   };
 
+  const formatMoney = (amount: number | null) => {
+    if (amount === null) return '–';
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(amount);
+  };
+  // H:MM statt „8.00h" — gleiche Schreibweise wie die KPI-Kacheln
+  const formatHours = (hours: number) => {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `${h}:${String(m).padStart(2, '0')} h`;
+  };
+  const formatDay = (dateStr: string) => new Date(dateStr).toLocaleDateString('de-DE');
+
+  const periodName = getPeriodName();
+  const unbilledItems = billingSummary.filter(item => !item.isBilled);
+  const billedItems = billingSummary.filter(item => item.isBilled);
+
+  const PERIOD_TYPES: Array<[BillingPeriodType, string]> = [
+    ['monthly', 'Monat'],
+    ['quarterly', 'Quartal'],
+    ['yearly', 'Jahr'],
+    ['custom', 'Frei'],
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Config Warning */}
-      {!hasConfig && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" size={20} />
-            <div>
-              <h4 className="font-medium text-yellow-800 dark:text-yellow-200">sevDesk nicht konfiguriert</h4>
-              <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                Konfiguriere deinen sevDesk API-Token in den Einstellungen.
-              </p>
+    <div className="space-y-5">
+      {/* Kopf: Titel + Zeitraum steuern die ganze Seite (vorher klemmte die
+          Periodenwahl mitten zwischen zwei Listen) */}
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Wallet className="text-accent-primary" />
+            Abrechnung
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+            Abrechenbare Zeiten pro Kunde — {periodName}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1">
+            {PERIOD_TYPES.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setBillingPeriodType(id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  billingPeriodType === id
+                    ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                    : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {billingPeriodType === 'custom' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                aria-label="Von"
+                className="px-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
+              />
+              <span className="text-gray-400 dark:text-dark-400">–</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                aria-label="Bis"
+                className="px-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
+              />
             </div>
+          ) : (
+            <div className="inline-flex items-center rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100">
+              <IconButton
+                icon={<ChevronLeft size={18} />}
+                onClick={handlePrev}
+                tooltip="Vorheriger Zeitraum"
+                size="sm"
+              />
+              <span className="px-2 text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap min-w-[7.5rem] text-center">
+                {periodName}
+              </span>
+              <IconButton
+                icon={<ChevronRight size={18} />}
+                onClick={handleNext}
+                tooltip="Nächster Zeitraum"
+                size="sm"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* sevDesk nicht eingerichtet */}
+      {!loading && !hasConfig && (
+        <div className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-300">
+          <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium">sevDesk ist noch nicht eingerichtet</p>
+            <p className="mt-0.5">
+              Ohne API-Token kannst du Zeiten nur als „erledigt" markieren.{' '}
+              <a href="/settings?tab=sevdesk" className="underline font-medium">Jetzt unter Einstellungen → sevDesk einrichten</a>
+            </p>
           </div>
         </div>
       )}
 
-      {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
-          <AlertTriangle size={18} />
-          <span className="text-sm">{error}</span>
-        </div>
-      )}
+      {error && <SevdeskErrorBanner error={error} onRetry={loadData} />}
 
       {success && (
-        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-300">
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-300">
           <Check size={18} />
           <span className="text-sm">{success}</span>
         </div>
       )}
 
-      {/* Billing Overview Stats */}
-      {!loading && billingSummary.length > 0 && (
-        <BillingOverview
-          billingSummary={billingSummary.map(item => ({
-            customerId: item.customerId,
-            customerName: item.customerName,
-            totalHours: item.totalHours,
-            roundedHours: item.roundedHours,
-            totalAmount: item.totalAmount || 0,
-            isBilled: item.isBilled || false,
-            sevdeskCustomerId: item.sevdeskCustomerId,
-            entryCount: item.entries?.length || 0,
-          }))}
-          periodName={periodName}
-          onCreateInvoice={hasConfig ? (customer) => {
-            const item = billingSummary.find(b => b.customerId === customer.customerId);
-            if (item) handleCreateInvoice(item);
-          } : undefined}
-        />
-      )}
+      {/* KPIs */}
+      <BillingOverview
+        billingSummary={billingSummary.map(item => ({
+          customerId: item.customerId,
+          totalHours: item.totalHours,
+          roundedHours: item.roundedHours,
+          totalAmount: item.totalAmount || 0,
+          isBilled: item.isBilled || false,
+        }))}
+      />
 
-      {/* Period Type Toggle */}
-      <div className="flex items-center justify-center gap-2 mb-2">
-        <span className="text-sm text-gray-500 dark:text-dark-400">Abrechnungszeitraum:</span>
-        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
-          <Button
-            variant={billingPeriodType === 'monthly' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setBillingPeriodType('monthly')}
-            className={`rounded-none ${
-              billingPeriodType !== 'monthly'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Monatlich
-          </Button>
-          <Button
-            variant={billingPeriodType === 'quarterly' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setBillingPeriodType('quarterly')}
-            className={`rounded-none ${
-              billingPeriodType !== 'quarterly'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Quartalsweise
-          </Button>
-          <Button
-            variant={billingPeriodType === 'yearly' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setBillingPeriodType('yearly')}
-            className={`rounded-none ${
-              billingPeriodType !== 'yearly'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Jährlich
-          </Button>
-          <Button
-            variant={billingPeriodType === 'custom' ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setBillingPeriodType('custom')}
-            className={`rounded-none ${
-              billingPeriodType !== 'custom'
-                ? 'bg-white dark:bg-dark-50 text-gray-600 dark:text-dark-400 hover:bg-gray-50 dark:hover:bg-dark-100'
-                : ''
-            }`}
-          >
-            Frei
-          </Button>
+      {/* EINE Liste der offenen Kunden (vorher doppelt: „Top offene
+          Abrechnungen" + „Nicht abgerechnete Zeiten" mit identischem Inhalt) */}
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-dark-border flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 dark:text-white">Offen</h2>
+          {!loading && unbilledItems.length > 0 && (
+            <span className="text-xs text-gray-500 dark:text-dark-400">
+              {unbilledItems.length} Kunde{unbilledItems.length === 1 ? '' : 'n'}
+            </span>
+          )}
         </div>
-      </div>
-
-      {/* Period Selector - show date inputs for custom, otherwise navigation */}
-      {billingPeriodType === 'custom' ? (
-        <div className="flex items-center justify-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 dark:text-dark-400">Von:</label>
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => setCustomStartDate(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-            />
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="animate-spin text-accent-primary" size={24} />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-500 dark:text-dark-400">Bis:</label>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => setCustomEndDate(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white"
-            />
-          </div>
-        </div>
-      ) : (
-      <div className="flex items-center justify-center gap-4">
-        <IconButton
-          icon={<ChevronLeft size={20} className="text-gray-600 dark:text-dark-500" />}
-          onClick={
-            billingPeriodType === 'monthly'
-              ? handlePrevMonth
-              : billingPeriodType === 'quarterly'
-              ? handlePrevQuarter
-              : handlePrevYear
-          }
-          tooltip="Vorheriger Zeitraum"
-        />
-        <div className="flex items-center gap-2 text-lg font-medium text-gray-900 dark:text-white">
-          <Clock size={20} className="text-accent-primary" />
-          {periodName}
-        </div>
-        <IconButton
-          icon={<ChevronRight size={20} className="text-gray-600 dark:text-dark-500" />}
-          onClick={
-            billingPeriodType === 'monthly'
-              ? handleNextMonth
-              : billingPeriodType === 'quarterly'
-              ? handleNextQuarter
-              : handleNextYear
-          }
-          tooltip="Nächster Zeitraum"
-        />
-      </div>
-      )}
-
-      {/* Unbilled Items */}
-      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="font-semibold text-gray-900 dark:text-white">Nicht abgerechnete Zeiten</h3>
-        </div>
-        {unbilledItems.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-dark-400">
-            <Check size={48} className="mx-auto mb-4 text-green-500" />
-            <p>Alle Zeiten für {periodName} wurden abgerechnet!</p>
+        ) : unbilledItems.length === 0 ? (
+          <div className="py-10 text-center text-gray-500 dark:text-dark-400">
+            <CheckCircle size={40} className="mx-auto mb-3 text-green-500" />
+            <p className="font-medium text-gray-700 dark:text-dark-500">Alles abgerechnet</p>
+            <p className="text-sm mt-0.5">Keine offenen abrechenbaren Zeiten für {periodName}</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-dark-border">
-            {unbilledItems.map((item) => (
-              <div key={item.customerId} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedCustomers.has(item.customerId)}
-                      onChange={() => toggleCustomerSelection(item.customerId)}
-                      className="rounded border-gray-300"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                        {item.customerName}
-                        {item.sevdeskCustomerId && (
-                          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                            <ExternalLink size={10} /> sevDesk
-                          </span>
-                        )}
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
+            {[...unbilledItems]
+              .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
+              .map((item) => {
+                const linked = !!item.sevdeskCustomerId;
+                const rounded = item.roundedHours && item.roundedHours !== item.totalHours;
+                return (
+                  <div key={item.customerId} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <CustomerAvatar
+                        name={item.customerName}
+                        color={item.customerColor}
+                        logoUrl={item.customerLogoUrl}
+                        size="md"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                        <p className="text-xs text-gray-500 dark:text-dark-400">
+                          {formatHours(item.roundedHours || item.totalHours)}
+                          {rounded && <> (gerundet aus {formatHours(item.totalHours)})</>}
+                          {' · '}{item.entries?.length || 0} Einträge
+                          {!linked && hasConfig && (
+                            <span className="ml-1.5 inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                              · nicht mit sevDesk verknüpft
+                            </span>
+                          )}
+                        </p>
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-dark-400">
-                        {formatHours(item.totalHours)}
-                        {item.roundedHours && item.roundedHours !== item.totalHours && (
-                          <span className="text-accent-primary ml-1">
-                            → {formatHours(item.roundedHours)} ({item.timeRoundingInterval || 15} Min.)
-                          </span>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pl-12 sm:pl-0">
+                      <span className="font-semibold text-gray-900 dark:text-white tabular-nums whitespace-nowrap">
+                        {formatMoney(item.totalAmount)}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {hasConfig && linked && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleCreateInvoice(item)}
+                            disabled={processing === item.customerId}
+                            loading={processing === item.customerId}
+                            icon={<Send size={14} />}
+                          >
+                            Rechnung
+                          </Button>
+                        )}
+                        {hasConfig && !linked && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setLinkingCustomer(item)}
+                            icon={<Link2 size={14} />}
+                            className="whitespace-nowrap"
+                          >
+                            <span className="sm:hidden">Verknüpfen</span>
+                            <span className="hidden sm:inline">Mit sevDesk verknüpfen</span>
+                          </Button>
+                        )}
+                        {(!hasConfig || !linked) && (
+                          <IconButton
+                            icon={processing === item.customerId ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                            onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
+                            disabled={processing === item.customerId}
+                            tooltip="Ohne Rechnung als erledigt markieren"
+                            size="sm"
+                          />
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
-                      {item.roundedHours && item.roundedHours !== item.totalHours && (
-                        <div className="text-xs text-gray-400 dark:text-dark-400">aufgerundet</div>
-                      )}
-                    </div>
-                    {item.sevdeskCustomerId && hasConfig ? (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleCreateInvoice(item)}
-                        disabled={processing === item.customerId}
-                        loading={processing === item.customerId}
-                        icon={<Send size={14} />}
-                      >
-                        Rechnung
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleMarkAsBilled(item.customerId, item.customerName)}
-                        disabled={processing === item.customerId}
-                        loading={processing === item.customerId}
-                        icon={<Check size={14} />}
-                        className="bg-gray-600 text-white hover:bg-gray-700"
-                      >
-                        Erledigt
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
           </div>
         )}
       </div>
 
-      {/* Billed Items from current month */}
-      {billedItems.length > 0 && (
-        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <CheckCircle size={18} className="text-green-500" />
-              Abgerechnete Zeiten in {periodName} ({billedItems.length})
-            </h3>
+      {/* Bereits abgerechnet im Zeitraum */}
+      {!loading && billedItems.length > 0 && (
+        <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-dark-border">
+            <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <CheckCircle size={17} className="text-green-500" />
+              Abgerechnet in {periodName}
+            </h2>
           </div>
-          <div className="divide-y divide-gray-200 dark:divide-dark-border">
+          <div className="divide-y divide-gray-100 dark:divide-dark-border">
             {billedItems.map((item) => {
               const billedViaOverlap = (item as BillingSummaryItem & { billedViaOverlap?: boolean }).billedViaOverlap;
               return (
-                <div key={item.customerId} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                          {item.customerName}
-                          {item.sevdeskCustomerId && (
-                            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                              <ExternalLink size={10} /> sevDesk
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-dark-400">
-                          {formatHours(item.totalHours)}
-                          {item.roundedHours && item.roundedHours !== item.totalHours && (
-                            <span className="text-accent-primary ml-1">
-                              → {formatHours(item.roundedHours)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <div className="font-semibold text-gray-900 dark:text-white">{formatCurrency(item.totalAmount)}</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">
-                          {billedViaOverlap ? 'Abgerechnet (via Quartal)' : 'Abgerechnet'}
-                        </div>
-                      </div>
-                      {!billedViaOverlap && (
-                        <Button
-                          variant="warning"
-                          size="sm"
-                          onClick={() => handleRevertBilling(item.customerId, item.customerName)}
-                          disabled={processing === item.customerId}
-                          loading={processing === item.customerId}
-                          icon={<RotateCcw size={14} />}
-                          className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/50"
-                        >
-                          Zurücksetzen
-                        </Button>
-                      )}
-                    </div>
+                <div key={item.customerId} className="px-4 py-2.5 flex items-center gap-3">
+                  <CustomerAvatar
+                    name={item.customerName}
+                    color={item.customerColor}
+                    logoUrl={item.customerLogoUrl}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.customerName}</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">
+                      {formatHours(item.roundedHours || item.totalHours)}
+                      {billedViaOverlap && ' · über Quartals-/Jahresabrechnung'}
+                    </p>
                   </div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white tabular-nums whitespace-nowrap">
+                    {formatMoney(item.totalAmount)}
+                  </span>
+                  {!billedViaOverlap && (
+                    <IconButton
+                      icon={processing === item.customerId ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+                      onClick={() => handleRevertBilling(item.customerId, item.customerName)}
+                      disabled={processing === item.customerId}
+                      tooltip="Abrechnung zurücksetzen"
+                      size="sm"
+                    />
+                  )}
                 </div>
               );
             })}
@@ -810,44 +734,48 @@ const BillingTab = () => {
         </div>
       )}
 
-      {/* Completed Exports */}
-      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 dark:text-white">
-            Erledigte Abrechnungen ({invoiceExports.length})
-          </h3>
-          <Button
-            variant={showCompleted ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setShowCompleted(!showCompleted)}
-            icon={showCompleted ? <EyeOff size={16} /> : <Eye size={16} />}
-            className={showCompleted ? 'bg-accent-primary/10 text-accent-primary' : ''}
-          >
-            {showCompleted ? 'Ausblenden' : 'Anzeigen'}
-          </Button>
-        </div>
+      {/* Ablaufende Lizenzen (nur bei Treffern) */}
+      <LicenseExpiryCard />
+
+      {/* Abrechnungs-Historie */}
+      <div className="bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowCompleted(!showCompleted)}
+          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-dark-200/50 transition-colors"
+        >
+          <span className="font-semibold text-gray-900 dark:text-white">
+            Abrechnungs-Historie ({invoiceExports.length})
+          </span>
+          {showCompleted
+            ? <ChevronDown size={18} className="text-gray-400 dark:text-dark-400" />
+            : <ChevronRight size={18} className="text-gray-400 dark:text-dark-400" />}
+        </button>
         {showCompleted && (
           invoiceExports.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-dark-400">Keine erledigten Abrechnungen</div>
+            <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-dark-400 border-t border-gray-100 dark:border-dark-border">
+              Noch keine Abrechnungen
+            </div>
           ) : (
-            <div className="divide-y divide-gray-200 dark:divide-dark-border">
+            <div className="divide-y divide-gray-100 dark:divide-dark-border border-t border-gray-100 dark:border-dark-border">
               {invoiceExports.map((exp) => (
-                <div key={exp.id} className="p-4 flex items-center gap-4">
+                <div key={exp.id} className="px-4 py-2.5 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 dark:text-white truncate">{exp.customerName}</div>
-                    <div className="text-sm text-gray-500 dark:text-dark-400">{formatDate(exp.periodStart)} - {formatDate(exp.periodEnd)}</div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{exp.customerName}</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">{formatDay(exp.periodStart)} – {formatDay(exp.periodEnd)}</p>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium text-gray-900 dark:text-white">{formatCurrency(exp.totalAmount)}</div>
-                    <div className="text-sm text-gray-500 dark:text-dark-400">{exp.sevdeskInvoiceNumber || 'Manuell'}</div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white tabular-nums">{formatMoney(exp.totalAmount)}</p>
+                    <p className="text-xs text-gray-500 dark:text-dark-400">{exp.sevdeskInvoiceNumber || 'ohne Rechnung'}</p>
                   </div>
                   {!exp.sevdeskInvoiceNumber && (
                     <IconButton
-                      icon={processing === exp.id ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                      icon={processing === exp.id ? <Loader2 className="animate-spin" size={15} /> : <RotateCcw size={15} />}
                       onClick={() => handleUndoExport(exp.id, exp.customerName)}
                       disabled={processing === exp.id}
                       variant="danger"
                       tooltip="Rückgängig"
+                      size="sm"
                     />
                   )}
                 </div>
@@ -871,6 +799,24 @@ const BillingTab = () => {
           />
         );
       })()}
+
+      {/* sevDesk-Verknüpfung direkt aus der Abrechnung (vorher nur ein
+          unerklärter grauer Balken + „Erledigt") */}
+      {linkingCustomer && (
+        <CustomerSevdeskLink
+          isOpen={true}
+          customer={{
+            id: linkingCustomer.customerId,
+            name: linkingCustomer.customerName,
+            sevdeskCustomerId: linkingCustomer.sevdeskCustomerId,
+          }}
+          onClose={() => setLinkingCustomer(null)}
+          onLinked={() => {
+            setLinkingCustomer(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -1161,6 +1107,7 @@ const OutgoingInvoicesTab = () => {
   const loadInvoices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await sevdeskApi.getInvoices({ limit: 500 });
       setInvoices(res.data || []);
     } catch (err: any) {
@@ -1186,10 +1133,9 @@ const OutgoingInvoicesTab = () => {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <FileText className="text-accent-primary" size={20} />
-          Ausgangsrechnungen
-        </h2>
+        <p className="text-sm text-gray-500 dark:text-dark-400">
+          {loading ? 'Lade Rechnungen…' : error ? '' : `${invoices.length} Rechnung${invoices.length === 1 ? '' : 'en'}`}
+        </p>
         <Button variant="ghost" size="sm" onClick={loadInvoices} icon={<RefreshCw size={16} />}>
           Aktualisieren
         </Button>
@@ -1203,22 +1149,18 @@ const OutgoingInvoicesTab = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Suchen..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
         />
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <SevdeskErrorBanner error={error} onRetry={loadInvoices} />}
 
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-accent-primary" />
         </div>
-      ) : filteredInvoices.length === 0 ? (
+      ) : error ? null : filteredInvoices.length === 0 ? (
         <div className="text-center py-8 text-gray-500 dark:text-dark-400">
           Keine Rechnungen gefunden
         </div>
@@ -1285,6 +1227,7 @@ const QuotesTab = () => {
   const loadQuotes = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await sevdeskApi.getQuotes({ limit: 500 });
       setQuotes(res.data || []);
     } catch (err: any) {
@@ -1310,10 +1253,9 @@ const QuotesTab = () => {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Send className="text-accent-primary" size={20} />
-          Angebote
-        </h2>
+        <p className="text-sm text-gray-500 dark:text-dark-400">
+          {loading ? 'Lade Angebote…' : error ? '' : `${quotes.length} Angebot${quotes.length === 1 ? '' : 'e'}`}
+        </p>
         <div className="flex gap-2">
           <Button variant="primary" size="sm" onClick={() => { setEditingQuoteId(null); setShowQuoteEditor(true); }} icon={<Plus size={16} />}>
             Neues Angebot
@@ -1332,22 +1274,18 @@ const QuotesTab = () => {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Suchen..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
+          className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15"
         />
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-          {error}
-        </div>
-      )}
+      {error && <SevdeskErrorBanner error={error} onRetry={loadQuotes} />}
 
       {/* List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-accent-primary" />
         </div>
-      ) : filteredQuotes.length === 0 ? (
+      ) : error ? null : filteredQuotes.length === 0 ? (
         <div className="text-center py-8 text-gray-500 dark:text-dark-400">
           Keine Angebote gefunden
         </div>
@@ -1411,167 +1349,6 @@ const QuotesTab = () => {
           onClose={() => setSelectedQuote(null)}
         />
       )}
-    </div>
-  );
-};
-
-// ==================== Incoming Receipts Tab ====================
-const IncomingReceiptsTab = () => {
-  const [showInbox, setShowInbox] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [vouchers, setVouchers] = useState<VoucherWithSource[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    loadVouchers();
-  }, []);
-
-  const loadVouchers = async () => {
-    try {
-      setLoading(true);
-      const res = await microsoft365Api.getProcessedInvoices({
-        status: 'processed,imported',
-        source: 'email,manual,sevdesk_import',
-        limit: 500,
-      });
-      setVouchers((res.data || []).map(mapProcessedInvoiceToVoucher));
-    } catch (err: any) {
-      console.error('Error loading vouchers:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredVouchers = vouchers.filter(v =>
-    !searchQuery ||
-    v.voucherNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.supplier?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const getVoucherStatusColor = (status: number) => {
-    if (status >= 1000) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-    if (status >= 100) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
-    return 'bg-gray-100 text-gray-600 dark:bg-dark-200 dark:text-dark-400';
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Inbox Toggle */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Receipt className="text-accent-primary" size={20} />
-          Eingangsbelege
-        </h2>
-        <Button
-          variant={showInbox ? 'primary' : 'outline'}
-          size="sm"
-          onClick={() => setShowInbox(!showInbox)}
-          icon={showInbox ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        >
-          {showInbox ? 'Inbox ausblenden' : 'Inbox einblenden'}
-        </Button>
-      </div>
-
-      {/* Invoice Draft Queue (Inbox) */}
-      {showInbox && (
-        <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden" style={{ maxHeight: '500px' }}>
-          <InvoiceDraftQueue />
-        </div>
-      )}
-
-      {/* Processed Vouchers Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-            <CheckCircle size={18} className="text-green-500" />
-            Verarbeitete Belege ({vouchers.length})
-          </h3>
-          <Button variant="ghost" size="sm" onClick={loadVouchers} icon={<RefreshCw size={16} />}>
-            Aktualisieren
-          </Button>
-        </div>
-
-        {/* Search */}
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Belege durchsuchen..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-50 text-gray-900 dark:text-white text-sm"
-          />
-        </div>
-
-        {/* List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-accent-primary" />
-          </div>
-        ) : filteredVouchers.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-dark-400">
-            <CreditCard size={32} className="mx-auto mb-2 opacity-50" />
-            Keine verarbeiteten Belege
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredVouchers.map((voucher) => (
-              <div
-                key={voucher.id}
-                className="flex items-center gap-3 p-4 bg-white dark:bg-dark-100 border border-gray-200 dark:border-dark-border rounded-lg"
-              >
-                <div className="p-2 bg-gray-100 dark:bg-dark-200 rounded-lg">
-                  <CreditCard size={20} className="text-gray-500 dark:text-dark-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {voucher.voucherNumber || voucher.description || `Beleg #${voucher.id.slice(0, 8)}`}
-                    </span>
-                    <SourceBadge source={voucher.source} />
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${getVoucherStatusColor(voucher.status)}`}>
-                      {voucher.statusName}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 dark:text-dark-400 truncate">
-                    {voucher.supplier?.name || 'Kein Lieferant'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-medium ${voucher.creditDebit === 'D' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                    {voucher.creditDebit === 'D' ? '+' : '-'}{formatCurrency(voucher.sumGross)}
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-dark-400">
-                    {formatDate(voucher.voucherDate)}
-                  </p>
-                </div>
-                {voucher.source === 'sevdesk_import' && (
-                  <a
-                    href={`https://my.sevdesk.de/voucher/${voucher.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-dark-200 rounded-lg transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ExternalLink size={16} className="text-gray-400 dark:text-dark-400" />
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ==================== Settings Tab ====================
-const SettingsTab = () => {
-  return (
-    <div className="max-w-2xl space-y-6">
-      <SevdeskSettings />
-      <InfinigateSettings />
     </div>
   );
 };
