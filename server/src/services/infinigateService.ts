@@ -584,6 +584,120 @@ export async function rejectQuote(
   return response;
 }
 
+// ─── Angebots-Anfrage (FIN-3, 22.11.2026) ───────────────────────────────────
+// Request-Form verifiziert gegen n8n-nodes-infinigate (main,
+// nodes/Infinigate/descriptions/purchaseQuote/request.operation.ts):
+//   POST /order-management/v2/purchasequote/request
+//   { header: { contact{name, phoneNumber, fax, eMail}, comment, yourReference,
+//               endUser{ company{name, street, additionalAddressInfo, postalCode,
+//               city, countryCode, countryName}, contact, endUserReference,
+//               endUserType }, … },
+//     lines: [{ itemNumber, quantity, itemDescription, manufacturerItemNumber,
+//               yourLineNumber, … }] }
+// Die Node markiert KEIN Feld als Pflicht — wir senden nur befüllte Felder
+// (leere Strings würden sonst als Wert übertragen). Unverbindlich: eine
+// Anfrage erzeugt beim Distributor ein Angebot, das später angenommen oder
+// abgelehnt wird (Annahme = Bestellung, siehe acceptQuote).
+
+export interface QuoteRequestLine {
+  itemNumber: string;
+  quantity: number;
+  itemDescription?: string;
+  manufacturerItemNumber?: string;
+}
+
+export interface QuoteRequestInput {
+  lines: QuoteRequestLine[];
+  comment?: string;
+  yourReference?: string;
+  /** CRM-Kunde als Endkunde (muss zur Organisation gehören) */
+  customerId?: string;
+  organizationId: string;
+}
+
+// Entfernt leere Werte rekursiv, damit nur echte Angaben beim Distributor landen
+const compact = (obj: Record<string, unknown>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      const nested = compact(value as Record<string, unknown>);
+      if (Object.keys(nested).length > 0) out[key] = nested;
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+};
+
+export async function buildQuoteRequestBody(
+  userId: string,
+  input: QuoteRequestInput
+): Promise<{ header: Record<string, unknown>; lines: Record<string, unknown>[] }> {
+  const userResult = await query(
+    'SELECT email, display_name, username FROM users WHERE id = $1',
+    [userId]
+  );
+  const user = userResult.rows[0];
+  if (!user?.email) throw new Error('Keine E-Mail-Adresse für den User gefunden');
+
+  let endUser: Record<string, unknown> | undefined;
+  if (input.customerId) {
+    const customerResult = await query(
+      `SELECT name, customer_number, email, phone, address_street, address_zip, address_city
+       FROM customers
+       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL`,
+      [input.customerId, input.organizationId]
+    );
+    const customer = customerResult.rows[0];
+    if (!customer) throw new Error('Endkunde nicht gefunden');
+    endUser = {
+      company: {
+        name: customer.name,
+        street: customer.address_street,
+        postalCode: customer.address_zip != null ? String(customer.address_zip) : undefined,
+        city: customer.address_city,
+        // Nur mit strukturierter Adresse — Land ist bei unseren Kunden DE
+        countryCode: customer.address_city ? 'DE' : undefined,
+      },
+      contact: { name: customer.name, eMail: customer.email, phoneNumber: customer.phone },
+      endUserReference: customer.customer_number != null ? String(customer.customer_number) : undefined,
+    };
+  }
+
+  const header = compact({
+    contact: { name: user.display_name || user.username, eMail: user.email },
+    comment: input.comment,
+    yourReference: input.yourReference,
+    endUser,
+  });
+
+  const lines = input.lines.map((line, idx) => compact({
+    itemNumber: line.itemNumber,
+    quantity: line.quantity,
+    itemDescription: line.itemDescription,
+    manufacturerItemNumber: line.manufacturerItemNumber,
+    yourLineNumber: String(idx + 1),
+  }));
+
+  return { header, lines };
+}
+
+export async function requestQuote(userId: string, input: QuoteRequestInput): Promise<any> {
+  const config = await getConfig(userId);
+  if (!isConfigured(config)) throw new Error('Infinigate ist nicht vollständig konfiguriert');
+  const body = await buildQuoteRequestBody(userId, input);
+  const response = await infinigateFetch(config, '/order-management/v2/purchasequote/request', {
+    method: 'POST',
+    body,
+  });
+  logger.info(
+    `Infinigate-Angebotsanfrage gesendet: ${input.lines.map(l => `${l.quantity}× ${l.itemNumber}`).join(', ')}` +
+    (input.customerId ? ` (Endkunde ${input.customerId})` : '')
+  );
+  return response;
+}
+
 // Struktur-Dump für Preisliste + Angebote (gleiches Muster wie debug/structure):
 // zeigt die ECHTEN Feldnamen, damit die Normalisierung nachgeschärft werden kann.
 export async function inspectOrdersStructure(userId: string, search: string): Promise<any> {

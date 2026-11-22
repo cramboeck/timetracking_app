@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingCart, Search, Loader2, Package, FileQuestion,
-  CheckCircle2, XCircle, ExternalLink, AlertTriangle, Building2
+  CheckCircle2, XCircle, ExternalLink, AlertTriangle, Building2, Send
 } from 'lucide-react';
 import { infinigateApi, PricelistItem, InfinigateQuote } from '../services/api';
 import { Button } from './ui/Button';
 import { useConfirm, useToast } from '../contexts/UIContext';
+import { QuoteRequestDialog } from './QuoteRequestDialog';
 
 /**
  * Bestellungen — Distributor-Modul (Phase 2b).
@@ -48,6 +49,7 @@ export const OrdersHub = () => {
 
   const [searchInput, setSearchInput] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
+  const [requestItem, setRequestItem] = useState<PricelistItem | null>(null);
 
   const configQuery = useQuery({
     queryKey: ['infinigate', 'config'],
@@ -74,7 +76,11 @@ export const OrdersHub = () => {
     mutationFn: (quote: InfinigateQuote) =>
       infinigateApi.acceptQuote(quote.documentNumber!, quote.documentRevision ?? 0),
     onSuccess: (_res, quote) => {
-      showToast(`Angebot ${quote.documentNumber} angenommen — Bestellung ausgelöst`, 'success');
+      showToast(
+        `Angebot ${quote.documentNumber} angenommen — Bestellung ausgelöst. Die Rechnung kommt per Sync in den Rechnungseingang; dort den Endkunden zuordnen und weiterberechnen.`,
+        'success',
+        8000
+      );
       queryClient.invalidateQueries({ queryKey: ['infinigate', 'quotes'] });
     },
     onError: (err: any) => showToast(err.message || 'Annehmen fehlgeschlagen', 'error'),
@@ -139,6 +145,13 @@ export const OrdersHub = () => {
         )}
       </td>
       <td className="px-4 py-2.5 text-right text-gray-500 dark:text-dark-400 whitespace-nowrap tabular-nums">{fmtStock(item)}</td>
+      <td className="px-4 py-2.5 text-right">
+        {item.sku && (
+          <Button size="sm" variant="secondary" icon={<Send size={13} />} onClick={() => setRequestItem(item)} className="whitespace-nowrap">
+            Anfragen
+          </Button>
+        )}
+      </td>
     </tr>
   );
 
@@ -154,6 +167,11 @@ export const OrdersHub = () => {
           <span className="ml-2 font-normal text-xs text-gray-500 dark:text-dark-400">Bestand: {fmtStock(item)}</span>
         )}
       </p>
+      {item.sku && (
+        <Button size="sm" variant="secondary" icon={<Send size={13} />} onClick={() => setRequestItem(item)} className="mt-2">
+          Angebot anfragen
+        </Button>
+      )}
     </div>
   );
 
@@ -181,7 +199,10 @@ export const OrdersHub = () => {
             )}
           </div>
           <p className="text-xs text-gray-500 dark:text-dark-400 mt-1.5">
-            Preisliste, Angebote, Rechnungs-Sync{!infinigateConfigured && ' — Zugangsdaten unter Einstellungen → Infinigate'}
+            Preisliste, Angebote, Rechnungs-Sync
+            {!infinigateConfigured && (
+              <> — <a href="/settings?tab=infinigate" className="text-accent-primary hover:underline">Zugangsdaten einrichten</a></>
+            )}
           </p>
         </div>
         <div className="bg-white dark:bg-dark-50 rounded-xl border border-gray-200 dark:border-dark-border p-4">
@@ -209,7 +230,10 @@ export const OrdersHub = () => {
       {!infinigateConfigured && !configQuery.isLoading && (
         <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
           <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-          <span>Infinigate ist nicht konfiguriert — Preissuche und Angebote brauchen die API-Zugangsdaten (Einstellungen → Infinigate).</span>
+          <span>
+            Infinigate ist nicht konfiguriert — Preissuche und Angebote brauchen die API-Zugangsdaten.{' '}
+            <a href="/settings?tab=infinigate" className="font-medium underline">Jetzt unter Einstellungen → Infinigate einrichten</a>
+          </span>
         </div>
       )}
 
@@ -230,7 +254,7 @@ export const OrdersHub = () => {
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Produkt, SKU oder Hersteller — z.B. 365 Total Protection"
               disabled={!infinigateConfigured}
-              className="flex-1 min-w-0 px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent-primary/40"
+              className="flex-1 min-w-0 px-3.5 py-2.5 text-sm rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-dark-400 transition-all duration-150 hover:border-gray-300 dark:hover:border-dark-400/40 focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 disabled:opacity-60"
             />
             <Button
               type="submit"
@@ -260,6 +284,7 @@ export const OrdersHub = () => {
                     <th className="px-4 py-2 font-medium">Hersteller</th>
                     <th className="px-4 py-2 font-medium text-right">EK netto</th>
                     <th className="px-4 py-2 font-medium text-right">Bestand</th>
+                    <th className="px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody>{items.map(renderPriceRow)}</tbody>
@@ -284,9 +309,14 @@ export const OrdersHub = () => {
             Angebote (Infinigate)
           </h3>
           <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5">
-            Vom Distributor erstellte Angebote — Annehmen löst eine <strong>verbindliche Bestellung</strong> aus
+            Von Infinigate erstellte Angebote (auch aus deinen Anfragen) — Annehmen löst eine <strong>verbindliche Bestellung</strong> aus
           </p>
         </div>
+        {!infinigateConfigured && !configQuery.isLoading && (
+          <p className="p-4 text-sm text-gray-500 dark:text-dark-400">
+            Angebote erscheinen hier, sobald Infinigate verbunden ist.
+          </p>
+        )}
         {quotesQuery.isLoading && infinigateConfigured && (
           <p className="p-4 text-sm text-gray-500 dark:text-dark-400 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Lade Angebote…</p>
         )}
@@ -294,7 +324,9 @@ export const OrdersHub = () => {
           <p className="p-4 text-sm text-red-600 dark:text-red-400">{(quotesQuery.error as any)?.message || 'Angebote konnten nicht geladen werden'}</p>
         )}
         {quotesQuery.isSuccess && quotes.length === 0 && (
-          <p className="p-4 text-sm text-gray-500 dark:text-dark-400">Aktuell keine Angebote vorhanden.</p>
+          <p className="p-4 text-sm text-gray-500 dark:text-dark-400">
+            Aktuell keine Angebote. Über „Anfragen" in der Preissuche kannst du eines anfordern.
+          </p>
         )}
         {quotes.length > 0 && (
           <div className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -348,6 +380,8 @@ export const OrdersHub = () => {
           </div>
         )}
       </div>
+
+      <QuoteRequestDialog item={requestItem} onClose={() => setRequestItem(null)} />
     </div>
   );
 };

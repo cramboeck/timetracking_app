@@ -113,6 +113,7 @@ export type {
   InfinigateSyncResult,
   PricelistItem,
   InfinigateQuote,
+  QuoteRequestPayload,
   LineItemType,
   CustomerHardwareItem,
   InternalExpenseSummary,

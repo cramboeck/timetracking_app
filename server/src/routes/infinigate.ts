@@ -3,7 +3,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validation';
-import { attachOrganization, requireOrgRole } from '../middleware/organization';
+import { attachOrganization, requireOrgRole, OrganizationRequest } from '../middleware/organization';
 import { query } from '../config/database';
 import * as infinigateService from '../services/infinigateService';
 import { logger } from '../utils/logger';
@@ -167,6 +167,41 @@ router.post('/quotes/reject', authenticateToken, attachOrganization, requireOrgR
   } catch (error: any) {
     logger.error('Infinigate reject quote error:', error);
     res.status(500).json({ success: false, error: sanitizeErrorMessage(error) });
+  }
+});
+
+const quoteRequestSchema = z.object({
+  lines: z.array(z.object({
+    itemNumber: z.string().min(1).max(100),
+    quantity: z.number().int().min(1).max(100000),
+    itemDescription: z.string().max(500).optional(),
+    manufacturerItemNumber: z.string().max(100).optional(),
+  })).min(1).max(50),
+  comment: z.string().max(2000).optional(),
+  yourReference: z.string().max(100).optional(),
+  // customers.id ist UUID, aber analog Regel 14 kein .uuid()-Zwang — die
+  // Org-Zugehörigkeit prüft der Service per WHERE
+  customerId: z.string().min(1).max(100).optional(),
+});
+
+// POST /api/infinigate/quotes/request - unverbindliche Angebotsanfrage
+// (FIN-3). Erzeugt beim Distributor ein Angebot, das danach in der
+// Angebote-Liste erscheint und angenommen/abgelehnt werden kann.
+router.post('/quotes/request', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(quoteRequestSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const organizationId = (req as unknown as OrganizationRequest).organization.id;
+    const result = await infinigateService.requestQuote(req.user!.id, {
+      lines: req.body.lines,
+      comment: req.body.comment,
+      yourReference: req.body.yourReference,
+      customerId: req.body.customerId,
+      organizationId,
+    });
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    logger.error('Infinigate quote request error:', error);
+    const message = sanitizeErrorMessage(error);
+    res.status(message === 'Endkunde nicht gefunden' ? 404 : 500).json({ success: false, error: message });
   }
 });
 

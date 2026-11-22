@@ -850,7 +850,28 @@ export const infinigateApi = {
       body: JSON.stringify({ documentNumber, documentRevision, comment }),
     });
   },
+
+  // Unverbindliche Angebotsanfrage (FIN-3) — erzeugt beim Distributor ein
+  // Angebot, das danach in der Angebote-Liste erscheint
+  requestQuote: async (input: QuoteRequestPayload): Promise<{ success: boolean; data: unknown }> => {
+    return authFetch('/infinigate/quotes/request', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
 };
+
+export interface QuoteRequestPayload {
+  lines: Array<{
+    itemNumber: string;
+    quantity: number;
+    itemDescription?: string;
+    manufacturerItemNumber?: string;
+  }>;
+  comment?: string;
+  yourReference?: string;
+  customerId?: string;
+}
 
 export interface PricelistItem {
   sku: string | null;
