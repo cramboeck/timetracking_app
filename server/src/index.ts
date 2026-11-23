@@ -18,6 +18,7 @@ import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import { startLogoBackfill } from './services/logoService';
+import { backfillAssetsFromNinja } from './services/assetService';
 import authRoutes from './routes/auth';
 import authEntraRoutes from './routes/auth-entra';
 import entriesRoutes from './routes/entries';
@@ -51,6 +52,7 @@ import importRoutes from './routes/import';
 import socialMediaRoutes from './routes/social-media';
 import microsoft365Routes from './routes/microsoft365';
 import contactsRoutes from './routes/contacts';
+import assetsRoutes from './routes/assets';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
 import customerMetricsRoutes from './routes/customer-metrics';
@@ -143,6 +145,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/social-media', socialMediaRoutes);
 app.use('/api/microsoft365', microsoft365Routes);
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/assets', assetsRoutes);
 app.use('/api/interactions', interactionsRoutes);
 app.use('/api/opportunities', opportunitiesRoutes);
 app.use('/api/customer-metrics', customerMetricsRoutes);
@@ -283,6 +286,8 @@ startLicenseExpiryJob();
 startSupportInboxJob();
 // Einmaliger Logo-Backfill für Bestandskunden (Boot +3 min, sequenziell)
 startLogoBackfill();
+// NinjaOne-Geräte einmalig als Assets übernehmen (Boot +90 s, idempotent)
+setTimeout(() => { void backfillAssetsFromNinja(); }, 90_000);
 
 // Start server
 app.listen(PORT, () => {

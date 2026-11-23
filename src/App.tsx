@@ -15,7 +15,7 @@ import { CustomerHub } from './components/CustomerHub';
 import { Settings } from './components/Settings';
 import { Tickets } from './components/Tickets';
 import { Finanzen } from './components/Finanzen';
-import { DevicesView } from './components/DevicesView';
+import { AssetsView } from './components/assets/AssetsView';
 import { AlertsView } from './components/AlertsView';
 import { VulnerabilitiesDashboard } from './components/VulnerabilitiesDashboard';
 import MaintenanceView from './components/MaintenanceView';
@@ -1215,7 +1215,7 @@ function App() {
           />
         )}
         {currentSubView === 'devices' && (
-          <DevicesView />
+          <AssetsView />
         )}
         {currentSubView === 'alerts' && (
           <AlertsView />

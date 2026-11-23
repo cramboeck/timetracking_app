@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { syncAssetsFromNinja } from './assetService';
 import { v4 as uuidv4 } from 'uuid';
 
 // NinjaRMM API Configuration
@@ -952,6 +953,15 @@ export async function syncDevices(userId: string): Promise<SyncResult> {
   }
 
   console.log(`Devices sync complete: ${synced} synced, ${errors} errors`);
+
+  // Geraete als Assets fuehren (AS-1) — non-fatal, der Ninja-Cache bleibt Quelle
+  if (synced > 0) {
+    try {
+      await syncAssetsFromNinja(userId);
+    } catch (err) {
+      console.error('Asset-Abgleich nach Ninja-Sync (non-fatal):', err);
+    }
+  }
   return { synced, errors };
 }
 

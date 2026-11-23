@@ -23,6 +23,7 @@ import * as m021 from './021-api-tokens';
 import * as m022 from './022-contact-unification';
 import * as m023 from './023-customer-master-data';
 import * as m024 from './024-customer-logos';
+import * as m025 from './025-assets';
 
 export interface Migration {
   name: string;
@@ -59,4 +60,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '022-contact-unification', run: m022.run },
   { name: '023-customer-master-data', run: m023.run },
   { name: '024-customer-logos', run: m024.run },
+  { name: '025-assets', run: m025.run },
 ];
