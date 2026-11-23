@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import { sevdeskApi, CustomerLicenseData, CustomerLicenseProduct, AdminLicenseRequest } from '../services/api';
 import { useToast } from '../contexts/UIContext';
+import { AssetDialog } from './assets/AssetDialog';
+import { AssetDetail } from './assets/AssetDetail';
+import type { AssetInput } from '../services/api';
 
 interface CustomerLicensesProps {
   customerId: string;
@@ -51,6 +54,9 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [actingId, setActingId] = useState<string | null>(null);
+  // AS-3: Hardware-Kauf → Gerät
+  const [assetPrefill, setAssetPrefill] = useState<(AssetInput & { sourceLineItemId: string; name: string }) | null>(null);
+  const [openAssetId, setOpenAssetId] = useState<string | null>(null);
   const showToast = useToast();
 
   useEffect(() => {
@@ -230,7 +236,9 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
     );
   }
 
-  if (!data || data.products.length === 0) {
+  // Nur Hardware-Käufe (keine Lizenzen) → trotzdem die volle Ansicht, sonst
+  // blieb das Hardware-Register für solche Kunden unsichtbar
+  if (!data || (data.products.length === 0 && (data.hardware ?? []).length === 0)) {
     return (
       <div className="space-y-6">
         {requestsSection}
@@ -367,6 +375,7 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
                   <th className="px-4 py-2 font-medium">Lieferant</th>
                   <th className="px-4 py-2 font-medium text-right">Menge</th>
                   <th className="px-4 py-2 font-medium text-right">Preis</th>
+                  <th className="px-4 py-2 font-medium text-right">Gerät</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -389,6 +398,26 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
                     <td className="px-4 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-white">
                       {formatCurrency(hw.totalPrice)}
                     </td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {hw.assetId ? (
+                        <button type="button" onClick={() => setOpenAssetId(hw.assetId)}
+                          className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                          ✓ Gerät öffnen
+                        </button>
+                      ) : (
+                        <button type="button"
+                          onClick={() => setAssetPrefill({
+                            sourceLineItemId: hw.id,
+                            name: hw.description,
+                            serialNumber: hw.serialNumber,
+                            purchaseDate: hw.purchasedAt ? hw.purchasedAt.slice(0, 10) : null,
+                            supplier: hw.vendor,
+                          })}
+                          className="text-xs text-accent-primary hover:underline">
+                          Als Gerät übernehmen
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -396,6 +425,15 @@ export const CustomerLicenses = ({ customerId }: CustomerLicensesProps) => {
           </div>
         </div>
       )}
+
+      <AssetDialog
+        isOpen={!!assetPrefill}
+        onClose={() => setAssetPrefill(null)}
+        prefill={assetPrefill ?? undefined}
+        lockedCustomerId={customerId}
+        onSaved={() => { void loadLicenses(); }}
+      />
+      <AssetDetail assetId={openAssetId} onClose={() => setOpenAssetId(null)} canDelete={false} />
 
       {/* In Pauschale Info */}
       {summary.includedAmount > 0 && (

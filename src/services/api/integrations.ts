@@ -1652,6 +1652,8 @@ export interface CustomerHardwareItem {
   rebillingStatus: string;
   purchasedAt: string | null;
   vendor: string | null;
+  /** AS-3: bereits als Gerät in der Geräteverwaltung übernommen */
+  assetId: string | null;
 }
 
 export interface InternalExpenseSummary {

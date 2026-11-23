@@ -16,6 +16,7 @@ import { startCoverageReminderJob } from './jobs/coverageReminderCron';
 import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
+import { startWarrantyExpiryJob } from './jobs/warrantyExpiryCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import { startLogoBackfill } from './services/logoService';
 import { backfillAssetsFromNinja } from './services/assetService';
@@ -283,6 +284,7 @@ startCoverageReminderJob();
 startInvoiceInboxJob();
 startGeocodeCustomersJob();
 startLicenseExpiryJob();
+startWarrantyExpiryJob();
 startSupportInboxJob();
 // Einmaliger Logo-Backfill für Bestandskunden (Boot +3 min, sequenziell)
 startLogoBackfill();

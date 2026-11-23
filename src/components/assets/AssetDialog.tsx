@@ -48,7 +48,7 @@ export const AssetDialog = ({ isOpen, onClose, asset, prefill, lockedCustomerId,
     });
     if (lockedCustomerId) next.customerId = lockedCustomerId;
     setForm(next);
-    setShowMore(!!asset && !!(asset.purchaseDate || asset.supplier || asset.ipAddress || asset.osName || asset.notes));
+    setShowMore(!!(next.purchaseDate || next.supplier || next.ipAddress || next.osName || next.notes));
   }, [isOpen, asset, prefill, lockedCustomerId]);
 
   const { data: customers = [] } = useQuery({
@@ -194,6 +194,11 @@ export const AssetDialog = ({ isOpen, onClose, asset, prefill, lockedCustomerId,
                 placeholder="z.B. Zugangsdaten liegen im Passwortsafe, Wartungsvertrag bis …" />
             </div>
           </div>
+        )}
+        {!asset && prefill?.sourceLineItemId && (
+          <p className="text-xs text-gray-500 dark:text-dark-400">
+            Aus einem Hardware-Kauf übernommen. Der Einkaufspreis bleibt in der Rechnung und wird nicht am Gerät gespeichert.
+          </p>
         )}
         {asset?.ninjaDeviceRef && (
           <p className="text-xs text-gray-500 dark:text-dark-400">

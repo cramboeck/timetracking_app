@@ -156,6 +156,67 @@ router.post('/sync-ninja', requireOrgRole('admin'), async (req: AuthRequest, res
   }
 });
 
+// POST /api/assets/from-line-item/:lineItemId — Hardware-Kauf aus dem
+// Rechnungseingang als Gerät übernehmen (AS-3). Admin/Owner (Einkaufsdaten).
+// Body = Formularwerte aus dem Dialog; Kunde/Kaufdatum/Lieferant/Seriennummer
+// werden aus der Position vorbelegt, falls der Dialog sie leer lässt.
+// Einkaufspreis wird NICHT übernommen — er bleibt in invoice_line_items.
+router.post('/from-line-item/:lineItemId', requireOrgRole('admin'), validate(assetBodySchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const organizationId = orgId(req);
+    const body = assetBodySchema.parse(req.body);
+    const li = await query(
+      `SELECT li.id, li.customer_id, li.serial_number, li.description,
+              to_char(COALESCE(pi.invoice_date, pi.received_at), 'YYYY-MM-DD') AS purchase_date,
+              COALESCE(pi.supplier_name, pi.sender_name) AS supplier
+         FROM invoice_line_items li
+         LEFT JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+        WHERE li.id = $1 AND li.organization_id = $2`,
+      [req.params.lineItemId, organizationId]
+    );
+    if (li.rows.length === 0) return res.status(404).json({ error: 'Position nicht gefunden' });
+    const row = li.rows[0];
+
+    const existing = await query(
+      'SELECT id FROM assets WHERE source_line_item_id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [row.id, organizationId]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Diese Position wurde bereits als Gerät übernommen', assetId: existing.rows[0].id });
+    }
+
+    const customerId = body.customerId ?? row.customer_id ?? null;
+    if (customerId && !(await customerBelongsToOrg(customerId, organizationId))) {
+      return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    }
+
+    const id = crypto.randomUUID();
+    await query(
+      `INSERT INTO assets (id, organization_id, customer_id, asset_type, name, manufacturer, model,
+                           serial_number, inventory_number, status, location, assigned_to,
+                           purchase_date, warranty_until, supplier, ip_address, os_name, notes,
+                           source_line_item_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+      [
+        id, organizationId, customerId, body.assetType ?? 'other', body.name,
+        emptyToNull(body.manufacturer ?? null), emptyToNull(body.model ?? null),
+        emptyToNull(body.serialNumber ?? null) ?? row.serial_number ?? null,
+        emptyToNull(body.inventoryNumber ?? null), body.status ?? 'active',
+        emptyToNull(body.location ?? null), emptyToNull(body.assignedTo ?? null),
+        emptyToNull(body.purchaseDate ?? null) ?? row.purchase_date ?? null,
+        emptyToNull(body.warrantyUntil ?? null),
+        emptyToNull(body.supplier ?? null) ?? row.supplier ?? null,
+        emptyToNull(body.ipAddress ?? null), emptyToNull(body.osName ?? null), emptyToNull(body.notes ?? null),
+        row.id, req.userId,
+      ]
+    );
+    res.status(201).json({ success: true, data: await loadAsset(id, organizationId) });
+  } catch (error) {
+    logger.error('Create asset from line item error:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
 // GET /api/assets/:id — Detail inkl. Verlauf (Tickets + Wartungen)
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {

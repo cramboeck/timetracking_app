@@ -3073,7 +3073,11 @@ router.get('/customers/:customerId/licenses', authenticateToken, attachOrganizat
     const hardwareResult = await query(`
       SELECT li.id, li.description, li.product_sku, li.serial_number,
              li.quantity, li.total_price, li.rebilling_status,
-             pi.received_at, pi.supplier_name, pi.sender_name
+             pi.received_at, pi.supplier_name, pi.sender_name,
+             (SELECT a.id FROM assets a
+               WHERE a.source_line_item_id = li.id AND a.organization_id = li.organization_id
+                 AND a.deleted_at IS NULL
+               LIMIT 1) AS asset_id
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
       WHERE li.organization_id = $1
@@ -3118,6 +3122,8 @@ router.get('/customers/:customerId/licenses', authenticateToken, attachOrganizat
           rebillingStatus: row.rebilling_status,
           purchasedAt: row.received_at,
           vendor: row.supplier_name || row.sender_name || null,
+          // AS-3: bereits als Gerät übernommen?
+          assetId: row.asset_id || null,
         })),
         monthlyBreakdown: monthlyResult.rows.map((row: any) => ({
           month: row.month,
