@@ -164,7 +164,7 @@ export const PortalDashboard = ({ contact, onNavigate }: PortalDashboardProps) =
       {/* Welcome */}
       <div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-          Willkommen, {contact.name.split(' ')[0]}!
+          Willkommen{contact.name ? `, ${contact.name.split(' ')[0]}` : ''}!
         </h2>
         <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
           Hier ist Ihre Übersicht

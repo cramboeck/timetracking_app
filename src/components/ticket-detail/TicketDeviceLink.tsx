@@ -1,232 +1,150 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Monitor, Link, ChevronRight, Wifi, WifiOff, AlertTriangle, Unlink } from 'lucide-react';
-import { ninjaApi, NinjaDevice } from '../../services/api';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Monitor, ChevronRight, Wifi, WifiOff, Unlink, Plus, ExternalLink } from 'lucide-react';
+import { assetsApi, ASSET_TYPE_LABELS, type Asset } from '../../services/api';
 import { SearchableSelect } from '../SearchableSelect';
+import { AssetTypeIcon, WarrantyLabel } from '../assets/assetUi';
+import { AssetDialog } from '../assets/AssetDialog';
+import { AssetDetail } from '../assets/AssetDetail';
 
+/**
+ * Gerät am Ticket (AS-2): wählt aus der Geräteverwaltung (manuell gepflegt
+ * ODER aus NinjaOne). Vorher nur NinjaOne-Geräte — Kunden ohne NinjaOne
+ * konnten gar kein Gerät verknüpfen.
+ */
 interface TicketDeviceLinkProps {
-  ticketId: string;
   customerId?: string | null;
+  linkedAssetId: string | null;
+  /** Alt-Verknüpfung (tickets.device_id = NinjaOne-Cache-ID) */
   linkedDeviceId?: string;
-  onDeviceChange: (deviceId: string | null) => Promise<void>;
+  onAssetChange: (assetId: string | null) => Promise<void>;
 }
 
-export const TicketDeviceLink = ({
-  ticketId: _ticketId,
-  customerId,
-  linkedDeviceId,
-  onDeviceChange,
-}: TicketDeviceLinkProps) => {
-  // Note: ticketId is available for future use (e.g., to persist device link on backend)
+export const TicketDeviceLink = ({ customerId, linkedAssetId, linkedDeviceId, onAssetChange }: TicketDeviceLinkProps) => {
   const [expanded, setExpanded] = useState(false);
-  const [devices, setDevices] = useState<NinjaDevice[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
-  // Find the currently linked device
-  const linkedDevice = useMemo(() => {
-    return devices.find(d => d.id === linkedDeviceId);
-  }, [devices, linkedDeviceId]);
+  const hasLink = !!(linkedAssetId || linkedDeviceId);
+  const { data: assets = [], isLoading } = useQuery({
+    queryKey: ['assets', 'list', customerId ?? 'none', 'ticket-picker'],
+    queryFn: async () => (await assetsApi.list({ customerId: customerId || 'none' })).data ?? [],
+    enabled: expanded || hasLink,
+    staleTime: 60_000,
+  });
 
-  // Load devices when panel is expanded
-  useEffect(() => {
-    if (expanded && devices.length === 0) {
-      loadDevices();
-    }
-  }, [expanded]);
+  // Alt-Tickets tragen nur device_id → über die NinjaOne-Referenz auflösen
+  const linked: Asset | undefined = useMemo(
+    () => assets.find(a => a.id === linkedAssetId) ?? (linkedDeviceId ? assets.find(a => a.ninjaDeviceRef === linkedDeviceId) : undefined),
+    [assets, linkedAssetId, linkedDeviceId]
+  );
 
-  const loadDevices = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await ninjaApi.getDevices({ customerId: customerId || undefined });
-      if (result.success) {
-        setDevices(result.data);
-      } else {
-        setError('Geräte konnten nicht geladen werden');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Laden der Geräte');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Bereits verknüpftes Gerät steht als Karte darüber — Auswahl = „anderes Gerät"
+  const options = useMemo(() => assets.filter(a => a.id !== linked?.id).map(a => ({
+    value: a.id,
+    label: a.name,
+    sublabel: [ASSET_TYPE_LABELS[a.assetType], a.model, a.serialNumber ? `SN ${a.serialNumber}` : null, a.assignedTo].filter(Boolean).join(' · '),
+  })), [assets, linked]);
 
-  const handleDeviceChange = async (deviceId: string) => {
+  const change = async (assetId: string | null) => {
     setSaving(true);
-    setError(null);
     try {
-      await onDeviceChange(deviceId || null);
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Speichern');
+      await onAssetChange(assetId);
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleUnlink = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await onDeviceChange(null);
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Entfernen der Verknüpfung');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleExpanded = () => {
-    setExpanded(!expanded);
-  };
-
-  // Build options for SearchableSelect
-  const deviceOptions = useMemo(() => {
-    return devices.map(device => ({
-      value: device.id,
-      label: device.displayName || device.systemName,
-      sublabel: [
-        device.osName,
-        device.offline ? 'Offline' : 'Online',
-      ].filter(Boolean).join(' • '),
-    }));
-  }, [devices]);
-
-  // Get status indicator for a device
-  const getDeviceStatusIcon = (device: NinjaDevice) => {
-    if (device.offline) {
-      return <WifiOff size={14} className="text-red-500" />;
-    }
-    return <Wifi size={14} className="text-green-500" />;
-  };
-
-  // Check if device has warnings (simplified check based on available data)
-  const hasWarnings = (device: NinjaDevice) => {
-    // Could be extended to check for alerts, outdated patches, etc.
-    return device.offline;
   };
 
   return (
     <div className="border border-gray-200 dark:border-dark-border rounded-lg">
       <button
-        onClick={toggleExpanded}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-100/50 transition-colors"
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-100 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <Monitor size={16} className="text-gray-500 dark:text-dark-400" />
-          <span className="text-sm font-medium text-gray-700 dark:text-dark-500">
-            Verknüpftes Gerät
-          </span>
-          {linkedDevice && (
-            <span className="px-1.5 py-0.5 text-xs bg-accent-lighter text-accent-dark dark:bg-accent-primary/50 dark:text-accent-primary rounded flex items-center gap-1">
-              <Link size={10} />
-              {linkedDevice.displayName || linkedDevice.systemName}
-            </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Monitor size={16} className="text-gray-500 dark:text-dark-400 flex-shrink-0" />
+          <span className="text-sm font-medium text-gray-900 dark:text-white">Gerät</span>
+          {linked && (
+            <span className="text-sm text-gray-500 dark:text-dark-400 truncate">· {linked.name}</span>
           )}
         </div>
-        <ChevronRight
-          size={16}
-          className={`text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}
-        />
+        <ChevronRight size={16} className={`text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </button>
 
       {expanded && (
-        <div className="border-t border-gray-200 dark:border-dark-border px-4 py-3">
-          {loading ? (
-            <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary"></div>
-            </div>
-          ) : error ? (
-            <div className="text-sm text-red-500 dark:text-red-400 text-center py-4">
-              {error}
-            </div>
-          ) : devices.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-dark-400 text-center py-4">
-              Keine Geräte für diesen Kunden verfügbar
+        <div className="border-t border-gray-200 dark:border-dark-border px-4 py-3 space-y-3">
+          {isLoading ? (
+            <div className="flex justify-center py-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-accent-primary" />
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* Currently linked device info */}
-              {linkedDevice && (
+            <>
+              {linked ? (
                 <div className="bg-gray-50 dark:bg-dark-100 rounded-lg p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-white dark:bg-dark-200 rounded-lg">
-                        <Monitor size={20} className="text-gray-600 dark:text-dark-400" />
+                  <div className="flex items-start gap-3">
+                    <span className="p-2 bg-white dark:bg-dark-200 rounded-lg text-gray-600 dark:text-dark-400">
+                      <AssetTypeIcon type={linked.assetType} size={16} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-900 dark:text-white truncate">{linked.name}</span>
+                        {linked.ninja && (linked.ninja.offline
+                          ? <WifiOff size={13} className="text-gray-400" />
+                          : <Wifi size={13} className="text-green-500" />)}
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 dark:text-white truncate">
-                            {linkedDevice.displayName || linkedDevice.systemName}
-                          </span>
-                          {getDeviceStatusIcon(linkedDevice)}
-                          {hasWarnings(linkedDevice) && (
-                            <AlertTriangle size={14} className="text-yellow-500" />
-                          )}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-dark-400 space-y-0.5">
-                          {linkedDevice.osName && (
-                            <div>{linkedDevice.osName}</div>
-                          )}
-                          {linkedDevice.lastLoggedInUser && (
-                            <div>Benutzer: {linkedDevice.lastLoggedInUser}</div>
-                          )}
-                          {linkedDevice.privateIp && (
-                            <div>IP: {linkedDevice.privateIp}</div>
-                          )}
-                        </div>
+                      <div className="text-xs text-gray-500 dark:text-dark-400 space-y-0.5 mt-0.5">
+                        <div>{[linked.manufacturer, linked.model].filter(Boolean).join(' ') || ASSET_TYPE_LABELS[linked.assetType]}</div>
+                        {linked.serialNumber && <div className="font-mono">SN {linked.serialNumber}</div>}
+                        {linked.assignedTo && <div>Nutzer: {linked.assignedTo}</div>}
+                        {linked.warrantyUntil && <div>Garantie: <WarrantyLabel warrantyUntil={linked.warrantyUntil} /></div>}
                       </div>
                     </div>
-                    <button
-                      onClick={handleUnlink}
-                      disabled={saving}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                      title="Verknüpfung entfernen"
-                    >
-                      <Unlink size={16} />
+                  </div>
+                  <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                    <button type="button" onClick={() => setDetailId(linked.id)} className="inline-flex items-center gap-1 text-accent-primary hover:underline">
+                      <ExternalLink size={12} /> Gerät öffnen
+                    </button>
+                    <button type="button" onClick={() => change(null)} disabled={saving}
+                      className="inline-flex items-center gap-1 text-gray-500 dark:text-dark-400 hover:text-red-600">
+                      <Unlink size={12} /> Verknüpfung lösen
                     </button>
                   </div>
                 </div>
-              )}
+              ) : hasLink ? (
+                <p className="text-xs text-gray-500 dark:text-dark-400">Das verknüpfte Gerät ist nicht mehr in der Geräteverwaltung.</p>
+              ) : null}
 
-              {/* Device selector */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-dark-400 mb-1.5">
-                  {linkedDevice ? 'Anderes Gerät verknüpfen' : 'Gerät verknüpfen'}
-                </label>
+              {options.length > 0 ? (
                 <SearchableSelect
-                  options={deviceOptions}
-                  value={linkedDeviceId || ''}
-                  onChange={handleDeviceChange}
-                  placeholder="Gerät auswählen..."
-                  emptyMessage="Keine Geräte gefunden"
+                  options={options}
+                  value=""
+                  onChange={(v) => change(v || null)}
+                  placeholder={linked ? 'Anderes Gerät wählen…' : customerId ? 'Gerät des Kunden wählen…' : 'Eigenes Gerät wählen…'}
                   disabled={saving}
-                  allowClear={false}
                 />
-              </div>
-
-              {/* Device count info */}
-              <div className="text-xs text-gray-500 dark:text-dark-400 flex items-center gap-2">
-                <span>{devices.length} Gerät{devices.length !== 1 ? 'e' : ''} verfügbar</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Wifi size={12} className="text-green-500" />
-                  {devices.filter(d => !d.offline).length} online
-                </span>
-                {devices.some(d => d.offline) && (
-                  <>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <WifiOff size={12} className="text-red-500" />
-                      {devices.filter(d => d.offline).length} offline
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-dark-400">
+                  {linked ? 'Keine weiteren Geräte erfasst.' : customerId ? 'Für diesen Kunden sind noch keine Geräte erfasst.' : 'Noch keine eigenen Geräte erfasst.'}
+                </p>
+              )}
+              <button type="button" onClick={() => setCreating(true)}
+                className="inline-flex items-center gap-1 text-xs text-accent-primary hover:underline">
+                <Plus size={12} /> Neues Gerät anlegen und verknüpfen
+              </button>
+            </>
           )}
         </div>
       )}
+
+      <AssetDialog
+        isOpen={creating}
+        onClose={() => setCreating(false)}
+        lockedCustomerId={customerId || undefined}
+        onSaved={(a) => { void change(a.id); }}
+      />
+      <AssetDetail assetId={detailId} onClose={() => setDetailId(null)} canDelete={false} />
     </div>
   );
 };

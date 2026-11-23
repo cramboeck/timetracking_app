@@ -544,14 +544,16 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
   };
 
   // Device link handler
-  const handleDeviceChange = async (deviceId: string | null) => {
+  const handleAssetChange = async (assetId: string | null) => {
     try {
-      await updateTicketMutation.mutateAsync({ deviceId });
-      showToast(deviceId ? 'Gerät verknüpft' : 'Geräteverknüpfung entfernt', 'success');
+      await updateTicketMutation.mutateAsync({ assetId });
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      showToast(assetId ? 'Gerät verknüpft' : 'Geräteverknüpfung entfernt', 'success');
     } catch {
-      showToast('Fehler beim Ändern der Geräteverknüpfung', 'error');
+      showToast('Gerät konnte nicht verknüpft werden', 'error');
     }
   };
+
 
   // AI handlers
   const aiSuggestionsKey = ['ticket', ticketId, 'aiSuggestions'] as const;
@@ -790,12 +792,12 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 />
               )}
 
-              {/* Device Link - for NinjaRMM integration */}
+              {/* Geraet (AS-2): Assets aus der Geraeteverwaltung, NinjaOne optional */}
               <TicketDeviceLink
-                ticketId={ticketId}
                 customerId={ticket.customerId}
+                linkedAssetId={ticket.assetId ?? null}
                 linkedDeviceId={ticket.deviceId}
-                onDeviceChange={handleDeviceChange}
+                onAssetChange={handleAssetChange}
               />
 
               {/* AI Assistant Button */}

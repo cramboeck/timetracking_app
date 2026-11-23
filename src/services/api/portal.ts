@@ -198,6 +198,12 @@ export interface PortalDevice {
   processorCores?: number;
   memoryGb?: number;
   openAlerts: number;
+  /** false = manuell gepflegtes Gerät ohne NinjaOne-Überwachung (AS-2) */
+  monitored?: boolean;
+  assetType?: string;
+  location?: string | null;
+  assignedTo?: string | null;
+  warrantyUntil?: string | null;
 }
 
 export interface PortalDeviceAlert {

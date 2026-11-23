@@ -154,7 +154,13 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Find customer contact by email, also check linked portal user for password
     const contactResult = await pool.query(
-      `SELECT cc.*, c.name as customer_name, c.user_id,
+      // customer_contacts hat KEINE name-Spalte — ohne das berechnete Feld
+      // lieferte der Login kein contact.name und das Portal-Dashboard stürzte
+      // direkt nach dem Login ab (seit Migration 022 hat jeder Portal-User
+      // einen Kontakt, läuft also immer hier durch). Gleiche Formel wie /me.
+      `SELECT cc.*,
+              COALESCE(NULLIF(TRIM(COALESCE(cc.first_name, '') || ' ' || COALESCE(cc.last_name, '')), ''), cpu.name, cc.email) as name,
+              c.name as customer_name, c.user_id,
               cpu.password_hash as portal_user_password_hash,
               cpu.mfa_enabled as portal_mfa_enabled,
               cpu.mfa_secret as portal_mfa_secret,
@@ -1583,7 +1589,7 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
 
     // Get customer's NinjaRMM organization ID
     const customerResult = await pool.query(
-      'SELECT user_id, ninjarmm_organization_id FROM customers WHERE id = $1',
+      'SELECT user_id, ninjarmm_organization_id, organization_id FROM customers WHERE id = $1',
       [req.customerId]
     );
 
@@ -1592,8 +1598,46 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       return res.status(404).json({ error: 'Customer not found' });
     }
 
+    // Manuell gepflegte Geraete (AS-2): auch OHNE NinjaOne sichtbar, nur
+    // lesend und nur kundentaugliche Felder — interne Notizen, Lieferant,
+    // Inventar-/Einkaufsdaten bleiben intern.
+    const assetRows = customer.organization_id ? (await pool.query(
+      `SELECT id, asset_type, name, manufacturer, model, serial_number, location, assigned_to,
+              to_char(warranty_until, 'YYYY-MM-DD') AS warranty_until, ip_address, os_name, ninja_device_ref
+         FROM assets
+        WHERE customer_id = $1 AND organization_id = $2 AND deleted_at IS NULL AND status <> 'retired'
+        ORDER BY name`,
+      [req.customerId, customer.organization_id]
+    )).rows : [];
+    const assetByNinjaRef = new Map(assetRows.filter(a => a.ninja_device_ref).map(a => [a.ninja_device_ref, a]));
+
+    const manualDevices = (seenNinjaRefs: Set<string>) => assetRows
+      .filter(a => !a.ninja_device_ref || !seenNinjaRefs.has(a.ninja_device_ref))
+      .map(a => ({
+        id: `asset:${a.id}`,
+        monitored: false,
+        assetType: a.asset_type,
+        displayName: a.name,
+        systemName: a.name,
+        deviceType: String(a.asset_type || 'other').toUpperCase(),
+        osName: a.os_name,
+        osVersion: a.os_name,
+        lastContact: null,
+        lastLoggedInUser: null,
+        privateIp: a.ip_address,
+        offline: false,
+        notes: null,
+        manufacturer: a.manufacturer,
+        model: a.model,
+        serialNumber: a.serial_number,
+        location: a.location,
+        assignedTo: a.assigned_to,
+        warrantyUntil: a.warranty_until,
+        openAlerts: 0,
+      }));
+
     if (!customer.ninjarmm_organization_id) {
-      return res.json({ success: true, data: [], message: 'No NinjaRMM organization linked' });
+      return res.json({ success: true, data: manualDevices(new Set()) });
     }
 
     // Get devices for this organization
@@ -1637,7 +1681,8 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
       return {
         id: row.id,
         ninjaId: row.ninja_id,
-        displayName: row.display_name || row.system_name || row.dns_name,
+        // Gepflegter Name aus der Geraeteverwaltung gewinnt (gleiche Bezeichnung wie in der App)
+        displayName: assetByNinjaRef.get(row.id)?.name || row.display_name || row.system_name || row.dns_name,
         systemName: row.system_name,
         deviceType: row.node_class,
         osName: row.os_name,
@@ -1659,10 +1704,16 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
         processorCores: processorInfo.cores || null,
         memoryGb: memoryInfo.capacity ? Math.round(memoryInfo.capacity / (1024 * 1024 * 1024)) : null,
         openAlerts: parseInt(row.open_alerts) || 0,
+        monitored: true,
+        // Gepflegte Zusatzinfos aus der Geraeteverwaltung (falls verknuepft)
+        location: assetByNinjaRef.get(row.id)?.location ?? null,
+        assignedTo: assetByNinjaRef.get(row.id)?.assigned_to ?? null,
+        warrantyUntil: assetByNinjaRef.get(row.id)?.warranty_until ?? null,
       };
     });
 
-    res.json({ success: true, data: devices });
+    const seen = new Set<string>(devicesResult.rows.map(r => String(r.id)));
+    res.json({ success: true, data: [...devices, ...manualDevices(seen)] });
   } catch (error) {
     logger.error('Get devices error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, Globe, AlertTriangle, Clock, CheckCircle, Cpu, Package, Shield, X, Info, Activity, Filter, Headphones, ExternalLink } from 'lucide-react';
+import { Monitor, Laptop, Server, Wifi, WifiOff, RefreshCw, Search, Globe, AlertTriangle, Clock, CheckCircle, Cpu, Package, Shield, X, Info, Activity, Filter, Headphones, ExternalLink, Printer, Network, HardDrive, Phone, Smartphone } from 'lucide-react';
 import { customerPortalApi, PortalContact, PortalDevice, PortalDeviceAlert } from '../../services/api';
 import { Button, IconButton } from '../ui/Button';
 
@@ -45,6 +45,17 @@ const deviceTypeIcons: Record<string, typeof Monitor> = {
   LINUX_SERVER: Server,
   VMWARE_VM_HOST: Server,
   CLOUD_MONITOR_TARGET: Globe,
+  // Manuell gepflegte Geraete (assets.asset_type, AS-2)
+  WORKSTATION: Monitor,
+  LAPTOP: Laptop,
+  SERVER: Server,
+  PRINTER: Printer,
+  NETWORK: Network,
+  FIREWALL: Shield,
+  STORAGE: HardDrive,
+  PHONE: Phone,
+  MOBILE: Smartphone,
+  MONITOR: Monitor,
 };
 
 const severityColors: Record<string, { bg: string; text: string; icon: string }> = {
@@ -90,7 +101,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
 
   // Load data when device is selected
   useEffect(() => {
-    if (selectedDevice) {
+    if (selectedDevice && selectedDevice.monitored !== false) {
       loadDeviceAlerts(selectedDevice.id);
     }
   }, [selectedDevice]);
@@ -283,7 +294,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
 
   // Count stats
   const deviceStats = useMemo(() => {
-    const online = devices.filter(d => !d.offline).length;
+    const online = devices.filter(d => d.monitored !== false && !d.offline).length;
     const offline = devices.filter(d => d.offline).length;
     const withProblems = devices.filter(d => d.openAlerts > 0 || d.offline).length;
     const servers = devices.filter(d => isServerType(d.deviceType)).length;
@@ -564,6 +575,8 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
                   isSelected
                     ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/20'
+                    : device.monitored === false
+                    ? 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 hover:border-gray-300'
                     : device.offline
                     ? 'border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 opacity-60'
                     : 'border-green-200 dark:border-green-800 bg-white dark:bg-dark-100 hover:border-green-300'
@@ -571,12 +584,12 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
               >
                 <div className="flex items-start gap-3">
                   <div className={`p-2.5 rounded-lg ${
-                    device.offline
+                    device.offline || device.monitored === false
                       ? 'bg-gray-100 dark:bg-dark-200'
                       : 'bg-green-100 dark:bg-green-900/30'
                   }`}>
                     <DeviceIcon size={22} className={
-                      device.offline
+                      device.offline || device.monitored === false
                         ? 'text-gray-500 dark:text-dark-400'
                         : 'text-green-600 dark:text-green-400'
                     } />
@@ -594,8 +607,16 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                       )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-dark-400 mt-0.5 truncate">
-                      {device.osVersion || device.osName}
+                      {device.monitored === false
+                        ? [device.manufacturer, device.model].filter(Boolean).join(' ') || device.osName || 'Gerät'
+                        : device.osVersion || device.osName}
                     </p>
+                    {device.monitored === false ? (
+                      <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 dark:text-dark-400 truncate">
+                        <Info size={12} className="flex-shrink-0" />
+                        <span className="truncate">{[device.location, device.assignedTo].filter(Boolean).join(' · ') || 'Inventar'}</span>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 dark:text-dark-400">
                       {device.offline ? (
                         <WifiOff size={12} />
@@ -604,6 +625,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                       )}
                       <span>{formatRelativeTime(device.lastContact)}</span>
                     </div>
+                    )}
                   </div>
                 </div>
               </button>
@@ -627,14 +649,14 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-2 rounded-lg ${
-                  selectedDevice.offline
+                  selectedDevice.offline || selectedDevice.monitored === false
                     ? 'bg-gray-200 dark:bg-dark-200'
                     : 'bg-green-100 dark:bg-green-900/30'
                 }`}>
                   {(() => {
                     const DeviceIcon = getDeviceIcon(selectedDevice.deviceType);
                     return <DeviceIcon size={24} className={
-                      selectedDevice.offline
+                      selectedDevice.offline || selectedDevice.monitored === false
                         ? 'text-gray-500'
                         : 'text-green-600 dark:text-green-400'
                     } />;
@@ -644,6 +666,9 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                   <h3 className="font-bold text-gray-900 dark:text-white truncate">
                     {selectedDevice.displayName || selectedDevice.systemName}
                   </h3>
+                  {selectedDevice.monitored === false ? (
+                    <p className="text-sm text-gray-500 dark:text-dark-400">Inventar · ohne Fernüberwachung</p>
+                  ) : (
                   <div className="flex items-center gap-2 text-sm">
                     {selectedDevice.offline ? (
                       <span className="flex items-center gap-1 text-gray-500">
@@ -657,6 +682,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                     <span className="text-gray-400">•</span>
                     <span className="text-gray-500 dark:text-dark-400">{formatRelativeTime(selectedDevice.lastContact)}</span>
                   </div>
+                  )}
                 </div>
               </div>
               <IconButton
@@ -667,14 +693,14 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
               />
             </div>
 
-            {/* Tab Navigation */}
-            <div className="flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 px-2">
+            {/* Tab Navigation — entfällt bei Inventar-Geräten (nur Übersicht) */}
+            <div className={`flex border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100 px-2 ${selectedDevice.monitored === false ? 'hidden' : ''}`}>
               {[
                 { id: 'overview' as DetailTab, label: 'Übersicht', icon: Info },
                 { id: 'software' as DetailTab, label: 'Software', icon: Package },
                 { id: 'updates' as DetailTab, label: 'Updates', icon: Shield },
                 { id: 'alerts' as DetailTab, label: 'Meldungen', icon: AlertTriangle, count: deviceAlerts[selectedDevice.id]?.filter(a => !a.resolved).length },
-              ].map(tab => (
+              ].filter(tab => selectedDevice.monitored !== false || tab.id === 'overview').map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
@@ -712,6 +738,11 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                       <InfoItem label="Modell" value={selectedDevice.model} />
                       {selectedDevice.serialNumber && (
                         <InfoItem label="Seriennummer" value={selectedDevice.serialNumber} mono />
+                      )}
+                      {selectedDevice.location && <InfoItem label="Standort" value={selectedDevice.location} />}
+                      {selectedDevice.assignedTo && <InfoItem label="Nutzer" value={selectedDevice.assignedTo} />}
+                      {selectedDevice.warrantyUntil && (
+                        <InfoItem label="Garantie bis" value={selectedDevice.warrantyUntil.split('-').reverse().join('.')} />
                       )}
                     </div>
                   </div>
@@ -756,6 +787,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                   )}
 
                   {/* Activity Info */}
+                  {selectedDevice.monitored !== false && (
                   <div className="bg-gray-50 dark:bg-dark-200/50 rounded-xl p-4">
                     <h4 className="text-sm font-semibold text-gray-700 dark:text-dark-500 mb-3 flex items-center gap-2">
                       <Activity size={16} /> Aktivität
@@ -770,6 +802,7 @@ export const PortalDevices = ({ contact: _contact, teamviewerLink }: PortalDevic
                       )}
                     </div>
                   </div>
+                  )}
                 </div>
               )}
 

@@ -225,6 +225,7 @@ export const ticketsApi = {
     solution: string;
     resolutionType: TicketResolutionType;
     deviceId: string | null;
+    assetId: string | null;
   }>): Promise<{ success: boolean; data: Ticket; requiresSolution?: boolean }> => {
     return authFetch(`/tickets/${id}`, {
       method: 'PUT',

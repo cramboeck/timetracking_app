@@ -43,6 +43,8 @@ export const updateTicketSchema = z.object({
   solution: z.string().max(50_000).optional().nullable(),
   resolutionType: z.string().max(100).optional().nullable(),
   deviceId: z.string().max(200).optional().nullable(),
+  // Asset-Verknuepfung (AS-2) — quellenunabhaengig; Ninja-Geraete setzen device_id mit
+  assetId: z.string().max(100).optional().nullable(),
 });
 
 export const mergeTicketsSchema = z.object({
@@ -355,6 +357,7 @@ export function transformTicket(row: any) {
     contactId: row.contact_id,
     // NinjaRMM fields
     deviceId: row.device_id,
+    assetId: row.asset_id ?? null,
     ninjaAlertId: row.ninja_alert_id,
     // Include related data if joined
     customerName: row.customer_name,

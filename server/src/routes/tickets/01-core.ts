@@ -110,14 +110,15 @@ router.get('/', authenticateToken, attachOrganization, async (req, res) => {
              t.sla_policy_id, t.sla_response_due, t.sla_resolution_due,
              t.sla_response_breached, t.sla_resolution_breached,
              t.created_at, t.updated_at, t.created_by_contact_id,
-             t.device_id, t.ninja_alert_id,
+             t.device_id, t.ninja_alert_id, t.asset_id,
              c.name as customer_name, p.name as project_name,
-             d.display_name as device_name,
+             COALESCE(ta.name, d.display_name) as device_name,
              COALESCE(assignee.display_name, assignee.username) as assignee_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN ninjarmm_devices d ON t.device_id = d.id
+      LEFT JOIN assets ta ON ta.id = t.asset_id AND ta.deleted_at IS NULL
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
       ${whereClause}
       ORDER BY t.created_at DESC`;
@@ -446,8 +447,9 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
       SELECT t.*, c.name as customer_name, p.name as project_name,
              COALESCE(creator.display_name, creator.username) as creator_name,
              COALESCE(assignee.display_name, assignee.username) as assignee_name,
-             d.display_name as device_name
+             COALESCE(ta.name, d.display_name) as device_name
       FROM tickets t
+      LEFT JOIN assets ta ON ta.id = t.asset_id AND ta.deleted_at IS NULL
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN projects p ON t.project_id = p.id
       LEFT JOIN users creator ON t.user_id = creator.id
@@ -613,7 +615,7 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
     const { id } = req.params;
-    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId, category } = req.body;
+    const { customerId, projectId, title, description, status, priority, assignedToUserId, solution, resolutionType, deviceId, assetId, category } = req.body;
 
     // Get current ticket values for activity logging
     const currentTicket = await query(
@@ -703,9 +705,29 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
       params.push(category || null);
       paramIndex++;
     }
-    if (deviceId !== undefined) {
+    // Geraet (AS-2): assetId ist die neue Verknuepfung; ein NinjaOne-Asset
+    // setzt device_id mit, damit Ninja-Infos/Alerts am Ticket weiter greifen.
+    let effectiveDeviceId: string | null | undefined = deviceId;
+    if (assetId !== undefined) {
+      if (assetId) {
+        const assetRow = await query(
+          'SELECT id, ninja_device_ref FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+          [assetId, organizationId]
+        );
+        if (assetRow.rows.length === 0) {
+          return res.status(404).json({ success: false, error: 'Gerät nicht gefunden' });
+        }
+        if (effectiveDeviceId === undefined) effectiveDeviceId = assetRow.rows[0].ninja_device_ref || null;
+      } else if (effectiveDeviceId === undefined) {
+        effectiveDeviceId = null;
+      }
+      updates.push(`asset_id = $${paramIndex}`);
+      params.push(assetId || null);
+      paramIndex++;
+    }
+    if (effectiveDeviceId !== undefined) {
       updates.push(`device_id = $${paramIndex}`);
-      params.push(deviceId || null);
+      params.push(effectiveDeviceId || null);
       paramIndex++;
     }
 

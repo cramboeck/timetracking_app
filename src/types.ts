@@ -241,6 +241,7 @@ export interface Ticket {
   contactId?: string; // Customer contact linked to ticket
   // NinjaRMM fields
   deviceId?: string; // Link to NinjaRMM device
+  assetId?: string | null; // Link to asset (AS-2, quellenunabhängig)
   ninjaAlertId?: string; // Original NinjaRMM alert UID
   // Related names (from joins)
   customerName?: string;

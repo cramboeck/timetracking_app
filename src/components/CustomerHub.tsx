@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
+  MonitorSmartphone,
   Building2,
   Users,
   Mail,
@@ -73,6 +74,7 @@ import { CreateTicketDialog } from './CreateTicketDialog';
 import { useToast } from '../contexts/UIContext';
 import TaskModal from './TaskModal';
 import { CustomerLicenses } from './CustomerLicenses';
+import { AssetsView } from './assets/AssetsView';
 
 // ============================================
 // Types
@@ -96,7 +98,7 @@ interface CustomerHubProps {
   isInitialDataLoading?: boolean;
 }
 
-type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries' | 'licenses';
+type TabType = 'overview' | 'contacts' | 'interactions' | 'tickets' | 'tasks' | 'contracts' | 'entries' | 'licenses' | 'devices';
 
 interface CustomerHealthScore {
   score: number; // 0-100
@@ -1506,6 +1508,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
     { id: 'tickets', label: 'Tickets', icon: Ticket, count: stats.openTickets || undefined },
     { id: 'tasks', label: 'Aufgaben', icon: ListTodo, count: stats.activeTasks || undefined },
     { id: 'contracts', label: 'Verträge', icon: FileSignature, count: stats.activeContracts || undefined },
+    { id: 'devices', label: 'Geräte', icon: MonitorSmartphone },
     { id: 'licenses', label: 'Lizenzen', icon: Package },
     { id: 'entries', label: 'Zeiten', icon: Clock },
   ];
@@ -1769,6 +1772,9 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                       console.log('Open contract:', contract.id);
                     }}
                   />
+                )}
+                {activeTab === 'devices' && selectedCustomer && (
+                  <AssetsView customerId={selectedCustomer.id} embedded />
                 )}
                 {activeTab === 'licenses' && selectedCustomer && (
                   <CustomerLicenses
