@@ -1,4 +1,4 @@
-# RamboFlow MCP-Server (Phase 1 — read-only)
+# RamboFlow MCP-Server (Phase 1 lesen + Phase 2 schreiben)
 
 Steuert RamboFlow aus Claude heraus (Claude Desktop, Claude Code, claude.ai
 mit Connector). Dünner Wrapper über die RamboFlow-REST-API: alle Aufrufe
@@ -14,9 +14,29 @@ laufen mit einem API-Token durch die normalen Routen — Berechtigungen
 | `tickets_liste` | Tickets filtern (status, searchText, assignedTo) |
 | `ticket_details` | Ein Ticket inkl. letzter Kommentare (per `TKT-000123`) |
 | `kunden_liste` | Kunden suchen (Name, Kundennummer, E-Mail) |
+| `lizenz_ablauf` | Ablaufende Lizenzen/Abos |
+| **`zeit_erfassen`** ✍️ | Abgeschlossenen Zeiteintrag anlegen (Projektzeit per Kunde/Projekt/Ticket oder interne Zeit) |
+| **`ticket_kommentieren`** ✍️ | Kommentar an ein Ticket hängen — standardmäßig **interne Notiz** |
 
-Alles **read-only** — Phase 2 (Zeiteintrag anlegen, Ticket kommentieren)
-kommt separat mit eng geschnittenen Schreib-Tools.
+Die Lese-Tools tragen `readOnlyHint`, die beiden Schreib-Tools
+`readOnlyHint: false, destructiveHint: false` — Claude fragt vor
+Schreibaktionen nach Bestätigung (je nach Client-Einstellung).
+
+### Leitplanken der Schreib-Tools
+
+- **Nur anlegen**, nie ändern oder löschen. Korrekturen macht man in der App
+  (die Antwort nennt die ID des neuen Eintrags).
+- **Nie raten:** Passt ein Kunde/Projekt nicht eindeutig, wird nichts
+  angelegt; die Antwort listet die Kandidaten.
+- `zeit_erfassen`: Zeit per `von` + `bis` oder `von` + `dauerMinuten`
+  (lokale Uhrzeit des Rechners, Datum Standard heute). Keine Buchungen in der
+  Zukunft. Überschneidet sich der Eintrag mit einem eigenen bestehenden, wird
+  nichts angelegt — außer mit `trotzdem: true`. Mit `ticketNumber` hängt der
+  Eintrag am Ticket (Kunde/Projekt kommen aus dem Ticket; internes Ticket →
+  interne Zeit). `intern: meeting|admin|…` bucht interne Zeit ohne Projekt.
+- `ticket_kommentieren`: Ohne weiteres ist der Kommentar eine **interne
+  Notiz** (Kunde sieht nichts, keine Mail). Erst `fuerKunde: true` macht ihn
+  sichtbar und benachrichtigt den Kunden per Mail.
 
 ## 1. API-Token erzeugen (einmalig, Admin)
 
@@ -78,8 +98,11 @@ claude mcp add ramboflow \
 }
 ```
 
-Danach z.B. fragen: „Was ist diesen Monat noch nicht abgerechnet?" oder
-„Zeig mir die offenen Tickets" oder „Details zu TKT-000123".
+Danach z.B. fragen: „Was ist diesen Monat noch nicht abgerechnet?",
+„Zeig mir die offenen Tickets", „Details zu TKT-000123" — oder schreibend:
+„Trag mir heute 9 bis 10:30 Server-Wartung bei Huber ein", „Buch 30 Minuten
+auf TKT-000123 ab 14 Uhr: Drucker getauscht", „Schreib an TKT-000123 eine
+interne Notiz: Ersatzteil bestellt".
 
 ## Sicherheit
 
@@ -87,4 +110,5 @@ Danach z.B. fragen: „Was ist diesen Monat noch nicht abgerechnet?" oder
   wie ein Passwort behandeln, bei Verdacht sofort widerrufen (DELETE).
 - Jeder MCP-Zugriff läuft durch `auditTrail` wie ein normaler API-Call;
   `last_used_at` am Token zeigt die letzte Nutzung.
-- Der MCP-Server selbst hat keinerlei Schreib-Endpunkte angebunden.
+- Schreibend sind nur `POST /entries` und `POST /tickets/:id/comments` angebunden —
+  beide legen ausschließlich neue Datensätze für den Token-Inhaber an.

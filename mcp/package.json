@@ -1,7 +1,7 @@
 {
   "name": "ramboflow-mcp",
-  "version": "1.0.0",
-  "description": "RamboFlow MCP-Server — read-only Zugriff auf Abrechnung, Zeiten, Tickets und Kunden über die RamboFlow-REST-API",
+  "version": "2.0.0",
+  "description": "RamboFlow MCP-Server — Abrechnung, Zeiten, Tickets und Kunden lesen; Zeiten erfassen und Tickets kommentieren über die RamboFlow-REST-API",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
