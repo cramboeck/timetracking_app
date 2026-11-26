@@ -1720,6 +1720,28 @@ router.get('/devices', authenticateCustomerToken, async (req: CustomerAuthReques
   }
 });
 
+// Etikett gescannt (AS-5): Label-Token → Gerätename für die Ticket-Vorbelegung.
+// Nur Geräte des EIGENEN Kunden — fremde Etiketten liefern 404.
+router.get('/devices/by-label/:token', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
+  try {
+    const token = String(req.params.token);
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(token)) return res.status(404).json({ error: 'Not found' });
+    const r = await pool.query(
+      `SELECT a.id, a.name, a.asset_tag
+         FROM assets a
+         JOIN customers c ON c.id = a.customer_id
+        WHERE a.label_token = $1 AND a.customer_id = $2 AND a.deleted_at IS NULL
+          AND a.organization_id = c.organization_id`,
+      [token, req.customerId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true, data: { name: r.rows[0].name, assetTag: r.rows[0].asset_tag } });
+  } catch (error) {
+    logger.error('Portal device by label error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get alerts for a specific device
 router.get('/devices/:deviceId/alerts', authenticateCustomerToken, async (req: CustomerAuthRequest, res: Response) => {
   try {

@@ -23,7 +23,7 @@ export const ASSET_COLUMNS = `
   a.assigned_to, to_char(a.purchase_date, 'YYYY-MM-DD') AS purchase_date,
   to_char(a.warranty_until, 'YYYY-MM-DD') AS warranty_until, a.supplier, a.ip_address,
   a.os_name, a.notes, a.ninja_device_ref, a.source_line_item_id, a.created_by,
-  a.created_at, a.updated_at
+  a.created_at, a.updated_at, a.asset_tag, a.last_seen_at, a.last_seen_by
 `;
 
 /** Expliziter Mapper statt transformRow: dessen Zahl-Heuristik wuerde rein
@@ -51,6 +51,10 @@ export interface AssetDto {
   notes: string | null;
   ninjaDeviceRef: string | null;
   sourceLineItemId: string | null;
+  /** Asset-ID für Etikett/QR (z.B. IT-00042), automatisch vergeben */
+  assetTag: string | null;
+  lastSeenAt: string | null;
+  lastSeenByName: string | null;
   createdAt: string;
   updatedAt: string;
   /** nur bei NinjaOne-verknuepften Geraeten */
@@ -87,6 +91,9 @@ export function mapAsset(r: Row): AssetDto {
     notes: str(r.notes),
     ninjaDeviceRef: str(r.ninja_device_ref),
     sourceLineItemId: str(r.source_line_item_id),
+    assetTag: str(r.asset_tag),
+    lastSeenAt: iso(r.last_seen_at),
+    lastSeenByName: str(r.last_seen_by_name),
     createdAt: iso(r.created_at) || '',
     updatedAt: iso(r.updated_at) || '',
     ninja: r.ninja_device_ref && r.ninja_exists
@@ -102,6 +109,7 @@ export const ASSET_SELECT = `
          c.name AS customer_name, c.color AS customer_color, c.logo_url AS customer_logo_url,
          (d.id IS NOT NULL) AS ninja_exists, d.offline AS ninja_offline,
          d.last_contact AS ninja_last_contact, d.node_class AS ninja_node_class,
+         COALESCE(seen_u.display_name, seen_u.username) AS last_seen_by_name,
          (SELECT COUNT(*) FROM tickets t
            WHERE t.organization_id = a.organization_id
              AND (t.asset_id = a.id OR (a.ninja_device_ref IS NOT NULL AND t.device_id = a.ninja_device_ref))
@@ -109,7 +117,63 @@ export const ASSET_SELECT = `
     FROM assets a
     LEFT JOIN customers c ON c.id = a.customer_id
     LEFT JOIN ninjarmm_devices d ON d.id = a.ninja_device_ref
+    LEFT JOIN users seen_u ON seen_u.id = a.last_seen_by
 `;
+
+// ---------------------------------------------------------------------------
+// AS-4…7: Asset-ID, Label-Token, Verlauf
+// ---------------------------------------------------------------------------
+
+/** Nächste Asset-ID der Organisation (atomar, Präfix aus asset_tag_sequences). */
+export async function nextAssetTag(organizationId: string): Promise<string> {
+  const r = await query(
+    `INSERT INTO asset_tag_sequences (organization_id, next_value)
+     VALUES ($1, 2)
+     ON CONFLICT (organization_id) DO UPDATE
+       SET next_value = asset_tag_sequences.next_value + 1, updated_at = NOW()
+     RETURNING prefix, next_value - 1 AS n`,
+    [organizationId]
+  );
+  const { prefix, n } = r.rows[0];
+  return `${prefix}-${String(n).padStart(5, '0')}`;
+}
+
+/** Nicht erratbarer Schlüssel für den QR-Link (erst beim Etikettendruck erzeugt). */
+export async function ensureLabelToken(assetId: string, organizationId: string): Promise<string | null> {
+  const existing = await query(
+    'SELECT label_token FROM assets WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+    [assetId, organizationId]
+  );
+  if (existing.rows.length === 0) return null;
+  if (existing.rows[0].label_token) return existing.rows[0].label_token;
+  const token = crypto.randomBytes(12).toString('base64url');
+  await query('UPDATE assets SET label_token = $1 WHERE id = $2 AND label_token IS NULL', [token, assetId]);
+  const again = await query('SELECT label_token FROM assets WHERE id = $1', [assetId]);
+  return again.rows[0]?.label_token ?? token;
+}
+
+export type AssetEventType =
+  | 'created' | 'updated' | 'imported' | 'ninja_linked' | 'label_printed'
+  | 'inventory_seen' | 'attachment_added' | 'attachment_removed' | 'deleted' | 'from_purchase';
+
+/** Änderungsverlauf — best effort, darf die eigentliche Aktion nie scheitern lassen. */
+export async function logAssetEvent(
+  organizationId: string,
+  assetId: string,
+  userId: string | null,
+  eventType: AssetEventType,
+  details?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO asset_events (id, organization_id, asset_id, user_id, event_type, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [crypto.randomUUID(), organizationId, assetId, userId, eventType, details ? JSON.stringify(details) : null]
+    );
+  } catch (err) {
+    logger.error('Asset-Event konnte nicht protokolliert werden:', err);
+  }
+}
 
 /** NinjaOne node_class → Asset-Typ (Vorbelegung, manuell aenderbar). */
 export function assetTypeFromNodeClass(nodeClass: string | null | undefined): string {
@@ -197,18 +261,33 @@ export async function syncAssetsFromNinja(userId: string): Promise<{ created: nu
              ORDER BY created_at LIMIT 1)`,
         [organizationId, d.id, serial, d.os_name, d.private_ip, d.customer_id]
       );
-      if ((link.rowCount ?? 0) > 0) { linked++; continue; }
+      if ((link.rowCount ?? 0) > 0) {
+        linked++;
+        const linkedRow = await query(
+          'SELECT id FROM assets WHERE organization_id = $1 AND ninja_device_ref = $2 AND deleted_at IS NULL',
+          [organizationId, d.id]
+        );
+        if (linkedRow.rows[0]) {
+          await logAssetEvent(organizationId, linkedRow.rows[0].id, null, 'ninja_linked', { serialNumber: serial });
+        }
+        continue;
+      }
     }
 
-    await query(
+    const newId = crypto.randomUUID();
+    const ins = await query(
       `INSERT INTO assets (id, organization_id, customer_id, asset_type, name, manufacturer, model,
-                           serial_number, os_name, ip_address, ninja_device_ref, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12)
+                           serial_number, os_name, ip_address, ninja_device_ref, status, created_by, asset_tag)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12, $13)
        ON CONFLICT DO NOTHING`,
-      [crypto.randomUUID(), organizationId, d.customer_id, assetTypeFromNodeClass(d.node_class),
-       name, d.manufacturer, d.model, serial, d.os_name, d.private_ip, d.id, userId]
+      [newId, organizationId, d.customer_id, assetTypeFromNodeClass(d.node_class),
+       name, d.manufacturer, d.model, serial, d.os_name, d.private_ip, d.id, userId,
+       await nextAssetTag(organizationId)]
     );
-    created++;
+    if ((ins.rowCount ?? 0) > 0) {
+      created++;
+      await logAssetEvent(organizationId, newId, null, 'created', { source: 'ninjaone' });
+    }
   }
 
   if (created || linked) {

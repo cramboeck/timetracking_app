@@ -8,6 +8,7 @@ import { attachOrganization, requireOrgRole, OrganizationRequest } from '../midd
 import { logger } from '../utils/logger';
 import {
   ASSET_SELECT, ASSET_STATUSES, ASSET_TYPES, mapAsset, syncAssetsFromNinja,
+  nextAssetTag, logAssetEvent,
 } from '../services/assetService';
 
 /**
@@ -102,7 +103,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     if (typeof search === 'string' && search.trim()) {
       params.push(`%${search.trim()}%`);
       const p = `$${params.length}`;
-      where += ` AND (a.name ILIKE ${p} OR a.serial_number ILIKE ${p} OR a.model ILIKE ${p}
+      where += ` AND (a.name ILIKE ${p} OR a.asset_tag ILIKE ${p} OR a.serial_number ILIKE ${p} OR a.model ILIKE ${p}
                      OR a.manufacturer ILIKE ${p} OR a.inventory_number ILIKE ${p}
                      OR a.assigned_to ILIKE ${p} OR a.location ILIKE ${p} OR c.name ILIKE ${p})`;
     }
@@ -195,8 +196,8 @@ router.post('/from-line-item/:lineItemId', requireOrgRole('admin'), validate(ass
       `INSERT INTO assets (id, organization_id, customer_id, asset_type, name, manufacturer, model,
                            serial_number, inventory_number, status, location, assigned_to,
                            purchase_date, warranty_until, supplier, ip_address, os_name, notes,
-                           source_line_item_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+                           source_line_item_id, created_by, asset_tag)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [
         id, organizationId, customerId, body.assetType ?? 'other', body.name,
         emptyToNull(body.manufacturer ?? null), emptyToNull(body.model ?? null),
@@ -207,9 +208,10 @@ router.post('/from-line-item/:lineItemId', requireOrgRole('admin'), validate(ass
         emptyToNull(body.warrantyUntil ?? null),
         emptyToNull(body.supplier ?? null) ?? row.supplier ?? null,
         emptyToNull(body.ipAddress ?? null), emptyToNull(body.osName ?? null), emptyToNull(body.notes ?? null),
-        row.id, req.userId,
+        row.id, req.userId, await nextAssetTag(organizationId),
       ]
     );
+    await logAssetEvent(organizationId, id, req.userId ?? null, 'from_purchase', { lineItemId: row.id, description: row.description });
     res.status(201).json({ success: true, data: await loadAsset(id, organizationId) });
   } catch (error) {
     logger.error('Create asset from line item error:', error);
@@ -252,11 +254,43 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       }));
     }
 
+    const events = await query(
+      `SELECT e.id, e.event_type, e.details, e.created_at,
+              COALESCE(u.display_name, u.username) AS user_name
+         FROM asset_events e
+         LEFT JOIN users u ON u.id = e.user_id
+        WHERE e.asset_id = $1 AND e.organization_id = $2
+        ORDER BY e.created_at DESC
+        LIMIT 100`,
+      [asset.id, organizationId]
+    );
+    const attachments = await query(
+      `SELECT id, original_name, mime_type, size_bytes, created_at
+         FROM asset_attachments
+        WHERE asset_id = $1 AND organization_id = $2
+        ORDER BY created_at DESC`,
+      [asset.id, organizationId]
+    );
+
     res.json({
       success: true,
       data: {
         ...asset,
+        attachments: attachments.rows.map(a => ({
+          id: String(a.id),
+          originalName: String(a.original_name),
+          mimeType: String(a.mime_type),
+          sizeBytes: Number(a.size_bytes),
+          createdAt: a.created_at instanceof Date ? a.created_at.toISOString() : String(a.created_at),
+        })),
         history: {
+          events: events.rows.map(e => ({
+            id: String(e.id),
+            eventType: String(e.event_type),
+            details: e.details ?? null,
+            userName: e.user_name ? String(e.user_name) : null,
+            createdAt: e.created_at instanceof Date ? e.created_at.toISOString() : String(e.created_at),
+          })),
           tickets: tickets.rows.map(t => ({
             id: String(t.id),
             ticketNumber: String(t.ticket_number),
@@ -284,8 +318,8 @@ router.post('/', requireOrgRole('member'), validate(assetBodySchema), async (req
       return res.status(404).json({ error: 'Kunde nicht gefunden' });
     }
     const id = crypto.randomUUID();
-    const cols = ['id', 'organization_id', 'created_by'];
-    const vals: unknown[] = [id, organizationId, req.userId];
+    const cols = ['id', 'organization_id', 'created_by', 'asset_tag'];
+    const vals: unknown[] = [id, organizationId, req.userId, await nextAssetTag(organizationId)];
     for (const [field, column] of Object.entries(FIELD_COLUMNS)) {
       const v = (body as Record<string, unknown>)[field];
       if (v !== undefined) {
@@ -297,6 +331,7 @@ router.post('/', requireOrgRole('member'), validate(assetBodySchema), async (req
       `INSERT INTO assets (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
       vals
     );
+    await logAssetEvent(organizationId, id, req.userId ?? null, 'created', { source: 'manual' });
     const asset = await loadAsset(id, organizationId);
     res.status(201).json({ success: true, data: asset });
   } catch (error) {
@@ -324,6 +359,16 @@ router.put('/:id', requireOrgRole('member'), validate(updateAssetSchema), async 
         sets.push(`${column} = $${vals.length}`);
       }
     }
+    // Änderungsverlauf: nur tatsächlich geänderte Felder
+    const changes: Record<string, [unknown, unknown]> = {};
+    const before = existing as unknown as Record<string, unknown>;
+    for (const field of Object.keys(FIELD_COLUMNS)) {
+      const v = (body as Record<string, unknown>)[field];
+      if (v === undefined) continue;
+      const next = emptyToNull(v);
+      const prev = before[field] ?? null;
+      if (String(prev ?? '') !== String(next ?? '')) changes[field] = [prev, next];
+    }
     if (sets.length > 0) {
       vals.push(req.params.id, organizationId);
       await query(
@@ -331,6 +376,9 @@ router.put('/:id', requireOrgRole('member'), validate(updateAssetSchema), async 
           WHERE id = $${vals.length - 1} AND organization_id = $${vals.length} AND deleted_at IS NULL`,
         vals
       );
+    }
+    if (Object.keys(changes).length > 0) {
+      await logAssetEvent(organizationId, req.params.id, req.userId ?? null, 'updated', { changes });
     }
     res.json({ success: true, data: await loadAsset(req.params.id, organizationId) });
   } catch (error) {
@@ -349,6 +397,7 @@ router.delete('/:id', requireOrgRole('admin'), async (req: AuthRequest, res: Res
     );
     if ((r.rowCount ?? 0) === 0) return res.status(404).json({ error: 'Gerät nicht gefunden' });
     await query('UPDATE tickets SET asset_id = NULL WHERE asset_id = $1', [req.params.id]);
+    await logAssetEvent(orgId(req), req.params.id, req.userId ?? null, 'deleted');
     res.json({ success: true });
   } catch (error) {
     logger.error('Delete asset error:', error);
