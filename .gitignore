@@ -36,3 +36,7 @@ server/.env
 
 # Lokale Upload-Verzeichnisse (Ticket-Anhaenge, Kunden-Logos) nie tracken
 server/uploads/
+
+# Datenbank-Sicherungen von scripts/backup-gfs.sh (liegen auf dem Server im
+# Repo-Ordner) — enthalten Kundendaten, niemals committen
+backups/
