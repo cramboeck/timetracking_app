@@ -349,6 +349,8 @@ const TYPE_ALIASES: Record<string, string> = {
   firewall: 'firewall', nas: 'storage', storage: 'storage', speicher: 'storage', telefon: 'phone', phone: 'phone', voip: 'phone',
   smartphone: 'mobile', handy: 'mobile', tablet: 'mobile', mobile: 'mobile', ipad: 'mobile', iphone: 'mobile',
   monitor: 'monitor', bildschirm: 'monitor', sonstiges: 'other', other: 'other',
+  // Anzeige-Labels der App (Export → Re-Import)
+  'netzwerk (switch/ap/router)': 'network', 'nas / storage': 'storage', 'smartphone / tablet': 'mobile',
 };
 const STATUS_ALIASES: Record<string, string> = {
   active: 'active', aktiv: 'active', 'im einsatz': 'active', einsatz: 'active',
@@ -590,6 +592,10 @@ publicAssetLabelRouter.get('/:token', async (req: Request, res: Response) => {
         assetTag: r.rows[0].asset_tag ? String(r.rows[0].asset_tag) : null,
         support: company,
         portalUrl: PORTAL_URL(),
+        // Kunde scannt → Portal-Login → Ticket mit vorausgewähltem Gerät
+        portalTicketUrl: process.env.PORTAL_URL
+          ? `${PORTAL_URL()}/?label=${token}`
+          : `${APP_URL()}/portal?label=${token}`,
       },
     });
   } catch (error) {

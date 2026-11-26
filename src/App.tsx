@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { AreaNavigation, SubView, isSubViewAllowed, ticketPath } from './components/AreaNavigation';
+import { AreaNavigation, SubView, isSubViewAllowed, ticketPath, devicePath } from './components/AreaNavigation';
+import { OPEN_LABEL_KEY } from './components/assets/LabelLanding';
 import { useNavigate } from 'react-router';
 import { AttendanceBar } from './components/AttendanceBar';
 import { WorkTimeAccount } from './components/WorkTimeAccount';
@@ -59,7 +60,7 @@ import { generateUUID } from './utils/uuid';
 import { notificationService } from './utils/notifications';
 import { toLocalDateString } from './utils/time';
 import { addPendingEntry } from './utils/offlineStorage';
-import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, SESSION_EXPIRED_EVENT } from './services/api';
+import { projectsApi, customersApi, activitiesApi, entriesApi, organizationsApi, assetToolsApi, SESSION_EXPIRED_EVENT } from './services/api';
 
 function App() {
   const { currentUser, isAuthenticated, isLoading, updateDarkMode } = useAuth();
@@ -133,6 +134,21 @@ function App() {
   const handleOpenTicket = useCallback((ticketId: string) => {
     navigate(ticketPath(ticketId));
   }, [navigate]);
+
+  // QR-Etikett nach einem SSO-Login: LabelLanding hat das Etikett geparkt,
+  // der Entra-Rücksprung landet aber auf "/" — hier das Gerät öffnen.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(OPEN_LABEL_KEY); } catch { /* ignore */ }
+    if (!raw) return;
+    try { sessionStorage.removeItem(OPEN_LABEL_KEY); } catch { /* ignore */ }
+    const [ts, token] = raw.split('|');
+    if (!token || Date.now() - Number(ts) > 15 * 60_000) return;
+    assetToolsApi.byLabel(token)
+      .then(r => navigate(devicePath(r.data.id)))
+      .catch(() => { /* fremdes/unbekanntes Etikett — normale Startseite */ });
+  }, [isAuthenticated, navigate]);
 
   // Timer aus Ticket ODER Aufgabe: belegt die Stoppuhr vor (sie legt den
   // Eintrag ueber den normalen App-Weg an — GlobalTimerWidget, Auto-Stop und

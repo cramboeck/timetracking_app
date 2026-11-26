@@ -32,6 +32,8 @@ export const CustomerPortal = () => {
   const [portalSettings, setPortalSettings] = useState<PortalSettings | null>(null);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [showWelcomeGuide, setShowWelcomeGuide] = useState(false);
+  // Vom QR-Etikett (main.tsx parkt ?label= in sessionStorage)
+  const [labelDevice, setLabelDevice] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Check for activation token in URL. Works on both hosts: the main app
@@ -82,6 +84,21 @@ export const CustomerPortal = () => {
 
     navigator.serviceWorker.addEventListener('message', handleMessage);
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, [contact]);
+
+  // QR-Etikett gescannt: nach dem Login „Problem melden“ mit Gerät öffnen
+  useEffect(() => {
+    if (!contact) return;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem('rbf_portal_label'); } catch { /* ignore */ }
+    if (!raw) return;
+    try { sessionStorage.removeItem('rbf_portal_label'); } catch { /* ignore */ }
+    const [ts, token] = raw.split('|');
+    if (!token || Date.now() - Number(ts) > 30 * 60_000) return;
+    customerPortalApi.getDeviceByLabel(token)
+      .then(r => setLabelDevice(r.data.assetTag ? `${r.data.name} (${r.data.assetTag})` : r.data.name))
+      .catch(() => setLabelDevice(null))
+      .finally(() => setShowCreateDialog(true));
   }, [contact]);
 
   // Navigate to pending ticket after login
@@ -359,7 +376,8 @@ export const CustomerPortal = () => {
 
       <PortalCreateTicket
         isOpen={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
+        onClose={() => { setShowCreateDialog(false); setLabelDevice(null); }}
+        initialDevice={labelDevice}
         onCreated={handleTicketCreated}
       />
 

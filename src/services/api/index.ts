@@ -234,5 +234,9 @@ const api = {
 export default api;
 
 // Assets (AS-1/2/3) — Geräte unabhängig von NinjaOne
-export { assetsApi, ASSET_TYPE_LABELS, ASSET_STATUS_LABELS } from './assets';
-export type { Asset, AssetHistory, AssetInput, AssetListFilters, AssetType, AssetStatus } from './assets';
+export { assetsApi, assetToolsApi, ASSET_TYPE_LABELS, ASSET_STATUS_LABELS } from './assets';
+export type {
+  Asset, AssetHistory, AssetInput, AssetListFilters, AssetType, AssetStatus,
+  AssetEvent, AssetAttachment, AssetDetailData, LabelData, LabelCompany,
+  InventoryItem, InventorySummary, InventoryDetail, ImportRow, ImportResult, PublicLabelInfo,
+} from './assets';

@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import { Pencil, Trash2, Ticket as TicketIcon, Wrench, Wifi, WifiOff, Package, RefreshCw } from 'lucide-react';
+import { Pencil, Trash2, Ticket as TicketIcon, Wrench, Wifi, WifiOff, Package, RefreshCw, QrCode, Tag, Eye, History } from 'lucide-react';
 import { Modal } from '../Modal';
 import { Button } from '../ui/Button';
 import { useConfirm, useToast } from '../../contexts/UIContext';
@@ -9,6 +9,10 @@ import { ticketPath } from '../AreaNavigation';
 import { assetsApi, ninjaApi, ASSET_STATUS_LABELS, ASSET_TYPE_LABELS, type Asset } from '../../services/api';
 import { AssetTypeIcon, WarrantyLabel, fmtDate, statusBadgeClass } from './assetUi';
 import { AssetDialog } from './AssetDialog';
+import { AssetAttachments } from './AssetAttachments';
+import { AssetTimeline } from './AssetTimeline';
+
+const LabelPrintDialog = lazy(() => import('./LabelPrintDialog').then(m => ({ default: m.LabelPrintDialog })));
 
 /**
  * Geräte-Detail (AS-1/3): Stammdaten, NinjaOne-Live-Status (falls verknüpft),
@@ -18,6 +22,8 @@ interface AssetDetailProps {
   assetId: string | null;
   onClose: () => void;
   canDelete: boolean;
+  /** false, wenn das Detail an der URL hängt (Seitenwechsel schließt es ohnehin) */
+  closeOnNavigate?: boolean;
 }
 
 const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
@@ -31,12 +37,13 @@ const TICKET_STATUS: Record<string, string> = {
   open: 'Offen', in_progress: 'In Bearbeitung', waiting: 'Wartend', resolved: 'Gelöst', closed: 'Geschlossen', archived: 'Archiviert',
 };
 
-export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) => {
+export const AssetDetail = ({ assetId, onClose, canDelete, closeOnNavigate = true }: AssetDetailProps) => {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['assets', 'detail', assetId],
@@ -102,8 +109,9 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
           </Button>
         )}
       </div>
-      <div className="flex gap-2">
-        <Button variant="secondary" onClick={onClose}>Schließen</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={() => setPrinting(true)} icon={<QrCode size={16} />}>Etikett</Button>
+        <Button variant="secondary" onClick={onClose} className="hidden sm:inline-flex">Schließen</Button>
         <Button variant="primary" onClick={() => setEditing(true)} icon={<Pencil size={16} />}>Bearbeiten</Button>
       </div>
     </div>
@@ -111,7 +119,7 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
 
   return (
     <>
-      <Modal isOpen={!!assetId && !editing} onClose={onClose} title={asset?.name ?? 'Gerät'} maxWidth="3xl" footer={footer}>
+      <Modal isOpen={!!assetId && !editing && !printing} onClose={onClose} title={asset?.name ?? 'Gerät'} maxWidth="3xl" footer={footer}>
         {isLoading || !asset ? (
           <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-accent-primary" /></div>
         ) : (
@@ -125,6 +133,11 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
                   {ASSET_TYPE_LABELS[asset.assetType]}{asset.customerName ? ` · ${asset.customerName}` : ' · Eigenes Gerät'}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  {asset.assetTag && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 dark:bg-dark-200 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700 dark:text-dark-500">
+                      <Tag size={11} /> {asset.assetTag}
+                    </span>
+                  )}
                   <span className={statusBadgeClass(asset.status)}>{ASSET_STATUS_LABELS[asset.status]}</span>
                   {asset.ninja && (
                     <span className={`inline-flex items-center gap-1 text-xs ${asset.ninja.offline ? 'text-gray-500 dark:text-dark-400' : 'text-green-600 dark:text-green-400'}`}>
@@ -154,6 +167,12 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
               <Field label="Lieferant" value={asset.supplier} />
               <Field label="IP-Adresse" value={asset.ipAddress && <span className="font-mono">{asset.ipAddress}</span>} />
               <Field label="Betriebssystem" value={asset.osName} />
+              <Field label="Zuletzt gesehen" value={asset.lastSeenAt && (
+                <span className="inline-flex items-center gap-1" title="Bei einer Inventur erfasst">
+                  <Eye size={13} className="text-gray-400" />
+                  {new Date(asset.lastSeenAt).toLocaleDateString('de-DE')}{asset.lastSeenByName ? ` · ${asset.lastSeenByName}` : ''}
+                </span>
+              )} />
             </dl>
             {asset.notes && (
               <div className="rounded-xl bg-gray-50 dark:bg-dark-200 p-3 text-sm text-gray-700 dark:text-dark-500 whitespace-pre-wrap">{asset.notes}</div>
@@ -190,14 +209,14 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
             )}
 
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Verlauf</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tickets & Wartungen</p>
               {asset.history.tickets.length === 0 && asset.history.maintenance.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-dark-400">Noch keine Tickets oder Wartungen zu diesem Gerät.</p>
               ) : (
                 <ul className="divide-y divide-gray-100 dark:divide-dark-border rounded-xl border border-gray-200 dark:border-dark-border">
                   {asset.history.tickets.map(t => (
                     <li key={t.id}>
-                      <button type="button" onClick={() => { onClose(); navigate(ticketPath(t.id)); }}
+                      <button type="button" onClick={() => { if (closeOnNavigate) onClose(); navigate(ticketPath(t.id)); }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-dark-200">
                         <TicketIcon size={15} className="text-gray-400 flex-shrink-0" />
                         <span className="font-mono text-xs text-gray-500 dark:text-dark-400">{t.ticketNumber}</span>
@@ -216,10 +235,24 @@ export const AssetDetail = ({ assetId, onClose, canDelete }: AssetDetailProps) =
                 </ul>
               )}
             </div>
+
+            <AssetAttachments assetId={asset.id} attachments={asset.attachments} />
+
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-white mb-2">
+                <History size={15} className="text-gray-400" /> Änderungsverlauf
+              </p>
+              <AssetTimeline events={asset.history.events} />
+            </div>
           </div>
         )}
       </Modal>
       <AssetDialog isOpen={editing} onClose={() => setEditing(false)} asset={asset ?? null} />
+      {asset && printing && (
+        <Suspense fallback={null}>
+          <LabelPrintDialog isOpen onClose={() => setPrinting(false)} assetIds={[asset.id]} />
+        </Suspense>
+      )}
     </>
   );
 };

@@ -404,6 +404,11 @@ export const customerPortalApi = {
     });
   },
 
+  /** QR-Etikett → eigenes Gerät (nur Name + Asset-ID). */
+  getDeviceByLabel: async (token: string): Promise<{ data: { name: string; assetTag: string | null } }> => {
+    return portalAuthFetch(`/customer-portal/devices/by-label/${encodeURIComponent(token)}`);
+  },
+
   getDevices: async (): Promise<{ data: PortalDevice[] }> => {
     return portalAuthFetch('/customer-portal/devices');
   },

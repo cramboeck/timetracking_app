@@ -8,6 +8,7 @@ import { ReportApprovalReview } from './components/ReportApprovalReview.tsx'
 import { CustomerPortal } from './components/portal/CustomerPortal.tsx'
 import { ResetPasswordPage } from './components/ResetPasswordPage.tsx'
 import MaintenanceApproval from './components/MaintenanceApproval.tsx'
+import { LabelLanding } from './components/assets/LabelLanding.tsx'
 import AdminRoute from './components/AdminRoute.tsx'
 import { AuthProvider } from './contexts/AuthContext.tsx'
 import { FeaturesProvider } from './contexts/FeaturesContext.tsx'
@@ -91,6 +92,18 @@ setupPwaUpdates();
   }
 }
 
+// QR-Etikett → Kundenportal (?label=<token>): ebenfalls vor dem Router
+// parken; CustomerPortal öffnet nach dem Login „Problem melden“ mit dem
+// Gerät vorausgewählt.
+{
+  const label = new URLSearchParams(window.location.search).get('label');
+  if (label && /^[A-Za-z0-9_-]{8,64}$/.test(label)
+      && (isPortalHost() || window.location.pathname.startsWith('/portal'))) {
+    try { sessionStorage.setItem('rbf_portal_label', `${Date.now()}|${label}`); } catch { /* ignore */ }
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -119,6 +132,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         to the App catch-all, which canonicalizes unknown paths
                         and drops the ?token= query in the process */}
                     <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+                    {/* QR-Etikett eines Geräts (öffentlich; Techniker → Gerät) */}
+                    <Route path="/l/:token" element={<LabelLanding />} />
 
                     {/* Customer Portal (separate from main app) */}
                     <Route path="/portal" element={<CustomerPortal />} />

@@ -8,6 +8,7 @@ import {
   getDefaultSubView,
   pathToAreaSubView,
   ticketIdFromPath,
+  deviceIdFromPath,
   ticketPath,
 } from '../components/AreaNavigation';
 
@@ -67,6 +68,7 @@ export function useCurrentNavigation(
     }
     // Geöffnetes Ticket ist eine gültige Adresse — nicht wegkanonisieren
     if (ticketIdFromPath(location.pathname)) return;
+    if (deviceIdFromPath(location.pathname)) return;
     const canonical = areaSubViewToPath(currentArea, currentSubView);
     if (location.pathname !== canonical) {
       navigate(canonical, { replace: true });

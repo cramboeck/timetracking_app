@@ -6,6 +6,8 @@ interface PortalCreateTicketProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (ticket: PortalTicket) => void;
+  /** Vom QR-Etikett vorgegebenes Gerät („Name (IT-00012)“) — überspringt die Geräteauswahl */
+  initialDevice?: string | null;
 }
 
 // Uploaded file with preview
@@ -683,7 +685,7 @@ function generateTicketContent(data: Record<string, string>): { title: string; d
 const MAX_FILES = 3;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateTicketProps) => {
+export const PortalCreateTicket = ({ isOpen, onClose, onCreated, initialDevice = null }: PortalCreateTicketProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('start');
   const [inputValue, setInputValue] = useState('');
@@ -694,6 +696,13 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Gerät vom Etikett vorbelegen
+  useEffect(() => {
+    if (isOpen && initialDevice) {
+      setCollectedData(d => ({ ...d, selectedDevice: initialDevice }));
+    }
+  }, [isOpen, initialDevice]);
 
   // Load customer devices on mount
   useEffect(() => {
@@ -902,10 +911,10 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
   const resolveNextStep = (stepId: string, updatedData: Record<string, string>): string | null => {
     // Handle device selection routing
     if (stepId === 'device_selection_or_software') {
-      return devices.length > 0 ? 'device_selection' : 'software_name';
+      return devices.length > 0 && !initialDevice ? 'device_selection' : 'software_name';
     }
     if (stepId === 'device_selection_or_hardware') {
-      return devices.length > 0 ? 'device_selection' : 'hardware_device';
+      return devices.length > 0 && !initialDevice ? 'device_selection' : 'hardware_device';
     }
 
     // Handle post-device-selection routing
@@ -1080,7 +1089,7 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
     setUploadedFiles([]);
     setMessages([]);
     setCurrentStep('start');
-    setCollectedData({});
+    setCollectedData(initialDevice ? { selectedDevice: initialDevice } : {});
     setInputValue('');
     setTimeout(() => {
       addBotMessage(conversationFlow.start);
@@ -1133,6 +1142,12 @@ export const PortalCreateTicket = ({ isOpen, onClose, onCreated }: PortalCreateT
             <X size={20} />
           </button>
         </div>
+
+        {initialDevice && (
+          <div className="px-4 py-2 text-xs border-b border-gray-200 dark:border-dark-border bg-accent-primary/5 text-gray-700 dark:text-dark-500">
+            Betroffenes Gerät: <span className="font-semibold text-gray-900 dark:text-white">{initialDevice}</span>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-dark-50">

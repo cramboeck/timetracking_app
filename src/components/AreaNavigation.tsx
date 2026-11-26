@@ -383,6 +383,16 @@ export const ticketIdFromPath = (pathname: string): string | null => {
   return m ? decodeURIComponent(m[1]) : null;
 };
 
+/** Kanonische Adresse eines geöffneten Geräts (QR-Etikett, Lesezeichen). */
+export const devicePath = (assetId: string): string =>
+  `/support/devices/${encodeURIComponent(assetId)}`;
+
+/** Geräte-ID aus /support/devices/<id> (sonst null). */
+export const deviceIdFromPath = (pathname: string): string | null => {
+  const m = pathname.match(/^\/support\/devices\/([^/?#]+)\/?$/);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+
 export const areaSubViewToPath = (area: Area, subView: SubView): string => {
   if (STANDALONE_SUBVIEWS.includes(subView)) {
     return `/${subView}`;
