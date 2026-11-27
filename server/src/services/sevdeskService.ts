@@ -1,6 +1,7 @@
 import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { toSevdeskHtml } from '../utils/sevdeskText';
 
 // sevDesk API Base URL
 const SEVDESK_API_URL = 'https://my.sevdesk.de/api/v1';
@@ -749,8 +750,9 @@ export async function createInvoice(
       deliveryDate: Math.floor(startDate.getTime() / 1000),
       deliveryDateUntil: Math.floor(endDate.getTime() / 1000),
       header: invoiceHeader,
-      headText: invoiceHeadText,
-      footText: invoiceFootText,
+      // HTML-Felder: Zeilenumbrüche/Leerzeilen sonst im PDF verloren
+      headText: toSevdeskHtml(invoiceHeadText),
+      footText: toSevdeskHtml(invoiceFootText),
       timeToPay: config.paymentTermsDays,
       discount: 0,
       status: config.createAsFinal ? 200 : 100,
@@ -2228,8 +2230,8 @@ export async function createQuote(
       orderDate: orderDateTimestamp,
       status: 100,
       header: input.header || `Angebot ${orderNumber}`,
-      headText: input.headText || '',
-      footText: input.footText || '',
+      headText: toSevdeskHtml(input.headText),
+      footText: toSevdeskHtml(input.footText),
       // Address fields
       addressName: addressName,
       addressStreet: addressStreet,
@@ -2375,8 +2377,8 @@ export async function updateQuote(
       orderDate: orderDateTimestamp,
       status: input.status || existingQuote.status || 100,
       header: input.header || existingQuote.header,
-      headText: input.headText ?? existingQuote.headText ?? '',
-      footText: input.footText ?? existingQuote.footText ?? '',
+      headText: toSevdeskHtml(input.headText ?? existingQuote.headText ?? ''),
+      footText: toSevdeskHtml(input.footText ?? existingQuote.footText ?? ''),
       addressName: addressName,
       addressStreet: addressStreet,
       addressZip: addressZip,

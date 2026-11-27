@@ -168,7 +168,7 @@ export const InvoiceCreationDialog = ({
     // Set default header
     const monthYear = periodStart.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
     setInvoiceHeader(`IT-Dienstleistungen ${monthYear}`);
-    setHeadText(`Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
+    setHeadText(`Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\n\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
 
     // Default footer with payment terms and due date
     const paymentTermsDays = customer.paymentTermsDays || 14;
