@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive, MoreVertical, Wallet, ShoppingCart } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, FolderOpen, Palette, ListChecks, LogOut, Building, X, Users2, Shield, Bell, User as UserIcon, Clock, ChevronRight, ChevronDown, Check, FileDown, Key, Save, XCircle, Activity as ActivityIcon, UserCog, Ticket, Book, Server, Bot, Database, Cloud, Globe, Search, Mail, HardDrive, MoreVertical, Wallet, ShoppingCart, KeyRound } from 'lucide-react';
 import { Customer, Project, Activity, TimeEntry } from '../types';
 import { Modal } from './Modal';
 import { Button, IconButton } from './ui/Button';
@@ -26,6 +26,7 @@ import { AppearanceSettings } from './settings/AppearanceSettings';
 import { NotificationSettings } from './settings/NotificationSettings';
 import { CompanySettings } from './settings/CompanySettings';
 import { TeamSettings } from './settings/TeamSettings';
+import { AgentAccessSettings } from './settings/AgentAccessSettings';
 import { GpsStampingSettings } from './GpsStampingSettings';
 import { TeamProvider } from '../contexts/TeamContext';
 import StorageMonitor from './admin/StorageMonitor';
@@ -82,7 +83,7 @@ export const Settings = ({
   const { currentUser, logout } = useAuth();
   const showToast = useToast();
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import' | 'sevdesk' | 'infinigate'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import' | 'sevdesk' | 'infinigate' | 'agent'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
@@ -123,7 +124,7 @@ export const Settings = ({
     const tab = new URLSearchParams(window.location.search).get('tab');
     const allowed = ['account', 'appearance', 'notifications', 'company', 'team', 'customers', 'projects',
       'activities', 'tickets', 'portal', 'ninjarmm', 'microsoft365', 'ai', 'email', 'storage', 'import',
-      'sevdesk', 'infinigate'] as const;
+      'sevdesk', 'infinigate', 'agent'] as const;
     if (tab && (allowed as readonly string[]).includes(tab)) {
       setActiveTab(tab as typeof allowed[number]);
     }
@@ -820,7 +821,8 @@ export const Settings = ({
       items: [
         { id: 'account', label: 'Mein Account', icon: UserIcon, desc: 'Profil & Logout' },
         { id: 'appearance', label: 'Darstellung', icon: Palette, desc: 'Theme & Farben' },
-        { id: 'notifications', label: 'Benachrichtigungen', icon: Bell, desc: 'E-Mail & Browser' }
+        { id: 'notifications', label: 'Benachrichtigungen', icon: Bell, desc: 'E-Mail & Browser' },
+        { id: 'agent', label: 'KI-Agent & API', icon: KeyRound, desc: 'Zugänge für Claude/MCP' }
       ]
     },
     {
@@ -2008,6 +2010,8 @@ export const Settings = ({
             </div>
           </div>
         )}
+
+        {activeTab === 'agent' && <AgentAccessSettings orgRole={userRole} />}
 
         {activeTab === 'ai' && (
           <div className="max-w-4xl mx-auto space-y-6">

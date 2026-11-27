@@ -380,6 +380,9 @@ export function transformComment(row: any) {
     // Include author info if joined
     authorName: row.author_name,
     authorType: row.user_id ? 'user' : 'customer',
+    // Über einen API-Zugang (MCP/KI-Agent) entstanden
+    viaAgent: !!row.api_token_id,
+    agentName: row.agent_name ?? null,
   };
 }
 

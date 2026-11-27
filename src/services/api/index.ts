@@ -240,3 +240,5 @@ export type {
   AssetEvent, AssetAttachment, AssetDetailData, LabelData, LabelCompany,
   InventoryItem, InventorySummary, InventoryDetail, ImportRow, ImportResult, PublicLabelInfo,
 } from './assets';
+export { apiTokensApi, API_TOKEN_SCOPE_INFO } from './apiTokens';
+export type { ApiTokenScope, ApiTokenInfo, ApiTokenRequestLog } from './apiTokens';

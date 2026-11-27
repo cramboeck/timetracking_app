@@ -131,7 +131,7 @@ const TIME_ENTRY_COLUMNS = `
   id, organization_id, user_id, project_id, activity_id, ticket_id,
   start_time, end_time, duration, description, is_running, is_billable,
   external_id, external_source, created_at,
-  entry_scope, internal_category, customer_visibility, task_id
+  entry_scope, internal_category, customer_visibility, task_id, api_token_id
 `;
 
 const PROJECT_COLUMNS = `
@@ -868,8 +868,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     }
 
     await pool.query(
-      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility, task_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+      `INSERT INTO time_entries (id, user_id, organization_id, project_id, activity_id, ticket_id, start_time, end_time, duration, description, is_running, is_billable, created_at, entry_scope, internal_category, customer_visibility, task_id, api_token_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
       [
         id,
         userId,
@@ -887,7 +887,8 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         entryScope,
         internalCategory,
         customerVisibility,
-        verifiedTaskId
+        verifiedTaskId,
+        req.apiToken?.id ?? null
       ]
     );
 

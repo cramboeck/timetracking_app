@@ -9,7 +9,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { MulterError } from 'multer';
 import { query } from '../../config/database';
-import { authenticateToken } from '../../middleware/auth';
+import { authenticateToken, AuthRequest } from '../../middleware/auth';
 import { validate } from '../../middleware/validation';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../../middleware/upload';
@@ -78,9 +78,9 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     let emailReplySent: boolean | undefined;
 
     await query(`
-      INSERT INTO ticket_comments (id, ticket_id, user_id, is_internal, content)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [commentId, ticketId, userId, isInternal, content]);
+      INSERT INTO ticket_comments (id, ticket_id, user_id, is_internal, content, api_token_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [commentId, ticketId, userId, isInternal, content, (req as AuthRequest).apiToken?.id ?? null]);
 
     // Update ticket's updated_at and set first_response_at if not already set (for non-internal comments)
     if (!isInternal) {

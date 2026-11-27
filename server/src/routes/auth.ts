@@ -11,8 +11,8 @@ import { refreshTokenService } from '../services/refreshTokenService';
 import { authLimiter, refreshLimiter } from '../middleware/rateLimiter';
 import { validate, registerSchema, loginSchema } from '../middleware/validation';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import { requireAdmin } from '../middleware/adminAuth';
 import { checkTrustedDevice } from './mfa';
+import { API_TOKEN_SCOPES } from '../utils/apiTokenPolicy';
 
 const router = Router();
 
@@ -553,98 +553,200 @@ router.patch('/profile', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 
-// ─── API-Tokens (MCP-Server / Integrationen) ────────────────────────────────
+// ─── API-Zugänge (MCP-Server / KI-Agent) ────────────────────────────────────
 // Langlebige Maschinen-Tokens mit Präfix "rbf_". Der Klartext existiert NUR
-// in der Create-Response; gespeichert wird der SHA-256-Hash. Nur Admins.
+// in der Create-Response; gespeichert wird der SHA-256-Hash.
+// Phase A (27.11.2026): für ALLE Rollen (ein Agent hat nie mehr Rechte als
+// sein User), mit Stufen, Pflicht-Ablauf (max. 365 Tage) und Protokoll.
+// Org-Admins/Owner sehen und widerrufen die Zugänge ihrer Organisation.
+// Für API-Tokens selbst sind diese Routen gesperrt (apiTokenPolicy) —
+// ein Agent kann sich keine neuen Zugänge ausstellen.
 
 const createApiTokenSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  scopes: z.array(z.enum(API_TOKEN_SCOPES)).min(1).max(API_TOKEN_SCOPES.length).optional(),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
 });
 
-router.post('/api-tokens', authenticateToken, requireAdmin, validate(createApiTokenSchema), async (req: AuthRequest, res) => {
+type OrgRoleName = 'owner' | 'admin' | 'member' | 'viewer';
+async function primaryOrgRole(userId: string): Promise<{ orgId: string; role: OrgRoleName } | null> {
+  const r = await pool.query(
+    `SELECT organization_id, role FROM organization_members
+      WHERE user_id = $1
+      ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, joined_at ASC NULLS LAST
+      LIMIT 1`,
+    [userId]
+  ).catch(() => ({ rows: [] as { organization_id: string; role: OrgRoleName }[] }));
+  const row = r.rows[0];
+  return row ? { orgId: String(row.organization_id), role: row.role } : null;
+}
+const isOrgAdmin = (role: OrgRoleName | undefined) => role === 'owner' || role === 'admin';
+
+const mapToken = (r: Record<string, unknown>) => ({
+  id: String(r.id),
+  name: String(r.name),
+  tokenPrefix: String(r.token_prefix),
+  scopes: Array.isArray(r.scopes) ? (r.scopes as string[]) : [],
+  lastUsedAt: r.last_used_at ?? null,
+  lastUsedIp: r.last_used_ip ?? null,
+  createdAt: r.created_at,
+  expiresAt: r.expires_at ?? null,
+  revoked: r.revoked_at !== null && r.revoked_at !== undefined,
+  revokedAt: r.revoked_at ?? null,
+  expired: !!r.expires_at && new Date(r.expires_at as string).getTime() <= Date.now(),
+  userId: String(r.user_id),
+  userName: r.user_name ? String(r.user_name) : null,
+  requestsLast30d: Number(r.requests_30d ?? 0),
+});
+
+const TOKEN_SELECT = `
+  SELECT t.id, t.name, t.token_prefix, t.scopes, t.last_used_at, t.last_used_ip,
+         t.created_at, t.expires_at, t.revoked_at, t.user_id,
+         COALESCE(u.display_name, u.username) AS user_name,
+         (SELECT COUNT(*) FROM api_token_requests q
+           WHERE q.token_id = t.id AND q.created_at > NOW() - INTERVAL '30 days') AS requests_30d
+    FROM api_tokens t
+    JOIN users u ON u.id = t.user_id`;
+
+/** Darf der eingeloggte User diesen Token sehen/widerrufen? (eigener oder Org-Admin derselben Org) */
+async function loadManageableToken(tokenId: string, userId: string) {
+  const r = await pool.query(`${TOKEN_SELECT} WHERE t.id = $1`, [tokenId]);
+  const row = r.rows[0];
+  if (!row) return null;
+  if (String(row.user_id) === userId) return row;
+  const me = await primaryOrgRole(userId);
+  if (!me || !isOrgAdmin(me.role)) return null;
+  const sameOrg = await pool.query(
+    'SELECT 1 FROM organization_members WHERE user_id = $1 AND organization_id = $2',
+    [row.user_id, me.orgId]
+  );
+  return sameOrg.rows.length > 0 ? row : null;
+}
+
+router.post('/api-tokens', authenticateToken, validate(createApiTokenSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { name } = req.body;
+    const { name } = req.body as { name: string };
+    const requested = ((req.body.scopes as string[] | undefined) ?? ['read']);
+    const scopes = API_TOKEN_SCOPES.filter(s => requested.includes(s));
+    const expiresInDays = (req.body.expiresInDays as number | undefined) ?? 90;
+
+    // Betrachter dürfen nur lesende Zugänge anlegen
+    const me = await primaryOrgRole(userId);
+    if (me?.role === 'viewer' && scopes.some(s => s !== 'read')) {
+      return res.status(403).json({ success: false, error: 'Mit der Rolle „Betrachter“ sind nur lesende Zugänge möglich' });
+    }
+    if (!scopes.includes('read')) scopes.unshift('read'); // Schreiben ohne Lesen ergibt keinen Sinn (Kunden/Projekte auflösen)
 
     const plaintext = `rbf_${crypto.randomBytes(32).toString('hex')}`;
     const tokenHash = crypto.createHash('sha256').update(plaintext).digest('hex');
 
     const result = await pool.query(
-      `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, token_prefix, created_at`,
-      [userId, name, tokenHash, plaintext.slice(0, 12)]
+      `INSERT INTO api_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at)
+       VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' days')::interval)
+       RETURNING id`,
+      [userId, name, tokenHash, plaintext.slice(0, 12), scopes, String(expiresInDays)]
     );
+    const created = await pool.query(`${TOKEN_SELECT} WHERE t.id = $1`, [result.rows[0].id]);
 
     await auditLog.log({
       userId,
       action: 'api_token.create',
-      details: JSON.stringify({ tokenId: result.rows[0].id, name }),
+      details: JSON.stringify({ tokenId: result.rows[0].id, name, scopes, expiresInDays }),
+      ipAddress: req.ip,
     });
 
     res.status(201).json({
       success: true,
       data: {
-        id: result.rows[0].id,
-        name: result.rows[0].name,
-        tokenPrefix: result.rows[0].token_prefix,
-        createdAt: result.rows[0].created_at,
+        ...mapToken(created.rows[0]),
         // ⚠️ Einmalig — wird nie wieder herausgegeben
         token: plaintext,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Create API token error:', error);
-    res.status(500).json({ success: false, error: 'Token konnte nicht erstellt werden' });
+    res.status(500).json({ success: false, error: 'Zugang konnte nicht erstellt werden' });
   }
 });
 
-router.get('/api-tokens', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+// ?scope=org → alle Zugänge der Organisation (nur Org-Admin/Owner)
+router.get('/api-tokens', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+    if (req.query.scope === 'org') {
+      const me = await primaryOrgRole(userId);
+      if (!me || !isOrgAdmin(me.role)) {
+        return res.status(403).json({ success: false, error: 'Nur für Administratoren' });
+      }
+      const result = await pool.query(
+        `${TOKEN_SELECT}
+          WHERE t.user_id IN (SELECT user_id FROM organization_members WHERE organization_id = $1)
+          ORDER BY (t.revoked_at IS NULL) DESC, t.created_at DESC`,
+        [me.orgId]
+      );
+      return res.json({ success: true, data: result.rows.map(mapToken) });
+    }
     const result = await pool.query(
-      `SELECT id, name, token_prefix, last_used_at, created_at, revoked_at
-       FROM api_tokens
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
-      [req.user!.id]
+      `${TOKEN_SELECT} WHERE t.user_id = $1 ORDER BY (t.revoked_at IS NULL) DESC, t.created_at DESC`,
+      [userId]
+    );
+    res.json({ success: true, data: result.rows.map(mapToken) });
+  } catch (error) {
+    console.error('List API tokens error:', error);
+    res.status(500).json({ success: false, error: 'Zugänge konnten nicht geladen werden' });
+  }
+});
+
+// Aktivitätsprotokoll eines Zugangs (letzte 200 Anfragen)
+router.get('/api-tokens/:id/requests', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const token = await loadManageableToken(req.params.id, req.user!.id);
+    if (!token) return res.status(404).json({ success: false, error: 'Zugang nicht gefunden' });
+    const result = await pool.query(
+      `SELECT method, path, status, duration_ms, ip, client, created_at
+         FROM api_token_requests
+        WHERE token_id = $1
+        ORDER BY created_at DESC
+        LIMIT 200`,
+      [req.params.id]
     );
     res.json({
       success: true,
       data: result.rows.map(r => ({
-        id: r.id,
-        name: r.name,
-        tokenPrefix: r.token_prefix,
-        lastUsedAt: r.last_used_at,
-        createdAt: r.created_at,
-        revoked: r.revoked_at !== null,
+        method: r.method, path: r.path, status: Number(r.status), durationMs: r.duration_ms !== null ? Number(r.duration_ms) : null,
+        ip: r.ip, client: r.client, createdAt: r.created_at,
       })),
     });
-  } catch (error: any) {
-    console.error('List API tokens error:', error);
-    res.status(500).json({ success: false, error: 'Tokens konnten nicht geladen werden' });
+  } catch (error) {
+    console.error('API token requests error:', error);
+    res.status(500).json({ success: false, error: 'Protokoll konnte nicht geladen werden' });
   }
 });
 
-router.delete('/api-tokens/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+router.delete('/api-tokens/:id', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    const token = await loadManageableToken(req.params.id, req.user!.id);
+    if (!token) return res.status(404).json({ success: false, error: 'Zugang nicht gefunden' });
     const result = await pool.query(
-      `UPDATE api_tokens SET revoked_at = NOW()
-       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
-       RETURNING id, name`,
+      `UPDATE api_tokens SET revoked_at = NOW(), revoked_by = $2
+        WHERE id = $1 AND revoked_at IS NULL
+        RETURNING id, name`,
       [req.params.id, req.user!.id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Token nicht gefunden' });
+      return res.status(404).json({ success: false, error: 'Zugang ist bereits widerrufen' });
     }
     await auditLog.log({
       userId: req.user!.id,
       action: 'api_token.revoke',
-      details: JSON.stringify({ tokenId: result.rows[0].id, name: result.rows[0].name }),
+      details: JSON.stringify({ tokenId: result.rows[0].id, name: result.rows[0].name, ownerId: token.user_id }),
+      ipAddress: req.ip,
     });
-    res.json({ success: true, data: { message: 'Token widerrufen' } });
-  } catch (error: any) {
+    res.json({ success: true, data: { message: 'Zugang widerrufen' } });
+  } catch (error) {
     console.error('Revoke API token error:', error);
-    res.status(500).json({ success: false, error: 'Token konnte nicht widerrufen werden' });
+    res.status(500).json({ success: false, error: 'Zugang konnte nicht widerrufen werden' });
   }
 });
 

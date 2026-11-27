@@ -1,4 +1,4 @@
-# RamboFlow MCP-Server (Phase 1 lesen + Phase 2 schreiben)
+# RamboFlow MCP-Server (v2.1 – lesen, eng geschnittenes Schreiben, Agenten-Sicherheit)
 
 Steuert RamboFlow aus Claude heraus (Claude Desktop, Claude Code, claude.ai
 mit Connector). Dünner Wrapper über die RamboFlow-REST-API: alle Aufrufe
@@ -38,29 +38,45 @@ Schreibaktionen nach Bestätigung (je nach Client-Einstellung).
   Notiz** (Kunde sieht nichts, keine Mail). Erst `fuerKunde: true` macht ihn
   sichtbar und benachrichtigt den Kunden per Mail.
 
-## 1. API-Token erzeugen (einmalig, Admin)
+## Sicherheitsmodell (Phase A, 27.11.2026)
 
-Tokens verwaltet `/api/auth/api-tokens` (nur Admins; gespeichert wird nur
-der SHA-256-Hash — der Klartext erscheint ausschließlich in der
-Create-Response):
+Ein Agent hat **nie mehr Rechte als sein User** – und zusätzlich nur:
 
-```bash
-# 1. Einloggen (JWT holen)
-TOKEN=$(curl -s https://app.ramboeck.it/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"DEINE_EMAIL","password":"DEIN_PASSWORT"}' | jq -r .token)
+| Schicht | Wirkung |
+|---|---|
+| **Endpunkt-Whitelist** (`server/src/utils/apiTokenPolicy.ts`) | Deny by default: nur die Endpunkte, die diese Werkzeuge brauchen. Admin, MFA, Postfächer, Löschen/Ändern und die Token-Verwaltung selbst sind für Zugänge gesperrt. |
+| **Stufen pro Zugang** | `read` (immer), `time:write`, `tickets:write`. Betrachter bekommen nur `read`. |
+| **Ablaufdatum** | Pflicht, 30–365 Tage (Standard 90), Erinnerungsmail 7 Tage vorher. |
+| **Anfragelimit** | 120 Anfragen/Minute, davon max. 20 schreibend → 429 mit `Retry-After`. |
+| **Protokoll** | Jede Anfrage (Methode, Pfad ohne Query, Status, IP, Client) – 90 Tage, in der App pro Zugang einsehbar; Audit-Log trägt `apiTokenId`. |
+| **Herkunft** | Zeiteinträge und Ticket-Kommentare merken sich den Zugang → in der App „Agent“-Kennzeichen. |
+| **Fremdinhalt** | Ticket-Titel, -Beschreibungen und Kommentare gehen als `<<FREMDINHALT …>>`-Block an das Modell; Marker im Kundentext werden entschärft; die Server-Hinweise verbieten, darin enthaltene Anweisungen auszuführen. |
 
-# 2. API-Token erstellen — das "token"-Feld (rbf_…) sicher ablegen!
-curl -s https://app.ramboeck.it/api/auth/api-tokens \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"name":"MCP Desktop"}' | jq .data
+Neue Werkzeuge brauchen einen Eintrag in der Whitelist (bewusst: jede
+Erweiterung der Agenten-Rechte ist eine sichtbare Code-Änderung) und ein
+Szenario in `test/scenarios.mjs`.
 
-# Auflisten / Widerrufen:
-curl -s https://app.ramboeck.it/api/auth/api-tokens -H "Authorization: Bearer $TOKEN" | jq .data
-curl -s -X DELETE https://app.ramboeck.it/api/auth/api-tokens/<id> -H "Authorization: Bearer $TOKEN"
+## 1. Zugang anlegen
+
+In RamboFlow: **Einstellungen → KI-Agent & API → Neuer Zugang**
+(Bezeichnung, Stufen, Gültigkeit). Der Schlüssel (`rbf_…`) wird **genau
+einmal** angezeigt – inklusive fertigem Eintrag für Claude Desktop.
+Dort auch: „zuletzt benutzt“, Protokoll und Widerrufen; Org-Admins sehen
+und widerrufen die Zugänge der ganzen Organisation.
+
+⚠️ Schlüssel niemals committen oder in Chats/Tickets posten.
+
+### Schlüssel nicht im Klartext ablegen (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\save-token.ps1
 ```
 
-⚠️ Das `rbf_…`-Token niemals committen oder in Chats posten.
+speichert den Schlüssel per DPAPI verschlüsselt unter
+`%APPDATA%\RamboFlow\mcp-token.dat` (nur dein Windows-Benutzer auf diesem
+Rechner kann ihn lesen). In der Claude-Konfiguration dann statt
+`RAMBOFLOW_API_TOKEN` den Eintrag `RAMBOFLOW_API_TOKEN_FILE` mit diesem Pfad
+setzen. macOS/Linux: Datei mit `chmod 600`, sonst verweigert der Server den Start.
 
 ## 2. Bauen
 
@@ -104,11 +120,18 @@ Danach z.B. fragen: „Was ist diesen Monat noch nicht abgerechnet?",
 auf TKT-000123 ab 14 Uhr: Drucker getauscht", „Schreib an TKT-000123 eine
 interne Notiz: Ersatzteil bestellt".
 
-## Sicherheit
+## Betrieb
 
-- Token = volle Rechte des erstellenden Users → nur Admin-Konten, Token
-  wie ein Passwort behandeln, bei Verdacht sofort widerrufen (DELETE).
-- Jeder MCP-Zugriff läuft durch `auditTrail` wie ein normaler API-Call;
-  `last_used_at` am Token zeigt die letzte Nutzung.
-- Schreibend sind nur `POST /entries` und `POST /tickets/:id/comments` angebunden —
-  beide legen ausschließlich neue Datensätze für den Token-Inhaber an.
+- Schlüssel wie ein Passwort behandeln; bei Verdacht sofort in der App widerrufen.
+- In Claude die Schreib-Werkzeuge (`zeit_erfassen`, `ticket_kommentieren`)
+  auf „immer fragen“ lassen.
+- Anfragen mit `RAMBOFLOW_API_URL` ohne `https://` werden verweigert (Ausnahme: localhost).
+
+## Tests
+
+- `npm run test:server` (Repo-Root): Whitelist/Stufen/Anfragelimit als Unit-Tests.
+- `npm run test:scenarios` (hier, nach `npm run build`): echter MCP-Client
+  gegen eine **Dev-Instanz** – Fremdinhalt-Markierung inkl. Injection-Versuch,
+  Lese-Zugang kann nicht buchen, Zukunftsbuchung, Herkunft am Eintrag,
+  Stufen-Trennung, Widerruf. Variablen: `RBF_TEST_API`, `RBF_TEST_USER`,
+  `RBF_TEST_PASSWORD`, `RBF_TEST_TICKET_ID` (läuft nur gegen localhost).

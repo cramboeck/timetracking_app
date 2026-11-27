@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Trash2, Clock, Edit2, Download, RotateCcw, Filter, X, CheckSquare, Square, Sparkles, LayoutGrid, List, ChevronLeft, ChevronRight, Loader2, Coffee, Calendar, MoreVertical } from 'lucide-react';
+import { AgentBadge } from './ui/AgentBadge';
 import { TimeEntry, TimeEntryUpdate, Project, Customer, Activity, EntryScope } from '../types';
 import { formatDuration, formatTime, formatDate, calculateDuration, toLocalDateString } from '../utils/time';
 import { Modal } from './Modal';
@@ -1169,6 +1170,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
+                            {entry.apiTokenId && <AgentBadge compact />}
                             {activity && entry.entryScope === 'customer_project' && (
                               <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[40%] truncate">
                                 {activity.name}
@@ -1247,6 +1249,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                             <span className="font-medium text-sm text-gray-900 dark:text-white truncate min-w-0">
                               {getProjectDisplay(entry)}
                             </span>
+                            {entry.apiTokenId && <AgentBadge compact />}
                             {activity && entry.entryScope === 'customer_project' && (
                               <span className="text-xs font-medium text-accent-primary bg-accent-primary/10 dark:bg-accent-primary/20 px-1.5 py-0.5 rounded flex-shrink-0 max-w-[180px] truncate">
                                 {activity.name}
@@ -1365,6 +1368,7 @@ export const TimeEntriesList = ({ projects, customers, activities, onDelete, onE
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-gray-900 dark:text-white">{getProjectDisplay(entry)}</h3>
+                              {entry.apiTokenId && <AgentBadge />}
                               {/* Entry scope badge */}
                               {(() => {
                                 const badge = getEntryScopeBadge(entry);

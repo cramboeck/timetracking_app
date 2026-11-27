@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { pool } from '../config/database';
 import { logger } from '../utils/logger';
+import type { AuthRequest } from './auth';
 
 /**
  * Globale Audit-Middleware: protokolliert JEDE schreibende API-Anfrage
@@ -56,6 +57,8 @@ export function auditTrail(req: Request, res: Response, next: NextFunction) {
         path,
         status,
         ...(Object.keys(req.params || {}).length > 0 ? { params: req.params } : {}),
+        // Herkunft: Anfrage kam über einen API-Zugang (MCP/KI-Agent)
+        ...((req as AuthRequest).apiToken ? { apiTokenId: (req as AuthRequest).apiToken!.id, apiTokenName: (req as AuthRequest).apiToken!.name } : {}),
       });
 
       // Direkter Insert (kein AuditAction-Union-Typ): action ist der

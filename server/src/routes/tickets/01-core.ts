@@ -465,10 +465,12 @@ router.get('/:id', authenticateToken, attachOrganization, async (req, res) => {
     // Get comments
     const commentsResult = await query(`
       SELECT tc.*,
-        COALESCE(u.display_name, u.username) as author_name
+        COALESCE(u.display_name, u.username) as author_name,
+        agt.name as agent_name
       FROM ticket_comments tc
       LEFT JOIN users u ON tc.user_id = u.id
       LEFT JOIN customer_contacts cc ON tc.customer_contact_id = cc.id
+      LEFT JOIN api_tokens agt ON agt.id = tc.api_token_id
       WHERE tc.ticket_id = $1
       ORDER BY tc.created_at ASC
     `, [id]);

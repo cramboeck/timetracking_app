@@ -17,6 +17,7 @@ import { startInvoiceInboxJob } from './jobs/invoiceInboxCron';
 import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startWarrantyExpiryJob } from './jobs/warrantyExpiryCron';
+import { startApiTokenMaintenanceJob } from './jobs/apiTokenMaintenanceCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import { startLogoBackfill } from './services/logoService';
 import { backfillAssetsFromNinja } from './services/assetService';
@@ -291,6 +292,7 @@ startInvoiceInboxJob();
 startGeocodeCustomersJob();
 startLicenseExpiryJob();
 startWarrantyExpiryJob();
+startApiTokenMaintenanceJob();
 startSupportInboxJob();
 // Einmaliger Logo-Backfill für Bestandskunden (Boot +3 min, sequenziell)
 startLogoBackfill();

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { User, Send, MessageSquare, ChevronDown, Mail } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { AgentBadge } from '../ui/AgentBadge';
 import { MarkdownEditor } from '../MarkdownEditor';
 import { MarkdownRenderer } from '../MarkdownRenderer';
 import { Ticket, TicketComment, CannedResponse, Customer, formatDate, statusConfig, priorityConfig } from './types';
@@ -140,6 +141,7 @@ export const TicketComments = ({
                   Intern
                 </span>
               )}
+              {comment.viaAgent && <AgentBadge name={comment.agentName} />}
             </div>
             <div className="text-gray-900 dark:text-white">
               <MarkdownRenderer content={comment.content} />

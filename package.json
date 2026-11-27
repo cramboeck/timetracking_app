@@ -11,7 +11,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:server": "vitest run --root server --config vitest.config.mts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.11",

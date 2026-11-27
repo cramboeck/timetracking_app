@@ -183,6 +183,7 @@ export interface TimeEntry {
   activityId?: string; // Optional: link to activity for flat-rate pricing
   ticketId?: string; // Optional: link to ticket
   taskId?: string | null; // Optional: link to task (TaskHub-Timer)
+  apiTokenId?: string | null; // Über einen API-Zugang (MCP/KI-Agent) erfasst
   description: string;
   isRunning: boolean;
   isBillable: boolean; // Whether this entry should be included in billing/reports
@@ -467,6 +468,9 @@ export interface TicketComment {
   // Vom Server gejoint (transformComment)
   authorName?: string | null;
   authorType?: 'user' | 'customer';
+  /** Über einen API-Zugang (MCP/KI-Agent) entstanden */
+  viaAgent?: boolean;
+  agentName?: string | null;
 }
 
 export interface TicketAttachment {

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { query } from '../config/database';
+import { TokenRateLimiter, checkApiTokenAccess, isWriteScope, normalizeApiPath } from '../utils/apiTokenPolicy';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -11,32 +12,78 @@ export interface AuthRequest extends Request {
     email?: string;
     role?: string;
   };
+  /** Gesetzt, wenn die Anfrage über einen API-Zugang (MCP/KI-Agent) kommt */
+  apiToken?: { id: string; name: string; scopes: string[] };
 }
 
-// API-Tokens (MCP/Integrationen): langlebig, Präfix "rbf_", nur als
-// SHA-256-Hash gespeichert. Sie durchlaufen dieselben Routen wie JWTs —
-// Berechtigungen (requireAdmin/requireOrgRole) und auditTrail greifen
-// unverändert, weil req.user dieselbe Form bekommt.
+// API-Tokens (MCP/KI-Agent): langlebig, Präfix "rbf_", nur als SHA-256-Hash
+// gespeichert. Seit Phase A (27.11.2026) gilt für sie DENY BY DEFAULT:
+// nur die Endpunkte aus utils/apiTokenPolicy, nur mit passender Stufe, nur
+// bis zum Ablaufdatum, mit Anfragelimit und eigenem Protokoll. Die Rechte
+// des Users (requireOrgRole, Paket S) greifen zusätzlich unverändert.
 const API_TOKEN_PREFIX = 'rbf_';
+const tokenRateLimiter = new TokenRateLimiter();
+
+const clientIp = (req: Request): string | null => (req.ip ? String(req.ip).slice(0, 64) : null);
 
 async function authenticateApiToken(token: string, req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const result = await query(
-      `SELECT user_id FROM api_tokens WHERE token_hash = $1 AND revoked_at IS NULL`,
+      `SELECT id, user_id, name, scopes, expires_at
+         FROM api_tokens
+        WHERE token_hash = $1 AND revoked_at IS NULL`,
       [tokenHash]
     );
-    if (result.rows.length === 0) {
+    const row = result.rows[0] as
+      | { id: string; user_id: string; name: string; scopes: string[] | null; expires_at: Date | null }
+      | undefined;
+    if (!row) {
       return res.status(403).json({ error: 'Invalid token' });
     }
-    const userId = result.rows[0].user_id;
-    req.userId = userId;
-    req.user = { id: userId };
-    // last_used_at best effort — darf den Request nie aufhalten
-    query(`UPDATE api_tokens SET last_used_at = NOW() WHERE token_hash = $1`, [tokenHash]).catch(() => {});
+    if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
+      return res.status(403).json({ error: 'API-Zugang abgelaufen – in den Einstellungen einen neuen anlegen' });
+    }
+    const scopes = Array.isArray(row.scopes) ? row.scopes : [];
+    const startedAt = Date.now();
+
+    // Protokoll (auch abgelehnte Versuche): Pfad ohne Query-Werte, nie Bodies
+    res.on('finish', () => {
+      query(
+        `INSERT INTO api_token_requests (token_id, user_id, method, path, status, duration_ms, ip, client)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          row.id, row.user_id, req.method, normalizeApiPath(req.originalUrl || '').slice(0, 300),
+          res.statusCode, Date.now() - startedAt, clientIp(req),
+          String(req.headers['x-ramboflow-client'] || '').slice(0, 100) || null,
+        ]
+      ).catch(() => { /* Protokoll darf den Request nie aufhalten */ });
+    });
+
+    const decision = checkApiTokenAccess(req.method, req.originalUrl || '', scopes);
+    if (!decision.allowed) {
+      return res.status(403).json({
+        error: decision.reason === 'missing_scope'
+          ? `Dieser API-Zugang hat die Stufe „${decision.scope}“ nicht`
+          : 'Dieser Endpunkt ist für API-Zugänge gesperrt',
+        code: decision.reason === 'missing_scope' ? 'API_TOKEN_SCOPE' : 'API_TOKEN_FORBIDDEN',
+      });
+    }
+
+    const retryAfter = tokenRateLimiter.hit(row.id, isWriteScope(decision.scope));
+    if (retryAfter > 0) {
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({ error: `Zu viele Anfragen über diesen API-Zugang – bitte ${retryAfter} s warten`, code: 'API_TOKEN_RATE_LIMIT' });
+    }
+
+    req.userId = row.user_id;
+    req.user = { id: row.user_id };
+    req.apiToken = { id: row.id, name: row.name, scopes };
+    // last_used best effort — darf den Request nie aufhalten
+    query(`UPDATE api_tokens SET last_used_at = NOW(), last_used_ip = $2 WHERE id = $1`, [row.id, clientIp(req)]).catch(() => {});
     next();
-  } catch (error: any) {
-    console.error('API-TOKEN AUTH ERROR:', error.message);
+  } catch (error) {
+    console.error('API-TOKEN AUTH ERROR:', error instanceof Error ? error.message : error);
     return res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -60,6 +107,8 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
   }
 
   if (token.startsWith(API_TOKEN_PREFIX)) {
+    // Mehrfach eingehängtes authenticateToken (Router + Route) nicht doppelt zählen
+    if (req.apiToken) return next();
     void authenticateApiToken(token, req, res, next);
     return;
   }
