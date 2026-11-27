@@ -9,6 +9,7 @@ import { transformRow, transformRows } from '../utils/dbTransform';
 import { logTicketActivity } from './tickets';
 import { logger } from '../utils/logger';
 import { emailService } from '../services/emailService';
+import { claimProposal, markProposalApproved, ProposalError } from '../services/proposalService';
 
 const router = Router();
 
@@ -166,7 +167,9 @@ const createEntrySchema = z.object({
   isBillable: z.boolean().default(true),
   entryScope: entryScopeSchema.default('customer_project'),
   internalCategory: z.string().max(100).optional().nullable(),
-  customerVisibility: customerVisibilitySchema.default('hidden')
+  customerVisibility: customerVisibilitySchema.default('hidden'),
+  // Übernahme eines KI-Vorschlags (Vorschlags-Inbox) — nur aus der App
+  proposalId: z.string().min(1).max(100).optional()
 }).refine(
   (data) => data.entryScope !== 'customer_project' || data.projectId,
   { message: 'projectId is required for customer_project entries', path: ['projectId'] }
@@ -769,8 +772,21 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const {
       clientId, startTime, endTime, duration, projectId, activityId, ticketId, taskId,
       description, isRunning, isBillable = true,
-      entryScope = 'customer_project', internalCategory = null, customerVisibility = 'hidden'
+      entryScope = 'customer_project', internalCategory = null, customerVisibility = 'hidden',
+      proposalId
     } = req.body;
+
+    // KI-Vorschlag übernehmen: muss offen sein und diesem Menschen gehören;
+    // ein API-Zugang kann sich nie selbst freigeben
+    let proposalTokenId: string | null = null;
+    if (proposalId) {
+      try {
+        proposalTokenId = (await claimProposal(String(proposalId), userId, organizationId, 'time_entry', !!req.apiToken)).apiTokenId;
+      } catch (err) {
+        if (err instanceof ProposalError) return res.status(err.status).json({ error: err.message });
+        throw err;
+      }
+    }
 
     // Idempotency: If clientId is provided, check if entry already exists
     if (clientId) {
@@ -888,9 +904,10 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
         internalCategory,
         customerVisibility,
         verifiedTaskId,
-        req.apiToken?.id ?? null
+        req.apiToken?.id ?? proposalTokenId
       ]
     );
+    if (proposalId) await markProposalApproved(String(proposalId), userId, id);
 
     const entryResult = await pool.query(`SELECT ${TIME_ENTRY_COLUMNS} FROM time_entries WHERE id = $1`, [id]);
     const newEntry = transformRow(entryResult.rows[0]);

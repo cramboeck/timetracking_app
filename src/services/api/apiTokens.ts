@@ -3,10 +3,11 @@
  */
 import { authFetch } from './base';
 
-export type ApiTokenScope = 'read' | 'time:write' | 'tickets:write';
+export type ApiTokenScope = 'read' | 'propose' | 'time:write' | 'tickets:write';
 
 export const API_TOKEN_SCOPE_INFO: Record<ApiTokenScope, { label: string; hint: string }> = {
-  read: { label: 'Lesen', hint: 'Zeiten, Tickets, Kunden, Projekte, Abrechnung, Lizenzablauf' },
+  read: { label: 'Lesen', hint: 'Zeiten, Tickets, Kunden, Projekte, Abrechnung, Lizenzablauf, Kunden-Briefing' },
+  propose: { label: 'Vorschläge machen', hint: 'Zeiten, Notizen und Absprachen landen in „KI-Vorschläge“ – du gibst frei (empfohlen)' },
   'time:write': { label: 'Zeiten erfassen', hint: 'Neue Zeiteinträge anlegen – nie ändern oder löschen' },
   'tickets:write': { label: 'Tickets kommentieren', hint: 'Notizen/Kommentare an Tickets schreiben' },
 };

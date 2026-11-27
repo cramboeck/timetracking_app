@@ -4,6 +4,7 @@ import { OPEN_LABEL_KEY } from './components/assets/LabelLanding';
 import { useNavigate } from 'react-router';
 import { AttendanceBar } from './components/AttendanceBar';
 import { WorkTimeAccount } from './components/WorkTimeAccount';
+import { ProposalsInbox } from './components/ProposalsInbox';
 import { AbsenceCalendar } from './components/AbsenceCalendar';
 import { AbsenceRequests } from './components/AbsenceRequests';
 import { SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH } from './components/DesktopSidebar';
@@ -1131,6 +1132,9 @@ function App() {
         {/* Mein Bereich */}
         {currentSubView === 'arbeitszeit' && (
           <WorkTimeAccount entries={entries} />
+        )}
+        {currentSubView === 'vorschlaege' && (
+          <ProposalsInbox onEntriesCreated={(created) => setEntries(prev => [...created, ...prev.filter(e => !created.some(c => c.id === e.id))])} />
         )}
         {currentSubView === 'abwesenheit' && (
           <div className="p-3 sm:p-6">

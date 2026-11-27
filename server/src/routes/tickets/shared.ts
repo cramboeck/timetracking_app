@@ -59,6 +59,8 @@ export const createCommentSchema = z.object({
   // Offline-Sync: client-generierte ID für idempotente Wiederholung —
   // ein Retry nach Netzabriss legt den Kommentar nicht doppelt an
   clientId: z.string().uuid().optional(),
+  // Übernahme eines KI-Vorschlags (Vorschlags-Inbox) — nur aus der App
+  proposalId: z.string().min(1).max(100).optional(),
 });
 
 export const createContactSchema = z.object({

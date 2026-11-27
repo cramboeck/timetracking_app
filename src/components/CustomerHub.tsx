@@ -75,6 +75,7 @@ import { useToast } from '../contexts/UIContext';
 import TaskModal from './TaskModal';
 import { CustomerLicenses } from './CustomerLicenses';
 import { AssetsView } from './assets/AssetsView';
+import { CustomerNotesCard } from './CustomerNotesCard';
 
 // ============================================
 // Types
@@ -503,6 +504,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Kundengedächtnis: Absprachen für Mensch und KI-Agent */}
+      <CustomerNotesCard customerId={customer.id} />
 
       {/* Unified Timeline */}
       <div className="bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border">

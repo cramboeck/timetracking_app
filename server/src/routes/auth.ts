@@ -627,7 +627,7 @@ router.post('/api-tokens', authenticateToken, validate(createApiTokenSchema), as
   try {
     const userId = req.user!.id;
     const { name } = req.body as { name: string };
-    const requested = ((req.body.scopes as string[] | undefined) ?? ['read']);
+    const requested = ((req.body.scopes as string[] | undefined) ?? ['read', 'propose']);
     const scopes = API_TOKEN_SCOPES.filter(s => requested.includes(s));
     const expiresInDays = (req.body.expiresInDays as number | undefined) ?? 90;
 

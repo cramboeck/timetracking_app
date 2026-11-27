@@ -55,6 +55,7 @@ import socialMediaRoutes from './routes/social-media';
 import microsoft365Routes from './routes/microsoft365';
 import contactsRoutes from './routes/contacts';
 import assetsRoutes from './routes/assets';
+import agentRoutes from './routes/agent';
 import assetToolsRoutes, { publicAssetLabelRouter } from './routes/asset-tools';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
@@ -150,6 +151,7 @@ app.use('/api/microsoft365', microsoft365Routes);
 app.use('/api/contacts', contactsRoutes);
 // asset-tools VOR assets: feste Pfade (/settings, /resolve, /labels, /inventories,
 // /import) dürfen nicht von GET /api/assets/:id geschluckt werden
+app.use('/api/agent', agentRoutes);
 app.use('/api/assets', assetToolsRoutes);
 app.use('/api/assets', assetsRoutes);
 // Öffentlich (ohne Login): Etiketten-QR /l/<token> → nur Asset-ID + Support-Kontakt

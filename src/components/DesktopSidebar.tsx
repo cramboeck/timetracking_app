@@ -11,7 +11,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useFeatures } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
-import { microsoft365Api } from '../services/api';
+import { microsoft365Api, agentApi } from '../services/api';
 import { Area, SubView, isAreaAllowed, getVisibleSubViews } from './AreaNavigation';
 
 interface DesktopSidebarProps {
@@ -137,6 +137,15 @@ export const DesktopSidebar = ({
     staleTime: 60_000,
   });
   const draftCount = invoiceDraftsQuery.data ?? 0;
+  // Offene KI-Vorschläge (Vorschlags-Inbox) — für alle Rollen
+  const proposalsQuery = useQuery({
+    queryKey: ['agent', 'proposals', 'count'],
+    queryFn: async () => (await agentApi.pendingCount()).data.pending,
+    refetchInterval: 2 * 60_000,
+    staleTime: 30_000,
+  });
+  const badgeFor = (view: SubView) =>
+    view === 'invoices' ? draftCount : view === 'vorschlaege' ? (proposalsQuery.data ?? 0) : 0;
 
   return (
     <aside
@@ -217,11 +226,11 @@ export const DesktopSidebar = ({
                           {label}
                         </span>
                       )}
-                      {view === 'invoices' && draftCount > 0 && (
+                      {badgeFor(view) > 0 && (
                         <span className={`${collapsed ? 'absolute top-0.5 right-0.5' : 'ml-auto'} min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold inline-flex items-center justify-center ${
                           isActive ? 'bg-white text-accent-primary' : 'bg-accent-primary text-white'
                         }`}>
-                          {draftCount > 99 ? '99+' : draftCount}
+                          {badgeFor(view) > 99 ? '99+' : badgeFor(view)}
                         </span>
                       )}
                     </button>

@@ -242,3 +242,5 @@ export type {
 } from './assets';
 export { apiTokensApi, API_TOKEN_SCOPE_INFO } from './apiTokens';
 export type { ApiTokenScope, ApiTokenInfo, ApiTokenRequestLog } from './apiTokens';
+export { agentApi, NOTE_CATEGORY_LABELS } from './agent';
+export type { Proposal, ProposalSource, ProposalStatus, ProposalType, TimeEntryProposalPayload, CommentProposalPayload, NoteProposalPayload, CustomerNote, NoteCategory } from './agent';

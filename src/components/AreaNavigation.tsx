@@ -5,7 +5,7 @@ import {
   BarChart3, Wallet, FileText, FileSignature, FileInput, FileOutput,
   Settings, Briefcase, HeadphonesIcon, ListTodo,
   Users, LayoutDashboard, Building2, Receipt, Search,
-  CircleUser, Clock3, Palmtree, ShoppingCart
+  CircleUser, Clock3, Palmtree, ShoppingCart, Sparkles
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
@@ -25,7 +25,7 @@ export type SubView =
   // Arbeiten
   | 'stopwatch' | 'list' | 'calendar' | 'manual' | 'tasks' | 'grid' | 'zeiten'
   // Mein Bereich (persönliche HR-Sicht)
-  | 'arbeitszeit' | 'abwesenheit'
+  | 'arbeitszeit' | 'abwesenheit' | 'vorschlaege'
   // Support
   | 'tickets' | 'devices' | 'alerts' | 'vulnerabilities' | 'maintenance' | 'inbox'
   // CRM
@@ -65,6 +65,7 @@ const areaConfig = {
     subViews: [
       { view: 'arbeitszeit' as SubView, icon: Clock3, label: 'Arbeitszeit' },
       { view: 'abwesenheit' as SubView, icon: Palmtree, label: 'Abwesenheit' },
+      { view: 'vorschlaege' as SubView, icon: Sparkles, label: 'KI-Vorschläge' },
     ],
   },
   support: {
@@ -301,7 +302,7 @@ export const AreaNavigation = ({
 export const getAreaFromSubView = (subView: SubView): Area => {
   if (['overview'].includes(subView)) return 'dashboard';
   if (['stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten'].includes(subView)) return 'arbeiten';
-  if (['arbeitszeit', 'abwesenheit'].includes(subView)) return 'personal';
+  if (['arbeitszeit', 'abwesenheit', 'vorschlaege'].includes(subView)) return 'personal';
   if (['tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox'].includes(subView)) return 'support';
   if (['crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts'].includes(subView)) return 'crm';
   if (['invoices', 'billing', 'sales', 'orders', 'reports', 'documents-search'].includes(subView)) return 'finanzen';
@@ -331,7 +332,7 @@ const STANDALONE_SUBVIEWS: SubView[] = ['settings', 'social-media'];
 const ALL_SUBVIEWS: SubView[] = [
   'overview',
   'stopwatch', 'list', 'calendar', 'manual', 'tasks', 'grid', 'zeiten',
-  'arbeitszeit', 'abwesenheit',
+  'arbeitszeit', 'abwesenheit', 'vorschlaege',
   'tickets', 'devices', 'alerts', 'vulnerabilities', 'maintenance', 'inbox',
   'crm-dashboard', 'customers', 'leads', 'pipeline', 'contracts',
   'invoices', 'billing', 'sales', 'orders', 'reports', 'documents-search',

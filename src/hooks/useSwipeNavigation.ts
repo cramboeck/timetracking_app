@@ -13,7 +13,7 @@ const VISIBLE_AREAS: Area[] = ['dashboard', 'arbeiten', 'personal', 'support', '
 const SUBVIEW_CONFIG: Record<Area, SubView[]> = {
   dashboard: ['overview'],
   arbeiten: ['stopwatch', 'tasks', 'zeiten'],
-  personal: ['arbeitszeit', 'abwesenheit'],
+  personal: ['arbeitszeit', 'abwesenheit', 'vorschlaege'],
   support: ['tickets', 'inbox', 'devices', 'alerts', 'vulnerabilities', 'maintenance'],
   crm: ['crm-dashboard', 'customers', 'pipeline', 'contracts'],
   finanzen: ['billing', 'sales', 'invoices', 'orders', 'reports', 'documents-search'],

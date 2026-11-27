@@ -1,4 +1,4 @@
-# RamboFlow MCP-Server (v2.1 – lesen, eng geschnittenes Schreiben, Agenten-Sicherheit)
+# RamboFlow MCP-Server (v2.2 – lesen, Vorschläge, eng geschnittenes Schreiben, Agenten-Sicherheit)
 
 Steuert RamboFlow aus Claude heraus (Claude Desktop, Claude Code, claude.ai
 mit Connector). Dünner Wrapper über die RamboFlow-REST-API: alle Aufrufe
@@ -17,6 +17,19 @@ laufen mit einem API-Token durch die normalen Routen — Berechtigungen
 | `lizenz_ablauf` | Ablaufende Lizenzen/Abos |
 | **`zeit_erfassen`** ✍️ | Abgeschlossenen Zeiteintrag anlegen (Projektzeit per Kunde/Projekt/Ticket oder interne Zeit) |
 | **`ticket_kommentieren`** ✍️ | Kommentar an ein Ticket hängen — standardmäßig **interne Notiz** |
+| `kunde_details` | Kunden-Briefing: Kontakt, **Absprachen (Kundengedächtnis)**, Verträge/Kontingent, Stunden im Monat, offene Tickets, Geräte – ohne Preise |
+| **`zeiten_vorschlagen`** 💡 | Bis zu 30 Zeiteinträge mit Begründung + Quellen als **Vorschlag** (Vorschlags-Inbox, Mensch gibt frei) |
+| **`notiz_vorschlagen`** 💡 | Ticket-Kommentar als Vorschlag (intern oder Antwort an Kunden – Mail erst nach Freigabe) |
+| **`absprache_vorschlagen`** 💡 | Absprache fürs Kundengedächtnis als Vorschlag |
+| `vorschlaege_status` | Eigene offene Vorschläge (gegen Doppelungen) |
+
+Vorlage (Prompt) **`monatsabschluss`** (Argument `monat`, z.B. `2026-10`): Monat
+prüfen, mit Mails/Kalender/Chats abgleichen, Absprachen beachten und Lücken
+als Vorschläge ablegen – erscheint in Claude Desktop in der Vorlagen-Auswahl.
+
+💡 = Vorschlags-Werkzeuge (Stufe `propose`): landen in RamboFlow unter
+**Mein Bereich → KI-Vorschläge** und werden erst durch deine Übernahme
+gebucht bzw. geschrieben. Der Agent kann Vorschläge nie selbst freigeben.
 
 Die Lese-Tools tragen `readOnlyHint`, die beiden Schreib-Tools
 `readOnlyHint: false, destructiveHint: false` — Claude fragt vor

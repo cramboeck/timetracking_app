@@ -56,6 +56,14 @@ export async function purgeOldApiTokenRequests(): Promise<number> {
   return r.rowCount ?? 0;
 }
 
+/** Offene KI-Vorschläge nach Ablauf (30 Tage) als abgelaufen markieren. */
+export async function expireOldProposals(): Promise<number> {
+  const r = await pool.query(
+    `UPDATE agent_proposals SET status = 'expired' WHERE status = 'pending' AND expires_at <= NOW()`
+  );
+  return r.rowCount ?? 0;
+}
+
 export function startApiTokenMaintenanceJob() {
   cron.schedule('5 8 * * *', async () => {
     try {
@@ -69,6 +77,8 @@ export function startApiTokenMaintenanceJob() {
     try {
       const n = await purgeOldApiTokenRequests();
       if (n > 0) logger.info(`🧹 ${n} alte Agenten-Protokolleinträge gelöscht`);
+      const e = await expireOldProposals();
+      if (e > 0) logger.info(`⌛ ${e} KI-Vorschläge abgelaufen`);
     } catch (err) {
       logger.error('Agenten-Protokoll-Bereinigung fehlgeschlagen:', err);
     }

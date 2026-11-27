@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkApiTokenAccess, normalizeApiPath, TokenRateLimiter, RATE_LIMITS } from '../src/utils/apiTokenPolicy';
 
-const ALL = ['read', 'time:write', 'tickets:write'];
+const ALL = ['read', 'propose', 'time:write', 'tickets:write'];
 
 describe('apiTokenPolicy: Pfad-Normalisierung', () => {
   it('entfernt /api, Query und Slash am Ende', () => {
@@ -20,6 +20,7 @@ describe('apiTokenPolicy: erlaubte Endpunkte (MCP-Werkzeuge)', () => {
     ['GET', '/api/sevdesk/billing-summary?startDate=2026-10-01'],
     ['GET', '/api/sevdesk/license-expiry?days=60'],
     ['HEAD', '/api/projects'],
+    ['GET', '/api/agent/customers/abc-123/briefing'],
   ])('%s %s mit read', (m, p) => {
     expect(checkApiTokenAccess(m, p, ['read']).allowed).toBe(true);
   });
@@ -32,6 +33,12 @@ describe('apiTokenPolicy: erlaubte Endpunkte (MCP-Werkzeuge)', () => {
   it('Kommentar braucht tickets:write', () => {
     expect(checkApiTokenAccess('POST', '/api/tickets/abc/comments', ['read', 'time:write']).allowed).toBe(false);
     expect(checkApiTokenAccess('POST', '/api/tickets/abc/comments', ALL).allowed).toBe(true);
+  });
+
+  it('Vorschläge brauchen propose', () => {
+    expect(checkApiTokenAccess('POST', '/api/agent/proposals', ['read']).allowed).toBe(false);
+    expect(checkApiTokenAccess('POST', '/api/agent/proposals', ['read', 'propose']).allowed).toBe(true);
+    expect(checkApiTokenAccess('GET', '/api/agent/proposals?status=pending', ['read', 'propose']).allowed).toBe(true);
   });
 
   it('Lesen ohne read-Stufe ist gesperrt', () => {
@@ -56,6 +63,11 @@ describe('apiTokenPolicy: alles andere ist gesperrt (deny by default)', () => {
     ['POST', '/api/sevdesk/invoices'],
     ['GET', '/api/tickets/abc/attachments'],
     ['GET', '/api/entries/team'],
+    ['POST', '/api/agent/proposals/abc/reject'],   // Agent entscheidet nie selbst
+    ['POST', '/api/agent/proposals/abc/approve'],
+    ['GET', '/api/agent/proposals/count'],
+    ['GET', '/api/agent/customers/abc/notes'],     // Absprachen nur über das Briefing
+    ['POST', '/api/agent/customers/abc/notes'],
     ['GET', '/api/tickets/../admin/users'],
     ['GET', '/api/tickets/a%2Fb'],
   ])('%s %s', (m, p) => {

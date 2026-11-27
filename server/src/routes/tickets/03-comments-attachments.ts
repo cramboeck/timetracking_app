@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { MulterError } from 'multer';
 import { query } from '../../config/database';
 import { authenticateToken, AuthRequest } from '../../middleware/auth';
+import { claimProposal, markProposalApproved, ProposalError } from '../../services/proposalService';
 import { validate } from '../../middleware/validation';
 import { attachOrganization, OrganizationRequest, requireOrgRole } from '../../middleware/organization';
 import { upload, getFileUrl, deleteFile } from '../../middleware/upload';
@@ -41,8 +42,19 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
       isInternal = false,
       notifyCustomer = true,  // Default: send email notification
       replyViaEmail = false,  // If true, reply in original email thread
-      clientId                // Offline-Sync: idempotente Wiederholung
+      clientId,               // Offline-Sync: idempotente Wiederholung
+      proposalId              // Übernahme eines KI-Vorschlags
     } = req.body;
+
+    let proposalTokenId: string | null = null;
+    if (proposalId) {
+      try {
+        proposalTokenId = (await claimProposal(String(proposalId), userId, organizationId, 'ticket_comment', !!(req as AuthRequest).apiToken)).apiTokenId;
+      } catch (err) {
+        if (err instanceof ProposalError) return res.status(err.status).json({ success: false, error: err.message });
+        throw err;
+      }
+    }
 
     if (!content) {
       return res.status(400).json({ success: false, error: 'Content is required' });
@@ -80,7 +92,8 @@ router.post('/:id/comments', authenticateToken, attachOrganization, requireOrgRo
     await query(`
       INSERT INTO ticket_comments (id, ticket_id, user_id, is_internal, content, api_token_id)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [commentId, ticketId, userId, isInternal, content, (req as AuthRequest).apiToken?.id ?? null]);
+    `, [commentId, ticketId, userId, isInternal, content, (req as AuthRequest).apiToken?.id ?? proposalTokenId]);
+    if (proposalId) await markProposalApproved(String(proposalId), userId, commentId);
 
     // Update ticket's updated_at and set first_response_at if not already set (for non-internal comments)
     if (!isInternal) {

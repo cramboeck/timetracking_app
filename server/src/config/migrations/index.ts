@@ -26,6 +26,7 @@ import * as m024 from './024-customer-logos';
 import * as m025 from './025-assets';
 import * as m026 from './026-asset-professional';
 import * as m027 from './027-agent-security';
+import * as m028 from './028-agent-proposals';
 
 export interface Migration {
   name: string;
@@ -65,4 +66,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '025-assets', run: m025.run },
   { name: '026-asset-professional', run: m026.run },
   { name: '027-agent-security', run: m027.run },
+  { name: '028-agent-proposals', run: m028.run },
 ];

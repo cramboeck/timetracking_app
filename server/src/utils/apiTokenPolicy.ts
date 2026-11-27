@@ -11,11 +11,12 @@
  * Erweiterung der Agenten-Rechte eine sichtbare Code-Änderung ist.
  */
 
-export const API_TOKEN_SCOPES = ['read', 'time:write', 'tickets:write'] as const;
+export const API_TOKEN_SCOPES = ['read', 'propose', 'time:write', 'tickets:write'] as const;
 export type ApiTokenScope = typeof API_TOKEN_SCOPES[number];
 
 export const API_TOKEN_SCOPE_LABELS: Record<ApiTokenScope, string> = {
   read: 'Lesen (Zeiten, Tickets, Kunden, Abrechnung)',
+  propose: 'Vorschläge machen (landen in der Vorschlags-Inbox, du entscheidest)',
   'time:write': 'Zeiten erfassen',
   'tickets:write': 'Tickets kommentieren',
 };
@@ -38,6 +39,10 @@ export const API_TOKEN_RULES: readonly Rule[] = [
   { method: 'GET', pattern: new RegExp(`^/tickets/${ID}$`), scope: 'read' },
   { method: 'GET', pattern: /^\/sevdesk\/billing-summary$/, scope: 'read' },
   { method: 'GET', pattern: /^\/sevdesk\/license-expiry$/, scope: 'read' },
+  { method: 'GET', pattern: new RegExp(`^/agent/customers/${ID}/briefing$`), scope: 'read' },
+  // Vorschläge (Phase B): der Agent schlägt vor, der Mensch übernimmt in der App
+  { method: 'POST', pattern: /^\/agent\/proposals$/, scope: 'propose' },
+  { method: 'GET', pattern: /^\/agent\/proposals$/, scope: 'propose' },
   // Schreiben (nur Anlegen — nie Ändern/Löschen)
   { method: 'POST', pattern: /^\/entries$/, scope: 'time:write' },
   { method: 'POST', pattern: new RegExp(`^/tickets/${ID}/comments$`), scope: 'tickets:write' },

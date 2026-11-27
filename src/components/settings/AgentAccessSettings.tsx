@@ -88,7 +88,7 @@ const TokenCard = ({ t, showOwner, onRevoke }: { t: ApiTokenInfo; showOwner: boo
           </p>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             {t.scopes.map(s => (
-              <span key={s} className={`text-xs rounded-md px-1.5 py-0.5 ${s === 'read' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500' : 'bg-accent-primary/10 text-accent-primary'}`}>
+              <span key={s} className={`text-xs rounded-md px-1.5 py-0.5 ${s === 'read' || s === 'propose' ? 'bg-gray-100 dark:bg-dark-200 text-gray-700 dark:text-dark-500' : 'bg-accent-primary/10 text-accent-primary'}`}>
                 {API_TOKEN_SCOPE_INFO[s]?.label ?? s}
               </span>
             ))}
@@ -124,7 +124,7 @@ export const AgentAccessSettings = ({ orgRole }: Props) => {
 
   const [view, setView] = useState<'mine' | 'org'>('mine');
   const [name, setName] = useState('');
-  const [scopes, setScopes] = useState<ApiTokenScope[]>(['read']);
+  const [scopes, setScopes] = useState<ApiTokenScope[]>(['read', 'propose']);
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [created, setCreated] = useState<{ token: string; name: string } | null>(null);
 
@@ -138,7 +138,7 @@ export const AgentAccessSettings = ({ orgRole }: Props) => {
     onSuccess: (d) => {
       setCreated({ token: d.token, name: d.name });
       setName('');
-      setScopes(['read']);
+      setScopes(['read', 'propose']);
       queryClient.invalidateQueries({ queryKey: ['api-tokens'] });
     },
     onError: (e: Error) => showToast(e.message || 'Zugang konnte nicht angelegt werden', 'error'),
