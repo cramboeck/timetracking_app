@@ -36,6 +36,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
   const [taxRate, setTaxRate] = useState(19);
   const [autoSyncCustomers, setAutoSyncCustomers] = useState(false);
   const [createAsFinal, setCreateAsFinal] = useState(false);
+  const [priceEntryMode, setPriceEntryMode] = useState<'net' | 'gross'>('net');
 
   // Connection status
   const [connectionStatus, setConnectionStatus] = useState<{
@@ -62,6 +63,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
         setTaxRate(response.data.taxRate);
         setAutoSyncCustomers(response.data.autoSyncCustomers);
         setCreateAsFinal(response.data.createAsFinal);
+        setPriceEntryMode(response.data.priceEntryMode === 'gross' ? 'gross' : 'net');
 
         if (response.data.hasToken) {
           setConnectionStatus({ tested: true, success: true, companyName: 'Verbunden' });
@@ -157,6 +159,7 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
         taxRate,
         autoSyncCustomers,
         createAsFinal,
+        priceEntryMode,
       });
 
       setSuccess('Einstellungen gespeichert');
@@ -341,6 +344,24 @@ export const SevdeskSettings = ({ onCustomersChanged }: SevdeskSettingsProps) =>
               </p>
             </div>
           </label>
+
+          <div>
+            <label htmlFor="sevdesk-price-mode" className="block text-sm font-medium text-gray-900 dark:text-white">
+              Preise in sevDesk erfasst als
+            </label>
+            <select
+              id="sevdesk-price-mode"
+              value={priceEntryMode}
+              onChange={(e) => setPriceEntryMode(e.target.value === 'gross' ? 'gross' : 'net')}
+              className="mt-1 w-full sm:w-64 px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-100 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white focus:bg-white dark:focus:bg-dark-50 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15 outline-none"
+            >
+              <option value="net">Netto</option>
+              <option value="gross">Brutto</option>
+            </select>
+            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+              Muss zur Einstellung deines sevDesk-Kontos passen. Nach jeder Rechnung prüft RamboFlow die Nettosumme in sevDesk und stellt diesen Wert bei Abweichung selbst um.
+            </p>
+          </div>
         </div>
       </div>
 

@@ -18,7 +18,17 @@ export interface SevdeskConfig {
   taxRate: number;
   autoSyncCustomers: boolean;
   createAsFinal: boolean;
+  /** Wie das sevDesk-Konto Positionspreise liest (Kontoeinstellung in sevDesk) */
+  priceEntryMode?: 'net' | 'gross';
   lastSyncAt: string | null;
+}
+
+/** Gegenprobe nach dem Anlegen: Nettosumme in sevDesk vs. erwartet */
+export interface InvoicePriceCheck {
+  status: 'ok' | 'mismatch' | 'unknown';
+  expectedNet: number;
+  sevdeskNet: number | null;
+  switchedTo?: 'net' | 'gross';
 }
 
 export interface SevdeskCustomer {
@@ -272,6 +282,7 @@ export const sevdeskApi = {
       invoiceNumber: string;
       totalHours: number;
       totalAmount: number;
+      priceCheck?: InvoicePriceCheck;
     };
   }> => {
     return authFetch('/sevdesk/create-invoice', {

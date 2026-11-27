@@ -17,6 +17,7 @@ import {
 import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem, PendingLineItem } from '../services/api';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
+import { useToast } from '../contexts/UIContext';
 import type { Customer } from '../types';
 
 interface InvoicePosition {
@@ -53,6 +54,7 @@ export const InvoiceCreationDialog = ({
   periodEnd,
   onSuccess,
 }: InvoiceCreationDialogProps) => {
+  const showToast = useToast();
   const [positions, setPositions] = useState<InvoicePosition[]>([]);
   // Rechnungs-Vorschau (zeigt, was an sevDesk geht — angelegt wird erst
   // beim Klick auf „Rechnung erstellen", und dort als Entwurf)
@@ -389,6 +391,19 @@ export const InvoiceCreationDialog = ({
             // Don't fail the whole operation - invoice was already created
           }
         }
+        // Gegenprobe des Servers: hat sevDesk die Preise netto gelesen?
+        const check = response.data.priceCheck;
+        if (check?.status === 'mismatch') {
+          const fmt = (v: number | null) => (v ?? 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+          showToast(
+            `Achtung: In sevDesk steht ${fmt(check.sevdeskNet)} netto statt ${fmt(check.expectedNet)}. ` +
+            (check.switchedTo
+              ? `Dein sevDesk-Konto erfasst Preise ${check.switchedTo === 'gross' ? 'brutto' : 'netto'} — die Einstellung ist jetzt angepasst. Bitte diesen Entwurf in sevDesk löschen und die Rechnung neu erstellen.`
+              : 'Bitte die Rechnung in sevDesk prüfen.'),
+            'warning',
+            20000
+          );
+        }
         onSuccess(response.data.invoiceNumber);
         onClose();
       } else {
@@ -484,9 +499,10 @@ export const InvoiceCreationDialog = ({
               damit sie in Light und Dark wie das spätere Dokument aussieht */}
           {showPreview && (
             <div className="border border-gray-300 dark:border-dark-border rounded-xl overflow-hidden shadow-inner">
-              <div className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-xs text-gray-600 dark:text-dark-400 flex items-center gap-2">
-                <Eye size={14} />
-                Vorschau — die Rechnung wird beim Erstellen als <strong>Entwurf in sevDesk</strong> angelegt und kann dort noch geprüft werden
+              {/* Text in EINEM Element — als direkte Flex-Kinder liefen Text und <strong> als Spalten nebeneinander */}
+              <div className="px-4 py-2 bg-gray-100 dark:bg-dark-200 text-xs text-gray-600 dark:text-dark-400 flex items-start gap-2">
+                <Eye size={14} className="mt-0.5 flex-shrink-0" />
+                <span>Vorschau — die Rechnung wird beim Erstellen als <strong>Entwurf in sevDesk</strong> angelegt und kann dort noch geprüft werden.</span>
               </div>
               <div className="bg-white text-gray-900 p-6 space-y-4 text-sm">
                 <div className="flex items-start justify-between gap-4">
@@ -860,10 +876,10 @@ export const InvoiceCreationDialog = ({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-sm text-gray-500">
+        <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-100/50">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm text-gray-500 dark:text-dark-400">
                 Gesamtstunden: {formatHours(totalHours)} → aufgerundet: {formatHours(totalRoundedHours)}
                 {selectedExpensesTotal.total > 0 && (
                   <span> + Weiterberechnungen: {formatCurrency(selectedExpensesTotal.total)}</span>
@@ -875,26 +891,33 @@ export const InvoiceCreationDialog = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={onClose}
-                variant="secondary"
-              >
-                Abbrechen
-              </Button>
-              <Button
-                onClick={() => setShowPreview(v => !v)}
-                variant="secondary"
-                icon={<Eye size={18} />}
-              >
-                {showPreview ? 'Vorschau ausblenden' : 'Vorschau'}
-              </Button>
+            {/* Handy: Erstellen volle Breite oben, Nebenaktionen darunter — vorher lief
+                „Rechnung erstellen“ rechts aus dem Bildschirm */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex gap-2 sm:gap-3">
+                <Button
+                  onClick={onClose}
+                  variant="secondary"
+                  className="flex-1 sm:flex-none"
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={() => setShowPreview(v => !v)}
+                  variant="secondary"
+                  icon={<Eye size={18} />}
+                  className="flex-1 sm:flex-none whitespace-nowrap"
+                >
+                  {showPreview ? 'Vorschau aus' : 'Vorschau'}
+                </Button>
+              </div>
               <Button
                 onClick={handleCreateInvoice}
                 disabled={isCreating || positions.length === 0}
                 loading={isCreating}
                 variant="warning"
                 icon={<FileText size={18} />}
+                className="w-full sm:w-auto whitespace-nowrap"
               >
                 {isCreating ? 'Erstelle...' : 'Rechnung erstellen'}
               </Button>

@@ -15,7 +15,21 @@ export interface SevdeskConfig {
   taxRate: number;
   autoSyncCustomers: boolean;
   createAsFinal: boolean;
+  /** Wie das sevDesk-Konto `InvoicePos.price` liest: netto oder brutto */
+  priceEntryMode: PriceEntryMode;
   lastSyncAt: string | null;
+}
+
+export type PriceEntryMode = 'net' | 'gross';
+
+/**
+ * sevDesk interpretiert `price` einer Position je nach Kontoeinstellung als
+ * Netto- ODER Bruttopreis. Wir rechnen den Nettopreis deshalb in die
+ * Erfassungsart des Kontos um (priceNet/priceGross bleiben informativ).
+ */
+export function toEntryPrice(net: number, taxRate: number, mode: PriceEntryMode): number {
+  if (mode === 'gross') return Math.round(net * (1 + taxRate / 100) * 100) / 100;
+  return net;
 }
 
 export interface SevdeskCustomer {
@@ -107,6 +121,7 @@ export async function getConfig(userId: string): Promise<SevdeskConfig | null> {
     taxRate: parseFloat(row.tax_rate),
     autoSyncCustomers: row.auto_sync_customers,
     createAsFinal: row.create_as_final,
+    priceEntryMode: row.price_entry_mode === 'gross' ? 'gross' : 'net',
     lastSyncAt: row.last_sync_at,
   };
 }
@@ -147,6 +162,10 @@ export async function saveConfig(
     if (config.createAsFinal !== undefined) {
       updates.push(`create_as_final = $${paramCount++}`);
       values.push(config.createAsFinal);
+    }
+    if (config.priceEntryMode !== undefined) {
+      updates.push(`price_entry_mode = ${paramCount++}`);
+      values.push(config.priceEntryMode);
     }
 
     updates.push('updated_at = NOW()');
@@ -569,7 +588,7 @@ export async function createInvoice(
   periodStart: string,
   periodEnd: string,
   customData?: CustomInvoiceData
-): Promise<{ invoiceId: string; invoiceNumber: string }> {
+): Promise<{ invoiceId: string; invoiceNumber: string; expectedNet: number }> {
   // Format the period for display
   const startDate = new Date(periodStart);
   const endDate = new Date(periodEnd);
@@ -765,7 +784,7 @@ export async function createInvoice(
     },
     invoicePosSave: positions.map((pos, index) => ({
       quantity: pos.quantity,
-      price: pos.price,
+      price: toEntryPrice(Number(pos.price) || 0, Number(pos.taxRate) || taxRate, config.priceEntryMode),
       priceNet: pos.price,
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
@@ -833,9 +852,15 @@ export async function createInvoice(
 
       logger.info('[sevDesk] Invoice created:', { invoiceId, invoiceNumber });
 
+      // Erwartete Nettosumme (für die Gegenprobe nach dem Anlegen)
+      const expectedNet = Math.round(
+        positions.reduce((sum: number, p: { quantity?: number; price?: number }) => sum + (Number(p.quantity) || 0) * (Number(p.price) || 0), 0) * 100
+      ) / 100;
+
       return {
         invoiceId,
         invoiceNumber,
+        expectedNet,
       };
     } catch (error: any) {
       if (error.message?.includes('Correct number abort') && retries < maxRetries - 1) {
@@ -2235,7 +2260,7 @@ export async function createQuote(
     },
     orderPosSave: input.positions.map((pos, index) => ({
       quantity: pos.quantity,
-      price: pos.price,
+      price: toEntryPrice(Number(pos.price) || 0, Number(pos.taxRate) || taxRate, config.priceEntryMode),
       priceNet: pos.price,
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
@@ -2381,7 +2406,7 @@ export async function updateQuote(
     },
     orderPosSave: input.positions.map((pos, index) => ({
       quantity: pos.quantity,
-      price: pos.price,
+      price: toEntryPrice(Number(pos.price) || 0, Number(pos.taxRate) || taxRate, config.priceEntryMode),
       priceNet: pos.price,
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
@@ -2765,4 +2790,38 @@ export async function batchImportSevdeskCustomers(
   }
 
   return result;
+}
+
+
+/**
+ * Gegenprobe nach dem Anlegen: liest die Nettosumme der Rechnung aus sevDesk.
+ * Weicht sie genau um die Steuer ab, hat sevDesk die Preise in der anderen
+ * Erfassungsart gelesen → Einstellung wird umgestellt, damit die NÄCHSTE
+ * Rechnung stimmt. Fehler beim Lesen = Ergebnis „unbekannt“ (nie Abbruch).
+ */
+export async function verifyInvoiceNet(
+  userId: string,
+  apiToken: string,
+  config: SevdeskConfig,
+  invoiceId: string,
+  expectedNet: number
+): Promise<{ status: 'ok' | 'mismatch' | 'unknown'; expectedNet: number; sevdeskNet: number | null; switchedTo?: PriceEntryMode }> {
+  try {
+    const inv = await getInvoiceWithPositions(apiToken, invoiceId);
+    if (!inv) return { status: 'unknown', expectedNet, sevdeskNet: null };
+    const sevdeskNet = Math.round((Number(inv.sumNet) || 0) * 100) / 100;
+    if (Math.abs(sevdeskNet - expectedNet) <= 0.05) return { status: 'ok', expectedNet, sevdeskNet };
+    const factor = 1 + (config.taxRate || 19) / 100;
+    let switchedTo: PriceEntryMode | undefined;
+    if (config.priceEntryMode === 'net' && Math.abs(sevdeskNet - expectedNet / factor) <= 0.1) switchedTo = 'gross';
+    if (config.priceEntryMode === 'gross' && Math.abs(sevdeskNet - expectedNet * factor) <= 0.1) switchedTo = 'net';
+    if (switchedTo) {
+      await query('UPDATE sevdesk_config SET price_entry_mode = $1, updated_at = NOW() WHERE user_id = $2', [switchedTo, userId]);
+      logger.warn(`[sevDesk] Preis-Erfassungsart war falsch — umgestellt auf ${switchedTo}`, { invoiceId, expectedNet, sevdeskNet });
+    }
+    return { status: 'mismatch', expectedNet, sevdeskNet, switchedTo };
+  } catch (error) {
+    logger.warn('[sevDesk] Gegenprobe der Rechnungssumme fehlgeschlagen', error);
+    return { status: 'unknown', expectedNet, sevdeskNet: null };
+  }
 }

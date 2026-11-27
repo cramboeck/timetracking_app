@@ -59,6 +59,7 @@ const configSchema = z.object({
   taxRate: z.number().min(0).max(100).optional(),
   autoSyncCustomers: z.boolean().optional(),
   createAsFinal: z.boolean().optional(),
+  priceEntryMode: z.enum(['net', 'gross']).optional(),
 });
 
 const testConnectionSchema = z.object({
@@ -358,7 +359,7 @@ router.get('/config', authenticateToken, attachOrganization, requireOrgRole('adm
 router.put('/config', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(configSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { apiToken, defaultHourlyRate, paymentTermsDays, taxRate, autoSyncCustomers, createAsFinal } = req.body;
+    const { apiToken, defaultHourlyRate, paymentTermsDays, taxRate, autoSyncCustomers, createAsFinal, priceEntryMode } = req.body;
 
     const config = await sevdeskService.saveConfig(userId, {
       apiToken,
@@ -367,6 +368,7 @@ router.put('/config', authenticateToken, attachOrganization, requireOrgRole('adm
       taxRate,
       autoSyncCustomers,
       createAsFinal,
+      priceEntryMode,
     });
 
     res.json({
@@ -633,6 +635,9 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
     );
     console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);
 
+    // Gegenprobe: stimmt die Nettosumme in sevDesk? (Netto/Brutto-Erfassung des Kontos)
+    const priceCheck = await sevdeskService.verifyInvoiceNet(userId, config.apiToken, config, invoice.invoiceId, invoice.expectedNet);
+
     // Record the export
     console.log('[create-invoice] Recording export...');
     const exportId = await sevdeskService.recordInvoiceExport(
@@ -656,6 +661,7 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
         invoiceNumber: invoice.invoiceNumber,
         totalHours,
         totalAmount,
+        priceCheck,
       },
     });
   } catch (error: any) {

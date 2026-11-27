@@ -70,6 +70,7 @@ export const Toast = ({
     <div
       className={`
         fixed bottom-24 left-1/2 -translate-x-1/2 z-[100]
+        w-max max-w-[calc(100vw-2rem)] sm:max-w-lg
         flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg
         ${config.bgColor} ${config.textColor}
         transition-all duration-300 ease-out
