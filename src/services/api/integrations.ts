@@ -1483,6 +1483,7 @@ export interface Microsoft365Config {
   mailFrom: string;
   supportMailbox: string;
   invoiceMailbox: string;
+  orderMailbox?: string | null;
   featuresEnabled: {
     email: boolean;
     inboxMonitoring: boolean;
@@ -1839,6 +1840,7 @@ export const microsoft365Api = {
     mailFrom?: string;
     supportMailbox?: string;
     invoiceMailbox?: string;
+    orderMailbox?: string;
     featuresEnabled?: {
       email?: boolean;
       inboxMonitoring?: boolean;

@@ -18,6 +18,7 @@ import { startGeocodeCustomersJob } from './jobs/geocodeCustomersCron';
 import { startLicenseExpiryJob } from './jobs/licenseExpiryCron';
 import { startWarrantyExpiryJob } from './jobs/warrantyExpiryCron';
 import { startApiTokenMaintenanceJob } from './jobs/apiTokenMaintenanceCron';
+import { startOrderMailboxJob } from './jobs/orderMailboxCron';
 import { startSupportInboxJob } from './jobs/supportInboxCron';
 import { startLogoBackfill } from './services/logoService';
 import { backfillAssetsFromNinja } from './services/assetService';
@@ -56,6 +57,7 @@ import microsoft365Routes from './routes/microsoft365';
 import contactsRoutes from './routes/contacts';
 import assetsRoutes from './routes/assets';
 import agentRoutes from './routes/agent';
+import purchaseOrderRoutes from './routes/purchase-orders';
 import assetToolsRoutes, { publicAssetLabelRouter } from './routes/asset-tools';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
@@ -152,6 +154,7 @@ app.use('/api/contacts', contactsRoutes);
 // asset-tools VOR assets: feste Pfade (/settings, /resolve, /labels, /inventories,
 // /import) dürfen nicht von GET /api/assets/:id geschluckt werden
 app.use('/api/agent', agentRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/assets', assetToolsRoutes);
 app.use('/api/assets', assetsRoutes);
 // Öffentlich (ohne Login): Etiketten-QR /l/<token> → nur Asset-ID + Support-Kontakt
@@ -295,6 +298,7 @@ startGeocodeCustomersJob();
 startLicenseExpiryJob();
 startWarrantyExpiryJob();
 startApiTokenMaintenanceJob();
+startOrderMailboxJob();
 startSupportInboxJob();
 // Einmaliger Logo-Backfill für Bestandskunden (Boot +3 min, sequenziell)
 startLogoBackfill();

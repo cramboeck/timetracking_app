@@ -556,7 +556,9 @@ class InvoiceProcessorService {
    */
   async processEmail(
     organizationId: string,
-    email: EmailMessage
+    email: EmailMessage,
+    // WE-1: Rechnungen, die im Bestell-Postfach landen, laufen ebenfalls hier durch
+    mailboxType: 'invoice' | 'order' = 'invoice'
   ): Promise<{ status: 'draft' | 'failed' | 'skipped'; documentsCreated: number; error?: string }> {
     // Check if already processed
     if (await this.isEmailProcessed(organizationId, email.id)) {
@@ -579,7 +581,7 @@ class InvoiceProcessorService {
       const attachments = await mailboxMonitorService.getAttachments(
         organizationId,
         email.id,
-        'invoice'
+        mailboxType
       );
 
       if (attachments.length === 0) {
@@ -661,7 +663,7 @@ class InvoiceProcessorService {
       }
 
       // Mark email as read
-      await mailboxMonitorService.markAsRead(organizationId, email.id, 'invoice');
+      await mailboxMonitorService.markAsRead(organizationId, email.id, mailboxType);
 
       logger.info(`Created invoice draft: ${email.subject} (${documentIds.length} documents)`);
       return { status: 'draft', documentsCreated: documentIds.length };
@@ -2477,7 +2479,20 @@ MUSTER FÜR KUNDENERKENNUNG:
     return null;
   }
 
-  private async callAI(config: any, prompt: string): Promise<string> {
+  /** KI-Konfiguration der Organisation (erste aktive mit Schlüssel) — auch für WE-1 Bestell-Mails. */
+  async getOrgAiConfig(organizationId: string): Promise<Record<string, unknown> | null> {
+    const r = await query(
+      `SELECT ac.provider, ac.api_key, ac.model FROM ai_config ac
+         JOIN users u ON ac.user_id = u.id
+         JOIN organization_members om ON u.id = om.user_id
+        WHERE om.organization_id = $1 AND ac.enabled = true AND ac.api_key IS NOT NULL
+        LIMIT 1`,
+      [organizationId]
+    );
+    return r.rows[0] ?? null;
+  }
+
+  async callAI(config: any, prompt: string): Promise<string> {
     const provider = config.provider || 'openai';
     const apiKey = config.api_key;
     const model = config.model || (provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-haiku-20240307');

@@ -23,6 +23,7 @@ import {
   TicketAIPanel,
   TicketMetaInfo,
   TicketDeviceLink,
+  TicketOrders,
   TicketNinjaInfo,
   SolutionModal,
 } from './ticket-detail';
@@ -799,6 +800,9 @@ export const TicketDetail = ({ ticketId, customers, onBack, onStartTimer, onTick
                 linkedDeviceId={ticket.deviceId}
                 onAssetChange={handleAssetChange}
               />
+
+              {/* Bestellungen (WE-1): Referenz fürs Bestellen + Lieferstand */}
+              <TicketOrders ticketId={ticket.id} />
 
               {/* AI Assistant Button */}
               {aiConfigured && (

@@ -12,7 +12,7 @@
 
 export type LineItemType = 'license' | 'subscription' | 'hardware' | 'service' | 'other';
 
-const HARDWARE_RE = /firewall|switch(?!.*lizenz)|router|access\s*point|\bap\b|notebook|laptop|\bpc\b|desktop|server(?!\s*(lizenz|cal|abo))|monitor|display|drucker|printer|scanner|\bnas\b|\bssd\b|\bhdd\b|festplatte|appliance|kabel|patchkabel|rack|\busv\b|\bups\b|netzteil|tastatur|maus|dockingstation|docking|thin\s*client|webcam|headset|telefon(?!ie)|smartphone|tablet|toner|speicher|\bram\b|arbeitsspeicher|mainboard|grafikkarte/i;
+const HARDWARE_RE = /firewall|switch(?!.*lizenz)|router|access\s*point|\bap\b|notebook|laptop|thinkpad|thinkcentre|elitebook|probook|latitude|optiplex|surface\s*(pro|laptop)|macbook|imac|ipad|iphone|\bpc\b|desktop|server(?!\s*(lizenz|cal|abo))|monitor|display|drucker|printer|scanner|\bnas\b|\bssd\b|\bhdd\b|festplatte|appliance|kabel|patchkabel|rack|\busv\b|\bups\b|netzteil|tastatur|maus|dockingstation|docking|thin\s*client|webcam|headset|telefon(?!ie)|smartphone|tablet|toner|speicher|\bram\b|arbeitsspeicher|mainboard|grafikkarte/i;
 
 const SUBSCRIPTION_RE = /\babo\b|subscription|monatlich|j[äa]hrlich|\bmtl\b|renewal|verl[äa]ngerung|laufzeit|\d+\s*(monate|months|jahre|years)|microsoft\s*365|m365|office\s*365|hosting|cloud\s*backup|\bsaas\b|wartungsvertrag|maintenance\s*(plan|agreement)|support\s*(vertrag|plan)/i;
 

@@ -20,6 +20,7 @@ export const Microsoft365Settings = () => {
   const [mailFrom, setMailFrom] = useState('');
   const [supportMailbox, setSupportMailbox] = useState('');
   const [invoiceMailbox, setInvoiceMailbox] = useState('');
+  const [orderMailbox, setOrderMailbox] = useState('');
   const [showSecret, setShowSecret] = useState(false);
 
   // Feature toggles
@@ -54,6 +55,7 @@ export const Microsoft365Settings = () => {
         setMailFrom(response.data.mailFrom || '');
         setSupportMailbox(response.data.supportMailbox || '');
         setInvoiceMailbox(response.data.invoiceMailbox || '');
+        setOrderMailbox(response.data.orderMailbox || '');
         setEmailEnabled(response.data.featuresEnabled?.email || false);
         setInboxMonitoringEnabled(response.data.featuresEnabled?.inboxMonitoring || false);
 
@@ -283,6 +285,7 @@ export const Microsoft365Settings = () => {
         mailFrom,
         supportMailbox,
         invoiceMailbox,
+        orderMailbox,
         featuresEnabled: {
           email: emailEnabled,
           inboxMonitoring: inboxMonitoringEnabled,
@@ -534,7 +537,7 @@ export const Microsoft365Settings = () => {
           {/* Invoice Mailbox */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
-              Rechnungs-Postfach (fuer automatische Belegverarbeitung)
+              Rechnungs-Postfach (für automatische Belegverarbeitung)
             </label>
             <input
               type="email"
@@ -544,7 +547,24 @@ export const Microsoft365Settings = () => {
               className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
             />
             <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-              Eingehende E-Mails mit PDF-Anhaengen werden automatisch als Belege gespeichert
+              Eingehende E-Mails mit PDF-Anhängen werden automatisch als Belege gespeichert
+            </p>
+          </div>
+
+          {/* Bestell-Postfach (WE-1) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+              Bestell-Postfach (Bestellbestätigungen &amp; Versandmitteilungen)
+            </label>
+            <input
+              type="email"
+              value={orderMailbox}
+              onChange={(e) => setOrderMailbox(e.target.value)}
+              placeholder="bestellung@ihredomain.de"
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-200 bg-white dark:bg-dark-100 text-gray-900 dark:text-white"
+            />
+            <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
+              Alle 15 Minuten abgerufen: Mails werden pro Bestellnummer zu einem Vorgang unter Finanzen → Bestellungen zusammengeführt und über die Ticketnummer in der Bestellreferenz zugeordnet. Rechnungen darin gehen zusätzlich in den Rechnungseingang. Gleiche Graph-Rechte wie beim Rechnungs-Postfach.
             </p>
           </div>
         </div>

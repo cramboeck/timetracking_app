@@ -57,7 +57,7 @@ export interface MailboxMonitorResult {
   error?: string;
 }
 
-export type MailboxType = 'support' | 'invoice';
+export type MailboxType = 'support' | 'invoice' | 'order';
 
 class MailboxMonitorService {
   /**
@@ -98,6 +98,9 @@ class MailboxMonitorService {
     if (mailboxType === 'invoice') {
       return config.invoiceMailbox || null;
     }
+    if (mailboxType === 'order') {
+      return config.orderMailbox || null;
+    }
     return config.supportMailbox || config.mailFrom || null;
   }
 
@@ -127,7 +130,7 @@ class MailboxMonitorService {
     const mailbox = this.getMailboxByType(config, mailboxType);
 
     if (!mailbox) {
-      const mailboxLabel = mailboxType === 'invoice' ? 'Rechnungs' : 'Support';
+      const mailboxLabel = mailboxType === 'invoice' ? 'Rechnungs' : mailboxType === 'order' ? 'Bestell' : 'Support';
       return { success: false, emails: [], error: `Keine ${mailboxLabel}-Mailbox konfiguriert` };
     }
 

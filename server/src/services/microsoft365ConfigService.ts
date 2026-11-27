@@ -11,6 +11,8 @@ export interface Microsoft365Config {
   mailFrom: string | null;
   supportMailbox: string | null;
   invoiceMailbox: string | null;
+  /** WE-1: Postfach für Bestellbestätigungen/Versandmitteilungen (z.B. bestellung@…) */
+  orderMailbox: string | null;
   isConfigured: boolean;
   lastConnectionTest: string | null;
   lastConnectionStatus: string | null;
@@ -30,6 +32,7 @@ export interface Microsoft365ConfigInput {
   mailFrom?: string;
   supportMailbox?: string;
   invoiceMailbox?: string;
+  orderMailbox?: string;
   featuresEnabled?: {
     email?: boolean;
     inboxMonitoring?: boolean;
@@ -89,6 +92,10 @@ export async function saveConfig(
       updates.push(`invoice_mailbox = $${paramCount++}`);
       values.push(input.invoiceMailbox || null);
     }
+    if (input.orderMailbox !== undefined) {
+      updates.push(`order_mailbox = $${paramCount++}`);
+      values.push(input.orderMailbox || null);
+    }
     if (input.featuresEnabled !== undefined) {
       const currentFeatures = existing.featuresEnabled || { email: false, inboxMonitoring: false, calendar: false };
       const newFeatures = {
@@ -125,8 +132,8 @@ export async function saveConfig(
     await query(
       `INSERT INTO microsoft365_config (
         id, organization_id, tenant_id, client_id, client_secret,
-        mail_from, support_mailbox, invoice_mailbox, is_configured, features_enabled, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())`,
+        mail_from, support_mailbox, invoice_mailbox, is_configured, features_enabled, order_mailbox, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
       [
         id,
         organizationId,
@@ -138,6 +145,7 @@ export async function saveConfig(
         input.invoiceMailbox || null,
         isConfigured,
         JSON.stringify(featuresEnabled),
+        input.orderMailbox || null,
       ]
     );
 
@@ -293,6 +301,7 @@ function mapRowToConfig(row: any): Microsoft365Config {
     mailFrom: row.mail_from,
     supportMailbox: row.support_mailbox,
     invoiceMailbox: row.invoice_mailbox,
+    orderMailbox: row.order_mailbox ?? null,
     isConfigured: row.is_configured,
     lastConnectionTest: row.last_connection_test,
     lastConnectionStatus: row.last_connection_status,

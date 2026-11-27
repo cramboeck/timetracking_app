@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { History, ChevronRight, Plus, RotateCcw, ChevronDown, MessageSquare, Tag, Clock } from 'lucide-react';
+import { History, ChevronRight, Plus, RotateCcw, ChevronDown, MessageSquare, Tag, Clock, ShoppingCart } from 'lucide-react';
 import { TicketActivity, TicketStatus, TicketPriority, formatDate, statusConfig, priorityConfig } from './types';
 
 interface TicketTimelineProps {
@@ -52,7 +52,7 @@ export const TicketTimeline = ({
       case 'description_changed':
         return `${actor} hat die Beschreibung geändert`;
       case 'resolved':
-        return `${actor} hat das Ticket als gelost markiert`;
+        return `${actor} hat das Ticket als gelöst markiert`;
       case 'closed':
         return `${actor} hat das Ticket geschlossen`;
       case 'reopened':
@@ -63,8 +63,10 @@ export const TicketTimeline = ({
         return `${actor} hat eine Bewertung abgegeben`;
       case 'time_logged':
         return `${actor} hat ${activity.newValue} Zeit erfasst`;
+      case 'order_update':
+        return activity.newValue || 'Bestellung aktualisiert';
       default:
-        return `${actor} hat eine Aktion durchgefuhrt`;
+        return `${actor} hat eine Aktion durchgeführt`;
     }
   };
 
@@ -88,6 +90,8 @@ export const TicketTimeline = ({
         return <Tag size={12} />;
       case 'time_logged':
         return <Clock size={12} />;
+      case 'order_update':
+        return <ShoppingCart size={12} />;
       default:
         return <Clock size={12} />;
     }

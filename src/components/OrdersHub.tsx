@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingCart, Search, Loader2, Package, FileQuestion,
@@ -8,6 +9,7 @@ import { infinigateApi, PricelistItem, InfinigateQuote } from '../services/api';
 import { Button } from './ui/Button';
 import { useConfirm, useToast } from '../contexts/UIContext';
 import { QuoteRequestDialog } from './QuoteRequestDialog';
+import { PurchaseOrdersPanel } from './PurchaseOrdersPanel';
 
 /**
  * Bestellungen — Distributor-Modul (Phase 2b).
@@ -47,6 +49,17 @@ export const OrdersHub = () => {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
 
+  // Reiter in der URL (?tab=beschaffung), Start = Vorgänge (WE-1)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: 'vorgaenge' | 'beschaffung' = searchParams.get('tab') === 'beschaffung' ? 'beschaffung' : 'vorgaenge';
+  const setTab = (next: 'vorgaenge' | 'beschaffung') => {
+    if (next === tab) return;
+    const params = new URLSearchParams(searchParams);
+    if (next === 'beschaffung') params.set('tab', 'beschaffung');
+    else params.delete('tab');
+    setSearchParams(params);
+  };
+
   const [searchInput, setSearchInput] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [requestItem, setRequestItem] = useState<PricelistItem | null>(null);
@@ -61,14 +74,14 @@ export const OrdersHub = () => {
   const pricelistQuery = useQuery({
     queryKey: ['infinigate', 'pricelist', activeSearch],
     queryFn: async () => (await infinigateApi.searchPricelist(activeSearch)).data,
-    enabled: infinigateConfigured && activeSearch.length >= 2,
+    enabled: tab === 'beschaffung' && infinigateConfigured && activeSearch.length >= 2,
     staleTime: 5 * 60 * 1000,
   });
 
   const quotesQuery = useQuery({
     queryKey: ['infinigate', 'quotes'],
     queryFn: async () => (await infinigateApi.getQuotes()).data,
-    enabled: infinigateConfigured,
+    enabled: tab === 'beschaffung' && infinigateConfigured,
     staleTime: 60 * 1000,
   });
 
@@ -183,9 +196,31 @@ export const OrdersHub = () => {
           Bestellungen
         </h1>
         <p className="text-sm text-gray-500 dark:text-dark-400 mt-1">
-          Beschaffung über Distributoren: Preise suchen, Angebote verwalten
+          Bestellvorgänge aus dem Postfach verfolgen · Preise und Angebote bei Distributoren
         </p>
       </div>
+
+      <div className="inline-flex rounded-xl bg-gray-100 dark:bg-dark-200 p-1">
+        {([['vorgaenge', 'Vorgänge'], ['beschaffung', 'Preise & Angebote']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              tab === id
+                ? 'bg-white dark:bg-dark-100 text-accent-primary shadow-sm'
+                : 'text-gray-600 dark:text-dark-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'vorgaenge' ? (
+        <PurchaseOrdersPanel />
+      ) : (
+      <>
 
       {/* Distributor-Status */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -382,6 +417,8 @@ export const OrdersHub = () => {
       </div>
 
       <QuoteRequestDialog item={requestItem} onClose={() => setRequestItem(null)} />
+      </>
+      )}
     </div>
   );
 };

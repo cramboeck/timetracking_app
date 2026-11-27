@@ -34,6 +34,7 @@ const configSchema = z.object({
   mailFrom: z.string().email().max(200).optional().or(z.literal('')),
   supportMailbox: z.string().email().max(200).optional().or(z.literal('')),
   invoiceMailbox: z.string().email().max(200).optional().or(z.literal('')),
+  orderMailbox: z.string().email().max(200).optional().or(z.literal('')),
   featuresEnabled: featuresEnabledSchema,
 });
 
@@ -193,6 +194,7 @@ router.get('/config', requireOrgRole('admin'), async (req: AuthRequest, res: Res
         mailFrom: config.mailFrom || '',
         supportMailbox: config.supportMailbox || '',
         invoiceMailbox: config.invoiceMailbox || '',
+        orderMailbox: config.orderMailbox || '',
         featuresEnabled: config.featuresEnabled,
         lastConnectionTest: config.lastConnectionTest,
         lastConnectionStatus: config.lastConnectionStatus,
@@ -209,7 +211,7 @@ router.post('/config', requireOrgRole('admin'), validate(configSchema), async (r
   try {
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { tenantId, clientId, clientSecret, mailFrom, supportMailbox, invoiceMailbox, featuresEnabled } = req.body;
+    const { tenantId, clientId, clientSecret, mailFrom, supportMailbox, invoiceMailbox, orderMailbox, featuresEnabled } = req.body;
 
     const config = await microsoft365Service.saveConfig(organizationId, {
       tenantId,
@@ -218,6 +220,7 @@ router.post('/config', requireOrgRole('admin'), validate(configSchema), async (r
       mailFrom,
       supportMailbox,
       invoiceMailbox,
+      orderMailbox,
       featuresEnabled,
     });
 
@@ -231,6 +234,7 @@ router.post('/config', requireOrgRole('admin'), validate(configSchema), async (r
         mailFrom: config.mailFrom || '',
         supportMailbox: config.supportMailbox || '',
         invoiceMailbox: config.invoiceMailbox || '',
+        orderMailbox: config.orderMailbox || '',
         featuresEnabled: config.featuresEnabled,
       },
     });
