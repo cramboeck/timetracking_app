@@ -627,12 +627,13 @@ router.post('/api-tokens', authenticateToken, validate(createApiTokenSchema), as
   try {
     const userId = req.user!.id;
     const { name } = req.body as { name: string };
-    const requested = ((req.body.scopes as string[] | undefined) ?? ['read', 'propose']);
+    const me = await primaryOrgRole(userId);
+    // Standard: Lesen + Vorschlagen (Betrachter: nur Lesen — sie dürfen nichts anlegen)
+    const requested = ((req.body.scopes as string[] | undefined) ?? (me?.role === 'viewer' ? ['read'] : ['read', 'propose']));
     const scopes = API_TOKEN_SCOPES.filter(s => requested.includes(s));
     const expiresInDays = (req.body.expiresInDays as number | undefined) ?? 90;
 
     // Betrachter dürfen nur lesende Zugänge anlegen
-    const me = await primaryOrgRole(userId);
     if (me?.role === 'viewer' && scopes.some(s => s !== 'read')) {
       return res.status(403).json({ success: false, error: 'Mit der Rolle „Betrachter“ sind nur lesende Zugänge möglich' });
     }

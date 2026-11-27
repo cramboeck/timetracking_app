@@ -22,7 +22,7 @@ const field = 'w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 borde
 const card = 'bg-white dark:bg-dark-100 rounded-xl border border-gray-200 dark:border-dark-border p-5';
 
 const EXPIRY_OPTIONS = [30, 90, 180, 365];
-const WRITE_SCOPES: ApiTokenScope[] = ['time:write', 'tickets:write'];
+const WRITE_SCOPES: ApiTokenScope[] = ['propose', 'time:write', 'tickets:write'];
 
 const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('de-DE') : '—';
 const fmtDateTime = (iso: string | null) => iso
@@ -124,7 +124,7 @@ export const AgentAccessSettings = ({ orgRole }: Props) => {
 
   const [view, setView] = useState<'mine' | 'org'>('mine');
   const [name, setName] = useState('');
-  const [scopes, setScopes] = useState<ApiTokenScope[]>(['read', 'propose']);
+  const [scopes, setScopes] = useState<ApiTokenScope[]>(orgRole === 'viewer' ? ['read'] : ['read', 'propose']);
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [created, setCreated] = useState<{ token: string; name: string } | null>(null);
 
@@ -138,7 +138,7 @@ export const AgentAccessSettings = ({ orgRole }: Props) => {
     onSuccess: (d) => {
       setCreated({ token: d.token, name: d.name });
       setName('');
-      setScopes(['read', 'propose']);
+      setScopes(isViewer ? ['read'] : ['read', 'propose']);
       queryClient.invalidateQueries({ queryKey: ['api-tokens'] });
     },
     onError: (e: Error) => showToast(e.message || 'Zugang konnte nicht angelegt werden', 'error'),
