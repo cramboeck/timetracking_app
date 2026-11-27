@@ -2,6 +2,9 @@ import { query } from '../config/database';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { toSevdeskHtml } from '../utils/sevdeskText';
+import { pickUnits, type SevdeskUnits } from '../utils/sevdeskUnits';
+export { pickUnits };
+export type { SevdeskUnits };
 
 // sevDesk API Base URL
 const SEVDESK_API_URL = 'https://my.sevdesk.de/api/v1';
@@ -99,6 +102,33 @@ async function sevdeskFetch(
   }
 
   return response.json();
+}
+
+// ---------------------------------------------------------------------------
+// Einheiten (Unity) kommen aus dem sevDesk-Konto — die ID für „Stunde“ ist
+// nicht fest dokumentiert (früher hart 9 → bei manchen Konten „Stück“).
+// Pro Token einmal geladen und gemerkt; Fallback auf die alten IDs.
+// ---------------------------------------------------------------------------
+const unitCache = new Map<string, { units: SevdeskUnits; at: number }>();
+const UNIT_CACHE_MS = 6 * 60 * 60 * 1000;
+
+export async function getSevdeskUnits(apiToken: string): Promise<SevdeskUnits> {
+  const cached = unitCache.get(apiToken);
+  if (cached && Date.now() - cached.at < UNIT_CACHE_MS) return cached.units;
+  try {
+    const res = await sevdeskFetch(apiToken, '/Unity?limit=100');
+    const objects = Array.isArray(res?.objects) ? res.objects : [];
+    const units = pickUnits(objects);
+    logger.info('[sevDesk] Einheiten aus dem Konto', {
+      chosen: units,
+      available: objects.slice(0, 30).map((o: { id?: unknown; name?: unknown; translationCode?: unknown }) => `${o.id}:${o.name}:${o.translationCode ?? ''}`),
+    });
+    unitCache.set(apiToken, { units, at: Date.now() });
+    return units;
+  } catch (error) {
+    logger.warn('[sevDesk] Einheiten konnten nicht geladen werden — Fallback Stunde=9/Stück=1', error);
+    return { hour: 9, piece: 1, source: 'fallback' };
+  }
 }
 
 // Get or create sevDesk config for user
@@ -503,6 +533,9 @@ interface CustomInvoiceData {
     amount: number;
     hourlyRate?: number;
     isHeader?: boolean; // Header positions have quantity 0 and display as bold
+    // Weiterberechnungen (Lizenzen/Hardware): Menge × Einzelpreis, Einheit Stück
+    quantity?: number;
+    unitPrice?: number;
   }>;
   // Per-customer free-text template appended to every position's `text` after
   // placeholder substitution. {unknown} placeholders stay as-is so typos are
@@ -598,6 +631,7 @@ export async function createInvoice(
   logger.info(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
   logger.info('Custom data provided:', { provided: !!customData, customPositions: customData?.positions?.length || 0 });
 
+  const units = await getSevdeskUnits(apiToken);
   // Create invoice positions - use custom positions if provided, otherwise create from entries
   let positions: any[];
 
@@ -607,7 +641,25 @@ export async function createInvoice(
     // Use grouped positions from frontend
     logger.info('Using custom grouped positions');
     positions = customData.positions.map((pos, index) => {
-      // Header positions (quantity 0) are displayed as bold headers in sevDesk
+      // Header positions (quantity 0) are displayed as bold headers in sevDesk.
+      // NUR explizite Überschriften — vorher wurde jede Position mit 0 Stunden
+      // (also auch jede Weiterberechnung!) zur 0-€-Überschrift.
+      const isExpense = !pos.isHeader && (pos.hours || 0) === 0 && ((pos.quantity ?? 0) > 0 || (pos.amount ?? 0) !== 0);
+      if (isExpense) {
+        const qty = pos.quantity && pos.quantity > 0 ? pos.quantity : 1;
+        const unitPrice = pos.unitPrice ?? Math.round(((pos.amount ?? 0) / qty) * 100) / 100;
+        return {
+          objectName: 'InvoicePos',
+          mapAll: true,
+          quantity: qty,
+          price: unitPrice,
+          name: pos.title,
+          text: pos.description || null,
+          unity: { id: units.piece, objectName: 'Unity' },
+          taxRate: config.taxRate,
+          positionNumber: index,
+        };
+      }
       if (pos.isHeader || pos.hours === 0) {
         return {
           objectName: 'InvoicePos',
@@ -616,10 +668,7 @@ export async function createInvoice(
           price: 0,
           name: pos.title,
           text: pos.description || null,
-          unity: {
-            id: 1, // Stück for header positions
-            objectName: 'Unity',
-          },
+          unity: { id: units.piece, objectName: 'Unity' },
           taxRate: config.taxRate,
           positionNumber: index,
         };
@@ -634,10 +683,7 @@ export async function createInvoice(
         price: posHourlyRate,
         name: pos.title,
         text: buildPositionText(pos.description, customData.positionTemplate, templateCtx, pos.title) || null,
-        unity: {
-          id: 9, // Stunden for regular positions
-          objectName: 'Unity',
-        },
+        unity: { id: units.hour, objectName: 'Unity' },
         taxRate: config.taxRate,
         positionNumber: index,
       };
@@ -662,10 +708,7 @@ export async function createInvoice(
         price: hourlyRate,
         name: name,
         text: buildPositionText(null, customData?.positionTemplate, templateCtx, entry.projectName) || null,
-        unity: {
-          id: 9, // Hours in sevDesk
-          objectName: 'Unity',
-        },
+        unity: { id: units.hour, objectName: 'Unity' },
         taxRate: config.taxRate,
         positionNumber: index + 1,
       };
@@ -791,10 +834,7 @@ export async function createInvoice(
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
       name: pos.name || null,
-      unity: {
-        id: 9, // Stunden
-        objectName: 'Unity',
-      },
+      unity: pos.unity ?? { id: units.hour, objectName: 'Unity' },
       positionNumber: index,
       text: pos.text || '',
       discount: null,
@@ -2160,6 +2200,10 @@ function objectToFormData(obj: Record<string, unknown>, prefix = ''): string {
           parts.push(`${encodeURIComponent(`${fullKey}[${index}]`)}=${encodeURIComponent(String(item))}`);
         }
       });
+    } else if (typeof value === 'boolean') {
+      // Eindeutig 1/0: als Text „true“/„false“ wurde z.B. showNet=true im
+      // sevDesk-Backend als 0 gelesen → Rechnung landete im Brutto-Modus
+      parts.push(`${encodeURIComponent(fullKey)}=${value ? '1' : '0'}`);
     } else {
       parts.push(`${encodeURIComponent(fullKey)}=${encodeURIComponent(String(value))}`);
     }
@@ -2218,6 +2262,7 @@ export async function createQuote(
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
   const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
   const taxRate = config.taxRate || 19;
+  const quoteUnits = await getSevdeskUnits(apiToken);
 
   // Build order data structure matching sevDesk web UI format
   const orderData: Record<string, unknown> = {
@@ -2267,10 +2312,7 @@ export async function createQuote(
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
       name: pos.name || null,
-      unity: {
-        id: 9, // Stunden
-        objectName: 'Unity',
-      },
+      unity: { id: quoteUnits.hour, objectName: 'Unity' },
       positionNumber: index,
       text: pos.text || '',
       discount: null,
@@ -2364,6 +2406,7 @@ export async function updateQuote(
   const dateObj = input.quoteDate ? new Date(input.quoteDate) : new Date();
   const orderDateTimestamp = Math.floor(dateObj.getTime() / 1000);
   const taxRate = config.taxRate || 19;
+  const quoteUnits = await getSevdeskUnits(apiToken);
 
   // Build order data with ID for update
   const orderData: Record<string, unknown> = {
@@ -2413,10 +2456,7 @@ export async function updateQuote(
       priceTax: 0,
       priceGross: pos.price * (1 + taxRate / 100),
       name: pos.name || null,
-      unity: {
-        id: 9, // Stunden
-        objectName: 'Unity',
-      },
+      unity: { id: quoteUnits.hour, objectName: 'Unity' },
       positionNumber: index,
       text: pos.text || '',
       discount: null,
@@ -2807,12 +2847,31 @@ export async function verifyInvoiceNet(
   config: SevdeskConfig,
   invoiceId: string,
   expectedNet: number
-): Promise<{ status: 'ok' | 'mismatch' | 'unknown'; expectedNet: number; sevdeskNet: number | null; switchedTo?: PriceEntryMode }> {
+): Promise<{ status: 'ok' | 'mismatch' | 'unknown'; expectedNet: number; sevdeskNet: number | null; switchedTo?: PriceEntryMode; showNet?: string | null }> {
   try {
     const inv = await getInvoiceWithPositions(apiToken, invoiceId);
     if (!inv) return { status: 'unknown', expectedNet, sevdeskNet: null };
     const sevdeskNet = Math.round((Number(inv.sumNet) || 0) * 100) / 100;
-    if (Math.abs(sevdeskNet - expectedNet) <= 0.05) return { status: 'ok', expectedNet, sevdeskNet };
+    // Diagnose: was hat sevDesk tatsächlich gespeichert? (Netto-Anzeige,
+    // Kleinunternehmer-Kennzeichen, Einheiten der Positionen) — nur Log
+    let showNet: string | null = null;
+    try {
+      const raw = await sevdeskFetch(apiToken, `/Invoice/${invoiceId}`);
+      const obj = Array.isArray(raw?.objects) ? raw.objects[0] : raw?.objects;
+      showNet = obj?.showNet != null ? String(obj.showNet) : null;
+      const pos = await sevdeskFetch(apiToken, `/InvoicePos?invoice[id]=${invoiceId}&invoice[objectName]=Invoice&embed=unity`);
+      logger.info('[sevDesk] Rechnung gespeichert als', {
+        invoiceId,
+        showNet,
+        smallSettlement: obj?.smallSettlement ?? null,
+        taxType: obj?.taxType ?? null,
+        positions: (Array.isArray(pos?.objects) ? pos.objects : []).slice(0, 10).map((p: { name?: string; quantity?: unknown; price?: unknown; priceNet?: unknown; unity?: { id?: unknown; name?: unknown } }) =>
+          ({ name: String(p.name ?? '').slice(0, 40), quantity: p.quantity, price: p.price, priceNet: p.priceNet, unity: p.unity ? `${p.unity.id}:${p.unity.name ?? ''}` : null })),
+      });
+    } catch {
+      /* Diagnose ist optional */
+    }
+    if (Math.abs(sevdeskNet - expectedNet) <= 0.05) return { status: 'ok', expectedNet, sevdeskNet, showNet };
     const factor = 1 + (config.taxRate || 19) / 100;
     let switchedTo: PriceEntryMode | undefined;
     if (config.priceEntryMode === 'net' && Math.abs(sevdeskNet - expectedNet / factor) <= 0.1) switchedTo = 'gross';

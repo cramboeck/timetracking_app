@@ -84,6 +84,8 @@ const invoicePositionSchema = z.object({
   amount: z.number().optional(),
   hourlyRate: z.number().min(0).optional(),
   isHeader: z.boolean().optional(),
+  // Weiterberechnungen: Einzelpreis (wurde vorher vom Schema verworfen)
+  unitPrice: z.number().optional(),
   text: z.string().max(10000).optional(),
   unity: z.any().optional(),
 });
