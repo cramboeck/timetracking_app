@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useFeatures } from './contexts/FeaturesContext';
 import { AreaNavigation, SubView, isSubViewAllowed, ticketPath, devicePath } from './components/AreaNavigation';
 import { OPEN_LABEL_KEY } from './components/assets/LabelLanding';
 import { useNavigate } from 'react-router';
@@ -84,16 +85,19 @@ function App() {
     navigateTo,
   } = useCurrentNavigation('arbeiten', 'stopwatch');
   const navigate = useNavigate();
+  const { loading: featuresLoading, hasPackage } = useFeatures();
 
   // Rollen-Guard für Deep-Links: die Navigation blendet unerlaubte Views aus,
   // aber eine direkt eingegebene URL (z.B. /finanzen/billing) muss ebenfalls
   // abgefangen werden — sonst rendert die View und scheitert erst am Backend.
   useEffect(() => {
     if (!currentUser) return;
-    if (!isSubViewAllowed(currentSubView, currentUser.role)) {
+    // Paketprüfung erst, wenn die Features wirklich geladen sind (sonst
+    // fliegt man beim Reload kurz aus /personal/vorschlaege raus)
+    if (!isSubViewAllowed(currentSubView, currentUser.role, featuresLoading ? undefined : hasPackage)) {
       navigateTo('dashboard', 'overview');
     }
-  }, [currentUser, currentSubView, navigateTo]);
+  }, [currentUser, currentSubView, navigateTo, featuresLoading, hasPackage]);
 
   const [entries, setEntries] = useState<TimeEntry[]>([]);
 

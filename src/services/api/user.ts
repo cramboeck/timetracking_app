@@ -275,6 +275,8 @@ export interface UserFeatures {
   alerts: boolean;
   billing: boolean;
   dashboardAdvanced: boolean;
+  /** Paket „KI-Agent“: Claude/MCP-Zugänge + KI-Vorschläge */
+  agent?: boolean;
   packages: Array<{
     name: string;
     enabled: boolean;

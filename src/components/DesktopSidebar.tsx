@@ -141,6 +141,7 @@ export const DesktopSidebar = ({
   const proposalsQuery = useQuery({
     queryKey: ['agent', 'proposals', 'count'],
     queryFn: async () => (await agentApi.pendingCount()).data.pending,
+    enabled: hasPackage('agent'),
     refetchInterval: 2 * 60_000,
     staleTime: 30_000,
   });
@@ -173,7 +174,7 @@ export const DesktopSidebar = ({
           const config = areaConfig[area];
           const AreaIcon = config.icon;
           const isAreaActive = currentArea === area;
-          const visibleSubViews = getVisibleSubViews(area, currentUser?.role);
+          const visibleSubViews = getVisibleSubViews(area, currentUser?.role, hasPackage);
           // Bereiche mit genau einem Unterpunkt (z.B. Dashboard -> Uebersicht)
           // als EIN klickbares Item rendern statt Header + redundantem Kind
           const singleSubView = visibleSubViews.length === 1;

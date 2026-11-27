@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { query } from '../config/database';
 import { TokenRateLimiter, checkApiTokenAccess, isWriteScope, normalizeApiPath } from '../utils/apiTokenPolicy';
+import { userHasPackage, AGENT_PACKAGE_MISSING } from '../services/featurePackageService';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -59,6 +60,12 @@ async function authenticateApiToken(token: string, req: AuthRequest, res: Respon
         ]
       ).catch(() => { /* Protokoll darf den Request nie aufhalten */ });
     });
+
+    // Paket (nach dem Protokoll-Hook, damit gesperrte Versuche sichtbar sind)
+    // Paket „KI-Agent“ (Adminportal): abgeschaltet = alle Zugänge des Nutzers sofort gesperrt
+    if (!(await userHasPackage(row.user_id, 'agent'))) {
+      return res.status(403).json({ error: AGENT_PACKAGE_MISSING, code: 'AGENT_PACKAGE_MISSING' });
+    }
 
     const decision = checkApiTokenAccess(req.method, req.originalUrl || '', scopes);
     if (!decision.allowed) {

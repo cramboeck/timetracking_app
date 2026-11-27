@@ -1,4 +1,5 @@
 import { query } from '../config/database';
+import { userHasPackage, AGENT_PACKAGE_MISSING } from './featurePackageService';
 
 /**
  * Vorschlags-Inbox (Phase B): Ein Agent legt Vorschläge an, der Mensch
@@ -29,6 +30,9 @@ export async function claimProposal(
 ): Promise<{ apiTokenId: string | null }> {
   if (viaApiToken) {
     throw new ProposalError(403, 'Vorschläge können nur in der App übernommen werden');
+  }
+  if (!(await userHasPackage(userId, 'agent'))) {
+    throw new ProposalError(403, AGENT_PACKAGE_MISSING);
   }
   const r = await query(
     `SELECT id, status, type, api_token_id, expires_at

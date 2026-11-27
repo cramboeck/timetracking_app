@@ -1074,7 +1074,7 @@ export default function AdminPortal() {
                 {packageDefinitions.map(pkg => (
                   <div key={pkg.name} className="flex items-start gap-2">
                     <div className={`w-3 h-3 rounded-full mt-1 ${
-                      pkg.name === 'support' ? 'bg-blue-500' : 'bg-green-500'
+                      pkg.name === 'support' ? 'bg-blue-500' : pkg.name === 'agent' ? 'bg-purple-500' : 'bg-green-500'
                     }`} />
                     <div>
                       <p className="text-sm font-medium text-gray-800 dark:text-white">{pkg.label}</p>

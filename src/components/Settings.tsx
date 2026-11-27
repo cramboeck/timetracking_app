@@ -31,6 +31,7 @@ import { GpsStampingSettings } from './GpsStampingSettings';
 import { TeamProvider } from '../contexts/TeamContext';
 import StorageMonitor from './admin/StorageMonitor';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeatures } from '../contexts/FeaturesContext';
 import { gdprService } from '../utils/gdpr';
 import { authApi, userApi, sevdeskApi, organizationsApi, customersApi, Organization } from '../services/api';
 import Papa from 'papaparse';
@@ -85,6 +86,8 @@ export const Settings = ({
   const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'company' | 'team' | 'customers' | 'projects' | 'activities' | 'tickets' | 'portal' | 'ninjarmm' | 'microsoft365' | 'ai' | 'email' | 'storage' | 'import' | 'sevdesk' | 'infinigate' | 'agent'>('account');
   const [billingEnabled, setBillingEnabled] = useState(false);
+  const { hasPackage } = useFeatures();
+  const agentEnabled = hasPackage('agent');
   const [sevdeskLinkCustomer, setSevdeskLinkCustomer] = useState<Customer | null>(null);
   const [ninjaRMMLinkCustomer, setNinjaRMMLinkCustomer] = useState<Customer | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -822,7 +825,8 @@ export const Settings = ({
         { id: 'account', label: 'Mein Account', icon: UserIcon, desc: 'Profil & Logout' },
         { id: 'appearance', label: 'Darstellung', icon: Palette, desc: 'Theme & Farben' },
         { id: 'notifications', label: 'Benachrichtigungen', icon: Bell, desc: 'E-Mail & Browser' },
-        { id: 'agent', label: 'KI-Agent & API', icon: KeyRound, desc: 'Zugänge für Claude/MCP' }
+        // Paket „KI-Agent“ (Adminportal → Features)
+        ...(agentEnabled ? [{ id: 'agent', label: 'KI-Agent & API', icon: KeyRound, desc: 'Zugänge für Claude/MCP' }] : [])
       ]
     },
     {
@@ -2011,7 +2015,7 @@ export const Settings = ({
           </div>
         )}
 
-        {activeTab === 'agent' && <AgentAccessSettings orgRole={userRole} />}
+        {activeTab === 'agent' && agentEnabled && <AgentAccessSettings orgRole={userRole} />}
 
         {activeTab === 'ai' && (
           <div className="max-w-4xl mx-auto space-y-6">

@@ -11,23 +11,10 @@ const enablePackageSchema = z.object({
   expiresAt: z.string().datetime().optional().nullable(),
 });
 
-// Package definitions
-export const PACKAGES = {
-  support: {
-    name: 'support',
-    label: 'Support Paket',
-    description: 'Tickets, Geräte/NinjaRMM, Alerts',
-    features: ['tickets', 'devices', 'alerts', 'customer_portal_admin'],
-  },
-  business: {
-    name: 'business',
-    label: 'Business Paket',
-    description: 'Dashboard, Finanzen, sevDesk, Berichte',
-    features: ['dashboard_advanced', 'billing', 'sevdesk', 'reports'],
-  },
-} as const;
-
-export type PackageName = keyof typeof PACKAGES;
+import { PACKAGES, PackageName } from '../services/featurePackageService';
+import { requireAdmin } from '../middleware/adminAuth';
+export { PACKAGES };
+export type { PackageName };
 
 // GET /api/features - Get all enabled packages for current user
 router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -60,6 +47,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       alerts: enabledPackages.includes('support'),
       billing: enabledPackages.includes('business'),
       dashboardAdvanced: enabledPackages.includes('business'),
+      agent: enabledPackages.includes('agent'),
 
       // Package details
       packages: result.rows.map(row => ({
@@ -77,8 +65,8 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/features/:packageName/enable - Enable a package (admin only for now)
-router.post('/:packageName/enable', authenticateToken, validate(enablePackageSchema), async (req: AuthRequest, res: Response) => {
+// POST /api/features/:packageName/enable — nur System-Admins (vorher konnte sich jeder Nutzer Pakete selbst freischalten)
+router.post('/:packageName/enable', authenticateToken, requireAdmin, validate(enablePackageSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { packageName } = req.params;
@@ -106,7 +94,7 @@ router.post('/:packageName/enable', authenticateToken, validate(enablePackageSch
 });
 
 // POST /api/features/:packageName/disable - Disable a package
-router.post('/:packageName/disable', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/:packageName/disable', authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { packageName } = req.params;

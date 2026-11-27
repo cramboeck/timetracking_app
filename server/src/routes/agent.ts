@@ -7,6 +7,7 @@ import { attachOrganization, requireOrgRole, OrganizationRequest } from '../midd
 import { validate } from '../middleware/validation';
 import { sendPushToUser } from '../services/pushNotifications';
 import { logger } from '../utils/logger';
+import { requireAgentPackage } from '../services/featurePackageService';
 
 /**
  * Agenten-Programm Phase B: Vorschlags-Inbox, Kundengedächtnis, Kunden-Briefing.
@@ -153,7 +154,7 @@ async function checkItem(item: ProposalItem, userId: string, organizationId: str
 // ---------------------------------------------------------------------------
 // Vorschläge anlegen (Agent oder App)
 // ---------------------------------------------------------------------------
-router.post('/proposals', requireOrgRole('member'), validate(createSchema), async (req: AuthRequest, res: Response) => {
+router.post('/proposals', requireAgentPackage, requireOrgRole('member'), validate(createSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.userId!;
     const organizationId = orgId(req);
@@ -225,7 +226,7 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
-router.get('/proposals', async (req: AuthRequest, res: Response) => {
+router.get('/proposals', requireAgentPackage, async (req: AuthRequest, res: Response) => {
   try {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ success: false, error: 'Ungültige Filter' });
@@ -288,7 +289,7 @@ router.get('/proposals', async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.get('/proposals/count', async (req: AuthRequest, res: Response) => {
+router.get('/proposals/count', requireAgentPackage, async (req: AuthRequest, res: Response) => {
   try {
     const r = await query(
       `SELECT COUNT(*)::int AS n FROM agent_proposals
@@ -318,7 +319,7 @@ async function loadOwnPending(req: AuthRequest, id: string) {
   return r.rows[0] as { id: string; type: string; payload: Record<string, unknown>; customer_id: string | null } | undefined;
 }
 
-router.post('/proposals/:id/reject', validate(decideSchema), async (req: AuthRequest, res: Response) => {
+router.post('/proposals/:id/reject', requireAgentPackage, validate(decideSchema), async (req: AuthRequest, res: Response) => {
   try {
     if (req.apiToken) return res.status(403).json({ success: false, error: 'Nur in der App möglich' });
     const p = await loadOwnPending(req, req.params.id);
@@ -340,7 +341,7 @@ const approveNoteSchema = z.object({
   category: z.enum(NOTE_CATEGORIES).optional(),
   content: z.string().trim().min(1).max(2000).optional(),
 });
-router.post('/proposals/:id/approve-note', requireOrgRole('member'), validate(approveNoteSchema), async (req: AuthRequest, res: Response) => {
+router.post('/proposals/:id/approve-note', requireAgentPackage, requireOrgRole('member'), validate(approveNoteSchema), async (req: AuthRequest, res: Response) => {
   try {
     if (req.apiToken) return res.status(403).json({ success: false, error: 'Nur in der App möglich' });
     const p = await loadOwnPending(req, req.params.id);
@@ -448,7 +449,7 @@ router.delete('/notes/:id', requireOrgRole('member'), async (req: AuthRequest, r
 // ---------------------------------------------------------------------------
 // Kunden-Briefing (Agent: kunde_details; bewusst OHNE Preise/Stundensätze)
 // ---------------------------------------------------------------------------
-router.get('/customers/:customerId/briefing', async (req: AuthRequest, res: Response) => {
+router.get('/customers/:customerId/briefing', requireAgentPackage, async (req: AuthRequest, res: Response) => {
   try {
     const organizationId = orgId(req);
     const cust = await query(

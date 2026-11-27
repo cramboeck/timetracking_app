@@ -13,6 +13,7 @@ import { validate, registerSchema, loginSchema } from '../middleware/validation'
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import { checkTrustedDevice } from './mfa';
 import { API_TOKEN_SCOPES } from '../utils/apiTokenPolicy';
+import { requireAgentPackage } from '../services/featurePackageService';
 
 const router = Router();
 
@@ -623,7 +624,7 @@ async function loadManageableToken(tokenId: string, userId: string) {
   return sameOrg.rows.length > 0 ? row : null;
 }
 
-router.post('/api-tokens', authenticateToken, validate(createApiTokenSchema), async (req: AuthRequest, res) => {
+router.post('/api-tokens', authenticateToken, requireAgentPackage, validate(createApiTokenSchema), async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { name } = req.body as { name: string };

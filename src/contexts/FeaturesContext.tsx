@@ -3,13 +3,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { featuresApi, UserFeatures } from '../services/api';
 import { useAuth } from './AuthContext';
 
+export type PackageName = 'support' | 'business' | 'agent';
+
 interface FeaturesContextType {
   features: UserFeatures | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
   hasFeature: (feature: keyof UserFeatures) => boolean;
-  hasPackage: (packageName: 'support' | 'business') => boolean;
+  hasPackage: (packageName: PackageName) => boolean;
 }
 
 const defaultFeatures: UserFeatures = {
@@ -22,6 +24,7 @@ const defaultFeatures: UserFeatures = {
   alerts: false,
   billing: false,
   dashboardAdvanced: false,
+  agent: false,
   packages: [],
 };
 
@@ -113,7 +116,7 @@ export const FeaturesProvider = ({ children }: FeaturesProviderProps) => {
     return typeof value === 'boolean' ? value : false;
   };
 
-  const hasPackage = (packageName: 'support' | 'business'): boolean => {
+  const hasPackage = (packageName: PackageName): boolean => {
     if (!features) return false;
     return features[packageName] === true;
   };

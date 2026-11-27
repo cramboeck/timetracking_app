@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { pool } from '../config/database';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/adminAuth';
+import { PACKAGES } from '../services/featurePackageService';
 import { validate } from '../middleware/validation';
 import { auditLog } from '../services/auditLog';
 import { logger } from '../utils/logger';
@@ -31,7 +32,7 @@ const featureToggleSchema = z.object({
 });
 
 const bulkFeatureSchema = z.object({
-  userIds: z.array(z.string().uuid()).min(1).max(500),
+  userIds: z.array(z.string().min(1).max(100)).min(1).max(500), // users.id ist TEXT
   packageName: z.string().min(1).max(100),
   enabled: z.boolean(),
   expiresAt: z.string().datetime().optional().nullable(),
@@ -687,22 +688,6 @@ router.delete('/maintenance/:id', async (req: AuthRequest, res) => {
 // ============================================
 // FEATURE MANAGEMENT
 // ============================================
-
-// Package definitions (mirrored from features.ts)
-const PACKAGES = {
-  support: {
-    name: 'support',
-    label: 'Support Paket',
-    description: 'Tickets, Geräte/NinjaRMM, Alerts',
-    features: ['tickets', 'devices', 'alerts', 'customer_portal_admin'],
-  },
-  business: {
-    name: 'business',
-    label: 'Business Paket',
-    description: 'Dashboard, Finanzen, sevDesk, Berichte',
-    features: ['dashboard_advanced', 'billing', 'sevdesk', 'reports'],
-  },
-} as const;
 
 // GET /api/admin/features - Get all users with their feature packages
 router.get('/features', async (req, res) => {

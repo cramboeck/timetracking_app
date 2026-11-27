@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useIsDesktop } from '../hooks/useMediaQuery';
 import { DesktopSidebar } from './DesktopSidebar';
-import { useFeatures } from '../contexts/FeaturesContext';
+import { useFeatures, type PackageName } from '../contexts/FeaturesContext';
 import { useAuth } from '../contexts/AuthContext';
 
 // Area definitions - New structure for market-ready product
@@ -136,15 +136,30 @@ const ADMIN_ONLY_SUBVIEWS: SubView[] = [
 export const isAreaAllowed = (area: Area, role: string | undefined): boolean =>
   role === 'admin' || !ADMIN_ONLY_AREAS.includes(area);
 
-export const isSubViewAllowed = (subView: SubView, role: string | undefined): boolean => {
+// SubViews, die zusätzlich ein Feature-Paket brauchen (Adminportal → Features)
+const PACKAGE_SUBVIEWS: Partial<Record<SubView, PackageName>> = {
+  vorschlaege: 'agent', // KI-Vorschläge nur mit Paket „KI-Agent“
+};
+
+/**
+ * hasPackage weglassen = Paketprüfung überspringen (z.B. solange die
+ * Features noch laden) — der Server prüft ohnehin selbst.
+ */
+export const isSubViewAllowed = (
+  subView: SubView,
+  role: string | undefined,
+  hasPackage?: (p: PackageName) => boolean
+): boolean => {
+  const pkg = PACKAGE_SUBVIEWS[subView];
+  if (pkg && hasPackage && !hasPackage(pkg)) return false;
   if (role === 'admin') return true;
   if (ADMIN_ONLY_SUBVIEWS.includes(subView)) return false;
   const area = getAreaFromSubView(subView);
   return isAreaAllowed(area, role);
 };
 
-export const getVisibleSubViews = (area: Area, role: string | undefined) =>
-  areaConfig[area].subViews.filter(s => isSubViewAllowed(s.view, role));
+export const getVisibleSubViews = (area: Area, role: string | undefined, hasPackage?: (p: PackageName) => boolean) =>
+  areaConfig[area].subViews.filter(s => isSubViewAllowed(s.view, role, hasPackage));
 
 export const AreaNavigation = ({
   currentArea,
@@ -167,7 +182,7 @@ export const AreaNavigation = ({
   ] as Area[]).filter(a => isAreaAllowed(a, role));
 
   const currentAreaConfig = areaConfig[currentArea];
-  const visibleSubViews = getVisibleSubViews(currentArea, role);
+  const visibleSubViews = getVisibleSubViews(currentArea, role, hasPackage);
 
   // Aktiven Tab in der (scrollbaren) SubView-Leiste sichtbar halten — sonst
   // steht z.B. „Zeiten" halb abgeschnitten am rechten Rand (iPhone)

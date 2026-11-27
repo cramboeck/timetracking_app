@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Area, SubView, isAreaAllowed, isSubViewAllowed } from '../components/AreaNavigation';
 import { useSwipeGesture } from './useSwipeGesture';
 import { haptics } from '../utils/haptics';
+import { useFeatures } from '../contexts/FeaturesContext';
 
 // Mobile gesture targets — the order here defines what "next" / "previous"
 // means for the user.
@@ -45,7 +46,8 @@ export function useSwipeNavigation({
   role,
 }: UseSwipeNavigationArgs) {
   const visibleAreas = VISIBLE_AREAS.filter(a => isAreaAllowed(a, role));
-  const visibleSubViews = SUBVIEW_CONFIG[currentArea].filter(v => isSubViewAllowed(v, role));
+  const { hasPackage } = useFeatures();
+  const visibleSubViews = SUBVIEW_CONFIG[currentArea].filter(v => isSubViewAllowed(v, role, hasPackage));
 
   const handleSwipeLeftArea = useCallback(() => {
     const currentIndex = visibleAreas.indexOf(currentArea);

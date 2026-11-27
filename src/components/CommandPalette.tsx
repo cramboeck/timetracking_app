@@ -259,8 +259,8 @@ export const CommandPalette = ({
 
   // Rollen-Gating: nur Befehle anbieten, deren Ziel-View erlaubt ist
   const { currentUser } = useAuth();
-  const { hasFeature } = useFeatures();
-  const allowedCommands = COMMANDS.filter(cmd => isSubViewAllowed(cmd.subView, currentUser?.role));
+  const { hasFeature, hasPackage } = useFeatures();
+  const allowedCommands = COMMANDS.filter(cmd => isSubViewAllowed(cmd.subView, currentUser?.role, hasPackage));
 
   const trimmedQuery = query.trim();
   const isSearching = trimmedQuery.length >= MIN_SEARCH_CHARS;

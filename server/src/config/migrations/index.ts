@@ -28,6 +28,7 @@ import * as m026 from './026-asset-professional';
 import * as m027 from './027-agent-security';
 import * as m028 from './028-agent-proposals';
 import * as m029 from './029-purchase-orders';
+import * as m030 from './030-agent-package';
 
 export interface Migration {
   name: string;
@@ -69,4 +70,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '027-agent-security', run: m027.run },
   { name: '028-agent-proposals', run: m028.run },
   { name: '029-purchase-orders', run: m029.run },
+  { name: '030-agent-package', run: m030.run },
 ];
