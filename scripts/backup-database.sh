@@ -110,7 +110,7 @@ fi
 
 # Vollständigkeit prüfen: pg_dump schreibt am Ende eine Abschlusszeile
 if [ "$COMPRESS" = "true" ]; then CHECK_CMD="gzip -dc"; else CHECK_CMD="cat"; fi
-if ! $CHECK_CMD "$BACKUP_FILE" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
+if ! $CHECK_CMD "$BACKUP_FILE" | tail -n 15 | grep -q "PostgreSQL database dump complete"; then
     log "FEHLER: Backup unvollständig: $BACKUP_FILE"
     rm -f "$BACKUP_FILE"
     exit 1

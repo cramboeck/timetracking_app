@@ -93,7 +93,7 @@ create_backup() {
     mkdir -p "$target_dir"
 
     if docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists | gzip > "$backup_file" \
-       && gzip -dc "$backup_file" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
+       && gzip -dc "$backup_file" | tail -n 15 | grep -q "PostgreSQL database dump complete"; then
         local size=$(du -h "$backup_file" | cut -f1)
         log_success "Backup erstellt: $backup_file ($size)" >&2
         echo "$backup_file"

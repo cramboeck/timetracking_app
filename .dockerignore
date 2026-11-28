@@ -44,3 +44,9 @@ vercel.json
 render.yaml
 .renderignore
 netlify.toml
+
+# Datenbank-Backups NIE in den Build-Kontext (landeten in Build-Layern unter /var/lib/docker
+# und machten jede stündliche Sicherung zu einem Cache-Bruch → kompletter Frontend-Neubau)
+backups
+*.sql
+*.sql.gz
