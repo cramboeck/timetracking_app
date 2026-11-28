@@ -904,7 +904,13 @@ export async function createInvoice(
           await new Promise(resolve => setTimeout(resolve, retries * 2000));
           continue;
         }
-        throw new Error(`Failed to create invoice: ${responseText}`);
+        // sevDesk liefert JSON {error:{message}} — nur die Meldung weitergeben
+        let detail = responseText;
+        try {
+          const parsed = JSON.parse(responseText) as { error?: { message?: string } };
+          if (parsed?.error?.message) detail = parsed.error.message;
+        } catch { /* kein JSON */ }
+        throw new Error(`sevDesk hat die Rechnung abgelehnt: ${detail.slice(0, 300)}`);
       }
 
       const invoiceResponse = JSON.parse(responseText) as { objects: { invoice: { id: string; invoiceNumber: string } } };
@@ -2219,11 +2225,9 @@ function objectToFormData(obj: Record<string, unknown>, prefix = ''): string {
           parts.push(`${encodeURIComponent(`${fullKey}[${index}]`)}=${encodeURIComponent(String(item))}`);
         }
       });
-    } else if (typeof value === 'boolean') {
-      // Eindeutig 1/0: als Text „true“/„false“ wurde z.B. showNet=true im
-      // sevDesk-Backend als 0 gelesen → Rechnung landete im Brutto-Modus
-      parts.push(`${encodeURIComponent(fullKey)}=${value ? '1' : '0'}`);
     } else {
+      // Booleans bewusst als „true“/„false“: mit 1/0 las saveInvoice mapAll
+      // nicht als gesetzt und verwarf die Felder („Invalid invoiceType“, 28.11.)
       parts.push(`${encodeURIComponent(fullKey)}=${encodeURIComponent(String(value))}`);
     }
   }
