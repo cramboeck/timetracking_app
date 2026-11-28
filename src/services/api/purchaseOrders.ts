@@ -1,7 +1,7 @@
 /**
  * WE-1 Bestellvorgänge: Bestell-Postfach → Vorgänge, Zuordnung zu Ticket/Kunde/Eigenbedarf.
  */
-import { authFetch } from './base';
+import { authFetch, authFetchMultipart } from './base';
 
 export type PurchaseOrderStatus = 'expected' | 'ordered' | 'shipped' | 'received' | 'cancelled';
 export type PurchaseOrderFilter = 'open' | 'unassigned' | 'received' | 'all';
@@ -101,6 +101,17 @@ export interface BillingCheckItem {
   amountMismatch: boolean;
 }
 
+export interface OrderDocumentResult {
+  orderId: string;
+  created: boolean;
+  linesAdded: number;
+  linesKept: boolean;
+  usedImages: boolean;
+  recognized: { supplierName: string | null; orderNumber: string | null; reference: string | null; netAmount: number | null; lineCount: number };
+  assignedTo: 'ticket' | 'customer' | 'internal' | null;
+  order: PurchaseOrder;
+}
+
 export type AssignTarget = { ticketId: string } | { customerId: string } | { internal: true };
 
 export const purchaseOrdersApi = {
@@ -119,6 +130,12 @@ export const purchaseOrdersApi = {
     authFetch('/purchase-orders/process', { method: 'POST', body: JSON.stringify({}) }),
   assign: async (id: string, target: AssignTarget): Promise<{ success: boolean; data: PurchaseOrder }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/assign`, { method: 'POST', body: JSON.stringify(target) }),
+  /** Beleg (PDF/Foto) auslesen → neuer Vorgang oder bestehenden ergänzen */
+  uploadDocument: async (file: File, orderId?: string): Promise<{ success: boolean; data: OrderDocumentResult }> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return authFetchMultipart(`/purchase-orders/document${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ''}`, fd);
+  },
   billingCheck: async (): Promise<{ success: boolean; data: BillingCheckItem[] }> =>
     authFetch('/purchase-orders/billing-check'),
   clearBilling: async (id: string, cleared: boolean, note?: string): Promise<{ success: boolean }> =>

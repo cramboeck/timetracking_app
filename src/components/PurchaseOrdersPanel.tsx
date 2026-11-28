@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import {
   Inbox, Search, RefreshCw, Truck, PackageCheck, Ticket as TicketIcon, Building2,
-  Home, AlertTriangle, ChevronDown, ChevronUp, Link2, Ban, Mail, FileCheck,
+  Home, AlertTriangle, ChevronDown, ChevronUp, Link2, Ban, Mail, FileCheck, Upload, Loader2,
 } from 'lucide-react';
 import {
   customersApi, purchaseOrdersApi, ticketsApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl,
@@ -62,6 +62,37 @@ export const PurchaseOrdersPanel = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [assignOrder, setAssignOrder] = useState<PurchaseOrder | null>(null);
   const [receiveOrder, setReceiveOrder] = useState<PurchaseOrder | null>(null);
+  // Beleg hochladen: Drag & Drop auf die Liste (neuer Vorgang) oder auf einen Vorgang (ergänzen)
+  const fileRef = useRef<HTMLInputElement>(null);
+  const uploadTarget = useRef<string | undefined>(undefined);
+  const [dragOver, setDragOver] = useState<string | null>(null); // 'list' | orderId
+  const uploadMutation = useMutation({
+    mutationFn: ({ file, orderId }: { file: File; orderId?: string }) => purchaseOrdersApi.uploadDocument(file, orderId),
+    onSuccess: res => {
+      const d = res.data;
+      const what = [d.recognized.supplierName, d.recognized.orderNumber].filter(Boolean).join(' ');
+      const lines = d.linesAdded > 0 ? `${d.linesAdded} Position${d.linesAdded === 1 ? '' : 'en'} erkannt`
+        : d.linesKept ? 'Positionen waren schon vorhanden (nicht überschrieben)' : 'keine Positionen erkannt';
+      const assigned = d.assignedTo === 'ticket' ? ' · Ticket zugeordnet' : d.assignedTo === 'customer' ? ' · Kunde über Lieferadresse' : d.assignedTo === 'internal' ? ' · Eigenbedarf' : '';
+      showToast(`${d.created ? 'Neuer Vorgang' : 'Vorgang ergänzt'}${what ? ` (${what})` : ''}: ${lines}${assigned}`, d.linesAdded > 0 || d.linesKept ? 'success' : 'warning', 7000);
+      setExpanded(d.orderId);
+      if (d.created && filter !== 'open' && filter !== 'all') setFilter('open');
+      invalidate();
+    },
+    onError: (err: Error) => showToast(err.message || 'Beleg konnte nicht gelesen werden', 'error', 7000),
+  });
+  const pickFile = (orderId?: string) => { uploadTarget.current = orderId; fileRef.current?.click(); };
+  const handleFiles = (files: FileList | null, orderId?: string) => {
+    const f = files?.[0];
+    if (!f) return;
+    if (!/^(application\/pdf|image\/(png|jpeg|webp))$/.test(f.type)) { showToast('Bitte ein PDF oder Foto (PNG/JPG) verwenden', 'warning'); return; }
+    uploadMutation.mutate({ file: f, orderId });
+  };
+  const dropProps = (target: string, orderId?: string) => ({
+    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); setDragOver(target); } },
+    onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(d => (d === target ? null : d)); },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(null); handleFiles(e.dataTransfer.files, orderId); },
+  });
 
   const ordersQuery = useQuery({
     queryKey: ['purchase-orders', filter, search],
@@ -138,7 +169,19 @@ export const PurchaseOrdersPanel = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 relative rounded-xl ${dragOver === 'list' ? 'ring-2 ring-accent-primary ring-offset-4 dark:ring-offset-dark-50' : ''}`} {...dropProps('list')}>
+      <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" className="hidden" data-testid="order-doc-input"
+        onChange={e => { handleFiles(e.target.files, uploadTarget.current); e.target.value = ''; }} />
+      {dragOver === 'list' && (
+        <div className="pointer-events-none absolute inset-0 z-10 rounded-xl bg-accent-primary/5 flex items-start justify-center pt-24">
+          <span className="rounded-xl bg-white dark:bg-dark-100 shadow px-4 py-2 text-sm font-medium text-accent-primary">Beleg loslassen — wird ausgelesen und als Vorgang angelegt</span>
+        </div>
+      )}
+      {uploadMutation.isPending && (
+        <div className="rounded-xl border border-accent-primary/30 bg-accent-primary/5 px-4 py-2.5 text-sm text-gray-700 dark:text-dark-500 flex items-center gap-2" data-testid="order-doc-busy">
+          <Loader2 size={15} className="animate-spin text-accent-primary" /> Beleg wird ausgelesen … (bei Scans bis zu 30 s)
+        </div>
+      )}
       {/* Kopf: Filter + Suche + Abruf */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1" data-no-swipe>
@@ -180,6 +223,18 @@ export const PurchaseOrdersPanel = () => {
           <Button
             variant="secondary"
             size="sm"
+            icon={<Upload size={14} />}
+            onClick={() => pickFile()}
+            disabled={uploadMutation.isPending}
+            className="whitespace-nowrap"
+            title="Auftragsbestätigung oder Lieferschein als PDF/Foto — oder einfach auf die Liste ziehen"
+          >
+            <span className="hidden sm:inline">Beleg hochladen</span>
+            <span className="sm:hidden">Beleg</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             icon={<RefreshCw size={14} className={processMutation.isPending ? 'animate-spin' : ''} />}
             onClick={() => processMutation.mutate()}
             disabled={processMutation.isPending}
@@ -208,6 +263,7 @@ export const PurchaseOrdersPanel = () => {
           {!search && filter !== 'unassigned' && (
             <div className="mt-2 text-sm text-gray-500 dark:text-dark-400 max-w-md mx-auto space-y-1">
               <p>Bestellbestätigungen, Versandmitteilungen und Rechnungen aus dem Bestell-Postfach landen hier automatisch — egal bei welchem Lieferanten.</p>
+              <p>Oder eine Auftragsbestätigung als PDF/Foto hierher ziehen bzw. „Beleg hochladen“.</p>
               <p>Tipp: Ticketnummer (z.B. <span className="font-mono">TKT-000123</span>) beim Bestellen ins Feld Referenz/Kommission schreiben, <span className="font-mono">INTERN</span> für Eigenbedarf.</p>
               <p><a href="/settings?tab=microsoft365" className="text-accent-primary hover:underline">Bestell-Postfach unter Einstellungen → Microsoft 365 festlegen</a></p>
             </div>
@@ -220,7 +276,8 @@ export const PurchaseOrdersPanel = () => {
             const amount = fmtEur(o.grossAmount ?? o.netAmount, o.currency);
             const date = fmtDate(o.orderDate) ?? fmtDate(o.createdAt);
             return (
-              <div key={o.id} className="p-3 sm:p-4" data-testid="purchase-order">
+              <div key={o.id} data-testid="purchase-order" {...dropProps(o.id, o.id)}
+                className={`p-3 sm:p-4 transition-colors ${dragOver === o.id ? 'bg-accent-primary/10 ring-2 ring-inset ring-accent-primary' : ''}`}>
                 <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -273,6 +330,12 @@ export const PurchaseOrdersPanel = () => {
                     <Button size="sm" variant={o.status === 'received' ? 'ghost' : 'secondary'} icon={<PackageCheck size={13} />} onClick={() => setReceiveOrder(o)}
                       data-testid="order-receive">
                       {o.status === 'received' ? 'Geräte erfassen' : 'Wareneingang'}
+                    </Button>
+                  )}
+                  {o.status !== 'cancelled' && (
+                    <Button size="sm" variant="ghost" icon={<Upload size={13} />} onClick={() => pickFile(o.id)} disabled={uploadMutation.isPending}
+                      title="Auftragsbestätigung/Lieferschein zu diesem Vorgang auslesen (oder Datei auf den Vorgang ziehen)" data-testid="order-doc-upload">
+                      Beleg
                     </Button>
                   )}
                   {o.lineCount > 0 && (

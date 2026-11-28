@@ -8,7 +8,9 @@ import { validate } from '../middleware/validation';
 import { logger } from '../utils/logger';
 import {
   ORDER_SELECT, mapOrder, prepareOrderForTicket, processOrderMailbox, PurchaseOrderStatus,
+  ingestOrderDocument, OrderDocumentError,
 } from '../services/purchaseOrderService';
+import multer from 'multer';
 import { receiveGoods, GoodsReceiptError } from '../services/goodsReceiptService';
 import { getBillingCheck } from '../services/orderBillingService';
 import { guessAssetType, lineNeedsSerials } from '../utils/assetTypeGuess';
@@ -145,6 +147,35 @@ router.post('/process', requireOrgRole('admin'), async (req: AuthRequest, res: R
   } catch (error) {
     logger.error('Process order mailbox error:', error);
     res.status(500).json({ success: false, error: 'Bestell-Postfach konnte nicht abgerufen werden' });
+  }
+});
+
+// Beleg hochladen (Drag & Drop / Datei / Foto): Auftragsbestätigung oder
+// Lieferschein auslesen → neuer Vorgang bzw. bestehenden ergänzen (?orderId=).
+// Nur im Speicher verarbeitet, die Datei wird nicht abgelegt.
+const ORDER_DOC_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+const docUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => cb(null, ORDER_DOC_MIMES.includes(file.mimetype)),
+});
+router.post('/document', requireOrgRole('admin'), (req, res, next) => {
+  docUpload.single('file')(req, res, err => {
+    if (err) return res.status(400).json({ success: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'Datei zu groß (max. 15 MB)' : 'Upload fehlgeschlagen' });
+    next();
+  });
+}, async (req: AuthRequest, res: Response) => {
+  try {
+    const file = (req as unknown as { file?: Express.Multer.File }).file;
+    if (!file) return res.status(400).json({ success: false, error: 'Bitte ein PDF oder Foto (PNG/JPG) hochladen' });
+    const orderId = typeof req.query.orderId === 'string' && req.query.orderId.length <= 100 ? req.query.orderId : undefined;
+    const result = await ingestOrderDocument(orgId(req), req.userId!, { orderId, filename: file.originalname, buffer: file.buffer, mime: file.mimetype });
+    const full = await query(`${ORDER_SELECT} WHERE o.id = $1`, [result.orderId]);
+    res.json({ success: true, data: { ...result, order: mapOrder(full.rows[0]) } });
+  } catch (error) {
+    if (error instanceof OrderDocumentError) return res.status(error.status).json({ success: false, error: error.message });
+    logger.error('Order document upload error:', error);
+    res.status(500).json({ success: false, error: 'Beleg konnte nicht verarbeitet werden' });
   }
 });
 

@@ -2495,7 +2495,64 @@ MUSTER FÜR KUNDENERKENNUNG:
     return r.rows[0] ?? null;
   }
 
-  async callAI(config: any, prompt: string): Promise<string> {
+  /**
+   * Bild-Auslesen (gescannte PDFs, Fotos): Seiten als PNG/JPEG an das Modell.
+   * Anthropic und OpenAI; das eingestellte Modell muss Bilder können.
+   */
+  async callAIWithImages(config: any, prompt: string, images: Array<{ data: Buffer; mime: string }>, maxTokens = 4000): Promise<string> {
+    const provider = config.provider || 'openai';
+    const apiKey = config.api_key;
+    if (!apiKey) throw new Error('No API key configured');
+    if (provider === 'anthropic') {
+      const model = config.model || 'claude-3-haiku-20240307';
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model, max_tokens: maxTokens,
+          system: 'Du extrahierst Daten aus Geschäftsdokumenten. Antworte immer im angeforderten JSON-Format.',
+          messages: [{ role: 'user', content: [
+            ...images.map(i => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.data.toString('base64') } })),
+            { type: 'text', text: prompt },
+          ] }],
+        }),
+      });
+      if (!response.ok) throw new Error(`Anthropic API error: ${response.status}`);
+      const data = await response.json() as { content?: Array<{ text?: string }> };
+      return data.content?.[0]?.text || '';
+    }
+    const model = config.model && /4o|4\.1|gpt-5|vision/i.test(config.model) ? config.model : 'gpt-4o';
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model, max_tokens: maxTokens, temperature: 0.1,
+        messages: [
+          { role: 'system', content: 'Du extrahierst Daten aus Geschäftsdokumenten. Antworte immer im angeforderten JSON-Format.' },
+          { role: 'user', content: [
+            ...images.map(i => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.data.toString('base64')}`, detail: 'high' } })),
+            { type: 'text', text: prompt },
+          ] },
+        ],
+      }),
+    });
+    if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  /** PDF-Seiten als PNG (für Bild-Auslesen gescannter PDFs). */
+  async renderPdfPages(buffer: Buffer, maxPages = 3): Promise<Buffer[]> {
+    const doc = await pdf(buffer, { scale: 2.0 });
+    const pages: Buffer[] = [];
+    for await (const img of doc) {
+      pages.push(img);
+      if (pages.length >= maxPages) break;
+    }
+    return pages;
+  }
+
+  async callAI(config: any, prompt: string, maxTokens = 1000): Promise<string> {
     const provider = config.provider || 'openai';
     const apiKey = config.api_key;
     const model = config.model || (provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-haiku-20240307');
@@ -2514,7 +2571,7 @@ MUSTER FÜR KUNDENERKENNUNG:
         },
         body: JSON.stringify({
           model,
-          max_tokens: 1000,
+          max_tokens: maxTokens,
           messages: [{ role: 'user', content: prompt }],
           system: 'Du bist ein Experte für das Extrahieren von Daten aus Rechnungen. Antworte immer im angeforderten JSON-Format.',
         }),
@@ -2542,7 +2599,7 @@ MUSTER FÜR KUNDENERKENNUNG:
             },
             { role: 'user', content: prompt },
           ],
-          max_tokens: 1000,
+          max_tokens: maxTokens,
           temperature: 0.1,
         }),
       });
