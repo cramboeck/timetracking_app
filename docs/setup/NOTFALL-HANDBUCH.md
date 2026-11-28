@@ -23,14 +23,14 @@
 ## 2. Zugangswege (in dieser Reihenfolge probieren)
 
 ### srv-docker01
-1. **SSH über NetBird:** NetBird-Client verbinden → `ssh christoph@100.87.235.106` (Schlüssel + Passphrase).
+1. **SSH über NetBird:** NetBird-Client verbinden → `ssh srv-docker01` (Laptop-Schlüssel `id_ed25519_ramboeck` + Passphrase, Eintrag in `~/.ssh/config`).
 2. **Hetzner-Konsole:** console.hetzner.cloud → Projekt → srv-docker01 → `>_` (Konsole). Anmeldung als `christoph` mit Passwort. Funktioniert IMMER, auch ohne NetBird/SSH.
 3. **Hetzner-Rettungssystem:** Reiter *Rescue* → Rescue aktivieren → Neustart → Platte mounten (`mount /dev/sda1 /mnt`) → z. B. `chroot /mnt passwd christoph`. Danach Rescue wieder **deaktivieren**.
 
 Port 22 ist öffentlich **zu** (Hetzner Cloud Firewall). Nur über NetBird oder Konsole.
 
 ### NetBird-Server
-1. **SSH direkt:** `ssh christoph@178.104.129.84` (nur Schlüssel, root-Login gesperrt).
+1. **SSH direkt:** `ssh netbird-srv` (nur Schlüssel, root-Login gesperrt).
 2. **Hetzner-Konsole** als `root` oder `christoph` mit Passwort.
 3. **Rettungssystem** wie oben.
 
@@ -50,7 +50,8 @@ Passwort-Login neben „Mit Microsoft anmelden“ bleibt als Notfallweg (Notfall
 | root-Passwort NetBird-Server | Hetzner-Konsole |
 | Passwort `christoph` auf srv-docker01 und NetBird-Server | Hetzner-Konsole, `sudo` |
 | SSH-Schlüssel-Passphrase (Laptop, Handy) | SSH |
-| **Kopie des privaten SSH-Schlüssels** `id_ed25519` (verschlüsselt, mit Passphrase) | falls der Laptop ausfällt |
+| **SSH-Schlüssel** `id_ed25519_ramboeck` + `.pub` als Datei-Anhang (Keeper-Eintrag „SSH – RamboFlow-Server“), Passphrase im selben Eintrag | falls der Laptop ausfällt |
+| `.env.production`, NetBird-`docker-compose.yml` + `config.yaml` als Datei-Anhang (Keeper) | Neuinstallation |
 | NetBird-Dashboard-Login (Admin) | Geräte/Regeln |
 | GitHub-Konto + 2FA-Wiederherstellungscodes | Code |
 | Domain-/DNS-Anbieter-Login | Domains, DNS |
