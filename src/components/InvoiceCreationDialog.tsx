@@ -49,6 +49,8 @@ interface InvoiceCreationDialogProps {
   periodStart: Date;
   periodEnd: Date;
   onSuccess: (invoiceNumber: string) => void;
+  /** Vorbelegung aus einem KI-Vorschlag (überschreibt nur die Standardtexte) */
+  initialTexts?: { header?: string; headText?: string };
 }
 
 export const InvoiceCreationDialog = ({
@@ -58,6 +60,7 @@ export const InvoiceCreationDialog = ({
   periodStart,
   periodEnd,
   onSuccess,
+  initialTexts,
 }: InvoiceCreationDialogProps) => {
   const showToast = useToast();
   // Rechnungsdatum (Standard heute) — wird an sevDesk übergeben
@@ -174,8 +177,8 @@ export const InvoiceCreationDialog = ({
 
     // Set default header
     const monthYear = periodStart.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-    setInvoiceHeader(`IT-Dienstleistungen ${monthYear}`);
-    setHeadText(`Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\n\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
+    setInvoiceHeader(initialTexts?.header || `IT-Dienstleistungen ${monthYear}`);
+    setHeadText(initialTexts?.headText || `Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\n\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:`);
 
     // Default footer with payment terms and due date
     const paymentTermsDays = customer.paymentTermsDays || 14;

@@ -77,6 +77,20 @@ const itemSchema = z.discriminatedUnion('type', [
       content: z.string().trim().min(1).max(2000),
     }),
   }),
+  // Rechnung: nur Kunde + Zeitraum (+ optional Texte/Hinweis). Positionen und
+  // Beträge rechnet IMMER der normale Rechnungsdialog aus den echten Zeiten.
+  z.object({
+    type: z.literal('invoice'),
+    ...common,
+    payload: z.object({
+      customerId: z.string().min(1).max(100),
+      periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      header: z.string().trim().max(500).optional(),
+      headText: z.string().trim().max(5000).optional(),
+      note: z.string().trim().max(2000).optional(),
+    }),
+  }),
 ]);
 type ProposalItem = z.infer<typeof itemSchema>;
 
@@ -142,6 +156,43 @@ async function checkItem(item: ProposalItem, userId: string, organizationId: str
       payload: item.payload,
     };
   }
+  if (item.type === 'invoice') {
+    const p = item.payload;
+    const c = await customerInOrg(p.customerId, organizationId);
+    if (!c) return { error: 'Kunde nicht gefunden' };
+    if (p.periodEnd < p.periodStart) return { error: 'Zeitraum-Ende liegt vor dem Beginn' };
+    const startMs = Date.parse(`${p.periodStart}T12:00:00Z`);
+    const endMs = Date.parse(`${p.periodEnd}T12:00:00Z`);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return { error: 'Ungültiges Datum' };
+    if (endMs - startMs > 366 * 86_400_000) return { error: 'Zeitraum länger als ein Jahr' };
+    if (startMs > Date.now()) return { error: 'Zeitraum liegt in der Zukunft' };
+    const warnings: string[] = [];
+    const info = await query(
+      `SELECT c.sevdesk_customer_id,
+              (SELECT COUNT(*)::int FROM time_entries te JOIN projects pr ON pr.id = te.project_id
+                WHERE pr.customer_id = c.id AND te.organization_id = $2
+                  AND COALESCE(te.is_running, false) = false AND COALESCE(te.is_billable, true)
+                  AND te.invoice_export_id IS NULL
+                  AND te.start_time >= $3::date AND te.start_time < ($4::date + 1)) AS open_entries,
+              (SELECT COUNT(*)::int FROM invoice_exports ie
+                WHERE ie.customer_id = c.id AND ie.period_start <= $4::date AND ie.period_end >= $3::date) AS exports
+         FROM customers c WHERE c.id = $1`,
+      [c.id, organizationId, p.periodStart, p.periodEnd]
+    );
+    const row = info.rows[0] ?? {};
+    if (!row.sevdesk_customer_id) warnings.push('not_linked');
+    if (Number(row.open_entries ?? 0) === 0) warnings.push('no_open_hours');
+    if (Number(row.exports ?? 0) > 0) warnings.push('already_billed');
+    const sameMonth = p.periodStart.slice(0, 7) === p.periodEnd.slice(0, 7);
+    const label = sameMonth
+      ? new Date(startMs).toLocaleDateString('de-DE', { month: 'long', year: 'numeric', timeZone: 'Europe/Berlin' })
+      : `${p.periodStart.split('-').reverse().join('.')} – ${p.periodEnd.split('-').reverse().join('.')}`;
+    return {
+      customerId: c.id, ticketId: null, warnings,
+      title: item.title || `Rechnung ${c.name} · ${label}`,
+      payload: p,
+    };
+  }
   const c = await customerInOrg(item.payload.customerId, organizationId);
   if (!c) return { error: 'Kunde nicht gefunden' };
   return {
@@ -172,7 +223,8 @@ router.post('/proposals', requireAgentPackage, requireOrgRole('member'), validat
       // Doppelte offene Vorschläge (gleiches Ziel) nicht erneut anlegen —
       // der Agent darf denselben Monatsabschluss gefahrlos zweimal laufen lassen
       const dupKey = item.type === 'time_entry'
-        ? ['startTime', 'endTime'] : item.type === 'ticket_comment' ? ['ticketId', 'content'] : ['customerId', 'content'];
+        ? ['startTime', 'endTime'] : item.type === 'ticket_comment' ? ['ticketId', 'content']
+        : item.type === 'invoice' ? ['customerId', 'periodStart'] : ['customerId', 'content'];
       const dup = await query(
         `SELECT id FROM agent_proposals
           WHERE user_id = $1 AND type = $2 AND status = 'pending'
@@ -360,6 +412,27 @@ router.post('/proposals/:id/approve-note', requireAgentPackage, requireOrgRole('
     res.json({ success: true, data: { noteId: String(ins.rows[0].id) } });
   } catch (error) {
     logger.error('Approve note proposal error:', error);
+    res.status(500).json({ success: false, error: 'Interner Serverfehler' });
+  }
+});
+
+// Rechnungs-Vorschlag: angelegt wird die Rechnung im normalen Dialog (App);
+// hier wird nur vermerkt, dass der Vorschlag damit erledigt ist.
+const approveInvoiceSchema = z.object({ invoiceNumber: z.string().trim().max(100).optional() });
+router.post('/proposals/:id/approve-invoice', requireAgentPackage, requireOrgRole('admin'), validate(approveInvoiceSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.apiToken) return res.status(403).json({ success: false, error: 'Nur in der App möglich' });
+    const p = await loadOwnPending(req, req.params.id);
+    if (!p || p.type !== 'invoice') return res.status(404).json({ success: false, error: 'Vorschlag nicht (mehr) offen' });
+    const invoiceNumber = (req.body as z.infer<typeof approveInvoiceSchema>).invoiceNumber ?? null;
+    await query(
+      `UPDATE agent_proposals SET status = 'approved', result_ref = $2, decided_by = $3, decided_at = NOW()
+        WHERE id = $1 AND status = 'pending'`,
+      [p.id, invoiceNumber, req.userId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Approve invoice proposal error:', error);
     res.status(500).json({ success: false, error: 'Interner Serverfehler' });
   }
 });

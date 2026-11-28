@@ -1,18 +1,30 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Sparkles, Check, X, Pencil, Mail, CalendarDays, MessageSquare, Ticket as TicketIcon, FileText, Link2,
-  AlertTriangle, Clock, StickyNote, Bot,
+  AlertTriangle, Clock, StickyNote, Bot, Receipt,
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import CustomerAvatar from './ui/CustomerAvatar';
 import { useConfirm, useToast } from '../contexts/UIContext';
 import {
-  agentApi, NOTE_CATEGORY_LABELS,
+  agentApi, NOTE_CATEGORY_LABELS, sevdeskApi,
+  type BillingSummaryItem,
   type Proposal, type ProposalSource, type TimeEntryProposalPayload, type NoteCategory,
 } from '../services/api';
 import type { TimeEntry } from '../types';
 import { generateUUID } from '../utils/uuid';
+
+// Rechnungsdialog nur bei Bedarf laden (Finanzen-Code bleibt aus dem Inbox-Bundle)
+const InvoiceCreationDialog = lazy(() => import('./InvoiceCreationDialog').then(m => ({ default: m.InvoiceCreationDialog })));
+
+const INVOICE_WARNINGS: Record<string, string> = {
+  not_linked: 'Kunde ist noch nicht mit sevDesk verknüpft',
+  no_open_hours: 'Keine offenen abrechenbaren Zeiten im Zeitraum',
+  already_billed: 'Für diesen Zeitraum gibt es schon eine Rechnung',
+};
+const ymdToDate = (ymd: string) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtYmd = (ymd: string) => ymd.split('-').reverse().join('.');
 
 /**
  * KI-Vorschläge (Agenten-Programm Phase B): Was der Agent ermittelt hat,
@@ -85,6 +97,8 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string | boolean>>({});
   const [busy, setBusy] = useState(false);
+  // Rechnungs-Vorschlag: geöffneter normaler Rechnungsdialog
+  const [invoiceFor, setInvoiceFor] = useState<{ p: Extract<Proposal, { type: 'invoice' }>; item: BillingSummaryItem } | null>(null);
 
   const { data: proposals = [], isLoading } = useQuery({
     queryKey: ['agent', 'proposals', tab],
@@ -99,6 +113,24 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
   const times = useMemo(() => proposals.filter((p): p is Extract<Proposal, { type: 'time_entry' }> => p.type === 'time_entry'), [proposals]);
   const comments = useMemo(() => proposals.filter((p): p is Extract<Proposal, { type: 'ticket_comment' }> => p.type === 'ticket_comment'), [proposals]);
   const notes = useMemo(() => proposals.filter((p): p is Extract<Proposal, { type: 'customer_note' }> => p.type === 'customer_note'), [proposals]);
+  const invoices = useMemo(() => proposals.filter((p): p is Extract<Proposal, { type: 'invoice' }> => p.type === 'invoice'), [proposals]);
+
+  // Rechnungs-Vorschlag „übernehmen“ = normalen Rechnungsdialog mit echten Zahlen öffnen
+  const openInvoice = async (p: Extract<Proposal, { type: 'invoice' }>) => {
+    setBusy(true);
+    try {
+      const res = await sevdeskApi.getBillingSummary(p.payload.periodStart, p.payload.periodEnd);
+      const item = (res.data ?? []).find(i => i.customerId === p.payload.customerId);
+      if (!item) { showToast('Für diesen Kunden gibt es im Zeitraum keine offenen abrechenbaren Zeiten.', 'warning'); return; }
+      if (!item.sevdeskCustomerId) { showToast('Der Kunde ist noch nicht mit sevDesk verknüpft (Finanzen → Abrechnung).', 'warning'); return; }
+      setInvoiceFor({ p, item });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      showToast(/403|admin|berecht/i.test(msg) ? 'Rechnungen darf nur ein Admin oder Owner erstellen.' : 'Abrechnungsdaten konnten nicht geladen werden', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
   const totalSec = times.reduce((s, p) => s + (p.payload.duration ?? 0), 0);
 
   const approveTime = async (p: Extract<Proposal, { type: 'time_entry' }>, payload: TimeEntryProposalPayload) => {
@@ -151,6 +183,10 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
         queryClient.invalidateQueries({ queryKey: ['ticket', p.payload.ticketId] });
         refresh();
         showToast('Kommentar übernommen', 'success');
+      } else if (p.type === 'invoice') {
+        // Rechnungen nie direkt: immer über den normalen Rechnungsdialog
+        await openInvoice(p);
+        return;
       } else {
         await agentApi.approveNote(p.id, editing === p.id
           ? { content: String(draft.content), category: draft.category as NoteCategory }
@@ -195,7 +231,7 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
       setDraft({ from: fmtTime(p.payload.startTime), to: fmtTime(p.payload.endTime), description: p.payload.description, isBillable: p.payload.isBillable });
     } else if (p.type === 'ticket_comment') {
       setDraft({ content: p.payload.content, isInternal: p.payload.isInternal });
-    } else {
+    } else if (p.type === 'customer_note') {
       setDraft({ content: p.payload.content, category: p.payload.category });
     }
   };
@@ -366,6 +402,35 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
             </section>
           )}
 
+          {invoices.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Receipt size={16} /> Rechnungen ({invoices.length})</h2>
+              {invoices.map(p => (
+                <div key={p.id} className={card} data-testid="invoice-proposal">
+                  <p className="text-sm text-gray-700 dark:text-dark-500 flex items-center gap-2 min-w-0">
+                    <Customer p={p} fallback="Kunde" />
+                  </p>
+                  <p className="text-sm text-gray-900 dark:text-white mt-1">
+                    Leistungszeitraum {fmtYmd(p.payload.periodStart)} – {fmtYmd(p.payload.periodEnd)}
+                  </p>
+                  {p.payload.note && <p className="mt-1.5 text-sm text-gray-700 dark:text-dark-500 whitespace-pre-wrap">{p.payload.note}</p>}
+                  {(p.payload.warnings ?? []).map(w => (
+                    <p key={w} className="mt-1.5 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                      <AlertTriangle size={12} /> {INVOICE_WARNINGS[w] ?? w}
+                    </p>
+                  ))}
+                  <Sources p={p} />
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Button size="sm" variant="primary" onClick={() => openInvoice(p)} disabled={busy} icon={<Receipt size={14} />}>Rechnung vorbereiten</Button>
+                    <Button size="sm" variant="ghost" onClick={() => askReject(p)} disabled={busy} icon={<X size={14} />} className="text-red-600 dark:text-red-400">Ablehnen</Button>
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-dark-400 mt-2">Öffnet den normalen Rechnungsdialog mit den echten Zeiten — angelegt wird erst, wenn du dort auf „Rechnung erstellen“ tippst.</p>
+                  <Meta p={p} />
+                </div>
+              ))}
+            </section>
+          )}
+
           {notes.length > 0 && (
             <section className="space-y-2">
               <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2"><StickyNote size={16} /> Absprachen für das Kundengedächtnis ({notes.length})</h2>
@@ -393,6 +458,27 @@ export const ProposalsInbox = ({ onEntriesCreated }: Props) => {
             </section>
           )}
         </>
+      )}
+
+      {invoiceFor && (
+        <Suspense fallback={null}>
+          <InvoiceCreationDialog
+            isOpen
+            onClose={() => setInvoiceFor(null)}
+            customer={invoiceFor.item}
+            periodStart={ymdToDate(invoiceFor.p.payload.periodStart)}
+            periodEnd={ymdToDate(invoiceFor.p.payload.periodEnd)}
+            initialTexts={{ header: invoiceFor.p.payload.header, headText: invoiceFor.p.payload.headText }}
+            onSuccess={async (invoiceNumber) => {
+              const id = invoiceFor.p.id;
+              setInvoiceFor(null);
+              try { await agentApi.approveInvoice(id, invoiceNumber); } catch { /* Rechnung existiert — Vorschlag notfalls ablehnen */ }
+              queryClient.invalidateQueries({ queryKey: ['sevdesk'] });
+              refresh();
+              showToast(`Rechnung ${invoiceNumber} als Entwurf angelegt`, 'success');
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

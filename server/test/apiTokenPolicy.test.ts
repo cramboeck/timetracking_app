@@ -49,6 +49,8 @@ describe('apiTokenPolicy: erlaubte Endpunkte (MCP-Werkzeuge)', () => {
 describe('apiTokenPolicy: alles andere ist gesperrt (deny by default)', () => {
   it.each([
     ['POST', '/api/auth/api-tokens'],          // keine Selbst-Ausstellung neuer Zugänge
+    ['POST', '/api/agent/proposals/abc/approve-invoice'], // Rechnung nur in der App übernehmen
+    ['POST', '/api/sevdesk/create-invoice'],   // nie selbst Rechnungen anlegen
     ['GET', '/api/auth/api-tokens'],
     ['DELETE', '/api/auth/api-tokens/x'],
     ['DELETE', '/api/entries/abc'],            // nie löschen

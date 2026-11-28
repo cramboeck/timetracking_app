@@ -134,6 +134,24 @@ await withMcp(proposeTok.token, async (client, call) => {
     const kd = await call('kunde_details', { kunde: customers[0].name });
     check(kd.text.includes('Absprachen') && !/stundensatz|hourly/i.test(kd.text), 'kunde_details: Absprachen, keine Preise');
   }
+  // Rechnungs-Vorschlag: legt NICHTS in sevDesk an, nur einen Vorschlag
+  const huber = customers.find(c => /Huber/.test(c.name)) ?? customers[0];
+  if (huber) {
+    const exportsBefore = (await http('GET', '/sevdesk/invoice-exports', { token: jwt })).data?.data?.length ?? null;
+    const inv = await call('rechnung_vorschlagen', { kunde: huber.name, monat: '2026-10', hinweis: 'Szenario Rechnung', begruendung: 'Monatsabschluss' });
+    check(inv.text.includes('1 Vorschlag') && inv.text.includes('NICHTS'), `rechnung_vorschlagen legt nur einen Vorschlag an (${inv.text.split('\n')[0]})`);
+    const inv2 = await call('rechnung_vorschlagen', { kunde: huber.name, monat: '2026-10' });
+    check(inv2.text.includes('bereits als offener Vorschlag'), 'Gleicher Kunde + Zeitraum: keine Dublette');
+    const bad = await call('rechnung_vorschlagen', { kunde: huber.name });
+    check(bad.text.includes('nichts vorgeschlagen'), 'Ohne Zeitraum: nichts vorgeschlagen');
+    const exportsAfter = (await http('GET', '/sevdesk/invoice-exports', { token: jwt })).data?.data?.length ?? null;
+    check(exportsBefore === exportsAfter, 'Keine Rechnung/kein Export entstanden');
+    const ip = (await http('GET', '/agent/proposals', { token: jwt })).data.data.filter(p => p.type === 'invoice' && p.payload?.note === 'Szenario Rechnung');
+    const approveByToken = await http('POST', `/agent/proposals/${ip[0]?.id}/approve-invoice`, { token: proposeTok.token, body: {} });
+    check(approveByToken.status === 403, `API-Zugang kann den Rechnungs-Vorschlag nicht selbst freigeben (${approveByToken.status})`);
+    for (const p of ip) await http('POST', `/agent/proposals/${p.id}/reject`, { token: jwt, body: { note: 'Szenario' } });
+  }
+
   const pending = (await http('GET', '/agent/proposals', { token: jwt })).data.data.filter(p => p.payload?.description === 'Szenario Vorschlag intern');
   for (const p of pending) await http('POST', `/agent/proposals/${p.id}/reject`, { token: jwt, body: { note: 'Szenario' } });
   check(pending.length === 1, 'Genau ein Vorschlag in der Inbox (aufgeräumt)');

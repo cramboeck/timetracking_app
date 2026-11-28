@@ -26,7 +26,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const API_URL = process.env.RAMBOFLOW_API_URL?.replace(/\/$/, '');
 
 /** Token aus Umgebung oder (verschlüsselter) Datei laden. */
@@ -704,6 +704,56 @@ server.tool(
         payload: { customerId: found.customer.id, category: a.kategorie ?? 'general', content: a.text } }] },
     });
     return text(summarizeResults(res, [`Absprache für ${found.customer.name}`]));
+  }
+);
+
+server.tool(
+  'rechnung_vorschlagen',
+  'Schlägt eine Rechnung für einen Kunden und Leistungszeitraum vor (z.B. „Huber, Oktober“). Es wird NICHTS angelegt: ' +
+  'In RamboFlow öffnet die Freigabe den normalen Rechnungsdialog mit den echten Zeiten, erst dort entsteht ein sevDesk-Entwurf. ' +
+  'Vorher kunde_details aufrufen und die Absprachen (Abrechnung) beachten. monat=YYYY-MM ODER von/bis=YYYY-MM-DD. ' +
+  'betreff/einleitung nur, wenn vom Standard abweichend; hinweis = Notiz an den Menschen (z.B. „Fahrtzeit laut Absprache nicht berechnen“).',
+  {
+    kunde: z.string().trim().min(1).max(200),
+    monat: z.string().regex(/^\d{4}-\d{2}$/, 'Format: YYYY-MM').optional(),
+    von: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+    bis: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+    betreff: z.string().trim().max(500).optional(),
+    einleitung: z.string().trim().max(5000).optional(),
+    hinweis: z.string().trim().max(2000).optional(),
+    begruendung: z.string().trim().max(2000).optional(),
+    quellen: z.array(sourceParam).max(10).optional(),
+  },
+  PROPOSE,
+  async (a) => {
+    let periodStart: string;
+    let periodEnd: string;
+    if (a.monat) {
+      const [y, m] = a.monat.split('-').map(Number);
+      const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      periodStart = `${a.monat}-01`;
+      periodEnd = `${a.monat}-${String(last).padStart(2, '0')}`;
+    } else if (a.von && a.bis) {
+      periodStart = a.von;
+      periodEnd = a.bis;
+    } else {
+      return text('Bitte monat (YYYY-MM) oder von + bis (YYYY-MM-DD) angeben – nichts vorgeschlagen.');
+    }
+    const found = findCustomer(a.kunde, (await loadCatalog()).customers);
+    if ('error' in found) return text(`${found.error} – nichts vorgeschlagen.`);
+    const res = await api('/agent/proposals', {
+      method: 'POST',
+      body: { items: [{ type: 'invoice', reason: a.begruendung, sources: toSources(a.quellen),
+        payload: { customerId: found.customer.id, periodStart, periodEnd, header: a.betreff, headText: a.einleitung, note: a.hinweis } }] },
+    });
+    const r = res.data?.results?.[0];
+    const warn: Record<string, string> = {
+      not_linked: 'Kunde ist nicht mit sevDesk verknüpft',
+      no_open_hours: 'keine offenen abrechenbaren Zeiten im Zeitraum',
+      already_billed: 'für den Zeitraum gibt es schon eine Rechnung',
+    };
+    const extra = (r?.warnings ?? []).map((w: string) => `⚠ ${warn[w] ?? w}`).join('\n');
+    return text(summarizeResults(res, [`Rechnung ${found.customer.name} ${periodStart} – ${periodEnd}`]) + (extra ? `\n${extra}` : ''));
   }
 );
 
