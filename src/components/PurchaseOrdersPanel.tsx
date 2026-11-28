@@ -17,6 +17,7 @@ import { TicketPickerDialog } from './TicketPickerDialog';
 import { ticketPath } from './AreaNavigation';
 import { useConfirm, useToast } from '../contexts/UIContext';
 import { ReceiveGoodsDialog } from './ReceiveGoodsDialog';
+import { ReprocessBanner, OrderMailboxFooter } from './OrderMailboxTools';
 
 /**
  * WE-1 Bestellvorgänge: Alles, was im Bestell-Postfach ankommt (Bestätigung,
@@ -182,6 +183,7 @@ export const PurchaseOrdersPanel = () => {
           <Loader2 size={15} className="animate-spin text-accent-primary" /> Beleg wird ausgelesen … (bei Scans bis zu 30 s)
         </div>
       )}
+      <ReprocessBanner />
       {/* Kopf: Filter + Suche + Abruf */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1" data-no-swipe>
@@ -380,6 +382,7 @@ export const PurchaseOrdersPanel = () => {
         </div>
       )}
 
+      <OrderMailboxFooter />
       <AssignOrderDialog order={assignOrder} onClose={() => setAssignOrder(null)} onDone={invalidate} />
       <ReceiveGoodsDialog order={receiveOrder} onClose={() => setReceiveOrder(null)} />
     </div>

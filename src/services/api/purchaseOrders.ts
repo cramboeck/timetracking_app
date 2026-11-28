@@ -112,6 +112,26 @@ export interface OrderDocumentResult {
   order: PurchaseOrder;
 }
 
+export interface ReprocessStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+  result: { orders: number; ignored: number } | null;
+}
+export interface IgnoredOrderMail {
+  id: string;
+  subject: string | null;
+  senderName: string | null;
+  senderEmail: string | null;
+  receivedAt: string | null;
+  reason: 'marketing' | 'not_order' | 'no_order_number' | 'cancellation' | string | null;
+  aiType: string | null;
+  canPromote: boolean;
+}
+
 export type AssignTarget = { ticketId: string } | { customerId: string } | { internal: true };
 
 export const purchaseOrdersApi = {
@@ -136,6 +156,15 @@ export const purchaseOrdersApi = {
     fd.append('file', file);
     return authFetchMultipart(`/purchase-orders/document${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ''}`, fd);
   },
+  /** Alle Vorgänge zurücksetzen und das Postfach der letzten `days` Tage neu einlesen (Hintergrund) */
+  reset: async (days = 30): Promise<{ success: boolean; data: { deleted: number; resetPrepared: number; keptManual: number; status: ReprocessStatus } }> =>
+    authFetch('/purchase-orders/reset', { method: 'POST', body: JSON.stringify({ days, reprocess: true }) }),
+  reprocessStatus: async (): Promise<{ success: boolean; data: ReprocessStatus }> =>
+    authFetch('/purchase-orders/reprocess-status'),
+  ignored: async (): Promise<{ success: boolean; data: IgnoredOrderMail[] }> =>
+    authFetch('/purchase-orders/ignored'),
+  promote: async (id: string): Promise<{ success: boolean; data: { orderId: string | null } }> =>
+    authFetch(`/purchase-orders/ignored/${encodeURIComponent(id)}/promote`, { method: 'POST', body: JSON.stringify({}) }),
   billingCheck: async (): Promise<{ success: boolean; data: BillingCheckItem[] }> =>
     authFetch('/purchase-orders/billing-check'),
   clearBilling: async (id: string, cleared: boolean, note?: string): Promise<{ success: boolean }> =>

@@ -9,6 +9,7 @@ import { logger } from '../utils/logger';
 import {
   ORDER_SELECT, mapOrder, prepareOrderForTicket, processOrderMailbox, PurchaseOrderStatus,
   ingestOrderDocument, OrderDocumentError,
+  resetPurchaseOrders, startReprocess, getReprocessStatus, listIgnoredOrderMails, promoteIgnoredOrderMail,
 } from '../services/purchaseOrderService';
 import multer from 'multer';
 import { receiveGoods, GoodsReceiptError } from '../services/goodsReceiptService';
@@ -176,6 +177,46 @@ router.post('/document', requireOrgRole('admin'), (req, res, next) => {
     if (error instanceof OrderDocumentError) return res.status(error.status).json({ success: false, error: error.message });
     logger.error('Order document upload error:', error);
     res.status(500).json({ success: false, error: 'Beleg konnte nicht verarbeitet werden' });
+  }
+});
+
+// Zurücksetzen + Postfach neu einlesen (Erkennung v2). Admin; läuft im Hintergrund.
+const resetSchema = z.object({ days: z.number().int().min(1).max(90).default(30), reprocess: z.boolean().default(true) });
+router.post('/reset', requireOrgRole('admin'), validate(resetSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const b = resetSchema.parse(req.body);
+    if (getReprocessStatus(orgId(req)).running) return res.status(409).json({ success: false, error: 'Das Neueinlesen läuft bereits' });
+    const result = await resetPurchaseOrders(orgId(req));
+    const status = b.reprocess ? startReprocess(orgId(req), b.days) : getReprocessStatus(orgId(req));
+    res.json({ success: true, data: { ...result, status } });
+  } catch (error) {
+    logger.error('Purchase order reset error:', error);
+    res.status(500).json({ success: false, error: 'Zurücksetzen fehlgeschlagen' });
+  }
+});
+
+router.get('/reprocess-status', requireOrgRole('admin'), (req: AuthRequest, res: Response) => {
+  res.json({ success: true, data: getReprocessStatus(orgId(req)) });
+});
+
+// Nicht als Bestellung erkannte Mails (Kontrolle) + „doch übernehmen“
+router.get('/ignored', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ success: true, data: await listIgnoredOrderMails(orgId(req)) });
+  } catch (error) {
+    logger.error('List ignored order mails error:', error);
+    res.status(500).json({ success: false, error: 'Liste konnte nicht geladen werden' });
+  }
+});
+router.post('/ignored/:id/promote', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    const r = await promoteIgnoredOrderMail(orgId(req), req.params.id);
+    if (!r) return res.status(404).json({ success: false, error: 'Mail nicht gefunden (oder ohne gespeicherten Text)' });
+    if (!r.orderId) return res.status(422).json({ success: false, error: 'Daraus ließ sich kein Vorgang anlegen' });
+    res.json({ success: true, data: r });
+  } catch (error) {
+    logger.error('Promote order mail error:', error);
+    res.status(500).json({ success: false, error: 'Übernehmen fehlgeschlagen' });
   }
 });
 

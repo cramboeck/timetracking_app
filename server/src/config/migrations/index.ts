@@ -34,6 +34,7 @@ import * as m032 from './032-customer-billing-email';
 import * as m033 from './033-invoice-proposals';
 import * as m034 from './034-goods-receipt';
 import * as m035 from './035-order-invoice-billing';
+import * as m036 from './036-order-recognition-v2';
 
 export interface Migration {
   name: string;
@@ -81,4 +82,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '033-invoice-proposals', run: m033.run },
   { name: '034-goods-receipt', run: m034.run },
   { name: '035-order-invoice-billing', run: m035.run },
+  { name: '036-order-recognition-v2', run: m036.run },
 ];

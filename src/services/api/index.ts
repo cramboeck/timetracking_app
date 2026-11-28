@@ -245,4 +245,4 @@ export type { ApiTokenScope, ApiTokenInfo, ApiTokenRequestLog } from './apiToken
 export { agentApi, NOTE_CATEGORY_LABELS } from './agent';
 export type { Proposal, ProposalSource, ProposalStatus, ProposalType, TimeEntryProposalPayload, CommentProposalPayload, NoteProposalPayload, InvoiceProposalPayload, CustomerNote, NoteCategory } from './agent';
 export { purchaseOrdersApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl } from './purchaseOrders';
-export type { PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus, PurchaseOrderFilter, PurchaseOrderTracking, AssignTarget, ReceiveLineInput, GoodsReceiptResult, BillingCheckItem, BillingCheckState } from './purchaseOrders';
+export type { PurchaseOrder, PurchaseOrderLine, PurchaseOrderStatus, PurchaseOrderFilter, PurchaseOrderTracking, AssignTarget, ReceiveLineInput, GoodsReceiptResult, BillingCheckItem, BillingCheckState, ReprocessStatus, IgnoredOrderMail } from './purchaseOrders';

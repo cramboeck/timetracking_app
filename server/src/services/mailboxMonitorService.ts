@@ -117,6 +117,8 @@ class MailboxMonitorService {
       folder?: string;
       mailboxType?: MailboxType;
       includeRead?: boolean;
+      /** nur Mails ab diesem Zeitpunkt (Neueinlesen) */
+      since?: Date;
     } = {}
   ): Promise<MailboxMonitorResult> {
     const clientData = await this.createClient(organizationId);
@@ -144,9 +146,11 @@ class MailboxMonitorService {
         .select('id,conversationId,internetMessageId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,isRead,importance');
 
       // Only filter by unread if not including read emails
-      if (!includeRead) {
-        apiRequest = apiRequest.filter('isRead eq false');
-      }
+      // Graph: das Sortierfeld (receivedDateTime) muss im Filter zuerst stehen
+      const filters: string[] = [];
+      if (options.since) filters.push(`receivedDateTime ge ${options.since.toISOString()}`);
+      if (!includeRead) filters.push('isRead eq false');
+      if (filters.length) apiRequest = apiRequest.filter(filters.join(' and '));
 
       const response = await apiRequest.get();
 
