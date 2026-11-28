@@ -180,7 +180,7 @@ export const InvoiceCreationDialog = ({
     // Default footer with payment terms and due date
     const paymentTermsDays = customer.paymentTermsDays || 14;
     const dueDate = calculateDueDate();
-    setFootText(`Zahlungsbedingungen: Zahlung innerhalb von ${paymentTermsDays} Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
+    setFootText(`Zahlungsbedingungen: Zahlung innerhalb von ${paymentTermsDays} Tagen ab Rechnungseingang ohne Abzüge.\nBitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\n\nDer Rechnungsbetrag ist zum ${dueDate} fällig.`);
 
     // Load pending expenses for this customer
     loadPendingExpenses();
@@ -560,7 +560,7 @@ export const InvoiceCreationDialog = ({
                         <td className="py-1.5 pr-2">
                           <span className="font-medium">{pos.title}</span>
                           {pos.description && (
-                            <span className="block whitespace-pre-wrap text-gray-500">{pos.description}</span>
+                            <span className="block whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-gray-500">{pos.description}</span>
                           )}
                           {customer.hasPositionTemplate && (
                             <span className="block italic text-gray-400">+ Text aus Kunden-Template</span>
@@ -609,8 +609,8 @@ export const InvoiceCreationDialog = ({
           )}
 
           {/* AI Button */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-accent-light to-accent-light dark:from-accent-primary/20 dark:to-accent-primary/20 rounded-xl border border-accent-primary/30 dark:border-accent-primary/40">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="p-2 bg-accent-lighter dark:bg-accent-primary/30 rounded-lg">
                 <Sparkles size={20} className="text-accent-primary" />
               </div>
@@ -627,6 +627,7 @@ export const InvoiceCreationDialog = ({
               loading={isGeneratingAI}
               variant="primary"
               icon={aiGenerated ? <Check size={16} /> : <Sparkles size={16} />}
+              className="w-full sm:w-auto whitespace-nowrap"
             >
               {isGeneratingAI ? 'Generiere...' : aiGenerated ? 'Neu generieren' : 'Texte generieren'}
             </Button>
