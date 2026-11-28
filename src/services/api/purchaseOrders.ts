@@ -26,6 +26,8 @@ export interface PurchaseOrderLine {
   totalPrice: number | null;
   itemType: string | null;
   receivedQuantity: number;
+  needsSerials: boolean;
+  suggestedAssetType: string;
 }
 
 export interface PurchaseOrder {
@@ -65,6 +67,15 @@ export interface PrepareOrderResult { id: string; reference: string; created: bo
 
 export interface ProcessOrderMailboxResult { success: boolean; processed: number; error?: string }
 
+export interface ReceiveLineInput { lineId: string; quantity: number; serials?: string[]; assetType?: string }
+export interface GoodsReceiptResult {
+  status: PurchaseOrderStatus;
+  complete: boolean;
+  created: Array<{ id: string; assetTag: string | null; name: string; serialNumber: string; lineId: string }>;
+  existing: Array<{ id: string; assetTag: string | null; name: string; serialNumber: string }>;
+  received: Array<{ lineId: string; quantity: number }>;
+}
+
 export type AssignTarget = { ticketId: string } | { customerId: string } | { internal: true };
 
 export const purchaseOrdersApi = {
@@ -83,6 +94,9 @@ export const purchaseOrdersApi = {
     authFetch('/purchase-orders/process', { method: 'POST', body: JSON.stringify({}) }),
   assign: async (id: string, target: AssignTarget): Promise<{ success: boolean; data: PurchaseOrder }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/assign`, { method: 'POST', body: JSON.stringify(target) }),
+  /** WE-2 Wareneingang: Mengen buchen, Seriennummern → Geräte */
+  receive: async (id: string, input: { lines: ReceiveLineInput[]; complete?: boolean }): Promise<{ success: boolean; data: GoodsReceiptResult }> =>
+    authFetch(`/purchase-orders/${encodeURIComponent(id)}/receive`, { method: 'POST', body: JSON.stringify(input) }),
   update: async (id: string, input: { status?: PurchaseOrderStatus; notes?: string | null }): Promise<{ success: boolean; data: PurchaseOrder }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) }),
 };

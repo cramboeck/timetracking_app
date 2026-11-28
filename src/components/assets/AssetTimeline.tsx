@@ -25,7 +25,9 @@ const describe = (e: AssetEvent): { title: string; lines: string[] } => {
     case 'created':
       return { title: d.source === 'ninjaone' ? 'Aus NinjaOne übernommen' : 'Angelegt', lines: [] };
     case 'from_purchase':
-      return { title: 'Aus Hardware-Kauf übernommen', lines: d.description ? [String(d.description)] : [] };
+      return d.orderId
+        ? { title: 'Wareneingang', lines: d.orderNumber ? [`Bestellung ${String(d.orderNumber)}`] : [] }
+        : { title: 'Aus Hardware-Kauf übernommen', lines: d.description ? [String(d.description)] : [] };
     case 'imported': return { title: 'Importiert', lines: [] };
     case 'ninja_linked': return { title: 'Mit NinjaOne verknüpft (Seriennummer)', lines: [] };
     case 'label_printed': return { title: 'Etikett gedruckt', lines: [] };

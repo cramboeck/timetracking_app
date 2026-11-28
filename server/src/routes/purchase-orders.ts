@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 import {
   ORDER_SELECT, mapOrder, prepareOrderForTicket, processOrderMailbox, PurchaseOrderStatus,
 } from '../services/purchaseOrderService';
+import { receiveGoods, GoodsReceiptError } from '../services/goodsReceiptService';
+import { guessAssetType, lineNeedsSerials } from '../utils/assetTypeGuess';
 
 /**
  * WE-1 Bestellvorgänge (/api/purchase-orders).
@@ -34,6 +36,9 @@ async function loadLines(orderIds: string[]) {
       unitPrice: l.unit_price !== null ? Number(l.unit_price) : null,
       totalPrice: l.total_price !== null ? Number(l.total_price) : null,
       itemType: l.item_type, receivedQuantity: Number(l.received_quantity ?? 0),
+      // Wareneingang (WE-2): Seriennummern abfragen + Geräte-Typ vorbelegen
+      needsSerials: lineNeedsSerials(l.item_type, l.description),
+      suggestedAssetType: guessAssetType(l.description),
     });
     map.set(String(l.order_id), list);
   }
@@ -176,6 +181,28 @@ router.post('/:id/assign', requireOrgRole('admin'), validate(assignSchema), asyn
   } catch (error) {
     logger.error('Assign purchase order error:', error);
     res.status(500).json({ success: false, error: 'Zuordnung fehlgeschlagen' });
+  }
+});
+
+// WE-2 Wareneingang: Mengen buchen + Seriennummern → Geräte. Mitglieder dürfen
+// (Techniker nimmt die Ware an); Preise spielen hier keine Rolle.
+const receiveSchema = z.object({
+  lines: z.array(z.object({
+    lineId: z.string().min(1).max(100),
+    quantity: z.number().int().min(0).max(10000),
+    serials: z.array(z.string().max(100)).max(500).optional(),
+    assetType: z.string().max(30).optional(),
+  })).max(200),
+  complete: z.boolean().optional(),
+});
+router.post('/:id/receive', requireOrgRole('member'), validate(receiveSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await receiveGoods(orgId(req), req.userId!, req.params.id, req.body as z.infer<typeof receiveSchema>);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    if (error instanceof GoodsReceiptError) return res.status(error.status).json({ success: false, error: error.message });
+    logger.error('Goods receipt error:', error);
+    res.status(500).json({ success: false, error: 'Wareneingang konnte nicht gebucht werden' });
   }
 });
 

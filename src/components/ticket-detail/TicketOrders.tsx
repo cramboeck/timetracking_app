@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShoppingCart, ChevronRight, Truck, Copy, PackagePlus } from 'lucide-react';
+import { ShoppingCart, ChevronRight, Truck, Copy, PackagePlus, PackageCheck } from 'lucide-react';
 import { purchaseOrdersApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl, type PurchaseOrderStatus } from '../../services/api';
 import { useToast } from '../../contexts/UIContext';
+import { ReceiveGoodsDialog } from '../ReceiveGoodsDialog';
+import type { PurchaseOrder } from '../../services/api';
 
 /**
  * Bestellungen am Ticket (WE-1). „Bestellung vorbereiten“ legt einen erwarteten
@@ -31,6 +33,7 @@ export const TicketOrders = ({ ticketId }: { ticketId: string }) => {
   const showToast = useToast();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const [receiveOrder, setReceiveOrder] = useState<PurchaseOrder | null>(null);
 
   const { data: orders = [] } = useQuery({
     queryKey: ['purchase-orders', 'ticket', ticketId],
@@ -105,10 +108,19 @@ export const TicketOrders = ({ ticketId }: { ticketId: string }) => {
               {o.lines.length > 0 && (
                 <ul className="mt-1.5 text-xs text-gray-600 dark:text-dark-400 space-y-0.5">
                   {o.lines.slice(0, 4).map(l => (
-                    <li key={l.id} className="truncate">{l.quantity !== null ? `${l.quantity}× ` : ''}{l.description}</li>
+                    <li key={l.id} className="truncate">
+                      {l.quantity !== null ? `${l.quantity}× ` : ''}{l.description}
+                      {l.receivedQuantity > 0 && <span className="text-green-600 dark:text-green-400"> · {l.receivedQuantity} da</span>}
+                    </li>
                   ))}
                   {o.lines.length > 4 && <li>+ {o.lines.length - 4} weitere</li>}
                 </ul>
+              )}
+              {o.lines.length > 0 && o.status !== 'received' && o.status !== 'cancelled' && (
+                <button type="button" onClick={() => setReceiveOrder(o)} data-testid="ticket-receive"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent-primary hover:underline mr-3">
+                  <PackageCheck size={13} /> Wareneingang
+                </button>
               )}
               {o.tracking.map(t => (
                 trackingUrl(t) ? (
@@ -134,6 +146,7 @@ export const TicketOrders = ({ ticketId }: { ticketId: string }) => {
           </button>
         </div>
       )}
+      <ReceiveGoodsDialog order={receiveOrder} onClose={() => setReceiveOrder(null)} />
     </div>
   );
 };

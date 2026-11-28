@@ -16,6 +16,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { TicketPickerDialog } from './TicketPickerDialog';
 import { ticketPath } from './AreaNavigation';
 import { useConfirm, useToast } from '../contexts/UIContext';
+import { ReceiveGoodsDialog } from './ReceiveGoodsDialog';
 
 /**
  * WE-1 Bestellvorgänge: Alles, was im Bestell-Postfach ankommt (Bestätigung,
@@ -60,6 +61,7 @@ export const PurchaseOrdersPanel = () => {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [assignOrder, setAssignOrder] = useState<PurchaseOrder | null>(null);
+  const [receiveOrder, setReceiveOrder] = useState<PurchaseOrder | null>(null);
 
   const ordersQuery = useQuery({
     queryKey: ['purchase-orders', filter, search],
@@ -265,11 +267,17 @@ export const PurchaseOrdersPanel = () => {
                     </Button>
                   )}
                   {o.status !== 'received' && o.status !== 'cancelled' && (
-                    <Button size="sm" variant="secondary" icon={<PackageCheck size={13} />}
-                      disabled={statusMutation.isPending}
-                      onClick={() => statusMutation.mutate({ id: o.id, status: 'received' })}>
-                      Geliefert
-                    </Button>
+                    o.lineCount > 0 ? (
+                      <Button size="sm" variant="secondary" icon={<PackageCheck size={13} />} onClick={() => setReceiveOrder(o)}>
+                        Wareneingang
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" icon={<PackageCheck size={13} />}
+                        disabled={statusMutation.isPending}
+                        onClick={() => statusMutation.mutate({ id: o.id, status: 'received' })}>
+                        Geliefert
+                      </Button>
+                    )
                   )}
                   {o.lineCount > 0 && (
                     <Button size="sm" variant="ghost" icon={isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -297,6 +305,11 @@ export const PurchaseOrdersPanel = () => {
                             </span>
                           )}
                         </span>
+                        {l.receivedQuantity > 0 && (
+                          <span className={`text-xs whitespace-nowrap tabular-nums ${l.quantity !== null && l.receivedQuantity >= l.quantity ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                            {l.receivedQuantity}{l.quantity !== null ? `/${l.quantity}` : ''} da
+                          </span>
+                        )}
                         {l.totalPrice !== null && <span className="tabular-nums text-gray-700 dark:text-dark-500 whitespace-nowrap">{fmtEur(l.totalPrice, o.currency)}</span>}
                       </li>
                     ))}
@@ -309,6 +322,7 @@ export const PurchaseOrdersPanel = () => {
       )}
 
       <AssignOrderDialog order={assignOrder} onClose={() => setAssignOrder(null)} onDone={invalidate} />
+      <ReceiveGoodsDialog order={receiveOrder} onClose={() => setReceiveOrder(null)} />
     </div>
   );
 };
