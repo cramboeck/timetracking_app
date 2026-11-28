@@ -67,7 +67,7 @@ print_success "Container gebaut und gestartet"
 # Schritt 3: Status + Health prüfen
 # -----------------------------------------------------------------------------
 print_info "Container-Status:"
-sudo docker compose -f docker-compose.production.yml ps
+sudo docker compose -f docker-compose.production.yml --env-file .env.production ps
 
 print_info "Warte 20 Sekunden auf Health-Checks..."
 sleep 20
