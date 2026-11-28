@@ -20,6 +20,10 @@ const LabelPrintDialog = lazy(() => import('./assets/LabelPrintDialog').then(m =
  * direkt Etiketten drucken.
  */
 interface LineState { qty: number; serials: string[]; assetType: string }
+/** Freier Artikel (nicht als Position erkannt): Bezeichnung + Menge + Seriennummern */
+interface ExtraState { description: string; qty: number; serials: string[]; assetType: string; withSerials: boolean }
+const newExtra = (): ExtraState => ({ description: '', qty: 1, serials: [''], assetType: 'other', withSerials: true });
+const extraKey = (i: number) => `x:${i}`;
 
 const remainingOf = (quantity: number | null, received: number) =>
   quantity === null ? null : Math.max(0, quantity - received);
@@ -29,6 +33,7 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
   const queryClient = useQueryClient();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<Record<string, LineState>>({});
+  const [extras, setExtras] = useState<ExtraState[]>([]);
   const [scanOpen, setScanOpen] = useState(false);
   const [active, setActive] = useState<{ lineId: string; idx: number } | null>(null);
   const [result, setResult] = useState<GoodsReceiptResult | null>(null);
@@ -51,6 +56,8 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
       init[l.id] = { qty, serials: l.needsSerials ? Array(qty).fill('') : [], assetType: l.suggestedAssetType || 'other' };
     }
     setState(init);
+    // Ohne offene Positionen (z.B. keine aus der Mail erkannt) direkt einen freien Artikel anbieten
+    setExtras(openLines.length === 0 ? [newExtra()] : []);
     setResult(null);
     setScanOpen(false);
     setActive(null);
@@ -65,7 +72,12 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
       return { ...s, [lineId]: { ...cur, qty: q, serials } };
     });
   };
-  const setSerial = (lineId: string, idx: number, value: string) =>
+  const setSerial = (lineId: string, idx: number, value: string) => {
+    if (lineId.startsWith('x:')) {
+      const i = Number(lineId.slice(2));
+      setExtras(xs => xs.map((x, j) => (j === i ? { ...x, serials: x.serials.map((v, k) => (k === idx ? value : v)) } : x)));
+      return;
+    }
     setState(s => {
       const cur = s[lineId];
       if (!cur) return s;
@@ -73,24 +85,38 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
       serials[idx] = value;
       return { ...s, [lineId]: { ...cur, serials } };
     });
+  };
+  const setExtra = (i: number, patch: Partial<ExtraState>) =>
+    setExtras(xs => xs.map((x, j) => {
+      if (j !== i) return x;
+      const next = { ...x, ...patch };
+      const n = next.withSerials ? Math.max(0, next.qty) : 0;
+      next.serials = [...next.serials.slice(0, n), ...Array(Math.max(0, n - next.serials.length)).fill('')];
+      return next;
+    }));
 
   const focusField = (lineId: string, idx: number) =>
     bodyRef.current?.querySelector<HTMLInputElement>(`[data-serial="${lineId}:${idx}"]`)?.focus();
 
   /** Nächstes leeres Seriennummern-Feld ab einer Stelle (oder ganz vorne). */
   const nextEmpty = (from?: { lineId: string; idx: number }) => {
-    const slots = openLines.flatMap(l => (state[l.id]?.serials ?? []).map((v, idx) => ({ lineId: l.id, idx, v })));
+    const slots = [
+      ...openLines.flatMap(l => (state[l.id]?.serials ?? []).map((v, idx) => ({ lineId: l.id, idx, v }))),
+      ...extras.flatMap((x, i) => x.serials.map((v, idx) => ({ lineId: extraKey(i), idx, v }))),
+    ];
     const start = from ? slots.findIndex(s => s.lineId === from.lineId && s.idx === from.idx) + 1 : 0;
     return [...slots.slice(start), ...slots.slice(0, start)].find(s => !s.v.trim()) ?? null;
   };
 
   const handleScan = (code: string) => {
-    const all = openLines.flatMap(l => state[l.id]?.serials ?? []);
+    const all = [...openLines.flatMap(l => state[l.id]?.serials ?? []), ...extras.flatMap(x => x.serials)];
     if (all.some(v => v.trim().toLowerCase() === code.trim().toLowerCase())) {
       showToast(`${code} ist schon erfasst`, 'warning');
       return;
     }
-    const target = active && !state[active.lineId]?.serials[active.idx]?.trim() ? active : nextEmpty(active ?? undefined);
+    const valueAt = (t: { lineId: string; idx: number }) => t.lineId.startsWith('x:')
+      ? extras[Number(t.lineId.slice(2))]?.serials[t.idx] : state[t.lineId]?.serials[t.idx];
+    const target = active && valueAt(active) !== undefined && !valueAt(active)?.trim() ? active : nextEmpty(active ?? undefined);
     if (!target) {
       showToast('Alle Seriennummern-Felder sind gefüllt — Menge erhöhen oder buchen.', 'info');
       return;
@@ -100,11 +126,19 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
     setActive(after ? { lineId: after.lineId, idx: after.idx } : null);
   };
 
-  const serialCount = openLines.reduce((n, l) => n + (state[l.id]?.serials.filter(s => s.trim()).length ?? 0), 0);
-  const qtyCount = openLines.reduce((n, l) => n + (state[l.id]?.qty ?? 0), 0);
+  const validExtras = extras.filter(x => x.description.trim() && x.qty > 0);
+  const serialCount = openLines.reduce((n, l) => n + (state[l.id]?.serials.filter(s => s.trim()).length ?? 0), 0)
+    + validExtras.reduce((n, x) => n + x.serials.filter(v => v.trim()).length, 0);
+  const qtyCount = openLines.reduce((n, l) => n + (state[l.id]?.qty ?? 0), 0) + validExtras.reduce((n, x) => n + x.qty, 0);
 
   const mutation = useMutation({
-    mutationFn: () => purchaseOrdersApi.receive(order!.id, {
+    mutationFn: (opts?: { completeOnly?: boolean }) => purchaseOrdersApi.receive(order!.id, opts?.completeOnly ? { lines: [], complete: true } : {
+      extraLines: validExtras.map(x => ({
+        description: x.description.trim(), quantity: x.qty,
+        serials: x.serials.map(v => v.trim()).filter(Boolean),
+        // 'other' = Server rät den Typ aus der Bezeichnung
+        assetType: x.assetType === 'other' ? undefined : x.assetType,
+      })),
       lines: openLines
         .filter(l => (state[l.id]?.qty ?? 0) > 0)
         .map(l => ({
@@ -186,7 +220,7 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
   }
 
   // --- Erfassung ------------------------------------------------------------
-  const anySerials = openLines.some(l => l.needsSerials);
+  const anySerials = openLines.some(l => l.needsSerials) || extras.some(x => x.withSerials);
   return (
     <Modal isOpen onClose={onClose} title={title} maxWidth="lg"
       footer={
@@ -194,8 +228,14 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
           <span className="text-xs text-gray-500 dark:text-dark-400 sm:mr-auto text-center sm:text-left">
             {qtyCount} Stück{anySerials ? ` · ${serialCount} Seriennr.` : ''}
           </span>
+          {order.status !== 'received' && (
+            <Button variant="ghost" onClick={() => mutation.mutate({ completeOnly: true })} disabled={mutation.isPending}
+              className="w-full sm:w-auto text-gray-500" data-testid="receive-complete-only">
+              Ohne Geräte als geliefert markieren
+            </Button>
+          )}
           <Button variant="secondary" onClick={onClose} className="w-full sm:w-auto">Abbrechen</Button>
-          <Button variant="primary" icon={<PackageCheck size={15} />} onClick={() => mutation.mutate()}
+          <Button variant="primary" icon={<PackageCheck size={15} />} onClick={() => mutation.mutate(undefined)}
             disabled={mutation.isPending || qtyCount === 0} className="w-full sm:w-auto" data-testid="receive-submit">
             {mutation.isPending ? 'Buche…' : 'Wareneingang buchen'}
           </Button>
@@ -207,9 +247,13 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
             .filter(Boolean).join(' · ')}
         </p>
 
-        {openLines.length === 0 ? (
-          <p className="text-sm text-gray-600 dark:text-dark-400">Alle Positionen sind bereits vollständig geliefert.</p>
-        ) : (
+        {openLines.length === 0 && (
+          <p className="text-sm text-gray-600 dark:text-dark-400">
+            {(order.lines?.length ?? 0) > 0
+              ? 'Alle erkannten Positionen sind geliefert. Weitere Artikel kannst du unten erfassen.'
+              : 'Aus den Mails wurden keine Positionen erkannt — erfasse die gelieferten Artikel hier.'}
+          </p>
+        )}
           <>
             {anySerials && (
               <div className="rounded-xl border border-gray-200 dark:border-dark-border p-3 space-y-3">
@@ -289,8 +333,66 @@ export const ReceiveGoodsDialog = ({ order, onClose }: { order: PurchaseOrder | 
                 );
               })}
             </ul>
+
+            {extras.length > 0 && (
+              <ul className="space-y-3">
+                {extras.map((x, i) => (
+                  <li key={i} className="rounded-xl bg-gray-50 dark:bg-dark-50 p-3 space-y-2" data-testid="receive-extra">
+                    <div className="flex items-start gap-3">
+                      <input value={x.description} onChange={e => setExtra(i, { description: e.target.value })}
+                        placeholder="Artikel, z.B. Lenovo ThinkPad T14" aria-label="Artikel"
+                        className={`${fieldClasses} flex-1 min-w-0`} />
+                      <div className="flex items-center gap-1 flex-shrink-0" aria-label="Menge">
+                        <button type="button" onClick={() => setExtra(i, { qty: Math.max(1, x.qty - 1) })}
+                          className="w-9 h-10 rounded-lg border border-gray-200 dark:border-dark-border flex items-center justify-center text-gray-600 dark:text-dark-500"
+                          aria-label="weniger"><Minus size={15} /></button>
+                        <span className="w-7 text-center tabular-nums font-medium text-gray-900 dark:text-white">{x.qty}</span>
+                        <button type="button" onClick={() => setExtra(i, { qty: Math.min(500, x.qty + 1) })}
+                          className="w-9 h-10 rounded-lg border border-gray-200 dark:border-dark-border flex items-center justify-center text-gray-600 dark:text-dark-500"
+                          aria-label="mehr"><Plus size={15} /></button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-500 cursor-pointer">
+                        <input type="checkbox" checked={x.withSerials} onChange={e => setExtra(i, { withSerials: e.target.checked })}
+                          className="rounded border-gray-300 dark:border-dark-border text-accent-primary focus:ring-accent-primary" />
+                        Gerät mit Seriennummer
+                      </label>
+                      {x.withSerials && (
+                        <select value={x.assetType} aria-label="Geräte-Typ" onChange={e => setExtra(i, { assetType: e.target.value })}
+                          className={`${fieldClasses} sm:max-w-[220px]`}>
+                          <option value="other">Typ automatisch</option>
+                          {(Object.keys(ASSET_TYPE_LABELS) as AssetType[]).filter(t => t !== 'other').map(t => <option key={t} value={t}>{ASSET_TYPE_LABELS[t]}</option>)}
+                        </select>
+                      )}
+                    </div>
+                    {x.withSerials && x.serials.map((v, idx) => {
+                      const key = extraKey(i);
+                      const isActive = active?.lineId === key && active.idx === idx;
+                      return (
+                        <input key={idx} data-serial={`${key}:${idx}`} value={v}
+                          onChange={e => setSerial(key, idx, e.target.value)}
+                          onFocus={() => setActive({ lineId: key, idx })}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const n = nextEmpty({ lineId: key, idx });
+                              if (n) focusField(n.lineId, n.idx);
+                            }
+                          }}
+                          placeholder={`Seriennummer ${idx + 1}`} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                          className={`${fieldClasses} font-mono ${isActive && scanOpen ? 'ring-4 ring-accent-primary/15 border-accent-primary' : ''}`} />
+                      );
+                    })}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" onClick={() => setExtras(xs => [...xs, newExtra()])} data-testid="receive-add-extra"
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border border-dashed border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-500 hover:border-accent-primary hover:text-accent-primary">
+              <Plus size={15} /> Weiteren Artikel erfassen
+            </button>
           </>
-        )}
       </div>
     </Modal>
   );

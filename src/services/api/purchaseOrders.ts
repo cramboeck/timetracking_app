@@ -124,7 +124,12 @@ export const purchaseOrdersApi = {
   clearBilling: async (id: string, cleared: boolean, note?: string): Promise<{ success: boolean }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/billing-clear`, { method: 'POST', body: JSON.stringify(note ? { cleared, note } : { cleared }) }),
   /** WE-2 Wareneingang: Mengen buchen, Seriennummern → Geräte */
-  receive: async (id: string, input: { lines: ReceiveLineInput[]; complete?: boolean }): Promise<{ success: boolean; data: GoodsReceiptResult }> =>
+  receive: async (id: string, input: {
+    lines: ReceiveLineInput[];
+    /** freie Artikel, die nicht als Position am Vorgang stehen */
+    extraLines?: Array<{ description: string; quantity: number; serials?: string[]; assetType?: string }>;
+    complete?: boolean;
+  }): Promise<{ success: boolean; data: GoodsReceiptResult }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/receive`, { method: 'POST', body: JSON.stringify(input) }),
   update: async (id: string, input: { status?: PurchaseOrderStatus; notes?: string | null }): Promise<{ success: boolean; data: PurchaseOrder }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) }),

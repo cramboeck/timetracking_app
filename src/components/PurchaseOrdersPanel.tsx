@@ -269,18 +269,11 @@ export const PurchaseOrdersPanel = () => {
                       {o.unassigned ? 'Zuordnen' : 'Zuordnung ändern'}
                     </Button>
                   )}
-                  {o.status !== 'received' && o.status !== 'cancelled' && (
-                    o.lineCount > 0 ? (
-                      <Button size="sm" variant="secondary" icon={<PackageCheck size={13} />} onClick={() => setReceiveOrder(o)}>
-                        Wareneingang
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="secondary" icon={<PackageCheck size={13} />}
-                        disabled={statusMutation.isPending}
-                        onClick={() => statusMutation.mutate({ id: o.id, status: 'received' })}>
-                        Geliefert
-                      </Button>
-                    )
+                  {o.status !== 'cancelled' && (
+                    <Button size="sm" variant={o.status === 'received' ? 'ghost' : 'secondary'} icon={<PackageCheck size={13} />} onClick={() => setReceiveOrder(o)}
+                      data-testid="order-receive">
+                      {o.status === 'received' ? 'Geräte erfassen' : 'Wareneingang'}
+                    </Button>
                   )}
                   {o.lineCount > 0 && (
                     <Button size="sm" variant="ghost" icon={isOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}

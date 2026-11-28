@@ -23,6 +23,15 @@ export interface ReceiveLineInput {
   assetType?: string;
 }
 
+/** Artikel, die (noch) nicht als Position am Vorgang stehen — z.B. weil aus
+ *  der Mail keine Positionen erkannt wurden. Werden als Position angelegt. */
+export interface ReceiveExtraLineInput {
+  description: string;
+  quantity: number;
+  serials?: string[];
+  assetType?: string;
+}
+
 export interface ReceiveResult {
   status: string;
   complete: boolean;
@@ -41,7 +50,7 @@ export async function receiveGoods(
   organizationId: string,
   userId: string,
   orderId: string,
-  input: { lines: ReceiveLineInput[]; complete?: boolean }
+  input: { lines: ReceiveLineInput[]; extraLines?: ReceiveExtraLineInput[]; complete?: boolean }
 ): Promise<ReceiveResult> {
   const o = await query(
     `SELECT id, status, order_number, supplier_name, to_char(order_date, 'YYYY-MM-DD') AS order_date,
@@ -82,9 +91,41 @@ export async function receiveGoods(
       ? item.assetType : guessAssetType(String(line.description));
     if (qty > 0 || serials.length > 0) plan.push({ line, qty, serials, assetType });
   }
-  if (plan.length === 0 && !input.complete) throw new GoodsReceiptError('Nichts zu buchen — alle Positionen sind schon vollständig geliefert');
+  // Freie Artikel (ohne bestehende Position)
+  const extras: typeof plan = [];
+  for (const item of input.extraLines ?? []) {
+    const description = item.description.trim();
+    if (!description) throw new GoodsReceiptError('Bitte eine Bezeichnung für jeden Artikel angeben');
+    const serials = (item.serials ?? []).map(normalizeSerial).filter(Boolean);
+    const qty = Math.max(item.quantity, serials.length);
+    if (qty <= 0) continue;
+    for (const sn of serials) {
+      const k = sn.toLowerCase();
+      if (seen.has(k)) throw new GoodsReceiptError(`Seriennummer ${sn} ist doppelt erfasst`);
+      seen.add(k);
+    }
+    const assetType = item.assetType && (ASSET_TYPES as readonly string[]).includes(item.assetType)
+      ? item.assetType : guessAssetType(description);
+    extras.push({ line: { id: null, description }, qty, serials, assetType });
+  }
+  if (plan.length === 0 && extras.length === 0 && !input.complete) throw new GoodsReceiptError('Nichts zu buchen — alle Positionen sind schon vollständig geliefert');
 
   // Bereits vorhandene Seriennummern (keine Dubletten anlegen)
+  // Freie Artikel erst jetzt (nach allen Prüfungen) als Position anlegen
+  if (extras.length > 0) {
+    const pos = await query(`SELECT COALESCE(MAX(position), 0)::int AS p FROM purchase_order_lines WHERE order_id = $1`, [orderId]);
+    let next = Number(pos.rows[0]?.p ?? 0);
+    for (const e of extras) {
+      const ins = await query(
+        `INSERT INTO purchase_order_lines (order_id, position, description, quantity, item_type)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [orderId, ++next, String(e.line.description).slice(0, 500), e.qty, e.serials.length > 0 ? 'hardware' : null]
+      );
+      e.line.id = ins.rows[0].id;
+      plan.push(e);
+    }
+  }
+
   const allSerials = plan.flatMap(p => p.serials);
   const existingRes = allSerials.length
     ? await query(

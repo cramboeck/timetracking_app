@@ -116,10 +116,10 @@ export const TicketOrders = ({ ticketId }: { ticketId: string }) => {
                   {o.lines.length > 4 && <li>+ {o.lines.length - 4} weitere</li>}
                 </ul>
               )}
-              {o.lines.length > 0 && o.status !== 'received' && o.status !== 'cancelled' && (
+              {o.status !== 'cancelled' && (
                 <button type="button" onClick={() => setReceiveOrder(o)} data-testid="ticket-receive"
                   className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent-primary hover:underline mr-3">
-                  <PackageCheck size={13} /> Wareneingang
+                  <PackageCheck size={13} /> {o.status === 'received' ? 'Geräte erfassen' : 'Wareneingang'}
                 </button>
               )}
               {o.tracking.map(t => (

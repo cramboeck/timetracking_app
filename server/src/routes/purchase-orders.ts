@@ -205,6 +205,12 @@ const receiveSchema = z.object({
     serials: z.array(z.string().max(100)).max(500).optional(),
     assetType: z.string().max(30).optional(),
   })).max(200),
+  extraLines: z.array(z.object({
+    description: z.string().max(500),
+    quantity: z.number().int().min(0).max(10000),
+    serials: z.array(z.string().max(100)).max(500).optional(),
+    assetType: z.string().max(30).optional(),
+  })).max(50).optional(),
   complete: z.boolean().optional(),
 });
 router.post('/:id/receive', requireOrgRole('member'), validate(receiveSchema), async (req: AuthRequest, res: Response) => {
