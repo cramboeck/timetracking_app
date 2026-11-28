@@ -30,6 +30,7 @@ import * as m028 from './028-agent-proposals';
 import * as m029 from './029-purchase-orders';
 import * as m030 from './030-agent-package';
 import * as m031 from './031-sevdesk-price-mode';
+import * as m032 from './032-customer-billing-email';
 
 export interface Migration {
   name: string;
@@ -73,4 +74,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '029-purchase-orders', run: m029.run },
   { name: '030-agent-package', run: m030.run },
   { name: '031-sevdesk-price-mode', run: m031.run },
+  { name: '032-customer-billing-email', run: m032.run },
 ];

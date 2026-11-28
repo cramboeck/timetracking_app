@@ -537,7 +537,7 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
     const customerResult = await query(
       `SELECT
          c.id, c.name, c.hourly_rate, c.sevdesk_customer_id, c.time_rounding_interval,
-         c.sevdesk_position_template, c.default_contract_id, c.email,
+         c.sevdesk_position_template, c.default_contract_id, c.email, c.billing_email,
          ct.contract_number AS default_contract_number,
          ct.name AS default_contract_title
        FROM customers c
@@ -616,7 +616,8 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
 
     // Kunden-E-Mail am sevDesk-Kontakt sicherstellen — sonst füllt sevDesk
     // beim (E-)Rechnungs-Versand die eigene Adresse statt der des Kunden vor
-    await sevdeskService.ensureContactEmail(config.apiToken, customer.sevdesk_customer_id, customer.email);
+    // Rechnungs-E-Mail (falls gepflegt) hat Vorrang vor der allgemeinen Kunden-E-Mail
+    await sevdeskService.ensureContactEmail(config.apiToken, customer.sevdesk_customer_id, customer.billing_email || customer.email, !!customer.billing_email);
 
     // Nummern-Kontrolle, Teil 1: Bestand VOR dem Anlegen (sevDesk vergibt die
     // Nummer selbst — wir prüfen nur, ob sie zur bisherigen Folge passt)

@@ -593,7 +593,9 @@ function buildPositionText(
 export async function ensureContactEmail(
   apiToken: string,
   sevdeskContactId: string,
-  email: string | null | undefined
+  email: string | null | undefined,
+  /** Rechnungs-E-Mail: auch ergänzen, wenn der Kontakt schon ANDERE Adressen hat */
+  isBillingEmail = false
 ): Promise<void> {
   const trimmedEmail = email?.trim();
   if (!trimmedEmail) return;
@@ -602,7 +604,12 @@ export async function ensureContactEmail(
       apiToken,
       `/CommunicationWay?contact[id]=${encodeURIComponent(sevdeskContactId)}&contact[objectName]=Contact&type=EMAIL`
     );
-    if (Array.isArray(existing?.objects) && existing.objects.length > 0) return;
+    const ways: Array<{ value?: string }> = Array.isArray(existing?.objects) ? existing.objects : [];
+    if (ways.some(w => (w.value ?? '').trim().toLowerCase() === trimmedEmail.toLowerCase())) return;
+    // Allgemeine Kunden-Mail nur, wenn der Kontakt noch GAR KEINE hat (wie bisher);
+    // eine gepflegte Rechnungs-E-Mail wird immer ergänzt.
+    if (ways.length > 0 && !isBillingEmail) return;
+    const makeMain = ways.length === 0;
 
     await sevdeskFetch(apiToken, '/CommunicationWay', {
       method: 'POST',
@@ -610,7 +617,9 @@ export async function ensureContactEmail(
         contact: { id: parseInt(sevdeskContactId, 10), objectName: 'Contact' },
         type: 'EMAIL',
         value: trimmedEmail,
-        main: 1,
+        // Hauptadresse nur, wenn es noch keine gibt — eine bestehende Hauptadresse
+        // überschreiben wir nicht ungefragt
+        main: makeMain ? 1 : 0,
         key: { id: 2, objectName: 'CommunicationWayKey' }, // 2 = Arbeit
       }),
     });

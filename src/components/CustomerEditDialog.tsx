@@ -60,6 +60,7 @@ export const CustomerEditDialog = ({
   const [paymentTermsDays, setPaymentTermsDays] = useState('14');
   const [timeRoundingInterval, setTimeRoundingInterval] = useState('15');
   const [reportTitle, setReportTitle] = useState('');
+  const [billingEmail, setBillingEmail] = useState('');
   const [defaultProjectId, setDefaultProjectId] = useState('');
   const [defaultContractId, setDefaultContractId] = useState('');
   const [sevdeskPositionTemplate, setSevdeskPositionTemplate] = useState('');
@@ -129,6 +130,7 @@ export const CustomerEditDialog = ({
     setPaymentTermsDays(customer?.paymentTermsDays?.toString() ?? '14');
     setTimeRoundingInterval(customer?.timeRoundingInterval?.toString() ?? '15');
     setReportTitle(customer?.reportTitle ?? '');
+    setBillingEmail(customer?.billingEmail ?? '');
     setDefaultProjectId(customer?.defaultProjectId ?? '');
     setDefaultContractId(customer?.defaultContractId ?? '');
     setSevdeskPositionTemplate(customer?.sevdeskPositionTemplate ?? '');
@@ -188,6 +190,8 @@ export const CustomerEditDialog = ({
       addressZip: addressZip.trim() || undefined,
       addressCity: addressCity.trim() || undefined,
       reportTitle: reportTitle.trim() || undefined,
+      // leer beim Bearbeiten = Rechnungs-E-Mail entfernen
+      billingEmail: billingEmail.trim() || (customer ? '' : undefined),
       hourlyRate: hourlyRate.trim() ? parseFloat(hourlyRate) : undefined,
       paymentTermsDays: paymentTermsDays.trim() ? parseInt(paymentTermsDays) : 14,
       timeRoundingInterval: timeRoundingInterval.trim() ? parseInt(timeRoundingInterval) : 15,
@@ -447,6 +451,18 @@ export const CustomerEditDialog = ({
                 </div>
               </>
             )}
+
+            <div>
+              <label className={labelClasses}>Rechnungs-E-Mail</label>
+              <input
+                type="email"
+                value={billingEmail}
+                onChange={(e) => setBillingEmail(e.target.value)}
+                placeholder="z.B. buchhaltung@kunde.de"
+                className={inputClasses}
+              />
+              <p className={helpClasses}>Optional. Wird beim Erstellen einer Rechnung am sevDesk-Kontakt hinterlegt und hat Vorrang vor der allgemeinen E-Mail.</p>
+            </div>
 
             <div>
               <label className={labelClasses}>Report-Titel (PDF)</label>

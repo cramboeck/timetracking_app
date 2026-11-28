@@ -6,6 +6,8 @@ export interface Customer {
   customerNumber?: string; // For sevDesk integration
   contactPerson?: string;
   email?: string;
+  /** Eigene Rechnungs-E-Mail (z.B. Buchhaltung) — Vorrang beim Rechnungsversand */
+  billingEmail?: string | null;
   phone?: string;
   website?: string;
   address?: string; // Legacy-Freitext — neue Pflege über die strukturierten Felder

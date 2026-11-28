@@ -22,7 +22,7 @@ const router = Router();
 // Explicit column lists (no SELECT *)
 const CUSTOMER_COLUMNS = `
   id, user_id, organization_id, name, color, customer_number, contact_person,
-  email, phone, website, address, address_street, address_zip, address_city,
+  email, billing_email, phone, website, address, address_street, address_zip, address_city,
   report_title, hourly_rate, payment_terms_days, time_rounding_interval,
   logo_url, ninjarmm_organization_id, display_name, import_aliases, sla_policy_id,
   sevdesk_customer_id, sevdesk_position_template, default_contract_id, default_project_id,
@@ -48,6 +48,7 @@ const createCustomerSchema = z.object({
   customerNumber: z.string().max(50).optional(),
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
+  billingEmail: z.string().email().optional().or(z.literal('')),
   phone: z.string().max(50).optional(),
   website: z.string().max(300).optional(),
   address: z.string().max(500).optional(),
@@ -69,6 +70,7 @@ const updateCustomerSchema = z.object({
   customerNumber: z.string().max(50).optional(),
   contactPerson: z.string().max(200).optional(),
   email: z.string().email().optional(),
+  billingEmail: z.string().email().nullable().optional().or(z.literal('')),
   phone: z.string().max(50).nullable().optional(),
   website: z.string().max(300).nullable().optional(),
   address: z.string().max(500).optional(),
@@ -296,15 +298,15 @@ router.post('/', authenticateToken, attachOrganization, requireOrgRole('member')
     const userId = req.userId!;
     const orgReq = req as unknown as OrganizationRequest;
     const organizationId = orgReq.organization.id;
-    const { name, color, customerNumber, contactPerson, email, phone, website, address, addressStreet, addressZip, addressCity, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId, displayName, importAliases, customerType } = req.body;
+    const { name, color, customerNumber, contactPerson, email, billingEmail, phone, website, address, addressStreet, addressZip, addressCity, reportTitle, hourlyRate, timeRoundingInterval, paymentTermsDays, ninjarmmOrganizationId, displayName, importAliases, customerType } = req.body;
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     await pool.query(
-      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, phone, website, address, address_street, address_zip, address_city, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, display_name, import_aliases, customer_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
-      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, phone || null, website || null, address || null, addressStreet || null, addressZip || null, addressCity || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
+      `INSERT INTO customers (id, user_id, organization_id, name, color, customer_number, contact_person, email, billing_email, phone, website, address, address_street, address_zip, address_city, report_title, hourly_rate, time_rounding_interval, payment_terms_days, ninjarmm_organization_id, display_name, import_aliases, customer_type, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)`,
+      [id, userId, organizationId, name, color, customerNumber || null, contactPerson || null, email || null, billingEmail || null, phone || null, website || null, address || null, addressStreet || null, addressZip || null, addressCity || null, reportTitle || null, hourlyRate || null, timeRoundingInterval || 15, paymentTermsDays || 14, ninjarmmOrganizationId || null, displayName || null, importAliases || [], customerType || 'company', createdAt]
     );
 
     const customerResult = await pool.query(`SELECT ${CUSTOMER_COLUMNS} FROM customers WHERE id = $1 AND deleted_at IS NULL`, [id]);
@@ -409,6 +411,10 @@ router.put('/:id', authenticateToken, attachOrganization, requireOrgRole('member
     if (updates.phone !== undefined) {
       fields.push(`phone = $${paramCount++}`);
       values.push(updates.phone || null);
+    }
+    if (updates.billingEmail !== undefined) {
+      fields.push(`billing_email = $${paramCount++}`);
+      values.push(updates.billingEmail || null);
     }
     if (updates.website !== undefined) {
       fields.push(`website = $${paramCount++}`);
