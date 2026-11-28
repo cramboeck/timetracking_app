@@ -63,6 +63,17 @@ print_info "Baue und starte Container (kann einige Minuten dauern)..."
 sudo docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
 print_success "Container gebaut und gestartet"
 
+# nginx löst die upstream-Namen (frontend/backend) nur beim Start/Reload auf.
+# Neu gebaute Container bekommen oft eine neue IP → ohne Reload liefert nginx
+# 502 Bad Gateway (Vorfall 28.11.2026). Daher nach jedem Build neu laden.
+sleep 5
+if sudo docker exec ramboflow-nginx nginx -s reload > /dev/null 2>&1; then
+    print_success "nginx neu geladen (neue Container-Adressen übernommen)"
+else
+    print_info "nginx-Reload fehlgeschlagen — starte nginx neu"
+    sudo docker restart ramboflow-nginx > /dev/null
+fi
+
 # -----------------------------------------------------------------------------
 # Schritt 3: Status + Health prüfen
 # -----------------------------------------------------------------------------
