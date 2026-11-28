@@ -186,16 +186,16 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
   const metaLines: string[] = [`Leistungszeitraum: ${periodText}`];
   if (singleProject) metaLines.push(`Projekt: ${singleProject}`);
   if (input.invoiceNumber) metaLines.push(`Anlage zu Rechnung ${input.invoiceNumber}`);
-  const titleBlockH = 18 + metaLines.length * 5;
-  doc.rect(M, y, 1.6, titleBlockH, 'F');
-  font('normal', 10); setText(gray);
-  doc.text(input.title, M + 6, y + 5);
-  font('bold', 20); setText(dark);
+  const titleBlockH = 13 + metaLines.length * 4.4;
+  doc.rect(M, y, 1.2, titleBlockH, 'F');
+  font('normal', 8.5); setText(gray);
+  doc.text(input.title, M + 5, y + 3.6);
+  font('bold', 15); setText(dark);
   const nameLines = doc.splitTextToSize(input.customerName, CW - 10) as string[];
-  doc.text(nameLines[0], M + 6, y + 13.5);
-  font('normal', 9.5); setText(gray);
-  metaLines.forEach((t, i) => doc.text(t, M + 6, y + 20 + i * 5));
-  y += titleBlockH + 8;
+  doc.text(nameLines[0], M + 5, y + 10);
+  font('normal', 8.5); setText(gray);
+  metaLines.forEach((t, i) => doc.text(t, M + 5, y + 15.2 + i * 4.4));
+  y += titleBlockH + 6;
 
   if (includeSummary) {
     const kpis: Array<[string, string, string?]> = [
@@ -203,19 +203,26 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
       ['Arbeitstage', String(workDays)],
       ['Ø pro Arbeitstag', workDays ? formatHM(totalHours / workDays) : '–'],
     ];
-    const gap = 5;
-    const kw = (CW - gap * 2) / 3;
+    // Eine schmale Kennzahlen-Leiste statt großer Kacheln
+    const barH = 9;
+    const kw = CW / 3;
+    doc.setFillColor(...light);
+    doc.roundedRect(M, y, CW, barH, 1.8, 1.8, 'F');
     kpis.forEach(([label, value, sub], i) => {
-      const x = M + i * (kw + gap);
-      doc.setFillColor(...light);
-      doc.roundedRect(x, y, kw, 20, 2.5, 2.5, 'F');
+      const x = M + i * kw;
+      if (i > 0) { doc.setDrawColor(...line); doc.setLineWidth(0.3); doc.line(x, y + 2, x, y + barH - 2); }
       font('normal', 8); setText(gray);
-      doc.text(label, x + 5, y + 6.5);
-      font('bold', 14); setText(dark);
-      doc.text(value, x + 5, y + 14.5);
-      if (sub) { font('normal', 8); setText(gray); doc.text(sub, x + kw - 5, y + 14.5, { align: 'right' }); }
+      doc.text(label, x + 4, y + 5.9);
+      const lw = doc.getTextWidth(label);
+      font('bold', 10); setText(dark);
+      doc.text(value, x + 4 + lw + 2.5, y + 5.9);
+      if (sub) {
+        const vw = doc.getTextWidth(value);
+        font('normal', 7.5); setText(gray);
+        doc.text(`(${sub})`, x + 4 + lw + 2.5 + vw + 1.8, y + 5.9);
+      }
     });
-    y += 28;
+    y += barH + 7;
 
     // Projektverteilung nur bei mehreren Projekten (eine 100-%-Torte sagt nichts)
     if (projectList.length > 1) {
@@ -361,18 +368,18 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
     const memberTotals = new Map<string, number>();
     if (show.member) entries.forEach(e => memberTotals.set(e.memberName || '–', (memberTotals.get(e.memberName || '–') || 0) + e.hours));
     const extra = memberTotals.size > 1 ? memberTotals.size * 5 : 0;
-    if (y + 16 + extra > H - FOOTER_SPACE) newPage(false);
+    if (y + 13 + extra > H - FOOTER_SPACE) newPage(false);
     doc.setFillColor(...light);
-    doc.roundedRect(M, y, CW, 12, 2, 2, 'F');
+    doc.roundedRect(M, y, CW, 8.5, 1.8, 1.8, 'F');
     doc.setFillColor(...accent);
-    doc.rect(M, y, 1.6, 12, 'F');
+    doc.rect(M, y, 1.2, 8.5, 'F');
+    font('bold', 9.5); setText(dark);
+    doc.text('Gesamt', M + 5, y + 5.7);
+    font('normal', 8); setText(gray);
+    doc.text(`${formatDecimalHours(totalHours)} Std.`, M + CW - 24, y + 5.7, { align: 'right' });
     font('bold', 10.5); setText(dark);
-    doc.text('Gesamt', M + 6, y + 7.8);
-    font('normal', 9); setText(gray);
-    doc.text(`${formatDecimalHours(totalHours)} Std.`, M + CW - 30, y + 7.8, { align: 'right' });
-    font('bold', 12); setText(dark);
-    doc.text(formatHM(totalHours), M + CW - 2, y + 8, { align: 'right' });
-    y += 16;
+    doc.text(formatHM(totalHours), M + CW - 2, y + 5.8, { align: 'right' });
+    y += 12.5;
     if (memberTotals.size > 1) {
       font('normal', 8.5); setText(gray);
       [...memberTotals.entries()].sort((a, b) => b[1] - a[1]).forEach(([name, hrs]) => {
@@ -386,11 +393,11 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
 
   // --- Unterschriften (ans Ende, unter die Summe) ----------------------------
   if (includeSignatures) {
-    if (y + 30 > H - FOOTER_SPACE) { doc.addPage(); y = drawFollowHeader(); }
-    y += 10;
-    font('normal', 8.5); setText(gray);
+    if (y + 24 > H - FOOTER_SPACE) { doc.addPage(); y = drawFollowHeader() + 4; }
+    y += 4;
+    font('normal', 8); setText(gray);
     doc.text('Die aufgeführten Leistungen wurden erbracht und werden bestätigt.', M, y);
-    y += 16;
+    y += 13;
     doc.setDrawColor(160, 160, 160); doc.setLineWidth(0.3);
     const sw = (CW - 16) / 2;
     doc.line(M, y, M + sw, y);
