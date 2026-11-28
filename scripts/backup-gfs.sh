@@ -14,6 +14,9 @@
 #
 
 set -e
+# Ohne pipefail zählt bei „pg_dump | gzip“ nur gzip — ein gescheiterter Dump
+# ergäbe eine leere .gz-Datei, die als „Backup erstellt“ gemeldet wird.
+set -o pipefail
 
 # ============================================
 # Konfiguration
@@ -89,7 +92,8 @@ create_backup() {
 
     mkdir -p "$target_dir"
 
-    if docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists 2>/dev/null | gzip > "$backup_file"; then
+    if docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --clean --if-exists | gzip > "$backup_file" \
+       && gzip -dc "$backup_file" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
         local size=$(du -h "$backup_file" | cut -f1)
         log_success "Backup erstellt: $backup_file ($size)" >&2
         echo "$backup_file"

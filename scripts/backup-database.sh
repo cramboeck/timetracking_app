@@ -11,6 +11,7 @@
 #
 
 set -e
+set -o pipefail  # sonst bleibt ein gescheiterter pg_dump hinter gzip unbemerkt
 
 # ============================================
 # Konfiguration
@@ -105,6 +106,14 @@ if [ "$COMPRESS" = "true" ]; then
     docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
 else
     docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
+fi
+
+# Vollständigkeit prüfen: pg_dump schreibt am Ende eine Abschlusszeile
+if [ "$COMPRESS" = "true" ]; then CHECK_CMD="gzip -dc"; else CHECK_CMD="cat"; fi
+if ! $CHECK_CMD "$BACKUP_FILE" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
+    log "FEHLER: Backup unvollständig: $BACKUP_FILE"
+    rm -f "$BACKUP_FILE"
+    exit 1
 fi
 
 # Backup-Größe prüfen
