@@ -323,6 +323,14 @@ function App() {
     }
   };
 
+  // Andere Bereiche (z.B. Anrufliste übernehmen) legen Zeiteinträge serverseitig an
+  useEffect(() => {
+    const onImported = () => { void refreshEntries(); };
+    window.addEventListener('rbf-entries-imported', onImported);
+    return () => window.removeEventListener('rbf-entries-imported', onImported);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Handle pending organization invitation after login
   useEffect(() => {
     const handlePendingInvitation = async () => {

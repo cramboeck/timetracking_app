@@ -69,6 +69,7 @@ import { StatWidget } from './ui/StatWidget';
 import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
+import { CallLogImportDialog } from './CallLogImportDialog';
 import { CustomerContacts } from './CustomerContacts';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { useToast } from '../contexts/UIContext';
@@ -1236,6 +1237,7 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
 }) => {
   const showToast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showCallImport, setShowCallImport] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId || null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -1540,6 +1542,12 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
                 onClick={() => setShowPersonalInbox(true)}
                 icon={<Inbox size={18} />}
                 tooltip="Mein Posteingang"
+              />
+              <IconButton
+                onClick={() => setShowCallImport(true)}
+                icon={<PhoneCall size={18} />}
+                tooltip="Anrufliste übernehmen"
+                aria-label="Anrufliste übernehmen"
               />
               {onCreateCustomer && (
                 <IconButton
@@ -1856,6 +1864,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
       )}
 
       {/* Personal Inbox Drawer */}
+      <CallLogImportDialog isOpen={showCallImport} onClose={() => setShowCallImport(false)} customers={customers} projects={projects} />
+
       {showPersonalInbox && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}

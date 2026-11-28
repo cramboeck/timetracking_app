@@ -58,6 +58,7 @@ import contactsRoutes from './routes/contacts';
 import assetsRoutes from './routes/assets';
 import agentRoutes from './routes/agent';
 import purchaseOrderRoutes from './routes/purchase-orders';
+import callLogRoutes from './routes/call-log';
 import assetToolsRoutes, { publicAssetLabelRouter } from './routes/asset-tools';
 import interactionsRoutes from './routes/interactions';
 import opportunitiesRoutes from './routes/opportunities';
@@ -155,6 +156,7 @@ app.use('/api/contacts', contactsRoutes);
 // /import) dürfen nicht von GET /api/assets/:id geschluckt werden
 app.use('/api/agent', agentRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/call-log', callLogRoutes);
 app.use('/api/assets', assetToolsRoutes);
 app.use('/api/assets', assetsRoutes);
 // Öffentlich (ohne Login): Etiketten-QR /l/<token> → nur Asset-ID + Support-Kontakt

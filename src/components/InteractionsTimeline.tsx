@@ -430,6 +430,14 @@ export const InteractionsTimeline: React.FC<InteractionsTimelineProps> = ({
     }
   }, [customerId, filterType]);
 
+  // Neue Interaktionen aus anderen Dialogen (z.B. Anrufliste übernehmen)
+  useEffect(() => {
+    const onChanged = () => { if (customerId) loadInteractions(); };
+    window.addEventListener('rbf-interactions-changed', onChanged);
+    return () => window.removeEventListener('rbf-interactions-changed', onChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, filterType]);
+
   const loadInteractions = async () => {
     if (!customerId) return;
 

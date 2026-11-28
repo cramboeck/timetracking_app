@@ -3,7 +3,7 @@
  * Handles customer interactions, opportunities, and sales pipeline
  */
 
-import { authFetch } from './base';
+import { authFetch, authFetchMultipart } from './base';
 
 // ============================================
 // Types
@@ -600,4 +600,53 @@ export const contactsApi = {
       body: JSON.stringify({ send_invitation: sendInvitation ?? true }),
     });
   },
+};
+
+// ============================================
+// Anrufliste (iPhone-Screenshot) → Interaktionen
+// ============================================
+
+export type CallDirection = 'inbound' | 'outbound' | 'missed';
+
+export interface ExtractedCall {
+  key: string;
+  name: string | null;
+  number: string | null;
+  label: string | null;
+  when: string | null;
+  date: string | null;
+  time: string | null;
+  direction: CallDirection;
+  count: number;
+  match: { customerId: string | null; contactId: string | null; method: string | null; candidates: string[] };
+  alreadyImported: boolean;
+  contactName: string | null;
+  defaultProjectId: string | null;
+}
+
+export interface CommitCall {
+  key: string;
+  customerId: string;
+  contactId?: string | null;
+  direction: CallDirection;
+  occurredAt: string;
+  subject?: string | null;
+  content?: string | null;
+  durationMinutes?: number | null;
+  followUp?: boolean;
+  ticketId?: string | null;
+  time?: { projectId: string; isBillable: boolean; description?: string | null } | null;
+}
+
+export const callLogApi = {
+  extract: async (files: File[], today: string): Promise<{ success: boolean; data: { calls: ExtractedCall[]; notCallList: number } }> => {
+    const fd = new FormData();
+    files.forEach(f => fd.append('files', f));
+    fd.append('today', today);
+    return authFetchMultipart('/call-log/extract', fd);
+  },
+  polish: async (notes: string, customerName?: string | null, direction?: string | null): Promise<{ success: boolean; data: { subject: string | null; note: string } }> =>
+    authFetch('/call-log/polish', { method: 'POST', body: JSON.stringify({ notes, customerName, direction }) }),
+  commit: async (calls: CommitCall[]): Promise<{ success: boolean; data: { created: Array<{ key: string; interactionId: string; timeEntryId: string | null }>; skipped: Array<{ key: string; reason: string }> } }> =>
+    authFetch('/call-log/commit', { method: 'POST', body: JSON.stringify({ calls }) }),
 };

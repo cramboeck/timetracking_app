@@ -133,7 +133,8 @@ export {
 } from './business';
 
 // CRM API (interactions, opportunities, pipeline, contacts)
-export { interactionsApi, pipelineStagesApi, opportunitiesApi, contactsApi } from './crm';
+export { interactionsApi, pipelineStagesApi, opportunitiesApi, contactsApi, callLogApi } from './crm';
+export type { ExtractedCall, CommitCall, CallDirection } from './crm';
 
 // Leads API
 export { leadsApi } from './leads';

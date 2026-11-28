@@ -24,7 +24,7 @@ const router = Router();
 // ============================================================================
 
 /** Datum liegt vor dem 1. des laufenden Monats (Server-Zeit). */
-function isRetroactive(dateInput: string | Date | null | undefined): boolean {
+export function isRetroactive(dateInput: string | Date | null | undefined): boolean {
   if (!dateInput) return false;
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return false;
@@ -54,7 +54,7 @@ function formatHours(seconds: number | null | undefined): string {
  * Protokolliert eine rückwirkende Mutation und informiert die Org-Admins.
  * Fire-and-forget — darf die eigentliche Mutation nie scheitern lassen.
  */
-async function logRetroChange(opts: {
+export async function logRetroChange(opts: {
   organizationId: string;
   entryId: string;
   actorId: string;
