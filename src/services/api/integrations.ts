@@ -274,6 +274,8 @@ export const sevdeskApi = {
     // to substitute the {reportFilename} placeholder in the per-customer
     // position template.
     reportFilename?: string;
+    /** Rechnungsdatum YYYY-MM-DD (Standard heute) */
+    invoiceDate?: string;
   }): Promise<{
     success: boolean;
     data: {

@@ -100,6 +100,7 @@ const createInvoiceSchema = z.object({
   footText: z.string().max(10000).optional(),
   positions: z.array(invoicePositionSchema).max(100).optional(),
   reportFilename: z.string().max(500).optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
 });
 
 const previewReportSchema = z.object({
@@ -515,7 +516,7 @@ router.get('/billing-summary', authenticateToken, attachOrganization, requireOrg
 router.post('/create-invoice', authenticateToken, attachOrganization, requireOrgRole('admin'), requireBillingFeature, validate(createInvoiceSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions } = req.body;
+    const { customerId, entryIds, periodStart, periodEnd, header, headText, footText, positions, invoiceDate } = req.body;
 
     console.log('[create-invoice] Starting invoice creation for customer:', customerId);
     console.log('[create-invoice] Custom texts provided:', !!header, !!headText, !!footText);
@@ -633,6 +634,7 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
         positions,
         positionTemplate: customer.sevdesk_position_template ?? undefined,
         templateContext,
+        invoiceDate,
       }
     );
     console.log('[create-invoice] Invoice created:', invoice.invoiceId, invoice.invoiceNumber);

@@ -18,6 +18,11 @@ import { Button, IconButton } from './ui';
 import { sevdeskApi, BillingSummaryItem, PendingLineItem } from '../services/api';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 import { useToast } from '../contexts/UIContext';
+
+/** YYYY-MM-DD in LOKALER Zeit — toISOString() rechnet in UTC und machte aus dem
+ *  1. Oktober 00:00 (Berlin) den 30. September → Leistungszeitraum um einen Tag verschoben */
+const toLocalYmd = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import type { Customer } from '../types';
 
 interface InvoicePosition {
@@ -55,6 +60,8 @@ export const InvoiceCreationDialog = ({
   onSuccess,
 }: InvoiceCreationDialogProps) => {
   const showToast = useToast();
+  // Rechnungsdatum (Standard heute) — wird an sevDesk übergeben
+  const [invoiceDate, setInvoiceDate] = useState(() => toLocalYmd(new Date()));
   const [positions, setPositions] = useState<InvoicePosition[]>([]);
   // Rechnungs-Vorschau (zeigt, was an sevDesk geht — angelegt wird erst
   // beim Klick auf „Rechnung erstellen", und dort als Entwurf)
@@ -261,8 +268,8 @@ export const InvoiceCreationDialog = ({
       const response = await sevdeskApi.generateInvoiceTexts({
         customerId: customer.customerId,
         sevdeskContactId: customer.sevdeskCustomerId || undefined,
-        periodStart: periodStart.toISOString().split('T')[0],
-        periodEnd: periodEnd.toISOString().split('T')[0],
+        periodStart: toLocalYmd(periodStart),
+        periodEnd: toLocalYmd(periodEnd),
         entries: customer.entries.map(e => ({
           description: e.description,
           hours: e.duration / 3600,
@@ -372,13 +379,14 @@ export const InvoiceCreationDialog = ({
       const response = await sevdeskApi.createInvoice({
         customerId: customer.customerId,
         entryIds,
-        periodStart: periodStart.toISOString().split('T')[0],
-        periodEnd: periodEnd.toISOString().split('T')[0],
+        periodStart: toLocalYmd(periodStart),
+        periodEnd: toLocalYmd(periodEnd),
         header: invoiceHeader,
         headText: headText,
         footText: footText,
         positions: invoicePositions,
         reportFilename: generateReportFilename(),
+        invoiceDate,
       });
 
       if (response.success) {
@@ -511,7 +519,7 @@ export const InvoiceCreationDialog = ({
                     <p className="text-xs text-gray-500">Anschrift laut sevDesk-Kontakt</p>
                   </div>
                   <div className="text-right text-xs text-gray-600">
-                    <p>Rechnungsdatum: {new Date().toLocaleDateString('de-DE')}</p>
+                    <p>Rechnungsdatum: {new Date(`${invoiceDate}T12:00:00`).toLocaleDateString('de-DE')}</p>
                     <p className="font-medium text-gray-900">
                       Leistungszeitraum: {periodStart.toLocaleDateString('de-DE')} – {periodEnd.toLocaleDateString('de-DE')}
                     </p>
@@ -618,6 +626,29 @@ export const InvoiceCreationDialog = ({
             </h3>
 
             <div className="grid gap-4">
+              <div>
+                <label htmlFor="invoice-date" className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
+                  Rechnungsdatum
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    id="invoice-date"
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => e.target.value && setInvoiceDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-200 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                  />
+                  <button type="button" onClick={() => setInvoiceDate(toLocalYmd(new Date()))}
+                    className="px-2.5 py-1 rounded-full text-xs border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-500 hover:border-accent-primary">
+                    Heute
+                  </button>
+                  <button type="button" onClick={() => setInvoiceDate(toLocalYmd(periodEnd))}
+                    className="px-2.5 py-1 rounded-full text-xs border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-500 hover:border-accent-primary">
+                    Ende Leistungszeitraum
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-1">
                   Betreff / Header

@@ -279,10 +279,10 @@ const BillingTab = ({ onOpenCustomer }: { onOpenCustomer?: (customerId: string) 
   // For custom date range
   const [customStartDate, setCustomStartDate] = useState(() => {
     const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    return toLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1));
   });
   const [customEndDate, setCustomEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    return toLocalDateString(new Date());
   });
 
   // Invoice creation dialog

@@ -131,6 +131,12 @@ export async function getSevdeskUnits(apiToken: string): Promise<SevdeskUnits> {
   }
 }
 
+/** 'YYYY-MM-DD' → Date um 12:00 UTC (zeitzonenfester Kalendertag) */
+export function ymdNoonUtc(ymd: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd);
+  return m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12)) : new Date(ymd);
+}
+
 // Get or create sevDesk config for user
 export async function getConfig(userId: string): Promise<SevdeskConfig | null> {
   const result = await query(
@@ -542,6 +548,8 @@ interface CustomInvoiceData {
   // immediately visible in the output.
   positionTemplate?: string;
   templateContext?: PositionTemplateContext;
+  /** Rechnungsdatum YYYY-MM-DD (Standard: heute) */
+  invoiceDate?: string;
 }
 
 // Substitute {placeholder} occurrences. Unknown keys are left unchanged.
@@ -624,9 +632,11 @@ export async function createInvoice(
   customData?: CustomInvoiceData
 ): Promise<{ invoiceId: string; invoiceNumber: string; expectedNet: number }> {
   // Format the period for display
-  const startDate = new Date(periodStart);
-  const endDate = new Date(periodEnd);
-  const periodLabel = `${startDate.toLocaleDateString('de-DE')} - ${endDate.toLocaleDateString('de-DE')}`;
+  // Kalendertage auf 12:00 UTC verankern — Mitternacht UTC kann je nach
+  // Zeitzone von sevDesk/Server auf den Vortag kippen
+  const startDate = ymdNoonUtc(periodStart);
+  const endDate = ymdNoonUtc(periodEnd);
+  const periodLabel = `${startDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })} - ${endDate.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' })}`;
 
   logger.info(`Creating sevDesk invoice for contact ${sevdeskCustomerId}, period ${periodLabel}, ${entries.length} entries`);
   logger.info('Custom data provided:', { provided: !!customData, customPositions: customData?.positions?.length || 0 });
@@ -776,7 +786,7 @@ export async function createInvoice(
   logger.info('[sevDesk] Address:', fullAddress);
 
   // Use Unix timestamp for date (like the quote creation)
-  const invoiceDateTimestamp = Math.floor(new Date().getTime() / 1000);
+  const invoiceDateTimestamp = Math.floor((customData?.invoiceDate ? ymdNoonUtc(customData.invoiceDate) : new Date()).getTime() / 1000);
   const taxRate = config.taxRate || 19;
 
   // Build invoice data structure matching sevDesk format (similar to quote creation)
