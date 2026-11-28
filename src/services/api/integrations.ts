@@ -23,6 +23,15 @@ export interface SevdeskConfig {
   lastSyncAt: string | null;
 }
 
+/** Nummern-Kontrolle: passt die von sevDesk vergebene Nummer zur bisherigen Folge? */
+export interface InvoiceNumberCheck {
+  status: 'ok' | 'gap' | 'duplicate' | 'out_of_order' | 'first' | 'unknown';
+  number: string;
+  previous: string | null;
+  missing: string[];
+  missingCount: number;
+}
+
 /** Gegenprobe nach dem Anlegen: Nettosumme in sevDesk vs. erwartet */
 export interface InvoicePriceCheck {
   status: 'ok' | 'mismatch' | 'unknown';
@@ -285,6 +294,7 @@ export const sevdeskApi = {
       totalHours: number;
       totalAmount: number;
       priceCheck?: InvoicePriceCheck;
+      numberCheck?: InvoiceNumberCheck;
     };
   }> => {
     return authFetch('/sevdesk/create-invoice', {

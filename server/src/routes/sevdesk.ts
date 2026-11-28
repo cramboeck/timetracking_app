@@ -1,3 +1,4 @@
+import { checkInvoiceNumber, NumberCheck } from '../utils/invoiceNumbers';
 import express, { Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
@@ -617,6 +618,17 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
     // beim (E-)Rechnungs-Versand die eigene Adresse statt der des Kunden vor
     await sevdeskService.ensureContactEmail(config.apiToken, customer.sevdesk_customer_id, customer.email);
 
+    // Nummern-Kontrolle, Teil 1: Bestand VOR dem Anlegen (sevDesk vergibt die
+    // Nummer selbst — wir prüfen nur, ob sie zur bisherigen Folge passt)
+    const SNAPSHOT_LIMIT = 500;
+    let numberSnapshot: Array<{ id: string; invoiceNumber: string | null }> | null = null;
+    try {
+      const list = await sevdeskService.getInvoices(config.apiToken, { limit: SNAPSHOT_LIMIT });
+      numberSnapshot = list.map(i => ({ id: String(i.id), invoiceNumber: i.invoiceNumber || null }));
+    } catch (e) {
+      console.warn('[create-invoice] Nummern-Bestand nicht lesbar:', e instanceof Error ? e.message : e);
+    }
+
     // Create invoice in sevDesk with custom texts and positions
     console.log('[create-invoice] Calling sevdeskService.createInvoice...');
     const invoice = await sevdeskService.createInvoice(
@@ -642,6 +654,16 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
     // Gegenprobe: stimmt die Nettosumme in sevDesk? (Netto/Brutto-Erfassung des Kontos)
     const priceCheck = await sevdeskService.verifyInvoiceNet(userId, config.apiToken, config, invoice.invoiceId, invoice.expectedNet);
 
+    // Nummern-Kontrolle, Teil 2: passt die vergebene Nummer zur Folge?
+    // Bei vollem Abruf (≥ Limit) ist der Bestand evtl. unvollständig → „unbekannt“.
+    let numberCheck: NumberCheck = { status: 'unknown', number: invoice.invoiceNumber, previous: null, missing: [], missingCount: 0 };
+    if (numberSnapshot && numberSnapshot.length < SNAPSHOT_LIMIT && invoice.invoiceNumber) {
+      numberCheck = checkInvoiceNumber(invoice.invoiceNumber, String(invoice.invoiceId), numberSnapshot);
+    }
+    if (numberCheck.status !== 'ok' && numberCheck.status !== 'first') {
+      console.warn('[create-invoice] Nummern-Kontrolle:', JSON.stringify(numberCheck));
+    }
+
     // Record the export
     console.log('[create-invoice] Recording export...');
     const exportId = await sevdeskService.recordInvoiceExport(
@@ -666,6 +688,7 @@ router.post('/create-invoice', authenticateToken, attachOrganization, requireOrg
         totalHours,
         totalAmount,
         priceCheck,
+        numberCheck,
       },
     });
   } catch (error: any) {

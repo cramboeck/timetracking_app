@@ -399,18 +399,32 @@ export const InvoiceCreationDialog = ({
             // Don't fail the whole operation - invoice was already created
           }
         }
-        // Gegenprobe des Servers: hat sevDesk die Preise netto gelesen?
+        // Gegenproben des Servers: Nettosumme + Rechnungsnummer
+        const warnings: string[] = [];
         const check = response.data.priceCheck;
         if (check?.status === 'mismatch') {
           const fmt = (v: number | null) => (v ?? 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-          showToast(
-            `Achtung: In sevDesk steht ${fmt(check.sevdeskNet)} netto statt ${fmt(check.expectedNet)}. ` +
+          warnings.push(
+            `In sevDesk steht ${fmt(check.sevdeskNet)} netto statt ${fmt(check.expectedNet)}. ` +
             (check.switchedTo
-              ? `Dein sevDesk-Konto erfasst Preise ${check.switchedTo === 'gross' ? 'brutto' : 'netto'} — die Einstellung ist jetzt angepasst. Bitte diesen Entwurf in sevDesk löschen und die Rechnung neu erstellen.`
-              : 'Bitte die Rechnung in sevDesk prüfen.'),
-            'warning',
-            20000
+              ? `Dein sevDesk-Konto erfasst Preise ${check.switchedTo === 'gross' ? 'brutto' : 'netto'} — die Einstellung ist jetzt angepasst. Bitte die Preise im Entwurf in sevDesk korrigieren (nicht löschen, sonst entsteht eine Nummernlücke).`
+              : 'Bitte die Rechnung in sevDesk prüfen.')
           );
+        }
+        const nc = response.data.numberCheck;
+        if (nc?.status === 'duplicate') {
+          warnings.push(`Rechnungsnummer ${nc.number} gibt es in sevDesk bereits — bitte sofort in sevDesk prüfen, bevor die Rechnung rausgeht.`);
+        } else if (nc?.status === 'gap') {
+          warnings.push(
+            `Nummernlücke: nach ${nc.previous} wurde ${nc.number} vergeben` +
+            (nc.missingCount > 0 ? ` (es fehlen ${nc.missing.join(', ')}${nc.missingCount > nc.missing.length ? ` und ${nc.missingCount - nc.missing.length} weitere` : ''})` : '') +
+            '. Meist gelöschte Entwürfe — bitte für die Buchhaltung kurz notieren.'
+          );
+        } else if (nc?.status === 'out_of_order') {
+          warnings.push(`Rechnungsnummer ${nc.number} ist kleiner als die bisher höchste (${nc.previous}) — Nummernkreis in sevDesk prüfen.`);
+        }
+        if (warnings.length > 0) {
+          showToast(`Achtung: ${warnings.join(' ')}`, 'warning', 25000);
         }
         onSuccess(response.data.invoiceNumber);
         onClose();
