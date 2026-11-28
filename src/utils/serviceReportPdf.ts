@@ -114,7 +114,6 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
     .map(e => ({ ...e, description: cleanDescription(e.description) }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const totalHours = entries.reduce((s, e) => s + e.hours, 0);
-  const workDays = new Set(entries.map(e => dayKey(e.date))).size;
   const projects = new Map<string, number>();
   entries.forEach(e => projects.set(e.projectName, (projects.get(e.projectName) || 0) + e.hours));
   const projectList = [...projects.entries()].sort((a, b) => b[1] - a[1]);
@@ -186,6 +185,9 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
   const metaLines: string[] = [`Leistungszeitraum: ${periodText}`];
   if (singleProject) metaLines.push(`Projekt: ${singleProject}`);
   if (input.invoiceNumber) metaLines.push(`Anlage zu Rechnung ${input.invoiceNumber}`);
+  // Kennzahlen bewusst schlank: nur die Gesamtzeit im Titelblock (User:
+  // Arbeitstage/Durchschnitt sind für den Kunden zu viel)
+  if (includeSummary) metaLines.push(`Gesamtzeit: ${formatHM(totalHours)} (${formatDecimalHours(totalHours)} Std.)`);
   const titleBlockH = 13 + metaLines.length * 4.4;
   doc.rect(M, y, 1.2, titleBlockH, 'F');
   font('normal', 8.5); setText(gray);
@@ -198,32 +200,6 @@ export function buildServiceReportPdf(input: ServiceReportInput): jsPDF {
   y += titleBlockH + 6;
 
   if (includeSummary) {
-    const kpis: Array<[string, string, string?]> = [
-      ['Gesamtzeit', formatHM(totalHours), `${formatDecimalHours(totalHours)} Std.`],
-      ['Arbeitstage', String(workDays)],
-      ['Ø pro Arbeitstag', workDays ? formatHM(totalHours / workDays) : '–'],
-    ];
-    // Eine schmale Kennzahlen-Leiste statt großer Kacheln
-    const barH = 9;
-    const kw = CW / 3;
-    doc.setFillColor(...light);
-    doc.roundedRect(M, y, CW, barH, 1.8, 1.8, 'F');
-    kpis.forEach(([label, value, sub], i) => {
-      const x = M + i * kw;
-      if (i > 0) { doc.setDrawColor(...line); doc.setLineWidth(0.3); doc.line(x, y + 2, x, y + barH - 2); }
-      font('normal', 8); setText(gray);
-      doc.text(label, x + 4, y + 5.9);
-      const lw = doc.getTextWidth(label);
-      font('bold', 10); setText(dark);
-      doc.text(value, x + 4 + lw + 2.5, y + 5.9);
-      if (sub) {
-        const vw = doc.getTextWidth(value);
-        font('normal', 7.5); setText(gray);
-        doc.text(`(${sub})`, x + 4 + lw + 2.5 + vw + 1.8, y + 5.9);
-      }
-    });
-    y += barH + 7;
-
     // Projektverteilung nur bei mehreren Projekten (eine 100-%-Torte sagt nichts)
     if (projectList.length > 1) {
       font('bold', 9.5); setText(dark);

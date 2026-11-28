@@ -2092,7 +2092,7 @@ ${companyInfo?.phone || ''}`;
                       />
                       <div>
                         <span className="text-gray-900 dark:text-white font-medium">Kennzahlen</span>
-                        <p className="text-xs text-gray-500 dark:text-dark-400">Gesamtzeit, Arbeitstage, Verteilung nach Projekten</p>
+                        <p className="text-xs text-gray-500 dark:text-dark-400">Gesamtzeit im Kopf, Verteilung nach Projekten (ab 2 Projekten)</p>
                       </div>
                     </label>
                     <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors">
