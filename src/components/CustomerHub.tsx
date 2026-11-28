@@ -48,6 +48,8 @@ import {
   X,
   Package,
   Globe,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { Customer, Project, TimeEntry, Ticket as TicketType, Task } from '../types';
 import { CustomerEditDialog } from './CustomerEditDialog';
@@ -70,6 +72,7 @@ import { SkeletonListItem } from './Skeleton';
 import { PersonalInbox } from './PersonalInbox';
 import { InteractionsTimeline } from './InteractionsTimeline';
 import { CallLogImportDialog } from './CallLogImportDialog';
+import { OverflowTabs } from './ui/OverflowTabs';
 import { CustomerContacts } from './CustomerContacts';
 import { CreateTicketDialog } from './CreateTicketDialog';
 import { useToast } from '../contexts/UIContext';
@@ -1238,6 +1241,14 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   const showToast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCallImport, setShowCallImport] = useState(false);
+  // Desktop: Kundenliste neben einem geöffneten Kunden auf eine Avatar-Leiste einklappen
+  const [listCollapsed, setListCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('rbf_customer_list_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleListCollapsed = (v: boolean) => {
+    setListCollapsed(v);
+    try { localStorage.setItem('rbf_customer_list_collapsed', v ? '1' : '0'); } catch { /* egal */ }
+  };
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId || null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -1522,10 +1533,34 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
   return (
     <div className="flex h-full">
       {/* Customer List - Left Panel */}
+      {/* Eingeklappt (nur Desktop, nur mit geöffnetem Kunden): Avatar-Leiste */}
+      {selectedCustomerId && listCollapsed && (
+        <div className="hidden lg:flex w-[4.5rem] flex-col flex-shrink-0 border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100" data-testid="customer-rail">
+          <div className="p-3 flex flex-col items-center gap-2 border-b border-gray-200 dark:border-dark-border">
+            <IconButton onClick={() => toggleListCollapsed(false)} icon={<PanelLeftOpen size={18} />} tooltip="Kundenliste ausklappen" aria-label="Kundenliste ausklappen" />
+            <IconButton onClick={() => toggleListCollapsed(false)} icon={<Search size={18} />} tooltip="Kunden suchen" aria-label="Kunden suchen" />
+          </div>
+          <div className="flex-1 overflow-y-auto scrollbar-hide py-2 flex flex-col items-center gap-1.5">
+            {filteredCustomers.map(customer => (
+              <button
+                key={customer.id}
+                type="button"
+                onClick={() => handleCustomerSelect(customer.id)}
+                title={customer.name}
+                aria-label={customer.name}
+                className={`rounded-xl p-0.5 transition ${selectedCustomerId === customer.id ? 'ring-2 ring-accent-primary' : 'opacity-80 hover:opacity-100 hover:ring-2 hover:ring-gray-200 dark:hover:ring-dark-300'}`}
+              >
+                <CustomerAvatar name={customer.name} color={customer.color} logoUrl={customer.logoUrl} size="md" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={`
-        ${selectedCustomerId ? 'hidden lg:block lg:w-80 xl:w-96' : 'w-full'}
+        ${selectedCustomerId ? (listCollapsed ? 'hidden' : 'hidden lg:flex lg:w-80 xl:w-96') : 'w-full flex'}
         border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-100
-        flex flex-col flex-shrink-0
+        flex-col flex-shrink-0
       `}>
         {/* Search Header */}
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
@@ -1538,6 +1573,11 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
               ({filteredCustomers.length})
             </span>
             <div className="flex items-center gap-2 ml-auto">
+              {selectedCustomerId && (
+                <span className="hidden lg:inline-flex">
+                  <IconButton onClick={() => toggleListCollapsed(true)} icon={<PanelLeftClose size={18} />} tooltip="Kundenliste einklappen" aria-label="Kundenliste einklappen" />
+                </span>
+              )}
               <IconButton
                 onClick={() => setShowPersonalInbox(true)}
                 icon={<Inbox size={18} />}
@@ -1699,32 +1739,8 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
               </div>
             </div>
 
-            {/* Tabs */}
-            <div data-no-swipe className="flex gap-1 mt-4 overflow-x-auto scrollbar-hide [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] pr-10">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={(e) => { setActiveTab(tab.id); e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
-                      : 'text-gray-600 dark:text-dark-400 hover:bg-gray-100 dark:hover:bg-dark-200'
-                  }`}
-                >
-                  <tab.icon size={16} />
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                      activeTab === tab.id
-                        ? 'bg-accent-light dark:bg-accent-primary/40 text-accent-dark dark:text-accent-primary'
-                        : 'bg-gray-200 dark:bg-dark-300 text-gray-600 dark:text-dark-500'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {/* Tabs — was nicht passt, liegt unter „Mehr“ (nie scrollen) */}
+            <OverflowTabs tabs={tabs} active={activeTab} onChange={setActiveTab} className="mt-4" />
           </div>
 
           {/* Tab Content */}
