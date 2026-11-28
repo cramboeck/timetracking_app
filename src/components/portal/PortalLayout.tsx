@@ -26,6 +26,9 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
 
+  // Hinterlegtes Logo nicht ladbar (alte/kaputte URL) → eigenes Logo statt kaputtem Bild
+  const [brandLogoFailed, setBrandLogoFailed] = useState(false);
+
   const handleLogout = () => {
     customerPortalApi.logout();
     onLogout();
@@ -46,11 +49,12 @@ export const PortalLayout = ({ contact, onLogout, onShowProfile, onShowKnowledge
       <header className="bg-white dark:bg-dark-100 border-b border-gray-200 dark:border-dark-border px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {portalSettings?.logoUrl ? (
+            {portalSettings?.logoUrl && !brandLogoFailed ? (
               <img
                 src={portalSettings.logoUrl}
                 alt="Logo"
                 className="w-10 h-10 rounded-xl object-contain"
+                onError={() => setBrandLogoFailed(true)}
               />
             ) : (
               <img
