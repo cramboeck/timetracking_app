@@ -35,6 +35,7 @@ import * as m033 from './033-invoice-proposals';
 import * as m034 from './034-goods-receipt';
 import * as m035 from './035-order-invoice-billing';
 import * as m036 from './036-order-recognition-v2';
+import * as m037 from './037-anthropic-current-models';
 
 export interface Migration {
   name: string;
@@ -83,4 +84,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '034-goods-receipt', run: m034.run },
   { name: '035-order-invoice-billing', run: m035.run },
   { name: '036-order-recognition-v2', run: m036.run },
+  { name: '037-anthropic-current-models', run: m037.run },
 ];

@@ -35,9 +35,10 @@ export const AISettings = () => {
       { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Günstigste)' },
     ],
     anthropic: [
-      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Empfohlen)' },
-      { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (Schnell)' },
-      { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus (Beste Qualität)' },
+      // Die alten claude-3-* sind von Anthropic abgeschaltet (Stand 11/2026)
+      { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Empfohlen)' },
+      { value: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Schnell & günstig)' },
+      { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Beste Qualität)' },
     ],
   };
 
@@ -52,7 +53,13 @@ export const AISettings = () => {
       if (response.data) {
         setConfig(response.data);
         setProvider(response.data.provider);
-        setModel(response.data.model);
+        // Abgeschaltetes Claude-Modell gespeichert? Aktuelles derselben Klasse anzeigen
+        // (der Server bildet es ohnehin so ab) — mit „Speichern“ wird es übernommen
+        const saved = response.data.model as string;
+        const known = response.data.provider === 'anthropic' ? modelOptions.anthropic : modelOptions.openai;
+        setModel(response.data.provider === 'anthropic' && !known.some(o => o.value === saved)
+          ? (/haiku/i.test(saved) ? 'claude-haiku-5-5' : /opus/i.test(saved) ? 'claude-opus-5-5' : 'claude-sonnet-5-5')
+          : saved);
         setEnabled(response.data.enabled);
         setMaxTokens(response.data.maxTokens);
         setTemperature(response.data.temperature);
@@ -73,7 +80,7 @@ export const AISettings = () => {
     if (newProvider === 'openai') {
       setModel('gpt-4o-mini');
     } else {
-      setModel('claude-3-5-sonnet-20241022');
+      setModel('claude-sonnet-5-5');
     }
     // Reset test result when provider changes
     setTestResult(null);

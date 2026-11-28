@@ -1,3 +1,4 @@
+import { callAnthropicMessages, buildAnthropicRequest } from '../utils/anthropic';
 import { query } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -450,40 +451,15 @@ async function callAnthropic(
   model: string,
   prompt: string,
   maxTokens: number,
-  temperature: number,
+  _temperature: number, // aktuelle Claude-Modelle lehnen Sampling-Parameter ab — bewusst nicht gesendet
   systemPrompt: string = DEFAULT_SYSTEM_PROMPTS.default
 ): Promise<{ content: string; tokensUsed: number }> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
-      system: systemPrompt,
-    }),
+  // Modell wird auf ein aktuelles abgebildet (die alten claude-3-* sind abgeschaltet)
+  const r = await callAnthropicMessages({
+    apiKey, model, maxTokens, system: systemPrompt,
+    messages: [{ role: 'user', content: prompt }],
   });
-
-  if (!response.ok) {
-    const errorData = await response.json() as { error?: { message?: string } };
-    throw new Error(`Anthropic API error: ${errorData.error?.message || 'Unknown error'}`);
-  }
-
-  const data = await response.json() as {
-    content?: Array<{ text?: string }>;
-    usage?: { input_tokens?: number; output_tokens?: number };
-  };
-  const inputTokens = data.usage?.input_tokens || 0;
-  const outputTokens = data.usage?.output_tokens || 0;
-
-  return {
-    content: data.content?.[0]?.text || '',
-    tokensUsed: inputTokens + outputTokens,
-  };
+  return { content: r.text, tokensUsed: (r.usage.input_tokens || 0) + (r.usage.output_tokens || 0) };
 }
 
 // ============================================
@@ -684,19 +660,8 @@ export async function testAIConnection(
       return { success: true };
     } else {
       // Anthropic doesn't have a simple test endpoint, so we do a minimal request
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 10,
-          messages: [{ role: 'user', content: 'Hi' }],
-        }),
-      });
+      const { headers, body } = buildAnthropicRequest({ apiKey, model: 'claude-haiku-5-5', maxTokens: 16, messages: [{ role: 'user', content: 'Hi' }] });
+      const response = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify(body) });
       if (!response.ok) {
         const errorData = await response.json() as { error?: { message?: string } };
         return { success: false, error: errorData.error?.message || 'Ungültiger API-Key' };
