@@ -1700,11 +1700,11 @@ export const CustomerHub: React.FC<CustomerHubProps> = ({
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 mt-4 overflow-x-auto pb-1">
+            <div data-no-swipe className="flex gap-1 mt-4 overflow-x-auto scrollbar-hide [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] pr-10">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={(e) => { setActiveTab(tab.id); e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); }}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                     activeTab === tab.id
                       ? 'bg-accent-lighter dark:bg-accent-primary/30 text-accent-dark dark:text-accent-primary'
