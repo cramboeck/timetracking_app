@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { formatSecurityLogLine } from '../utils/securityLogLine';
 import { pool } from '../config/database';
 import { emailService } from './emailService';
 
@@ -54,8 +55,7 @@ class SecurityService {
    * Format: [TIMESTAMP] AUTH_FAILED ip=IP user=USERNAME
    */
   logFailedLogin(ip: string, username: string, userAgent?: string): void {
-    const timestamp = new Date().toISOString();
-    const logLine = `[${timestamp}] AUTH_FAILED ip=${ip} user=${username}\n`;
+    const logLine = formatSecurityLogLine('AUTH_FAILED', ip, username);
 
     // Write to security log file (for Fail2Ban) - don't crash if it fails
     if (this.logFileWritable) {
@@ -77,8 +77,7 @@ class SecurityService {
    * Log a successful login
    */
   logSuccessfulLogin(ip: string, username: string, userId: string): void {
-    const timestamp = new Date().toISOString();
-    const logLine = `[${timestamp}] AUTH_SUCCESS ip=${ip} user=${username}\n`;
+    const logLine = formatSecurityLogLine('AUTH_SUCCESS', ip, username);
 
     // Write to security log file - don't crash if it fails
     if (this.logFileWritable) {
