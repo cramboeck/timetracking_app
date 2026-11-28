@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { query } from '../config/database';
@@ -183,10 +184,10 @@ router.post('/:id/assign', requireOrgRole('admin'), validate(assignSchema), asyn
     if (ticketId) {
       await query(
         `INSERT INTO ticket_activities (id, ticket_id, user_id, action_type, new_value, metadata, created_at)
-         VALUES (gen_random_uuid()::text, $1, $2, 'order_update', $3, $4, NOW())`,
+         VALUES ($5, $1, $2, 'order_update', $3, $4, NOW())`,
         [ticketId, req.userId, `Bestellung ${r.rows[0].order_number ?? ''} ${r.rows[0].supplier_name ? `bei ${r.rows[0].supplier_name}` : ''} zugeordnet`.replace(/\s+/g, ' ').trim(),
-          JSON.stringify({ orderId: req.params.id })]
-      );
+          JSON.stringify({ orderId: req.params.id }), crypto.randomUUID()]
+      ).catch(err => logger.warn('Ticket-Aktivität für Bestellzuordnung fehlgeschlagen:', err));
     }
     const full = await query(`${ORDER_SELECT} WHERE o.id = $1`, [req.params.id]);
     res.json({ success: true, data: mapOrder(full.rows[0]) });

@@ -201,9 +201,9 @@ export async function receiveGoods(
     try {
       await query(
         `INSERT INTO ticket_activities (id, ticket_id, user_id, action_type, new_value, metadata, created_at)
-         VALUES (gen_random_uuid()::text, $1, $2, 'order_update', $3, $4, NOW())`,
+         VALUES ($5, $1, $2, 'order_update', $3, $4, NOW())`,
         [order.ticket_id, userId, text.slice(0, 1000),
-          JSON.stringify({ orderId, goodsReceipt: true, assetIds: result.created.map(c => c.id) })]
+          JSON.stringify({ orderId, goodsReceipt: true, assetIds: result.created.map(c => c.id) }), crypto.randomUUID()]
       );
     } catch (err) {
       logger.error('Wareneingang: Ticket-Aktivität fehlgeschlagen', err);

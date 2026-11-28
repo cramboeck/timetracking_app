@@ -91,7 +91,7 @@ export const InvoiceCreationDialog = ({
   const [loadingExpenses, setLoadingExpenses] = useState(false);
   const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
   const [expenseMarkup, setExpenseMarkup] = useState<number>(0); // Percentage markup
-  const [expandedExpenses, setExpandedExpenses] = useState(false);
+  const [expandedExpenses, setExpandedExpenses] = useState(true);
 
   // Generate service report filename in format: Dienstleistungsnachweis_Kundenname_YYYY_MM.pdf
   const generateReportFilename = () => {
@@ -196,8 +196,8 @@ export const InvoiceCreationDialog = ({
       const response = await sevdeskApi.getPendingLineItemsForCustomer(customer.customerId);
       if (response.success && response.data) {
         setPendingExpenses(response.data.items);
-        // Auto-select all by default
-        setSelectedExpenses(new Set(response.data.items.map(item => item.id)));
+        // Bewusst NICHTS vorauswählen: was mit auf die Rechnung kommt, entscheidet der Nutzer
+        setSelectedExpenses(new Set());
       }
     } catch (err) {
       console.error('Failed to load pending expenses:', err);
@@ -218,18 +218,39 @@ export const InvoiceCreationDialog = ({
     positions.reduce((sum, p) => sum + p.amount, 0), [positions]
   );
 
-  // Calculate selected expenses total with markup
+  // Preis je Weiterberechnung: gepflegter VK (pro Einheit) hat Vorrang, sonst EK + Aufschlag
+  const expenseUnit = (exp: PendingLineItem) =>
+    exp.resellPrice != null ? exp.resellPrice : exp.unitPrice * (1 + expenseMarkup / 100);
+  const expenseTotal = (exp: PendingLineItem) =>
+    exp.resellPrice != null ? exp.resellPrice * (exp.quantity || 1) : exp.totalPrice * (1 + expenseMarkup / 100);
+
   const selectedExpensesTotal = useMemo(() => {
-    const baseTotal = pendingExpenses
-      .filter(exp => selectedExpenses.has(exp.id))
-      .reduce((sum, exp) => sum + exp.totalPrice, 0);
-    const markupAmount = baseTotal * (expenseMarkup / 100);
-    return {
-      base: baseTotal,
-      markup: markupAmount,
-      total: baseTotal + markupAmount,
-    };
+    const sel = pendingExpenses.filter(exp => selectedExpenses.has(exp.id));
+    const base = sel.reduce((sum, exp) => sum + exp.totalPrice, 0);
+    const total = sel.reduce((sum, exp) => sum + expenseTotal(exp), 0);
+    return { base, markup: total - base, total };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingExpenses, selectedExpenses, expenseMarkup]);
+
+  // Gruppen für die Auswahl: Hardware · Software & Lizenzen · Sonstiges
+  const expenseGroups = useMemo(() => {
+    const groups: Array<{ key: string; label: string; items: PendingLineItem[] }> = [
+      { key: 'hardware', label: 'Hardware', items: [] },
+      { key: 'software', label: 'Software & Lizenzen', items: [] },
+      { key: 'other', label: 'Sonstiges', items: [] },
+    ];
+    for (const e of pendingExpenses) {
+      const g = e.itemType === 'hardware' ? 0 : e.itemType === 'license' || e.itemType === 'subscription' ? 1 : 2;
+      groups[g].items.push(e);
+    }
+    return groups.filter(g => g.items.length > 0);
+  }, [pendingExpenses]);
+  const toggleGroup = (items: PendingLineItem[]) => {
+    const all = items.every(i => selectedExpenses.has(i.id));
+    const next = new Set(selectedExpenses);
+    items.forEach(i => (all ? next.delete(i.id) : next.add(i.id)));
+    setSelectedExpenses(next);
+  };
 
   const grandTotal = useMemo(() =>
     totalAmount + selectedExpensesTotal.total, [totalAmount, selectedExpensesTotal.total]
@@ -363,15 +384,15 @@ export const InvoiceCreationDialog = ({
 
         // Add each expense as position
         for (const expense of selectedExpenseItems) {
-          const priceWithMarkup = expense.totalPrice * (1 + expenseMarkup / 100);
           invoicePositions.push({
             title: expense.description || 'Weiterberechnung',
-            description: expense.vendorName ? `Lieferant: ${expense.vendorName}` : '',
+            // Auf die Kundenrechnung gehört die Seriennummer, nicht der Lieferant
+            description: expense.serialNumber ? `Seriennummer: ${expense.serialNumber}` : '',
             hours: 0,
-            amount: Math.round(priceWithMarkup * 100) / 100,
+            amount: Math.round(expenseTotal(expense) * 100) / 100,
             hourlyRate: 0,
             quantity: expense.quantity,
-            unitPrice: Math.round((expense.unitPrice * (1 + expenseMarkup / 100)) * 100) / 100,
+            unitPrice: Math.round(expenseUnit(expense) * 100) / 100,
           });
         }
       }
@@ -583,16 +604,16 @@ export const InvoiceCreationDialog = ({
                           <td className="py-1.5 pr-2 text-gray-500">{positions.length + idx + 1}</td>
                           <td className="py-1.5 pr-2">
                             <span className="font-medium">{expense.description || 'Weiterberechnung'}</span>
-                            {expense.vendorName && (
-                              <span className="block text-gray-500">Lieferant: {expense.vendorName}</span>
+                            {expense.serialNumber && (
+                              <span className="block text-gray-500">Seriennummer: {expense.serialNumber}</span>
                             )}
                           </td>
                           <td className="py-1.5 pr-2 text-right whitespace-nowrap">{expense.quantity}×</td>
                           <td className="py-1.5 pr-2 text-right whitespace-nowrap">
-                            {formatCurrency(expense.unitPrice * (1 + expenseMarkup / 100))}
+                            {formatCurrency(expenseUnit(expense))}
                           </td>
                           <td className="py-1.5 text-right whitespace-nowrap font-medium">
-                            {formatCurrency(expense.totalPrice * (1 + expenseMarkup / 100))}
+                            {formatCurrency(expenseTotal(expense))}
                           </td>
                         </tr>
                       ))}
@@ -868,11 +889,29 @@ export const InvoiceCreationDialog = ({
                         </span>
                       </div>
 
-                      {/* Expense Items */}
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {pendingExpenses.map((expense) => (
+                      <p className="text-xs text-gray-500 dark:text-dark-400 px-1">
+                        Wähle, was auf diese Rechnung soll — der Rest bleibt offen für eine spätere Rechnung.
+                        Mit gepflegtem VK wird der VK berechnet, sonst Einkaufspreis + Aufschlag.
+                      </p>
+
+                      {/* Weiterberechnungen nach Art gruppiert */}
+                      <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                        {expenseGroups.map(group => {
+                          const allSel = group.items.every(i => selectedExpenses.has(i.id));
+                          return (
+                            <div key={group.key} className="space-y-2" data-testid={`expense-group-${group.key}`}>
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-400">
+                                  {group.label} ({group.items.length})
+                                </span>
+                                <button type="button" onClick={() => toggleGroup(group.items)} className="text-xs text-accent-primary hover:underline">
+                                  {allSel ? 'keine' : 'alle'}
+                                </button>
+                              </div>
+                              {group.items.map((expense) => (
                           <div
                             key={expense.id}
+                            data-testid="expense-item"
                             className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                               selectedExpenses.has(expense.id)
                                 ? 'border-accent-primary bg-accent-light dark:bg-accent-primary/10'
@@ -888,29 +927,31 @@ export const InvoiceCreationDialog = ({
                               className="mt-1 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 dark:text-white truncate">
+                              <p className="font-medium text-gray-900 dark:text-white break-words">
                                 {expense.description || 'Ohne Beschreibung'}
                               </p>
                               <p className="text-sm text-gray-500 dark:text-dark-400">
                                 {expense.vendorName && <span>{expense.vendorName} • </span>}
-                                {expense.quantity}× {formatCurrency(expense.unitPrice)}
+                                {expense.quantity}× EK {formatCurrency(expense.unitPrice)}
                                 {expense.invoiceDate && (
                                   <span> • {new Date(expense.invoiceDate).toLocaleDateString('de-DE')}</span>
                                 )}
+                                {expense.serialNumber && <span> • SN {expense.serialNumber}</span>}
                               </p>
                             </div>
                             <div className="text-right flex-shrink-0">
                               <p className="font-medium text-gray-900 dark:text-white">
-                                {formatCurrency(expense.totalPrice * (1 + expenseMarkup / 100))}
+                                {formatCurrency(expenseTotal(expense))}
                               </p>
-                              {expenseMarkup > 0 && (
-                                <p className="text-xs text-gray-500 line-through">
-                                  {formatCurrency(expense.totalPrice)}
-                                </p>
-                              )}
+                              <p className="text-xs text-gray-500">
+                                {expense.resellPrice != null ? 'VK' : expenseMarkup > 0 ? `EK +${expenseMarkup} %` : 'EK'}
+                              </p>
                             </div>
                           </div>
-                        ))}
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </>
                   ) : (

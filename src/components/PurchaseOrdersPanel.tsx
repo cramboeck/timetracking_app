@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import {
@@ -6,7 +6,7 @@ import {
   Home, AlertTriangle, ChevronDown, ChevronUp, Link2, Ban, Mail, FileCheck,
 } from 'lucide-react';
 import {
-  customersApi, purchaseOrdersApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl,
+  customersApi, purchaseOrdersApi, ticketsApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl,
   PurchaseOrder, PurchaseOrderFilter, PurchaseOrderStatus, AssignTarget,
 } from '../services/api';
 import { Button } from './ui/Button';
@@ -329,6 +329,14 @@ const AssignOrderDialog = ({ order, onClose, onDone }: { order: PurchaseOrder | 
   const [mode, setMode] = useState<'ticket' | 'customer' | 'internal'>('ticket');
   const [customerId, setCustomerId] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Kunde: standardmäßig gleich ein Ticket für die Bestellung anlegen
+  const [createTicket, setCreateTicket] = useState(true);
+  const [ticketTitle, setTicketTitle] = useState('');
+  useEffect(() => {
+    if (!order) return;
+    setTicketTitle(`Bestellung ${[order.supplierName, order.orderNumber].filter(Boolean).join(' ')}`.trim());
+    setCreateTicket(true);
+  }, [order]);
 
   const customersQuery = useQuery({
     queryKey: ['customers', 'all'],
@@ -343,9 +351,23 @@ const AssignOrderDialog = ({ order, onClose, onDone }: { order: PurchaseOrder | 
   );
 
   const assignMutation = useMutation({
-    mutationFn: (target: AssignTarget) => purchaseOrdersApi.assign(order!.id, target),
-    onSuccess: () => {
-      showToast('Bestellung zugeordnet', 'success');
+    mutationFn: async (target: AssignTarget) => {
+      // Kunde + „Ticket anlegen“: erst Ticket (normale Anlage inkl. Nummer/SLA), dann daran hängen
+      if ('customerId' in target && createTicket) {
+        const lines = order!.lines.map(l => `- ${l.quantity !== null ? `${l.quantity}× ` : ''}${l.description}`).join('\n');
+        const description = [
+          `Bestellung${order!.orderNumber ? ` ${order!.orderNumber}` : ''}${order!.supplierName ? ` bei ${order!.supplierName}` : ''}`,
+          order!.reference ? `Referenz: ${order!.reference}` : '',
+          lines,
+        ].filter(Boolean).join('\n\n');
+        const t = await ticketsApi.create({ customerId: target.customerId, title: ticketTitle.trim() || 'Bestellung', description, category: 'Bestellung' });
+        const res = await purchaseOrdersApi.assign(order!.id, { ticketId: t.data.id });
+        return { ...res, ticketNumber: t.data.ticketNumber as string | undefined };
+      }
+      return { ...(await purchaseOrdersApi.assign(order!.id, target)), ticketNumber: undefined };
+    },
+    onSuccess: res => {
+      showToast(res.ticketNumber ? `Ticket ${res.ticketNumber} angelegt und Bestellung zugeordnet` : 'Bestellung zugeordnet', 'success');
       onDone();
       setPickerOpen(false);
       setCustomerId('');
@@ -360,7 +382,7 @@ const AssignOrderDialog = ({ order, onClose, onDone }: { order: PurchaseOrder | 
 
   const options = [
     { id: 'ticket' as const, icon: <TicketIcon size={16} />, title: 'Ticket', text: 'Empfohlen — Kunde kommt aus dem Ticket, der Verlauf zeigt den Lieferstand.' },
-    { id: 'customer' as const, icon: <Building2 size={16} />, title: 'Kunde ohne Ticket', text: 'Für Bestellungen, zu denen es (noch) kein Ticket gibt.' },
+    { id: 'customer' as const, icon: <Building2 size={16} />, title: 'Kunde – neues Ticket', text: 'Es gibt noch kein Ticket: Kunde wählen, das Ticket wird gleich mit angelegt.' },
     { id: 'internal' as const, icon: <Home size={16} />, title: 'Eigenbedarf', text: 'Für das eigene Unternehmen, wird nicht weiterberechnet.' },
   ];
 
@@ -409,13 +431,24 @@ const AssignOrderDialog = ({ order, onClose, onDone }: { order: PurchaseOrder | 
             ))}
           </div>
           {mode === 'customer' && (
-            <SearchableSelect
-              options={customerOptions}
-              value={customerId}
-              onChange={setCustomerId}
-              placeholder="Kunde wählen…"
-              emptyMessage="Kein Kunde gefunden"
-            />
+            <div className="space-y-2">
+              <SearchableSelect
+                options={customerOptions}
+                value={customerId}
+                onChange={setCustomerId}
+                placeholder="Kunde wählen…"
+                emptyMessage="Kein Kunde gefunden"
+              />
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-dark-500 cursor-pointer">
+                <input type="checkbox" checked={createTicket} onChange={e => setCreateTicket(e.target.checked)} data-testid="assign-create-ticket"
+                  className="rounded border-gray-300 dark:border-dark-border text-accent-primary focus:ring-accent-primary" />
+                Ticket für die Bestellung anlegen
+              </label>
+              {createTicket && (
+                <input value={ticketTitle} onChange={e => setTicketTitle(e.target.value)} aria-label="Ticket-Titel" maxLength={200}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-dark-200 border border-gray-200 dark:border-dark-border text-gray-900 dark:text-white text-sm focus:outline-none focus:bg-white dark:focus:bg-dark-100 focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/15" />
+              )}
+            </div>
           )}
         </div>
       </Modal>

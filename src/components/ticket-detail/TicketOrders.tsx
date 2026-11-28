@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShoppingCart, ChevronRight, Truck, Copy, PackagePlus, PackageCheck } from 'lucide-react';
 import { purchaseOrdersApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl, type PurchaseOrderStatus } from '../../services/api';
@@ -41,6 +41,11 @@ export const TicketOrders = ({ ticketId }: { ticketId: string }) => {
     staleTime: 60_000,
   });
   const openCount = orders.filter(o => o.status !== 'received').length;
+  // Gibt es Bestellungen, gleich aufgeklappt zeigen (einmalig — danach entscheidet der Nutzer)
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!autoOpened.current && orders.length > 0) { autoOpened.current = true; setExpanded(true); }
+  }, [orders.length]);
 
   const prepareMutation = useMutation({
     mutationFn: () => purchaseOrdersApi.prepare(ticketId),

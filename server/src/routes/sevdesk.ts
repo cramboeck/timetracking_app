@@ -2839,11 +2839,18 @@ router.get('/line-items/customer/:customerId/pending', authenticateToken, attach
         li.rebilling_status,
         li.match_confidence,
         li.match_method,
+        li.item_type,
+        li.serial_number,
+        COALESCE(li.resell_price, cpp.resell_price) AS resell_price,
         pi.email_subject AS invoice_subject,
-        pi.sender_name AS vendor_name,
+        COALESCE(pi.supplier_name, pi.sender_name) AS vendor_name,
         pi.received_at AS invoice_date
       FROM invoice_line_items li
       JOIN processed_invoices pi ON pi.id = li.processed_invoice_id
+      LEFT JOIN customer_product_prices cpp
+        ON cpp.organization_id = li.organization_id
+       AND cpp.customer_id = li.customer_id
+       AND cpp.product_key = COALESCE(NULLIF(li.product_sku, ''), LOWER(li.description))
       WHERE li.organization_id = $1
         AND li.customer_id = $2
         AND li.rebilling_status = 'pending'
@@ -2869,6 +2876,10 @@ router.get('/line-items/customer/:customerId/pending', authenticateToken, attach
           vendorName: row.vendor_name,
           invoiceSubject: row.invoice_subject,
           invoiceDate: row.invoice_date,
+          itemType: row.item_type ?? null,
+          serialNumber: row.serial_number ?? null,
+          // VK pro Einheit (Positionspreis bzw. Kunden-Preisgedächtnis) — sonst EK + Aufschlag
+          resellPrice: row.resell_price !== null && row.resell_price !== undefined ? parseFloat(row.resell_price) : null,
         })),
         totalAmount,
         count: items.length,

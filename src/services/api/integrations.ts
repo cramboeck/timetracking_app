@@ -1662,6 +1662,10 @@ export interface PendingLineItem {
   vendorName: string | null;
   invoiceSubject: string | null;
   invoiceDate: string | null;
+  itemType?: LineItemType | null;
+  serialNumber?: string | null;
+  /** VK pro Einheit, falls gepflegt — sonst wird EK + Aufschlag berechnet */
+  resellPrice?: number | null;
 }
 
 export type LineItemType = 'license' | 'subscription' | 'hardware' | 'service' | 'other';
