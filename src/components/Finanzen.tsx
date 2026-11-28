@@ -31,6 +31,7 @@ import { sevdeskApi, BillingSummaryItem, InvoiceExport, SevdeskInvoice, SevdeskQ
 import { QuoteEditor } from './QuoteEditor';
 import { InvoiceCreationDialog } from './InvoiceCreationDialog';
 import { BillingOverview, LicenseExpiryCard } from './BillingOverview';
+import { OrderBillingCheckCard } from './OrderBillingCheckCard';
 import { CustomerSevdeskLink } from './CustomerSevdeskLink';
 
 type DocumentType = 'invoices' | 'quotes' | 'vouchers';
@@ -789,6 +790,9 @@ const BillingTab = ({ onOpenCustomer }: { onOpenCustomer?: (customerId: string) 
           </div>
         </div>
       )}
+
+      {/* WE-3: gelieferte Bestellungen, die noch nicht weiterberechnet sind (nur bei Treffern) */}
+      <OrderBillingCheckCard onOpenCustomer={onOpenCustomer} />
 
       {/* Ablaufende Lizenzen (nur bei Treffern) */}
       <LicenseExpiryCard />

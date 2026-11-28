@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import {
   Inbox, Search, RefreshCw, Truck, PackageCheck, Ticket as TicketIcon, Building2,
-  Home, AlertTriangle, ChevronDown, ChevronUp, Link2, Ban, Mail,
+  Home, AlertTriangle, ChevronDown, ChevronUp, Link2, Ban, Mail, FileCheck,
 } from 'lucide-react';
 import {
   customersApi, purchaseOrdersApi, PURCHASE_ORDER_STATUS_LABELS, trackingUrl,
@@ -254,6 +254,9 @@ export const PurchaseOrdersPanel = () => {
                   <div className="flex sm:flex-col items-center sm:items-end gap-x-3 text-sm flex-shrink-0">
                     {amount && <span className="font-semibold text-gray-900 dark:text-white tabular-nums">{amount}</span>}
                     {date && <span className="text-xs text-gray-500 dark:text-dark-400">{date}</span>}
+                    {o.invoiceCount > 0 && (
+                      <span className="text-xs text-green-600 dark:text-green-400 inline-flex items-center gap-1" title="Lieferantenrechnung zugeordnet"><FileCheck size={11} /> Rechnung</span>
+                    )}
                     {o.messageCount > 0 && (
                       <span className="text-xs text-gray-400 inline-flex items-center gap-1" title="Mails zu diesem Vorgang"><Mail size={11} /> {o.messageCount}</span>
                     )}

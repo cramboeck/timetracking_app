@@ -17,6 +17,7 @@ import { getConfig } from './microsoft365ConfigService';
 import { uploadVoucherFile, createVoucherFromFile, getVouchers, downloadVoucherFile, findBestAccountingType, SevdeskVoucherDetail } from './sevdeskService';
 import * as fs from 'fs';
 import * as path from 'path';
+import { autoLinkInvoice } from './orderBillingService';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
 
@@ -1589,6 +1590,8 @@ class InvoiceProcessorService {
       if (extracted.lineItems && extracted.lineItems.length > 0) {
         await this.persistLineItems(processedInvoiceId, extracted.lineItems);
       }
+      // WE-3: Rechnung ↔ Bestellvorgang (Bestell-/Ticketnummer) → Positionen erben den Kunden
+      await autoLinkInvoice(processedInvoiceId);
     } catch (err: any) {
       logger.error(`Failed to persist extracted data for invoice ${processedInvoiceId}: ${err.message}`);
       // Non-fatal — search just won't find this invoice until next extraction.

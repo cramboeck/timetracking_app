@@ -33,6 +33,7 @@ import * as m031 from './031-sevdesk-price-mode';
 import * as m032 from './032-customer-billing-email';
 import * as m033 from './033-invoice-proposals';
 import * as m034 from './034-goods-receipt';
+import * as m035 from './035-order-invoice-billing';
 
 export interface Migration {
   name: string;
@@ -79,4 +80,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '032-customer-billing-email', run: m032.run },
   { name: '033-invoice-proposals', run: m033.run },
   { name: '034-goods-receipt', run: m034.run },
+  { name: '035-order-invoice-billing', run: m035.run },
 ];

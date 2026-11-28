@@ -57,6 +57,9 @@ export interface PurchaseOrder {
   source: string;
   lineCount: number;
   messageCount: number;
+  /** WE-3: verknüpfte Lieferantenrechnungen */
+  invoiceCount: number;
+  billingClearedAt: string | null;
   receivedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -74,6 +77,28 @@ export interface GoodsReceiptResult {
   created: Array<{ id: string; assetTag: string | null; name: string; serialNumber: string; lineId: string }>;
   existing: Array<{ id: string; assetTag: string | null; name: string; serialNumber: string }>;
   received: Array<{ lineId: string; quantity: number }>;
+}
+
+/** WE-3 Abrechnungs-Sicherung */
+export type BillingCheckState = 'no_invoice' | 'not_extracted' | 'pending';
+export interface BillingCheckItem {
+  orderId: string;
+  orderNumber: string | null;
+  supplierName: string | null;
+  customerId: string;
+  customerName: string | null;
+  customerColor: string | null;
+  customerLogoUrl: string | null;
+  ticketId: string | null;
+  ticketNumber: string | null;
+  receivedAt: string | null;
+  orderNet: number | null;
+  state: BillingCheckState;
+  invoiceCount: number;
+  invoiceNet: number | null;
+  pendingCount: number;
+  pendingAmount: number;
+  amountMismatch: boolean;
 }
 
 export type AssignTarget = { ticketId: string } | { customerId: string } | { internal: true };
@@ -94,6 +119,10 @@ export const purchaseOrdersApi = {
     authFetch('/purchase-orders/process', { method: 'POST', body: JSON.stringify({}) }),
   assign: async (id: string, target: AssignTarget): Promise<{ success: boolean; data: PurchaseOrder }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/assign`, { method: 'POST', body: JSON.stringify(target) }),
+  billingCheck: async (): Promise<{ success: boolean; data: BillingCheckItem[] }> =>
+    authFetch('/purchase-orders/billing-check'),
+  clearBilling: async (id: string, cleared: boolean, note?: string): Promise<{ success: boolean }> =>
+    authFetch(`/purchase-orders/${encodeURIComponent(id)}/billing-clear`, { method: 'POST', body: JSON.stringify(note ? { cleared, note } : { cleared }) }),
   /** WE-2 Wareneingang: Mengen buchen, Seriennummern → Geräte */
   receive: async (id: string, input: { lines: ReceiveLineInput[]; complete?: boolean }): Promise<{ success: boolean; data: GoodsReceiptResult }> =>
     authFetch(`/purchase-orders/${encodeURIComponent(id)}/receive`, { method: 'POST', body: JSON.stringify(input) }),

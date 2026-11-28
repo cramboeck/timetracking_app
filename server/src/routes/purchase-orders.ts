@@ -9,6 +9,7 @@ import {
   ORDER_SELECT, mapOrder, prepareOrderForTicket, processOrderMailbox, PurchaseOrderStatus,
 } from '../services/purchaseOrderService';
 import { receiveGoods, GoodsReceiptError } from '../services/goodsReceiptService';
+import { getBillingCheck } from '../services/orderBillingService';
 import { guessAssetType, lineNeedsSerials } from '../utils/assetTypeGuess';
 
 /**
@@ -84,6 +85,17 @@ router.get('/', requireOrgRole('admin'), async (req: AuthRequest, res: Response)
   } catch (error) {
     logger.error('List purchase orders error:', error);
     res.status(500).json({ success: false, error: 'Bestellungen konnten nicht geladen werden' });
+  }
+});
+
+// WE-3 Abrechnungs-Sicherung: gelieferte Kunden-Bestellungen, die noch nicht
+// weiterberechnet sind (Admin — Beträge). Vor allen /:id-Routen.
+router.get('/billing-check', requireOrgRole('admin'), async (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ success: true, data: await getBillingCheck(orgId(req)) });
+  } catch (error) {
+    logger.error('Purchase order billing check error:', error);
+    res.status(500).json({ success: false, error: 'Abrechnungs-Prüfung fehlgeschlagen' });
   }
 });
 
@@ -203,6 +215,29 @@ router.post('/:id/receive', requireOrgRole('member'), validate(receiveSchema), a
     if (error instanceof GoodsReceiptError) return res.status(error.status).json({ success: false, error: error.message });
     logger.error('Goods receipt error:', error);
     res.status(500).json({ success: false, error: 'Wareneingang konnte nicht gebucht werden' });
+  }
+});
+
+// „Ohne Weiterberechnung erledigt“ (z.B. Kunde zahlt direkt beim Lieferanten,
+// steckt im Pauschalpreis) — oder rückgängig machen.
+const clearSchema = z.object({ cleared: z.boolean(), note: z.string().trim().max(500).optional() });
+router.post('/:id/billing-clear', requireOrgRole('admin'), validate(clearSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const b = req.body as z.infer<typeof clearSchema>;
+    const r = await query(
+      `UPDATE purchase_orders SET
+          billing_cleared_at = CASE WHEN $3 THEN NOW() ELSE NULL END,
+          billing_cleared_by = CASE WHEN $3 THEN $4 ELSE NULL END,
+          billing_note = CASE WHEN $3 THEN $5 ELSE NULL END,
+          updated_at = NOW()
+        WHERE id = $1 AND organization_id = $2 RETURNING id`,
+      [req.params.id, orgId(req), b.cleared, req.userId, b.note ?? null]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Bestellung nicht gefunden' });
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Purchase order billing clear error:', error);
+    res.status(500).json({ success: false, error: 'Konnte nicht gespeichert werden' });
   }
 });
 

@@ -7,6 +7,7 @@ import { classifyLineItemType } from './lineItemClassifier';
 import { mailboxMonitorService, EmailMessage } from './mailboxMonitorService';
 import { getConfig } from './microsoft365ConfigService';
 import { invoiceProcessorService } from './invoiceProcessorService';
+import { linkInvoiceEmailToOrder } from './orderBillingService';
 import {
   classifyOrderMail, extractTicketNumbers, extractReference, isInternalReference,
   extractOrderNumber, extractTracking, supplierFromSender, OrderMailKind, TrackingInfo,
@@ -316,10 +317,12 @@ export async function processOrderMailbox(organizationId: string): Promise<{ suc
       if (kind === 'invoice') {
         // Rechnung → normaler Rechnungseingang (markiert die Mail selbst als gelesen)
         await invoiceProcessorService.processEmail(organizationId, email, 'order');
-        await ingestOrderMail(organizationId, {
+        const ingested = await ingestOrderMail(organizationId, {
           id: email.id, subject: email.subject, fromName: email.from?.name ?? null, fromEmail: email.from?.email ?? null,
           receivedAt: email.receivedDateTime ?? null, text,
         }, { useAi: false });
+        // WE-3: Rechnung gehört zu diesem Vorgang → Positionen erben den Kunden
+        if (ingested.orderId) await linkInvoiceEmailToOrder(organizationId, email.id, ingested.orderId);
       } else {
         await ingestOrderMail(organizationId, {
           id: email.id, subject: email.subject, fromName: email.from?.name ?? null, fromEmail: email.from?.email ?? null,
@@ -368,7 +371,9 @@ export const ORDER_SELECT = `
          c.name AS customer_name, c.color AS customer_color, c.logo_url AS customer_logo_url,
          t.ticket_number, t.title AS ticket_title,
          (SELECT COUNT(*)::int FROM purchase_order_lines l WHERE l.order_id = o.id) AS line_count,
-         (SELECT COUNT(*)::int FROM purchase_order_messages m WHERE m.order_id = o.id) AS message_count
+         (SELECT COUNT(*)::int FROM purchase_order_messages m WHERE m.order_id = o.id) AS message_count,
+         (SELECT COUNT(*)::int FROM processed_invoices pi WHERE pi.purchase_order_id = o.id) AS invoice_count,
+         o.billing_cleared_at
     FROM purchase_orders o
     LEFT JOIN customers c ON c.id = o.customer_id
     LEFT JOIN tickets t ON t.id = o.ticket_id`;
@@ -404,6 +409,8 @@ export function mapOrder(r: Record<string, unknown>) {
     source: r.source as string,
     lineCount: Number(r.line_count ?? 0),
     messageCount: Number(r.message_count ?? 0),
+    invoiceCount: Number(r.invoice_count ?? 0),
+    billingClearedAt: iso(r.billing_cleared_at),
     receivedAt: iso(r.received_at),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
