@@ -1,0 +1,13 @@
+# /etc/crowdsec/acquis.d/ramboflow.yaml
+# nginx läuft im Container und schreibt nach stdout → Docker-Log lesen
+source: docker
+container_name:
+  - ramboflow-nginx
+labels:
+  type: nginx
+---
+# Login-Protokoll des Backends (AUTH_FAILED / AUTH_SUCCESS)
+filenames:
+  - /var/lib/ramboflow/logs/security.log
+labels:
+  type: ramboflow-auth

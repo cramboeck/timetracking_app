@@ -1,0 +1,21 @@
+# /etc/crowdsec/parsers/s01-parse/ramboflow-auth.yaml
+# Zeilenformat (server/src/utils/securityLogLine.ts):
+#   [2026-11-28T12:00:00.000Z] AUTH_FAILED ip=1.2.3.4 user=portal:max@firma.de
+onsuccess: next_stage
+filter: "evt.Parsed.program == 'ramboflow-auth'"
+name: ramboflow/auth-logs
+description: "RamboFlow Login-Protokoll (App + Kundenportal)"
+grok:
+  pattern: '^\[%{TIMESTAMP_ISO8601:timestamp}\] %{WORD:auth_result} ip=%{IP:source_ip} user=%{NOTSPACE:username}$'
+  apply_on: message
+statics:
+  - meta: service
+    value: ramboflow
+  - meta: log_type
+    expression: "evt.Parsed.auth_result == 'AUTH_FAILED' ? 'ramboflow_failed_auth' : 'ramboflow_auth_ok'"
+  - meta: source_ip
+    expression: evt.Parsed.source_ip
+  - meta: username
+    expression: evt.Parsed.username
+  - target: evt.StrTime
+    expression: evt.Parsed.timestamp

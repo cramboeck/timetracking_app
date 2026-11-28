@@ -1,0 +1,13 @@
+# /etc/crowdsec/parsers/s02-enrich/ramboflow-whitelist.yaml
+# Diese Adressen werden NIE gesperrt.
+name: ramboflow/whitelist
+description: "Eigene Netze (NetBird) und der Server selbst"
+whitelist:
+  reason: "eigene Infrastruktur"
+  cidr:
+    - 100.64.0.0/10      # NetBird
+    - 127.0.0.0/8
+    - 172.16.0.0/12      # Docker-intern
+  ip:
+    - 91.98.95.60        # srv-docker01 (Health-Checks, curl vom Server)
+    - 178.104.129.84     # NetBird-Server

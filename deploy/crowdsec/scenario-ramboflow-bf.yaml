@@ -1,0 +1,20 @@
+# /etc/crowdsec/scenarios/ramboflow-bf.yaml
+# Mehr als 5 Fehl-Logins von einer IP (App oder Portal), Eimer leert sich
+# alle 3 Minuten um einen Versuch → entspricht grob „5 in 15 Minuten“.
+type: leaky
+name: ramboflow/login-bruteforce
+description: "Fehlgeschlagene Logins in RamboFlow (App + Kundenportal)"
+filter: "evt.Meta.log_type == 'ramboflow_failed_auth'"
+groupby: evt.Meta.source_ip
+capacity: 5
+leakspeed: 3m
+blackhole: 5m
+labels:
+  remediation: true
+  service: ramboflow
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "http:bruteforce"
+  label: "RamboFlow Login-Brute-Force"
