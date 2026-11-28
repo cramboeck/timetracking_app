@@ -17,7 +17,9 @@ const aiProviderSchema = z.enum(['openai', 'anthropic', 'gemini', 'mistral', 'lo
 // jede spätere Änderung (Modell, Temperatur, Prompts) mit 400 fehl.
 const aiConfigSchema = z.object({
   provider: aiProviderSchema,
-  apiKey: z.string().min(1).max(500).optional(),
+  // Maskierter Platzhalter („••••“) = Schlüssel unverändert lassen; sonst ohne Leerzeichen am Rand speichern
+  apiKey: z.string().max(500).optional()
+    .transform(v => (v === undefined || /[^\x20-\x7e]/.test(v) ? undefined : v.trim() || undefined)),
   model: z.string().trim().min(1).max(200),
   enabled: z.boolean().optional(),
   maxTokens: z.number().int().positive().max(200_000).optional(),
@@ -107,7 +109,8 @@ router.get('/config', authenticateToken, async (req: AuthRequest, res: Response)
 router.put('/config', authenticateToken, validate(aiConfigSchema), async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { provider, apiKey, model, enabled, maxTokens, temperature } = req.body;
+    const { provider, model, enabled, maxTokens, temperature } = req.body;
+    const { apiKey } = aiConfigSchema.parse(req.body); // bereinigt: Platzhalter → unverändert, ohne Leerzeichen
 
     const config = await aiService.saveAIConfig(userId, {
       provider,
@@ -135,7 +138,17 @@ router.put('/config', authenticateToken, validate(aiConfigSchema), async (req: A
 // POST /api/ai/test-connection - Test AI API connection
 router.post('/test-connection', authenticateToken, validate(testConnectionSchema), async (req: AuthRequest, res: Response) => {
   try {
-    const { provider, apiKey } = req.body;
+    const { provider } = req.body;
+    let { apiKey } = req.body as { apiKey?: string };
+    // Die Einstellungen zeigen einen gespeicherten Schlüssel nur maskiert („••••••••“).
+    // Kommt der Platzhalter zurück, mit dem GESPEICHERTEN Schlüssel testen — sonst
+    // landete „•“ im HTTP-Header („Cannot convert argument to a ByteString“).
+    if (apiKey && /[^\x20-\x7e]/.test(apiKey)) {
+      const stored = await aiService.getAIConfig(req.user!.id);
+      apiKey = stored?.apiKey || '';
+      if (!apiKey) return res.status(400).json({ success: false, error: 'Kein API-Key gespeichert – bitte Schlüssel eingeben' });
+    }
+    apiKey = (apiKey || '').trim();
 
     if (!provider || !apiKey) {
       return res.status(400).json({
