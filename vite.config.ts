@@ -57,7 +57,10 @@ export default defineConfig({
         // Add custom service worker code for push notifications
         importScripts: ['push-sw.js'],
         // Don't cache API responses, especially downloads
-        navigateFallbackDenylist: [/^\/api\//],
+        // /l/<token> = QR-Etikett: immer frisch vom Server, nie aus dem Precache —
+        // ein am alten Build klebender Service Worker kannte die Route nicht und
+        // landete auf der Startseite (28.11.)
+        navigateFallbackDenylist: [/^\/api\//, /^\/l\//],
         runtimeCaching: [
           {
             // Never cache download URLs
