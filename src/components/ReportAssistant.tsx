@@ -3,7 +3,7 @@ import { X, FileText, Download, Mail, CheckCircle2, Calendar, Clock, Euro, Save,
 import { Button, IconButton } from './ui';
 import CustomerAvatar from './ui/CustomerAvatar';
 import { TimeEntry, Project, Customer, Activity, CompanyInfo } from '../types';
-import jsPDF from 'jspdf';
+import { buildServiceReportPdf, type ServiceReportCompany } from '../utils/serviceReportPdf';
 import * as Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
@@ -465,571 +465,65 @@ export const ReportAssistant = ({
     });
   };
 
-  // Generate Modern PDF Report
-  const generateModernPDF = async (customerData: CustomerReportData, config: PdfConfig = pdfConfig) => {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-    const customerEntries = getCustomerEntries(customerData.customer.id);
-
-    // Use config for report title
-    const reportTitle = config.reportTitle || customerData.customer.reportTitle || 'Dienstleistungsnachweis';
-
-    // Page dimensions
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 20;
-    const contentWidth = pageWidth - (margin * 2);
-
-    // Colors - Modern palette
-    const dark = { r: 17, g: 24, b: 39 }; // Near black (#111827)
-    const gray = { r: 107, g: 114, b: 128 }; // Gray (#6b7280)
-    const lightGray = { r: 243, g: 244, b: 246 }; // Light gray (#f3f4f6)
-    const accent = { r: 249, g: 115, b: 22 }; // App accent (#f97316)
-
-    // Helper to add logo with proper scaling and compression
-    const addLogo = async (x: number, y: number, maxW: number, maxH: number) => {
-      if (companyInfo?.logo) {
-        try {
-          const dims = await getImageDimensions(companyInfo.logo);
-          const ratio = dims.width / dims.height;
-          let w: number, h: number;
-          if (ratio > maxW / maxH) {
-            w = maxW;
-            h = maxW / ratio;
-          } else {
-            h = maxH;
-            w = maxH * ratio;
-          }
-
-          // Only resize very large logos to reduce PDF size (keep format to preserve transparency)
-          let logoData = companyInfo.logo;
-          const maxDimension = 300;
-          if (dims.width > maxDimension || dims.height > maxDimension) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              const scale = Math.min(maxDimension / dims.width, maxDimension / dims.height);
-              canvas.width = Math.round(dims.width * scale);
-              canvas.height = Math.round(dims.height * scale);
-
-              const img = new Image();
-              await new Promise<void>((resolve) => {
-                img.onload = () => {
-                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                  resolve();
-                };
-                img.onerror = () => resolve();
-                img.src = companyInfo.logo!;
-              });
-
-              // Keep PNG format to preserve transparency
-              logoData = canvas.toDataURL('image/png');
-            }
-          }
-
-          doc.addImage(logoData, 'PNG', x, y, w, h);
-        } catch {
-          // Ignore logo errors
-        }
-      }
-    };
-
-    // ============ COVER PAGE ============
-    let y = 25;
-    let pageNum = 0;
-
-    if (config.includeCoverPage) {
-      pageNum = 1;
-      // Header area with logo
-      await addLogo(pageWidth - margin - 45, y, 45, 25);
-
-      // Company name (top left)
-      if (companyInfo?.name) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text(companyInfo.name, margin, y + 8);
-      }
-
-      // Main title section
-      y = 80;
-
-      // Accent bar
-      doc.setFillColor(accent.r, accent.g, accent.b);
-      doc.rect(margin, y, 4, 35, 'F');
-
-      // Report title
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(13);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(reportTitle, margin + 12, y + 8);
-
-      // Customer name
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(26);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(customerData.customer.name, margin + 12, y + 24);
-
-      // Date range
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(12);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(formatDateRange(dateRange.start, dateRange.end), margin + 12, y + 35);
-
-      // Summary cards
-      y = 150;
-      const cardWidth = (contentWidth - 16) / 3;
-      const cardHeight = 50;
-
-      // Card 1: Total Hours
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Gesamtzeit', margin + 10, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(formatHoursMinutes(customerData.totalHours), margin + 10, y + 35);
-
-      // Card 2: Entry Count
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Einträge', margin + cardWidth + 18, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(customerData.entryCount.toString(), margin + cardWidth + 18, y + 35);
-
-      // Card 3: Projects
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(customerData.projectCount.toString(), margin + (cardWidth + 8) * 2 + 10, y + 35);
-
-      // ============ DONUT CHART SECTION ============
-      y = 210;
-
-      // Calculate project breakdown
-      const projectBreakdown = new Map<string, { name: string; hours: number }>();
-      customerEntries.forEach(entry => {
-        const existing = projectBreakdown.get(entry.project.id);
-        if (existing) {
-          existing.hours += entry.hours;
-        } else {
-          projectBreakdown.set(entry.project.id, {
-            name: entry.project.name,
-            hours: entry.hours
-          });
-        }
+  // Logo für das PDF vorbereiten: sehr große Logos verkleinern (PDF-Größe),
+  // PNG behalten (Transparenz). Der PDF-Generator selbst ist DOM-frei.
+  const prepareLogo = async (): Promise<{ data: string; width: number; height: number } | null> => {
+    if (!companyInfo?.logo) return null;
+    try {
+      const dims = await getImageDimensions(companyInfo.logo);
+      const maxDimension = 300;
+      if (dims.width <= maxDimension && dims.height <= maxDimension) return { data: companyInfo.logo, ...dims };
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { data: companyInfo.logo, ...dims };
+      const scale = Math.min(maxDimension / dims.width, maxDimension / dims.height);
+      canvas.width = Math.round(dims.width * scale);
+      canvas.height = Math.round(dims.height * scale);
+      const img = new Image();
+      await new Promise<void>((resolve) => {
+        img.onload = () => { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); resolve(); };
+        img.onerror = () => resolve();
+        img.src = companyInfo.logo!;
       });
-
-      const projectData = Array.from(projectBreakdown.values()).sort((a, b) => b.hours - a.hours);
-
-      if (projectData.length > 0) {
-        // Donut chart configuration (compact size to avoid overlap)
-        const centerX = margin + 30;
-        const centerY = y + 25;
-        const outerRadius = 22;
-        const innerRadius = 10; // Creates donut hole
-
-        // Draw chart title
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text('Zeitverteilung nach Projekten', margin, y);
-
-        // Calculate total hours
-        const totalHours = projectData.reduce((sum, p) => sum + p.hours, 0);
-
-        // High-contrast color palette (always used for better visibility)
-        const chartColors = [
-          { r: 249, g: 115, b: 22 },   // Orange #f97316
-          { r: 59, g: 130, b: 246 },   // Blue #3b82f6
-          { r: 16, g: 185, b: 129 },   // Green #10b981
-          { r: 139, g: 92, b: 246 },   // Purple #8b5cf6
-          { r: 239, g: 68, b: 68 },    // Red #ef4444
-          { r: 245, g: 158, b: 11 },   // Amber #f59e0b
-          { r: 6, g: 182, b: 212 },    // Cyan #06b6d4
-          { r: 236, g: 72, b: 153 },   // Pink #ec4899
-          { r: 132, g: 204, b: 22 },   // Lime #84cc16
-          { r: 99, g: 102, b: 241 },   // Indigo #6366f1
-        ];
-
-        // Draw donut segments
-        let startAngle = -Math.PI / 2; // Start at 12 o'clock
-
-        projectData.forEach((project, index) => {
-          const percentage = project.hours / totalHours;
-          const sweepAngle = percentage * 2 * Math.PI;
-          const rgb = chartColors[index % chartColors.length];
-
-          doc.setFillColor(rgb.r, rgb.g, rgb.b);
-
-          // Draw segment with fewer steps for smaller file size (12-24 triangles per segment is enough)
-          const steps = Math.max(12, Math.min(24, Math.floor(sweepAngle * 8)));
-          const angleStep = sweepAngle / steps;
-
-          // Draw outer arc triangles
-          for (let i = 0; i < steps; i++) {
-            const a1 = startAngle + angleStep * i;
-            const a2 = startAngle + angleStep * (i + 1);
-            doc.triangle(
-              centerX, centerY,
-              centerX + outerRadius * Math.cos(a1), centerY + outerRadius * Math.sin(a1),
-              centerX + outerRadius * Math.cos(a2), centerY + outerRadius * Math.sin(a2),
-              'F'
-            );
-          }
-
-          startAngle += sweepAngle;
-        });
-
-        // Draw white center circle to create donut effect (fewer triangles)
-        doc.setFillColor(255, 255, 255);
-        const circleSteps = 24; // Reduced from 60
-        for (let i = 0; i < circleSteps; i++) {
-          const a1 = (i / circleSteps) * 2 * Math.PI;
-          const a2 = ((i + 1) / circleSteps) * 2 * Math.PI;
-          doc.triangle(
-            centerX, centerY,
-            centerX + innerRadius * Math.cos(a1), centerY + innerRadius * Math.sin(a1),
-            centerX + innerRadius * Math.cos(a2), centerY + innerRadius * Math.sin(a2),
-            'F'
-          );
-        }
-
-        // Draw legend on the right side
-        const legendX = margin + 65;
-        let legendY = y + 10;
-        const legendItemHeight = 12;
-        const maxLegendItems = 5;
-
-        const displayProjects = projectData.slice(0, maxLegendItems);
-        const hasMore = projectData.length > maxLegendItems;
-
-        displayProjects.forEach((project, index) => {
-          const percentage = (project.hours / totalHours * 100).toFixed(1);
-          const rgb = chartColors[index % chartColors.length];
-
-          // Color box (rounded)
-          doc.setFillColor(rgb.r, rgb.g, rgb.b);
-          doc.roundedRect(legendX, legendY - 3, 5, 5, 1, 1, 'F');
-
-          // Project name (longer text allowed)
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          doc.setTextColor(dark.r, dark.g, dark.b);
-          const maxNameLength = 35;
-          const nameText = project.name.length > maxNameLength
-            ? project.name.substring(0, maxNameLength - 3) + '...'
-            : project.name;
-          doc.text(nameText, legendX + 8, legendY);
-
-          // Hours and percentage
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`${formatHoursMinutes(project.hours)} (${percentage}%)`, legendX + 8, legendY + 5);
-
-          legendY += legendItemHeight;
-        });
-
-        if (hasMore) {
-          doc.setFont('helvetica', 'italic');
-          doc.setFontSize(8);
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`+ ${projectData.length - maxLegendItems} weitere Projekte`, legendX + 8, legendY);
-        }
-      }
-
-      // Signature section (positioned below donut chart)
-      y = 270;
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.5);
-
-      // Left signature
-      doc.line(margin, y, margin + 70, y);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Datum, Unterschrift Auftragnehmer', margin, y + 6);
-
-      // Right signature
-      doc.line(pageWidth / 2 + 15, y, pageWidth - margin, y);
-      doc.text('Datum, Unterschrift Auftraggeber', pageWidth / 2 + 15, y + 6);
-
-      // Footer
-      const now = new Date();
-      doc.setFontSize(8);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(
-        `Erstellt: ${now.toLocaleDateString('de-DE')} ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`,
-        margin,
-        pageHeight - 15
-      );
-      doc.text('Seite 1', pageWidth - margin, pageHeight - 15, { align: 'right' });
+      return { data: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+    } catch {
+      return null;
     }
+  };
 
-    // ============ DETAIL PAGES (Landscape) ============
-    if (config.includeTimeEntries && customerEntries.length > 0) {
-      // Add landscape page - correct jsPDF syntax
-      if (config.includeCoverPage) {
-        doc.addPage([297, 210], 'l');
-      } else {
-        // If no cover page, we're on the first page but need landscape
-        // jsPDF doesn't support changing orientation, so we add a new page anyway
-        doc.addPage([297, 210], 'l');
-        doc.deletePage(1); // Remove the empty portrait page
-      }
+  const reportCompany = (): ServiceReportCompany | null => companyInfo ? {
+    name: companyInfo.name, address: companyInfo.address, zipCode: companyInfo.zipCode, city: companyInfo.city,
+    email: companyInfo.email, phone: companyInfo.phone, website: companyInfo.website, taxId: companyInfo.taxId,
+  } : null;
 
-      const lWidth = 297;
-      const lHeight = 210;
-      pageNum = config.includeCoverPage ? 2 : 1;
-
-      // Calculate dynamic column positions based on selected columns
-      const cols = config.columns;
-      const colWidths: { [key: string]: number } = {
-        date: 28,
-        weekday: 15,
-        member: 38,
-        times: 30,
-        project: 55,
-        activity: 50,
-        description: 0, // Will take remaining space
-        hours: 25,
-      };
-
-      // Calculate total fixed width and determine description width
-      let fixedWidth = margin * 2; // margins
-      if (cols.date) fixedWidth += colWidths.date;
-      if (cols.weekday) fixedWidth += colWidths.weekday;
-      if (cols.member) fixedWidth += colWidths.member;
-      if (cols.times) fixedWidth += colWidths.times;
-      if (cols.project) fixedWidth += colWidths.project;
-      if (cols.activity) fixedWidth += colWidths.activity;
-      if (cols.hours) fixedWidth += colWidths.hours;
-      if (cols.description) colWidths.description = lWidth - fixedWidth - 5;
-
-      // Build column positions dynamically
-      let currentX = margin;
-      const colPositions: { [key: string]: number } = {};
-
-      if (cols.date) { colPositions.date = currentX; currentX += colWidths.date; }
-      if (cols.weekday) { colPositions.weekday = currentX; currentX += colWidths.weekday; }
-      if (cols.member) { colPositions.member = currentX; currentX += colWidths.member; }
-      if (cols.times) { colPositions.times = currentX; currentX += colWidths.times; }
-      if (cols.project) { colPositions.project = currentX; currentX += colWidths.project; }
-      if (cols.activity) { colPositions.activity = currentX; currentX += colWidths.activity; }
-      if (cols.description) { colPositions.description = currentX; currentX += colWidths.description; }
-      if (cols.hours) { colPositions.hours = lWidth - margin; } // Always right-aligned
-
-      // Header function for detail pages
-      const addDetailHeader = async () => {
-        // Top bar with accent color
-        doc.setFillColor(accent.r, accent.g, accent.b);
-        doc.rect(0, 0, lWidth, 3, 'F');
-
-        // Header content
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text(customerData.customer.name, margin, 18);
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(gray.r, gray.g, gray.b);
-        doc.text(formatDateRange(dateRange.start, dateRange.end), margin, 26);
-
-        // Logo in header
-        await addLogo(lWidth - margin - 35, 10, 35, 18);
-
-        return 38;
-      };
-
-      // Function to render table headers
-      const renderTableHeader = (yPos: number) => {
-        doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-        doc.rect(margin, yPos - 5, lWidth - margin * 2, 10, 'F');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-
-        if (cols.date) doc.text('Datum', colPositions.date, yPos);
-        if (cols.weekday) doc.text('Tag', colPositions.weekday, yPos);
-        if (cols.member) doc.text('Mitarbeiter', colPositions.member, yPos);
-        if (cols.times) doc.text('Uhrzeiten', colPositions.times, yPos);
-        if (cols.project) doc.text('Projekt', colPositions.project, yPos);
-        if (cols.activity) doc.text('Tätigkeit', colPositions.activity, yPos);
-        if (cols.description) doc.text('Beschreibung', colPositions.description, yPos);
-        if (cols.hours) doc.text('Zeit', colPositions.hours, yPos, { align: 'right' });
-      };
-
-      y = await addDetailHeader();
-      renderTableHeader(y);
-
-      y += 10;
-      let rowIndex = 0;
-      const lineHeight = 4; // Height per line of text
-      const minRowHeight = 7; // Minimum row height
-      const maxDescWidth = cols.description ? colWidths.description - 5 : 100;
-
-      for (const entry of customerEntries) {
-        // Calculate description lines first to know row height
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        const desc = entry.description || '-';
-        const descLines = cols.description ? doc.splitTextToSize(desc, maxDescWidth) : ['-'];
-        const rowHeight = Math.max(minRowHeight, descLines.length * lineHeight + 3);
-
-        // Check for page break with dynamic row height
-        if (y + rowHeight > lHeight - 25) {
-          // Add page footer
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
-
-          // New page
-          doc.addPage([297, 210], 'l');
-          pageNum++;
-          y = await addDetailHeader();
-          rowIndex = 0;
-
-          // Re-add table header
-          renderTableHeader(y);
-          y += 10;
-        }
-
-        // Alternating row background with dynamic height
-        if (rowIndex % 2 === 1) {
-          doc.setFillColor(250, 250, 250);
-          doc.rect(margin, y - 4, lWidth - margin * 2, rowHeight, 'F');
-        }
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-
-        // Date
-        if (cols.date) {
-          doc.text(entry.date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), colPositions.date, y);
-        }
-
-        // Weekday
-        if (cols.weekday) {
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(entry.weekday, colPositions.weekday, y);
-          doc.setTextColor(dark.r, dark.g, dark.b);
-        }
-
-        // Mitarbeiter (Team-Modus)
-        if (cols.member) {
-          const maxMemberWidth = colWidths.member - 5;
-          let memberName = entry.memberName || '-';
-          while (doc.getTextWidth(memberName) > maxMemberWidth && memberName.length > 3) {
-            memberName = memberName.substring(0, memberName.length - 4) + '...';
-          }
-          doc.text(memberName, colPositions.member, y);
-        }
-
-        // Times (start - end)
-        if (cols.times) {
-          const startTime = entry.date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-          const endDate = new Date(entry.date.getTime() + entry.hours * 3600000);
-          const endTime = endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`${startTime}-${endTime}`, colPositions.times, y);
-          doc.setTextColor(dark.r, dark.g, dark.b);
-        }
-
-        // Project (truncate if needed)
-        if (cols.project) {
-          const maxProjectWidth = colWidths.project - 5;
-          let projectName = entry.project.name;
-          while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
-            projectName = projectName.substring(0, projectName.length - 4) + '...';
-          }
-          doc.text(projectName, colPositions.project, y);
-        }
-
-        // Activity (truncate if needed)
-        if (cols.activity) {
-          const maxActivityWidth = colWidths.activity - 5;
-          let activityName = entry.activity?.name || '-';
-          while (doc.getTextWidth(activityName) > maxActivityWidth && activityName.length > 3) {
-            activityName = activityName.substring(0, activityName.length - 4) + '...';
-          }
-          doc.text(activityName, colPositions.activity, y);
-        }
-
-        // Description - multi-line
-        if (cols.description) {
-          doc.text(descLines, colPositions.description, y);
-        }
-
-        // Hours (vertically centered if multi-line)
-        if (cols.hours) {
-          doc.setFont('helvetica', 'bold');
-          const hoursY = descLines.length > 1 ? y + ((descLines.length - 1) * lineHeight) / 2 : y;
-          doc.text(formatHoursMinutes(entry.hours), colPositions.hours, hoursY, { align: 'right' });
-        }
-
-        y += rowHeight;
-        rowIndex++;
-      }
-
-      // Total row
-      if (cols.hours) {
-        y += 5;
-        doc.setDrawColor(dark.r, dark.g, dark.b);
-        doc.setLineWidth(0.5);
-        doc.line(colPositions.hours - 50, y, lWidth - margin, y);
-        y += 7;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('Gesamt:', colPositions.hours - 50, y);
-        doc.setFontSize(11);
-        doc.text(formatHoursMinutes(customerData.totalHours), colPositions.hours, y, { align: 'right' });
-
-        // Team-Modus: Stunden je Mitarbeiter unter der Gesamtsumme
-        if (cols.member) {
-          const perMember = new Map<string, number>();
-          for (const e of customerEntries) {
-            const name = e.memberName || '-';
-            perMember.set(name, (perMember.get(name) || 0) + e.hours);
-          }
-          if (perMember.size > 1) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(gray.r, gray.g, gray.b);
-            for (const [name, hrs] of [...perMember.entries()].sort((a, b) => b[1] - a[1])) {
-              y += 6;
-              if (y > lHeight - 25) break; // kein Seitenumbruch nur für Subtotals
-              doc.text(`davon ${name}:`, colPositions.hours - 50, y);
-              doc.text(formatHoursMinutes(hrs), colPositions.hours, y, { align: 'right' });
-            }
-            doc.setTextColor(dark.r, dark.g, dark.b);
-          }
-        }
-      }
-
-      // Final page footer
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(`Seite ${pageNum}`, lWidth - margin, lHeight - 10, { align: 'right' });
-    }
-
-    return doc;
+  // Generate PDF report (gemeinsamer Generator, siehe utils/serviceReportPdf)
+  const generateModernPDF = async (customerData: CustomerReportData, config: PdfConfig = pdfConfig) => {
+    const customerEntries = getCustomerEntries(customerData.customer.id);
+    return buildServiceReportPdf({
+      title: config.reportTitle || customerData.customer.reportTitle || 'Dienstleistungsnachweis',
+      customerName: customerData.customer.name,
+      periodStart: dateRange.start,
+      periodEnd: dateRange.end,
+      company: reportCompany(),
+      logo: await prepareLogo(),
+      entries: customerEntries.map(e => ({
+        date: e.date,
+        projectName: e.project.name,
+        activityName: e.activity?.name ?? null,
+        description: e.description,
+        hours: e.hours,
+        memberName: e.memberName ?? null,
+      })),
+      columns: {
+        member: config.columns.member,
+        times: config.columns.times,
+        project: config.columns.project,
+        activity: config.columns.activity,
+        description: config.columns.description,
+      },
+      includeSummary: config.includeCoverPage,
+      includeTable: config.includeTimeEntries,
+    });
   };
 
   // Open PDF config modal before export
@@ -1540,204 +1034,30 @@ export const ReportAssistant = ({
           : undefined,
         description: entry.description || '',
         hours: entry.hours || 0,
-        amount: 0
+        amount: 0,
+        memberName: entry.memberName || undefined,
       }));
 
-      // Generate PDF using saved entries
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-
-      // Page dimensions
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const margin = 20;
-      const contentWidth = pageWidth - (margin * 2);
-
-      // Colors
-      const dark = { r: 17, g: 24, b: 39 };
-      const gray = { r: 107, g: 114, b: 128 };
-      const lightGray = { r: 243, g: 244, b: 246 };
-      const accent = { r: 249, g: 115, b: 22 };
-
-      let y = 25;
-      let pageNum = 1;
-
-      // Header with company info
-      if (companyInfo?.name) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text(companyInfo.name, margin, y + 8);
-      }
-
-      // Main title section
-      y = 60;
-      doc.setFillColor(accent.r, accent.g, accent.b);
-      doc.rect(margin, y, 4, 35, 'F');
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(13);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(report.report_title || 'Dienstleistungsnachweis', margin + 12, y + 8);
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(22);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(report.customer_name, margin + 12, y + 24);
-
-      // Date range
+      // Gleiches Layout wie der Export (gemeinsamer Generator)
+      const doc = buildServiceReportPdf({
+        title: report.report_title || 'Dienstleistungsnachweis',
+        customerName: report.customer_name,
+        periodStart: new Date(report.start_date),
+        periodEnd: new Date(report.end_date),
+        company: reportCompany(),
+        logo: await prepareLogo(),
+        entries: reportEntries.map(e => ({
+          date: e.date,
+          projectName: e.project.name,
+          activityName: e.activity?.name ?? null,
+          description: e.description,
+          hours: e.hours,
+          memberName: e.memberName ?? null,
+        })),
+        columns: { member: reportEntries.some(e => e.memberName) },
+      });
       const startDate = new Date(report.start_date).toLocaleDateString('de-DE');
       const endDate = new Date(report.end_date).toLocaleDateString('de-DE');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(12);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(`${startDate} - ${endDate}`, margin + 12, y + 35);
-
-      // Summary cards
-      y = 120;
-      const cardWidth = (contentWidth - 16) / 3;
-      const cardHeight = 45;
-
-      // Card 1: Total Hours
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Gesamtzeit', margin + 10, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(formatHoursMinutes(report.total_hours), margin + 10, y + 32);
-
-      // Card 2: Entry Count
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin + cardWidth + 8, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Einträge', margin + cardWidth + 18, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(report.entry_count.toString(), margin + cardWidth + 18, y + 32);
-
-      // Card 3: Projects
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.roundedRect(margin + (cardWidth + 8) * 2, y, cardWidth, cardHeight, 4, 4, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text('Projekte', margin + (cardWidth + 8) * 2 + 10, y + 15);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text(report.project_count.toString(), margin + (cardWidth + 8) * 2 + 10, y + 32);
-
-      // Add new page for entries table
-      doc.addPage();
-      pageNum++;
-
-      // Table header
-      y = 25;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-      doc.rect(margin, y - 5, contentWidth, 12, 'F');
-
-      const colPositions = {
-        date: margin + 2,
-        weekday: margin + 25,
-        project: margin + 40,
-        description: margin + 85,
-        hours: margin + contentWidth - 2
-      };
-
-      doc.setTextColor(dark.r, dark.g, dark.b);
-      doc.text('Datum', colPositions.date, y + 2);
-      doc.text('Tag', colPositions.weekday, y + 2);
-      doc.text('Projekt', colPositions.project, y + 2);
-      doc.text('Beschreibung', colPositions.description, y + 2);
-      doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
-
-      y += 15;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-
-      // Table rows
-      let totalHours = 0;
-      for (const entry of reportEntries) {
-        const lineHeight = 5;
-        const maxDescWidth = colPositions.hours - colPositions.description - 15;
-        const descLines = doc.splitTextToSize(entry.description || '-', maxDescWidth);
-        const rowHeight = Math.max(lineHeight, descLines.length * lineHeight) + 3;
-
-        // Check page break
-        if (y + rowHeight > pageHeight - 25) {
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(gray.r, gray.g, gray.b);
-          doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-
-          doc.addPage();
-          pageNum++;
-          y = 25;
-
-          // Repeat header
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9);
-          doc.setFillColor(lightGray.r, lightGray.g, lightGray.b);
-          doc.rect(margin, y - 5, contentWidth, 12, 'F');
-          doc.setTextColor(dark.r, dark.g, dark.b);
-          doc.text('Datum', colPositions.date, y + 2);
-          doc.text('Tag', colPositions.weekday, y + 2);
-          doc.text('Projekt', colPositions.project, y + 2);
-          doc.text('Beschreibung', colPositions.description, y + 2);
-          doc.text('Stunden', colPositions.hours, y + 2, { align: 'right' });
-          y += 15;
-          doc.setFont('helvetica', 'normal');
-        }
-
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        doc.text(entry.date.toLocaleDateString('de-DE'), colPositions.date, y);
-
-        doc.setTextColor(gray.r, gray.g, gray.b);
-        doc.text(entry.weekday, colPositions.weekday, y);
-
-        doc.setTextColor(dark.r, dark.g, dark.b);
-        const maxProjectWidth = colPositions.description - colPositions.project - 5;
-        let projectName = entry.project.name;
-        while (doc.getTextWidth(projectName) > maxProjectWidth && projectName.length > 3) {
-          projectName = projectName.substring(0, projectName.length - 4) + '...';
-        }
-        doc.text(projectName, colPositions.project, y);
-
-        doc.text(descLines, colPositions.description, y);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text(formatHoursMinutes(entry.hours), colPositions.hours, y, { align: 'right' });
-        doc.setFont('helvetica', 'normal');
-
-        totalHours += entry.hours;
-        y += rowHeight;
-      }
-
-      // Total row
-      y += 5;
-      doc.setDrawColor(dark.r, dark.g, dark.b);
-      doc.setLineWidth(0.5);
-      doc.line(colPositions.hours - 50, y, pageWidth - margin, y);
-      y += 7;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Gesamt:', colPositions.hours - 50, y);
-      doc.setFontSize(11);
-      doc.text(formatHoursMinutes(totalHours), colPositions.hours, y, { align: 'right' });
-
-      // Footer
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(gray.r, gray.g, gray.b);
-      doc.text(`Seite ${pageNum}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
 
       // Generate filename and download
       const dateStr = `${startDate.replace(/\./g, '-')}_${endDate.replace(/\./g, '-')}`;
@@ -2771,8 +2091,8 @@ ${companyInfo?.phone || ''}`;
                         className="w-4 h-4 rounded border-gray-300 text-accent-primary focus:ring-accent-primary"
                       />
                       <div>
-                        <span className="text-gray-900 dark:text-white font-medium">Deckblatt</span>
-                        <p className="text-xs text-gray-500 dark:text-dark-400">Mit Zusammenfassung und Unterschriftsfeld</p>
+                        <span className="text-gray-900 dark:text-white font-medium">Kennzahlen</span>
+                        <p className="text-xs text-gray-500 dark:text-dark-400">Gesamtzeit, Arbeitstage, Verteilung nach Projekten</p>
                       </div>
                     </label>
                     <label className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-dark-200 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-300 transition-colors">
@@ -2796,16 +2116,16 @@ ${companyInfo?.phone || ''}`;
                     <label className="block text-sm font-medium text-gray-700 dark:text-dark-500 mb-2">
                       Spalten anzeigen
                     </label>
+                    <p className="text-xs text-gray-500 dark:text-dark-400 mb-2">
+                      Datum, Wochentag und Zeit sind immer dabei. Leere Spalten (z.B. Tätigkeit) und das Projekt bei nur einem Projekt werden automatisch ausgeblendet.
+                    </p>
                     <div className="grid grid-cols-2 gap-2">
                       {[
-                        { key: 'date', label: 'Datum' },
-                        { key: 'weekday', label: 'Wochentag' },
                         { key: 'member', label: 'Mitarbeiter' },
                         { key: 'times', label: 'Uhrzeiten' },
                         { key: 'project', label: 'Projekt' },
                         { key: 'activity', label: 'Tätigkeit' },
                         { key: 'description', label: 'Beschreibung' },
-                        { key: 'hours', label: 'Zeit' },
                       ].map(({ key, label }) => (
                         <label
                           key={key}
